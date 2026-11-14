@@ -635,5 +635,23 @@ describe("WebViewService", () => {
       expect(document.activeElement).not.toBe(person);
       expect(bridge.webViewCalls.filter(t => t.startsWith("hold") || t.startsWith("release"))).toEqual(["hold notes 1", "hold notes 1", "hold notes 1"]);
     });
+
+    it("takes the focus out of the view when the person's focus was on an element that is no HTML element, such as an SVG one", async () => {
+      const handle = await focusableAsync();
+      const drawing = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      drawing.setAttribute("tabindex", "0");
+      document.body.append(drawing);
+      drawing.focus();
+      const before = document.activeElement === drawing;
+
+      input(handle, true);
+      handle.guest.focus();
+      input(handle, false);
+      await vi.waitFor(() => expect(document.activeElement).toBe(document.body));
+      drawing.remove();
+
+      expect(before).toBe(true);
+      expect(bridge.webViewCalls).toEqual(["hold notes 1"]);
+    });
   });
 });
