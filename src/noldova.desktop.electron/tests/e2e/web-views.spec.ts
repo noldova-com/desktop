@@ -342,7 +342,7 @@ test.describe("web views", () => {
     }
   });
 
-  test("a module's web view behind another document of its group keeps its page, takes the runtime part's relayed calls, stays out of sight, and shows the same page with what was typed when its tab comes back", async ({ mainProcess }) => {
+  test("a module's web view behind another document of its group keeps its page, takes the runtime part's relayed calls, stays out of sight, and shows the same page with what was typed when its tab comes back, where it takes relayed calls again", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const pageKey = "document/pages.page/1";
     const noteKey = "document/notes.note/1";
@@ -375,6 +375,9 @@ test.describe("web views", () => {
       await expect.poll(() => readPlacesAsync(window)).toEqual([[true, expect.anything()], [false, expect.anything()]]);
       expect(await readFirstViewAsync(mainProcess, "[document.querySelector(\"input\").value, globalThis.keptPage === true]")).toEqual(["héllo again", true]);
       expect(await readViewIdsAsync(mainProcess)).toEqual(ids);
+      expect(await requestAsync(window, "pages.type", { view: 0, text: "!" })).toBeNull();
+      await expect(view(window, 0)).toHaveText(/^Type héllo again! \d+$/);
+      expect(await requestAsync(window, "pages.capture", 0)).toBeGreaterThan(0);
       expect(await eventsAsync(window)).not.toEqual(expect.arrayContaining([expect.stringMatching(/ (Closed|Unavailable)$/)]));
     }
     finally {
