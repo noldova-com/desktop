@@ -598,5 +598,42 @@ describe("WebViewService", () => {
 
       expect(bridge.webViewCalls).toEqual(["hold notes 1", "hold notes 1"]);
     });
+
+    it("leaves the person's focus where they moved it while the hold was pending, reports a hold that failed, and gives nothing back to a view closed by then", async () => {
+      const handle = await focusableAsync();
+      const other = document.body.appendChild(document.createElement("button"));
+      const failure = new Error("The hold failed.");
+      let answer = heldLater();
+      person.focus();
+
+      input(handle, true);
+      handle.guest.focus();
+      input(handle, false);
+      other.focus();
+      answer(true);
+      await vi.waitFor(() => expect(handle.isGivingFocusBack).toBe(false));
+      const afterMove = document.activeElement;
+      bridge.holdsFocus = () => Promise.reject(failure);
+      person.focus();
+      input(handle, true);
+      handle.guest.focus();
+      input(handle, false);
+      await vi.waitFor(() => expect(errors).toEqual([failure]));
+      const afterFailure = document.activeElement;
+      answer = heldLater();
+      person.focus();
+      input(handle, true);
+      handle.guest.focus();
+      input(handle, false);
+      handle.close();
+      answer(true);
+      await vi.waitFor(() => expect(handle.isGivingFocusBack).toBe(false));
+      other.remove();
+
+      expect(afterMove).toBe(other);
+      expect(afterFailure).toBe(handle.guest);
+      expect(document.activeElement).not.toBe(person);
+      expect(bridge.webViewCalls.filter(t => t.startsWith("hold") || t.startsWith("release"))).toEqual(["hold notes 1", "hold notes 1", "hold notes 1"]);
+    });
   });
 });

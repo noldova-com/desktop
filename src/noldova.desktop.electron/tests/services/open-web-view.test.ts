@@ -819,17 +819,29 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async answersThatItCantHoldThePagesFocusWhenThePageRefusesItOrHasCrashedAndTriesAgainNextTime(): Promise<void> {
+  public async answersThatItCantHoldThePagesFocusWhenThePageRefusesItOrHasCrashedForgetsARefusedReleaseAndTriesAgainNextTime(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
     harness.contents.debugger.replies.set(OpenWebViewTests.FOCUS_EMULATION, () => Promise.reject(new Error("Not supported.")));
 
     const refused = await harness.open.holdFocusAsync();
     harness.contents.debugger.replies.delete(OpenWebViewTests.FOCUS_EMULATION);
     const heldNext = await harness.open.holdFocusAsync();
+    const releasing = new Promise<void>(reached => {
+      harness.contents.debugger.replies.set(OpenWebViewTests.FOCUS_EMULATION, () => {
+        reached();
+        return Promise.reject(new Error("The page is gone."));
+      });
+    });
+    harness.open.releaseFocus();
+    await releasing;
+    harness.contents.debugger.replies.delete(OpenWebViewTests.FOCUS_EMULATION);
+    const heldAfterRelease = await harness.open.holdFocusAsync();
     harness.contents.emit("render-process-gone", {}, { reason: "crashed" });
     const afterCrash = await harness.open.holdFocusAsync();
 
-    Assert.areEqual("false,true,false", [refused, heldNext, afterCrash].join(","));
+    Assert.areEqual("false,true,true,false", [refused, heldNext, heldAfterRelease, afterCrash].join(","));
+    Assert.areEqual(JSON.stringify([{ enabled: true }, { enabled: true }, { enabled: false }, { enabled: true }]),
+      JSON.stringify(harness.contents.debugger.sent.filter(t => t[0] === OpenWebViewTests.FOCUS_EMULATION).map(t => t[1])));
   }
 
   private static describe(answer: WebViewAnswered): string {
