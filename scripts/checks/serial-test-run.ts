@@ -11,7 +11,7 @@ import path from "node:path";
 
 import "@noldova/context.core";
 import {
-  type DiscoveredTestClass, TestConsoleReporter, TestDiscovery, TestExecutor, TestOutcome, TestProject, TestRunResult, TestRunner, TestSelection
+  type DiscoveredTestClass, type ITestProgressListener, TestConsoleReporter, TestDiscovery, TestExecutor, TestOutcome, TestProject, TestRunResult, TestRunner, TestSelection
 } from "@noldova/context.testing";
 
 import { Resources } from "../resources.ts";
@@ -43,9 +43,9 @@ export class SerialTestRun {
     return value;
   }
 
-  public static parseTimeout(text: string | undefined): number {
+  public static parseTimeout(text: string | undefined, fallback: number): number {
     if (Object.isUndefined(text))
-      return Resources.serialTestDefaultTimeout;
+      return fallback;
     const value = Number(text);
     if (!Number.isInteger(value) || value <= 0 || String(value) !== text)
       throw new TestTimeoutSettingException(text);
@@ -99,7 +99,8 @@ export class SerialTestRun {
 
     try {
       const filters = SerialTestRun.parseFilters(this.environment[Resources.serialTestFiltersVariable]);
-      const executor = new TestExecutor(SerialTestRun.parseTimeout(this.environment[Resources.serialTestTimeoutVariable]));
+      const executor = new TestExecutor(SerialTestRun.parseTimeout(this.environment[Resources.serialTestTimeoutVariable], Resources.serialTestDefaultTimeout));
+      const packagingExecutor = new TestExecutor(SerialTestRun.parseTimeout(this.environment[Resources.serialTestPackagingTimeoutVariable], Resources.serialTestPackagingTimeout));
       const parts = TestProcessPart.parseAll(this.environment[Resources.serialTestPartsVariable]);
       const discovered = (await new TestDiscovery().discoverAsync(SerialTestRun.parseProjects(projectArguments))).filter(t => TestProcessPart.selects(parts, t.packageName, t.filePath));
       const files = (t: TestProcessPart): string[] => discovered.filter(u => u.packageName === t.name).map(u => u.filePath);
@@ -110,14 +111,18 @@ export class SerialTestRun {
       const selected = new TestRunner(new TestDiscovery(), executor).select(discovered, filters);
       const reporter = new TestConsoleReporter(t => process.stdout.write(t), process.stdout.isTTY === true, !Object.isUndefined(this.environment[Resources.serialTestSkipDetailsVariable]));
       reporter.start();
-      const completed = await executor.executeAsync(selected, {
+      const listener: ITestProgressListener = {
         onMethodStarted: t => interruption.start(t),
         onMethodCompleted: t => interruption.complete(t),
         onClassCompleted: t => {
           interruption.finishClass();
           reporter.onClassCompleted(t);
         }
-      }, new Set(), () => interruption.isInterrupted);
+      };
+      const isPackaging = (t: DiscoveredTestClass): boolean => t.categories.includes(Resources.serialTestPackagingCategory);
+      const completed = await executor.executeAsync(selected.filter(t => !isPackaging(t)), listener, new Set(), () => interruption.isInterrupted);
+      if (!interruption.isInterrupted)
+        completed.push(...await packagingExecutor.executeAsync(selected.filter(isPackaging), listener, new Set(), () => interruption.isInterrupted));
       const stopped = interruption.collectStopped();
       if (!Object.isNull(stopped))
         reporter.onClassCompleted(stopped);

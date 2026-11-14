@@ -49,13 +49,32 @@ const HANGING_LAST = [
   "TestClass(HangingLastTests);"
 ].join("\n");
 
+const HANGING_PACKAGING = [
+  "import \"@noldova/context.core\";",
+  "import { Category, TestClass, TestMethod } from \"@noldova/context.testing\";",
+  "export class PackagingTests {",
+  "  waitsForATimerThatNeverFires() {",
+  "    return new Promise(resolve => setTimeout(resolve, 600_000));",
+  "  }",
+  "}",
+  "export class OtherTests {",
+  "  passes() {",
+  "  }",
+  "}",
+  "TestMethod(PackagingTests.prototype.waitsForATimerThatNeverFires);",
+  "Category(\"Packaging\")(PackagingTests);",
+  "TestClass(PackagingTests);",
+  "TestMethod(OtherTests.prototype.passes);",
+  "TestClass(OtherTests);"
+].join("\n");
+
 interface ISerialTestRunOutcome {
   readonly code: unknown;
   readonly output: string;
   readonly errors: string;
 }
 
-const runAsync = async (source: string): Promise<ISerialTestRunOutcome> => {
+const runAsync = async (source: string, variables: Readonly<Record<string, string>> = {}): Promise<ISerialTestRunOutcome> => {
   await mkdir(path.join(ROOT, "_build"), { recursive: true });
   const folder = await mkdtemp(path.join(ROOT, "_build", "serial-test-run-"));
   const tests = path.join(folder, "tests");
@@ -68,7 +87,8 @@ const runAsync = async (source: string): Promise<ISerialTestRunOutcome> => {
       PATH: process.env["PATH"],
       [Resources.serialTestFiltersVariable]: "[]",
       [Resources.serialTestTimeoutVariable]: "200",
-      [Resources.serialTestTemporaryRootVariable]: temporary
+      [Resources.serialTestTemporaryRootVariable]: temporary,
+      ...variables
     };
     if (!Object.isUndefined(process.env["SystemRoot"]))
       environment["SystemRoot"] = process.env["SystemRoot"];
@@ -114,5 +134,14 @@ describe("SerialTestRun", () => {
     assert.match(output, /Passed:\s+1\b/u);
     assert.match(output, /Failed:\s+1\b/u);
     assert.match(errors, /The test Hanging\/hanging\.test\.js › HangingLastTests\.waitsForATimerThatNeverFires exceeded its time limit of 200 ms while waiting on [^;]*\bTimeout\b[^;]*;/u);
+  });
+
+  it("runs the Packaging category after the other tests, as its own suite under its own limit", async () => {
+    const { code, output, errors } = await runAsync(HANGING_PACKAGING, { [Resources.serialTestPackagingTimeoutVariable]: "300" });
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(output, /Passed:\s+1\b/u);
+    assert.match(output, /Failed:\s+1\b/u);
+    assert.match(errors, /The test Hanging\/hanging\.test\.js › PackagingTests\.waitsForATimerThatNeverFires exceeded its time limit of 300 ms while waiting on [^;]*\bTimeout\b[^;]*;/u);
   });
 });

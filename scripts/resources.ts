@@ -185,12 +185,15 @@ export class Resources {
   public static readonly testResultsFailureField: string = "failure";
   public static readonly packageTestCheckTitle: string = "Package tests and coverage";
   public static readonly serialTestDefaultTimeout: number = 30_000;
+  public static readonly serialTestPackagingTimeout: number = 300_000;
+  public static readonly serialTestPackagingCategory: string = "Packaging";
   public static readonly serialTestShutdownGrace: number = 1000;
   public static readonly serialTestStandardErrorDescriptor: number = 2;
   public static readonly serialTestRemovalRetries: number = 5;
   public static readonly serialTestMethodWithoutClass: string = "A test method completed before its class started.";
   public static readonly serialTestSkipDetailsVariable: string = "NOLDOVA_TEST_SKIP_TEST_DETAILS";
   public static readonly serialTestTimeoutVariable: string = "NOLDOVA_TEST_TIMEOUT_MILLISECONDS";
+  public static readonly serialTestPackagingTimeoutVariable: string = "NOLDOVA_TEST_PACKAGING_TIMEOUT_MILLISECONDS";
   public static readonly serialTestTemporaryRootVariable: string = "NOLDOVA_TEST_TEMPORARY_ROOT";
   public static readonly serialTestCoverageDirectoryVariable: string = "NOLDOVA_TEST_COVERAGE_DIRECTORY";
   public static readonly serialTestTemporaryVariables: readonly string[] = ["TMPDIR", "TEMP", "TMP"];
