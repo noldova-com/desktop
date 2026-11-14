@@ -713,6 +713,31 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async tellsItsWindowWhenACallToThePageStartsAndEndsAndHoldsAndReleasesThePagesFocusForThatWindowOnly(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const debuggee = WebViewHostTests.view(electron, 0).contents.debugger;
+    const trusted = MainProcessStartFixture.trustedEvent("linux", window.id);
+
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Input.dispatchKeyEvent", params: { type: "keyDown", key: "k", code: "KeyK", modifiers: 0 }, timeoutMilliseconds: 1000 });
+    const held = [
+      await electron.ipcMain.invoke("desktop:webViewFocusHold", trusted, "browser", "1"),
+      await electron.ipcMain.invoke("desktop:webViewFocusHold", trusted, "notes", "1"),
+      await electron.ipcMain.invoke("desktop:webViewFocusHold", MainProcessStartFixture.trustedEvent("linux", window.id + 1), "browser", "1")
+    ];
+    electron.ipcMain.send("desktop:webViewFocusRelease", trusted, "browser", "1");
+    electron.ipcMain.send("desktop:webViewFocusRelease", trusted, "browser", "1");
+
+    Assert.areEqual(JSON.stringify([{ module: "browser", view: "1", isStarting: true }, { module: "browser", view: "1", isStarting: false }]),
+      JSON.stringify(window.webContents.sent.filter(t => t[0] === "desktop:webViewInput").map(t => t[1])));
+    Assert.areEqual("true,false,false", held.join(","));
+    Assert.areEqual(JSON.stringify([{ enabled: true }, { enabled: false }]),
+      JSON.stringify(debuggee.sent.filter(t => t[0] === "Emulation.setFocusEmulationEnabled").map(t => t[1])));
+  }
+
+  @TestMethod
   @TestData("linux", true)
   @TestData("win32", true)
   @TestData("darwin", false)

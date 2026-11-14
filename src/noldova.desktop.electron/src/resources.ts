@@ -61,6 +61,9 @@ export class Resources {
   public static readonly appShortcutsChannel: string = "desktop:appShortcuts";
   public static readonly webViewEventChannel: string = "desktop:webViewEvent";
   public static readonly webViewShortcutChannel: string = "desktop:webViewShortcut";
+  public static readonly webViewInputChannel: string = "desktop:webViewInput";
+  public static readonly webViewFocusHoldChannel: string = "desktop:webViewFocusHold";
+  public static readonly webViewFocusReleaseChannel: string = "desktop:webViewFocusRelease";
   public static readonly webViewZoomChannel: string = "desktop:webViewZoom";
   public static readonly webViewFindChannel: string = "desktop:webViewFind";
   public static readonly webViewZoomMode: string = "isolated";
@@ -215,6 +218,10 @@ export class Resources {
   public static readonly metaModifier: number = 4;
   public static readonly shiftModifier: number = 8;
   public static readonly insertTextMethod: string = "Input.insertText";
+  public static readonly focusEmulationMethod: string = "Emulation.setFocusEmulationEnabled";
+  public static readonly enabledParameter: string = "enabled";
+  public static readonly focusBarrierWorld: number = 1999;
+  public static readonly focusBarrierScript: string = "0";
   public static readonly autoRepeatField: string = "autoRepeat";
   public static readonly keyDownType: string = "keyDown";
   public static readonly rawKeyDownType: string = "rawKeyDown";
@@ -261,6 +268,8 @@ export class Resources {
   public static readonly paneField: string = "pane";
   public static readonly profileKeyField: string = "profileKey";
   public static readonly viewField: string = "view";
+  public static readonly moduleField: string = "module";
+  public static readonly isStartingField: string = "isStarting";
   public static readonly partitionField: string = "partition";
   public static readonly isAttachedField: string = "isAttached";
   public static readonly timeoutField: string = "timeoutMilliseconds";
@@ -631,6 +640,9 @@ export class Resources {
     webViewClose: Resources.webViewCloseChannel,
     webViewEvent: Resources.webViewEventChannel,
     webViewFind: Resources.webViewFindChannel,
+    webViewFocusHold: Resources.webViewFocusHoldChannel,
+    webViewFocusRelease: Resources.webViewFocusReleaseChannel,
+    webViewInput: Resources.webViewInputChannel,
     webViewNavigate: Resources.webViewNavigateChannel,
     webViewOpen: Resources.webViewOpenChannel,
     webViewShortcut: Resources.webViewShortcutChannel,

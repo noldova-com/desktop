@@ -41,6 +41,7 @@ export class WebViewHost {
   private readonly platform: string;
   private readonly sendToWindow: (windowId: number, event: WebViewEvent) => void;
   private readonly pressShortcut: (windowId: number, stroke: IKeyStroke) => void;
+  private readonly sendInput: (windowId: number, input: JsonObject) => void;
   private readonly isConnected: () => boolean;
   private readonly deliver: (events: WebViewEvents) => void;
   private readonly log: (text: string) => void;
@@ -59,6 +60,7 @@ export class WebViewHost {
     platform: string,
     sendToWindow: (windowId: number, event: WebViewEvent) => void,
     pressShortcut: (windowId: number, stroke: IKeyStroke) => void,
+    sendInput: (windowId: number, input: JsonObject) => void,
     isConnected: () => boolean,
     deliver: (events: WebViewEvents) => void,
     log: (text: string) => void) {
@@ -68,6 +70,7 @@ export class WebViewHost {
     this.platform = platform;
     this.sendToWindow = sendToWindow;
     this.pressShortcut = pressShortcut;
+    this.sendInput = sendInput;
     this.isConnected = isConnected;
     this.deliver = deliver;
     this.log = log;
@@ -86,7 +89,8 @@ export class WebViewHost {
     const session = this.readSession(partition);
     this.nextId += 1;
     const open: OpenWebView = new OpenWebView(info, windowId, partition, session, this.check, declaration, t => this.report(open, t), t => this.isShortcut(windowId, t),
-      t => this.pressShortcut(windowId, t), this.platform, (t, signal) => this.engine.waitAsync(t, signal), () => this.engine.now(), () => this.lose(open));
+      t => this.pressShortcut(windowId, t), this.platform, (t, signal) => this.engine.waitAsync(t, signal), () => this.engine.now(), () => this.lose(open),
+      t => this.sendInput(windowId, { [Resources.moduleField]: info.module, [Resources.viewField]: info.id, [Resources.isStartingField]: t }));
     this.views.set(info.id, open);
     this.report(open, WebViewHost.createEvent(open, WebViewEventKind.Opened, { [Resources.paneField]: info.pane.toJson(), [Resources.profileKeyField]: profileKey }));
     return { [Resources.viewField]: info.toJson(), [Resources.partitionField]: partition };
@@ -147,6 +151,17 @@ export class WebViewHost {
       return false;
     this.end(open);
     return true;
+  }
+
+  public holdFocusAsync(windowId: number, module: unknown, view: unknown): Promise<boolean> {
+    const open = this.find(windowId, module, view);
+    return Object.isNull(open) ? Promise.resolve(false) : open.holdFocusAsync();
+  }
+
+  public releaseFocus(windowId: number, module: unknown, view: unknown): boolean {
+    const open = this.find(windowId, module, view);
+    open?.releaseFocus();
+    return !Object.isNull(open);
   }
 
   public setShortcuts(windowId: number, keys: unknown): boolean {

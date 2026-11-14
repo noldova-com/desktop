@@ -17,6 +17,7 @@ import { WebViewClosedException } from "../exceptions/web-view-closed.exception.
 import { WebViewNotOpenedException } from "../exceptions/web-view-not-opened.exception.js";
 import type { IWebViewFound } from "../interfaces/i-web-view-found.js";
 import type { IWebViewGuest } from "../interfaces/i-web-view-guest.js";
+import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewLayer } from "../interfaces/i-web-view-layer.js";
 import type { Layout } from "../models/layout/layout.js";
 import type { Tab } from "../models/layout/tab.js";
@@ -49,6 +50,7 @@ export class WebViewService {
     const destroyRef = inject(DestroyRef);
     destroyRef.onDestroy(this.bridge.onWebViewEvent(t => this.receive(t)));
     destroyRef.onDestroy(this.bridge.onWebViewShortcut(t => commands.dispatch(t)));
+    destroyRef.onDestroy(this.bridge.onWebViewInput(t => this.receiveInput(t)));
     effect(() => {
       const keys = commands.shortcuts().viewKeys;
       untracked(() => this.bridge.setWebViewShortcuts(keys));
@@ -77,6 +79,7 @@ export class WebViewService {
     const handle = new WebViewHandle(opened.view, tab, injector, this, this.createFrame(), this.createGuest(opened.partition));
     handle.frame.append(handle.guest);
     handle.guest.addEventListener(Resources.webViewAttachEvent, () => this.attach(handle));
+    handle.guest.addEventListener(Resources.focusInEvent, () => this.noteFocus(handle));
     this.handles.set(handle.id, handle);
     this.applyVisibility(handle);
     this.applyPointerEvents(handle);
@@ -186,6 +189,63 @@ export class WebViewService {
     }
     if (event.kind === WebViewEventKind.Closed)
       this.forget(handle);
+  }
+
+  private receiveInput(input: IWebViewInput): void {
+    const handle = this.handles.get(input.view);
+    if (Object.isUndefined(handle) || handle.moduleId !== input.module)
+      return;
+    if (input.isStarting) {
+      if (handle.agentInputs === 0 && !handle.isGivingFocusBack)
+        handle.keptFocus = this.readPersonFocus(handle);
+      handle.agentInputs += 1;
+      return;
+    }
+    if (handle.agentInputs === 0)
+      return;
+    handle.agentInputs -= 1;
+    if (handle.agentInputs > 0 || handle.isGivingFocusBack)
+      return;
+    const kept = handle.keptFocus;
+    if (Object.isNull(kept))
+      this.releaseFocus(handle);
+    else if (this.document.activeElement === handle.guest)
+      void this.giveFocusBackAsync(handle, kept).catch((error: unknown) => this.errors.handleError(error));
+  }
+
+  private readPersonFocus(handle: WebViewHandle): HTMLElement | null {
+    const active = this.document.activeElement;
+    if (active === handle.guest)
+      return null;
+    return active instanceof HTMLElement ? active : this.document.body;
+  }
+
+  private async giveFocusBackAsync(handle: WebViewHandle, kept: HTMLElement): Promise<void> {
+    handle.isGivingFocusBack = true;
+    try {
+      handle.isFocusHeld = await this.bridge.holdWebViewFocusAsync(handle.moduleId, handle.id) || handle.isFocusHeld;
+    }
+    finally {
+      handle.isGivingFocusBack = false;
+    }
+    if (handle.isClosed || this.document.activeElement !== handle.guest)
+      return;
+    if (kept !== this.document.body && kept.isConnected)
+      kept.focus({ preventScroll: true });
+    else
+      handle.guest.blur();
+  }
+
+  private noteFocus(handle: WebViewHandle): void {
+    if (handle.agentInputs === 0 && !handle.isGivingFocusBack)
+      this.releaseFocus(handle);
+  }
+
+  private releaseFocus(handle: WebViewHandle): void {
+    if (!handle.isFocusHeld || handle.isClosed)
+      return;
+    handle.isFocusHeld = false;
+    this.bridge.releaseWebViewFocus(handle.moduleId, handle.id);
   }
 
   private follow(layout: Layout, shownTabs: ReadonlySet<string>): void {

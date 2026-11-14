@@ -464,4 +464,138 @@ describe("WebViewService", () => {
     expect(closedMeanwhile).toBeInstanceOf(WebViewClosedException);
     expect(handle.frame.querySelectorAll(".nol-web-view-layer").length).toBe(0);
   });
+
+  describe("an agent's input", () => {
+    let person: HTMLButtonElement;
+
+    beforeEach(() => {
+      person = document.createElement("button");
+      document.body.append(person);
+    });
+
+    afterEach(() => person.remove());
+
+    async function focusableAsync(): Promise<WebViewHandle> {
+      const handle = await openAsync();
+      handle.mount(host);
+      handle.guest.tabIndex = -1;
+      bridge.webViewCalls.length = 0;
+      return handle;
+    }
+
+    function input(handle: WebViewHandle, isStarting: boolean, module: string = "notes"): void {
+      bridge.publishWebViewInput({ module, view: handle.id, isStarting });
+    }
+
+    function heldLater(): (isHeld: boolean) => void {
+      let answer: (isHeld: boolean) => void = () => undefined;
+      bridge.holdsFocus = () => new Promise<boolean>(resolve => {
+        answer = resolve;
+      });
+      return t => answer(t);
+    }
+
+    it("gives the person's focus back to the element that held it once an input that moved it into the view ends, holding the page's focus first", async () => {
+      const handle = await focusableAsync();
+      const answer = heldLater();
+      person.focus();
+
+      input(handle, true);
+      handle.guest.focus();
+      input(handle, false);
+      const whileHolding = [document.activeElement === handle.guest, [...bridge.webViewCalls]];
+      answer(true);
+      await vi.waitFor(() => expect(document.activeElement).toBe(person));
+
+      expect(whileHolding).toEqual([true, ["hold notes 1"]]);
+      expect(bridge.webViewCalls).toEqual(["hold notes 1"]);
+    });
+
+    it("releases the held focus once the person's own focus enters the view, and when the person's focus was in the view during an input", async () => {
+      const handle = await focusableAsync();
+      person.focus();
+      input(handle, true);
+      handle.guest.focus();
+      input(handle, false);
+      await vi.waitFor(() => expect(document.activeElement).toBe(person));
+
+      handle.guest.focus();
+      input(handle, true);
+      input(handle, false);
+      person.focus();
+      input(handle, true);
+      handle.guest.focus();
+      input(handle, false);
+      await vi.waitFor(() => expect(document.activeElement).toBe(person));
+      handle.guest.focus();
+      input(handle, true);
+      input(handle, false);
+
+      expect(document.activeElement).toBe(handle.guest);
+      expect(bridge.webViewCalls).toEqual(["hold notes 1", "release notes 1", "hold notes 1", "release notes 1"]);
+    });
+
+    it("gives the focus back once for overlapping inputs, and keeps the person's element for an input that starts while it is being given back", async () => {
+      const handle = await focusableAsync();
+      const answer = heldLater();
+      person.focus();
+
+      input(handle, true);
+      input(handle, true);
+      handle.guest.focus();
+      input(handle, false);
+      const afterFirst = [...bridge.webViewCalls];
+      input(handle, false);
+      input(handle, true);
+      answer(true);
+      await vi.waitFor(() => expect(document.activeElement).toBe(person));
+      bridge.holdsFocus = () => Promise.resolve(true);
+      handle.guest.focus();
+      input(handle, false);
+      await vi.waitFor(() => expect(document.activeElement).toBe(person));
+
+      expect(afterFirst).toEqual([]);
+      expect(bridge.webViewCalls).toEqual(["hold notes 1", "hold notes 1"]);
+    });
+
+    it("leaves the focus alone for another module's or an unknown view's input, an end without a start, and an input that moved no focus", async () => {
+      const handle = await focusableAsync();
+      person.focus();
+
+      input(handle, false);
+      input(handle, true, "browser");
+      bridge.publishWebViewInput({ module: "notes", view: "9", isStarting: true });
+      handle.guest.focus();
+      input(handle, false, "browser");
+      bridge.publishWebViewInput({ module: "notes", view: "9", isStarting: false });
+      const afterOthers = document.activeElement === handle.guest;
+      person.focus();
+      input(handle, true);
+      input(handle, false);
+
+      expect(afterOthers).toBe(true);
+      expect(document.activeElement).toBe(person);
+      expect(bridge.webViewCalls).toEqual([]);
+    });
+
+    it("takes the focus out of the view when the person had nothing focused or the element they had left the page, and gives it back when the hold is refused", async () => {
+      const handle = await focusableAsync();
+      bridge.holdsFocus = () => Promise.resolve(false);
+      person.blur();
+
+      input(handle, true);
+      handle.guest.focus();
+      input(handle, false);
+      await vi.waitFor(() => expect(document.activeElement).toBe(document.body));
+      person.focus();
+      input(handle, true);
+      person.remove();
+      handle.guest.focus();
+      input(handle, false);
+      await vi.waitFor(() => expect(document.activeElement).toBe(document.body));
+      handle.guest.focus();
+
+      expect(bridge.webViewCalls).toEqual(["hold notes 1", "hold notes 1"]);
+    });
+  });
 });

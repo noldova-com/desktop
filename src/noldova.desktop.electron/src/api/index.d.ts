@@ -3265,6 +3265,15 @@ export interface IWebViewContents {
   insertText(text: string): Promise<void>;
 
   /**
+   * Runs scripts in an isolated world of the page's main frame, which the page's own scripts can't reach.
+   *
+   * @param worldId The isolated world's id.
+   * @param scripts The scripts to run, in order.
+   * @returns A promise that settles with the last script's result once the page's renderer has run them.
+   */
+  executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown>;
+
+  /**
    * Listens for a frame about to navigate, which the listener may cancel.
    *
    * @param event The event's name.

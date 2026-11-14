@@ -53,6 +53,7 @@ class OpenWebViewHarness {
   public readonly events: WebViewEvent[] = [];
   public readonly presses: string[] = [];
   public readonly shortcuts: string[] = [];
+  public readonly inputs: boolean[] = [];
   public readonly lost: Promise<void>;
   public readonly open: OpenWebView;
   public time: number = 0;
@@ -69,7 +70,7 @@ class OpenWebViewHarness {
     });
     this.open = new OpenWebView(new WebViewInfo("1", "browser", WebViewPane.fromJson({ name: "browser.pane" }), "workspace-1"), 3, OpenWebViewHarness.PARTITION, this.session,
       new WebViewOriginCheck(), declaration, t => this.report(t), t => this.shortcuts.includes(t.key), t => this.press(t.key), platform,
-      (t, signal) => this.waits.waitAsync(t, signal), () => this.time, () => this.markLost());
+      (t, signal) => this.waits.waitAsync(t, signal), () => this.time, () => this.markLost(), t => this.inputs.push(t));
   }
 
   public get contents(): FakeWebView["contents"] {
@@ -111,6 +112,17 @@ export class OpenWebViewTests {
   });
   private static readonly TEXT: WebViewDeclaration = WebViewDeclaration.fromJson({ methods: [{ name: "Input.insertText", parameters: { text: { required: true } } }] });
   private static readonly SCREENSHOT: string = "Page.captureScreenshot";
+  private static readonly MOUSE: string = "Input.dispatchMouseEvent";
+  private static readonly FOCUS_EMULATION: string = "Emulation.setFocusEmulationEnabled";
+  private static readonly PAGE_CALLS: WebViewDeclaration = WebViewDeclaration.fromJson({
+    methods: [
+      { name: "Input.dispatchMouseEvent", parameters: { type: { required: true }, x: {}, y: {} } },
+      { name: "DOM.focus", parameters: { backendNodeId: {} } },
+      { name: "Emulation.setFocusEmulationEnabled", parameters: { enabled: { required: true } } },
+      { name: "Input.dispatchKeyEvent", parameters: { type: { required: true }, key: {}, code: {}, modifiers: {} } },
+      { name: "Input.insertText", parameters: { text: { required: true } } }
+    ]
+  });
 
   @TestMethod
   public async bindsItsPageWithoutLoadingItAndAttachesToTheProtocolWithItsDefaults(): Promise<void> {
@@ -681,6 +693,110 @@ export class OpenWebViewTests {
 
     Assert.areEqual(1, harness.contents.debugger.detaches);
     Assert.areEqual("load https://example.com/a", fresh.calls.join(","));
+  }
+
+  @TestMethod
+  public async tellsTheWindowACallToThePageStartsAndEndsOnlyOnceThePagesRendererHasAnsweredARoundTripAfterIt(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    let reply: (value: unknown) => void = () => undefined;
+    let roundTrip: (value: unknown) => void = () => undefined;
+    harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, () => new Promise(resolve => {
+      reply = resolve;
+    }));
+    const reached = new Promise<void>(started => {
+      harness.contents.onIsolated = () => {
+        started();
+        return new Promise(resolve => {
+          roundTrip = resolve;
+        });
+      };
+    });
+    let isAnswered = false;
+
+    const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 4, y: 5 }, 1000).finally(() => {
+      isAnswered = true;
+    });
+    const whileSending = [...harness.inputs];
+    reply({});
+    await reached;
+    const whileRoundTrip = [[...harness.inputs], [...harness.contents.isolated], isAnswered];
+    roundTrip(0);
+    const answer = await answering;
+
+    Assert.areEqual("[true]", JSON.stringify(whileSending));
+    Assert.areEqual(JSON.stringify([[true], ["1999 0"], false]), JSON.stringify(whileRoundTrip));
+    Assert.areEqual("1 {} none", OpenWebViewTests.describe(answer));
+    Assert.areEqual("[true,false]", JSON.stringify(harness.inputs));
+  }
+
+  @TestMethod
+  public async endsTheWindowsNoticeOfACallThatFailsTimesOutOrWhoseRoundTripFailsAndSendsNoneForKeysText(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    harness.contents.debugger.replies.set("DOM.focus", () => Promise.reject(new Error("No node with that id.")));
+    harness.contents.onIsolated = () => Promise.reject(new Error("The frame was removed."));
+
+    const failed = await harness.open.sendAsync(1, "DOM.focus", { backendNodeId: 9 }, 1000);
+    const roundTripFailed = await harness.open.sendAsync(2, OpenWebViewTests.MOUSE, { type: "mouseMoved", x: 1, y: 1 }, 1000);
+    harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, () => new Promise(() => undefined));
+    const timing = harness.open.sendAsync(3, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+    harness.waits.elapse(1000);
+    const timedOut = await timing;
+    const afterPageCalls = [...harness.inputs];
+    await harness.open.sendAsync(4, "Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: 0 }, 1000);
+    await harness.open.sendAsync(5, "Input.insertText", { text: "a" }, 1000);
+
+    Assert.areEqual("1 null Protocol|2 {} none|3 null TimedOut", [failed, roundTripFailed, timedOut].map(t => OpenWebViewTests.describe(t)).join("|"));
+    Assert.areEqual("[true,false,true,false,true,false]", JSON.stringify(afterPageCalls));
+    Assert.areEqual(JSON.stringify(afterPageCalls), JSON.stringify(harness.inputs));
+    Assert.areEqual(2, harness.contents.isolated.length);
+  }
+
+  @TestMethod
+  public async answersAModulesFocusEmulationWithoutSendingItSoItCantEndTheHostsHold(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    await harness.open.holdFocusAsync();
+
+    const answers = [
+      await harness.open.sendAsync(1, OpenWebViewTests.FOCUS_EMULATION, { enabled: false }, 1000),
+      await harness.open.sendAsync(2, OpenWebViewTests.FOCUS_EMULATION, { enabled: true }, 1000)
+    ];
+
+    Assert.areEqual("1 {} none|2 {} none", answers.map(t => OpenWebViewTests.describe(t)).join("|"));
+    Assert.areEqual(JSON.stringify([{ enabled: true }]), JSON.stringify(harness.contents.debugger.sent.filter(t => t[0] === OpenWebViewTests.FOCUS_EMULATION).map(t => t[1])));
+    Assert.areEqual("[]", JSON.stringify(harness.inputs));
+  }
+
+  @TestMethod
+  public async holdsThePagesFocusOnceReleasesItOnceAndHoldsItAgainForANewPage(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const emulations = (contents: typeof fresh): string => JSON.stringify(contents.debugger.sent.filter(t => t[0] === OpenWebViewTests.FOCUS_EMULATION).map(t => t[1]));
+
+    const held = [await harness.open.holdFocusAsync(), await harness.open.holdFocusAsync()];
+    harness.open.releaseFocus();
+    harness.open.releaseFocus();
+    await harness.open.holdFocusAsync();
+    await harness.open.bindAsync(fresh);
+    const heldOnFresh = await harness.open.holdFocusAsync();
+    harness.open.releaseFocus();
+
+    Assert.areEqual("true,true,true", [...held, heldOnFresh].join(","));
+    Assert.areEqual(JSON.stringify([{ enabled: true }, { enabled: false }, { enabled: true }]), emulations(harness.contents));
+    Assert.areEqual(JSON.stringify([{ enabled: true }, { enabled: false }]), emulations(fresh));
+  }
+
+  @TestMethod
+  public async answersThatItCantHoldThePagesFocusWhenThePageRefusesItOrHasCrashedAndTriesAgainNextTime(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    harness.contents.debugger.replies.set(OpenWebViewTests.FOCUS_EMULATION, () => Promise.reject(new Error("Not supported.")));
+
+    const refused = await harness.open.holdFocusAsync();
+    harness.contents.debugger.replies.delete(OpenWebViewTests.FOCUS_EMULATION);
+    const heldNext = await harness.open.holdFocusAsync();
+    harness.contents.emit("render-process-gone", {}, { reason: "crashed" });
+    const afterCrash = await harness.open.holdFocusAsync();
+
+    Assert.areEqual("false,true,false", [refused, heldNext, afterCrash].join(","));
   }
 
   private static describe(answer: WebViewAnswered): string {

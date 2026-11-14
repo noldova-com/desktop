@@ -23,7 +23,8 @@ export class PreloadTests {
       "readLayout", "writeLayout", "request", "onEvent", "readBuild", "copyText", "copyImage", "openLogFolder", "copyDetails", "openLink", "showInFolder", "openFile", "chooseFolder", "chooseFilePath", "saveFile", "chooseFiles", "grantFiles", "installCommand", "readUpdate", "onUpdate", "actOnUpdate",
       "keepAppearance", "readSpelling", "keepSpelling", "onFieldMenu", "replaceMisspelling", "addToDictionary", "edit", "setMenuBar", "onMenuCommand", "onNotificationOpened", "onQuitQuestion",
       "answerQuit", "readTrayAvailable", "onTrayAvailable", "readFullScreen", "onFullScreen", "readMaximized", "onMaximized", "actOnWindow", "openWebView", "attachWebView",
-      "navigateWebView", "actOnWebView", "zoomWebView", "findInWebView", "closeWebView", "setWebViewShortcuts", "setAppShortcuts", "onWebViewEvent", "onWebViewShortcut", "logModule", "logError"
+      "navigateWebView", "actOnWebView", "zoomWebView", "findInWebView", "closeWebView", "setWebViewShortcuts", "setAppShortcuts", "onWebViewEvent", "onWebViewShortcut", "onWebViewInput",
+      "holdWebViewFocus", "releaseWebViewFocus", "logModule", "logError"
     ].join(","), Object.keys(api).join(","));
     Assert.areEqual(process.platform, api["platform"]);
     Assert.areEqual(process.arch, api["processor"]);
@@ -80,6 +81,7 @@ export class PreloadTests {
     PreloadTests.invoke(api["closeWebView"], "browser", "1");
     PreloadTests.invoke(api["setWebViewShortcuts"], ["Mod+K"]);
     PreloadTests.invoke(api["setAppShortcuts"], "shortcuts");
+    PreloadTests.invoke(api["releaseWebViewFocus"], "browser", "1");
     PreloadTests.invoke(api["logModule"], "clock", "line");
     PreloadTests.invoke(api["logError"], null, "error");
 
@@ -92,6 +94,7 @@ export class PreloadTests {
       ["desktop:webViewClose", "browser", "1"],
       ["desktop:webViewShortcuts", ["Mod+K"]],
       ["desktop:appShortcuts", "shortcuts"],
+      ["desktop:webViewFocusRelease", "browser", "1"],
       ["desktop:moduleLog", "clock", "line"],
       ["desktop:windowError", null, "error"]
     ]), JSON.stringify(electron.sent.slice(1)));
@@ -154,7 +157,8 @@ export class PreloadTests {
       PreloadTests.invoke(api["navigateWebView"], "browser", "1", "https://example.com/"),
       PreloadTests.invoke(api["actOnWebView"], "browser", "1", "back"),
       PreloadTests.invoke(api["zoomWebView"], "browser", "1", "in"),
-      PreloadTests.invoke(api["findInWebView"], "browser", "1", "next")
+      PreloadTests.invoke(api["findInWebView"], "browser", "1", "next"),
+      PreloadTests.invoke(api["holdWebViewFocus"], "browser", "1")
     ]);
 
     Assert.areEqual(JSON.stringify([
@@ -194,7 +198,8 @@ export class PreloadTests {
       ["desktop:webViewNavigate", "browser", "1", "https://example.com/"],
       ["desktop:webViewAct", "browser", "1", "back"],
       ["desktop:webViewZoom", "browser", "1", "in"],
-      ["desktop:webViewFind", "browser", "1", "next"]
+      ["desktop:webViewFind", "browser", "1", "next"],
+      ["desktop:webViewFocusHold", "browser", "1"]
     ]), JSON.stringify(electron.invoked));
     Assert.areEqual(JSON.stringify(electron.invoked.map(t => t.length % 2 === 0)), JSON.stringify(replies));
   }
@@ -266,6 +271,7 @@ export class PreloadTests {
   @TestData("onMaximized", "desktop:maximized", 1)
   @TestData("onWebViewEvent", "desktop:webViewEvent", 1)
   @TestData("onWebViewShortcut", "desktop:webViewShortcut", 1)
+  @TestData("onWebViewInput", "desktop:webViewInput", 1)
   public passesEachEventToItsListenerUntilTheListenerIsRemoved(member: string, channel: string, valueCount: number): void {
     const electron = FakePreloadElectron.load();
     const heard: unknown[][] = [];

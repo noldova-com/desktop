@@ -27,6 +27,7 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   private readonly maximizedListeners: Set<(isMaximized: unknown) => void> = new Set();
   private readonly webViewListeners: Set<(event: unknown) => void> = new Set();
   private readonly webViewShortcutListeners: Set<(stroke: unknown) => void> = new Set();
+  private readonly webViewInputListeners: Set<(input: unknown) => void> = new Set();
   private webViewCount: number = 0;
 
   public platform: string;
@@ -93,6 +94,7 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   public readonly edits: string[] = [];
   public readonly windowActions: string[] = [];
   public readonly webViewCalls: string[] = [];
+  public holdsFocus: () => Promise<boolean> = () => Promise.resolve(true);
   public readonly webViewKeys: (readonly string[])[] = [];
   public readonly appShortcuts: JsonObject[] = [];
   public isWebViewOpened: boolean = true;
@@ -475,6 +477,25 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   public publishWebViewShortcut(stroke: unknown): void {
     for (const listener of this.webViewShortcutListeners)
       listener(stroke);
+  }
+
+  public onWebViewInput(listener: (input: unknown) => void): () => void {
+    this.webViewInputListeners.add(listener);
+    return () => this.webViewInputListeners.delete(listener);
+  }
+
+  public publishWebViewInput(input: unknown): void {
+    for (const listener of this.webViewInputListeners)
+      listener(input);
+  }
+
+  public holdWebViewFocus(moduleId: string, view: string): Promise<boolean> {
+    this.webViewCalls.push(`hold ${moduleId} ${view}`);
+    return this.holdsFocus();
+  }
+
+  public releaseWebViewFocus(moduleId: string, view: string): void {
+    this.webViewCalls.push(`release ${moduleId} ${view}`);
   }
 
   public logModule(moduleId: string, message: string): void {
