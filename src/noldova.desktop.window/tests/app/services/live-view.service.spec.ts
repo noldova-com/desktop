@@ -150,8 +150,9 @@ describe("LiveViewService", () => {
       application.tick();
     await application.whenStable();
 
-    expect([whileShown - before, application.viewCount - before]).toEqual([notes.length, 0]);
+    expect([whileShown - before, application.viewCount - before]).toEqual([notes.length, notes.length]);
     expect(TestPageComponent.reads).toBe(0);
+    expect(contents.every(t => t.element.isConnected)).toBe(true);
     expect(new Set(contents.map(textOf))).toEqual(new Set(["first"]));
   });
 

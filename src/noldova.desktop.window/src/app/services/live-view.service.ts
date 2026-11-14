@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ApplicationRef, DestroyRef, EnvironmentInjector, Injectable, type Signal, type WritableSignal, afterNextRender, createComponent, effect, inject, signal,
+import { ApplicationRef, ChangeDetectorRef, DestroyRef, EnvironmentInjector, Injectable, type Signal, type WritableSignal, afterNextRender, createComponent, effect, inject, signal,
   untracked } from "@angular/core";
 
 import "@noldova/context.core";
@@ -47,8 +47,8 @@ export class LiveViewService {
     view.ref.setInput(Resources.dockedInput, isDocked);
     if (view.slot === slot && !view.isConcealed)
       return view.ref.instance;
-    if (Object.isNull(view.slot) || view.isConcealed)
-      this.application.attachView(view.ref.hostView);
+    if (view.isConcealed)
+      LiveViewService.changesOf(view).reattach();
     if (view.slot === slot)
       view.reveal();
     else {
@@ -70,7 +70,7 @@ export class LiveViewService {
     view.conceal();
     this.mark(tab.key, false);
     view.ref.setInput(Resources.shownInput, false);
-    this.application.detachView(view.ref.hostView);
+    LiveViewService.changesOf(view).detach();
     if (!this.layout.layout().isOpen(tab))
       this.remove(view);
   }
@@ -90,7 +90,12 @@ export class LiveViewService {
   private create(tab: Tab): LiveView {
     const view = new LiveView(tab, createComponent(TabContentComponent, { environmentInjector: this.environment }));
     this.views.set(tab.key, view);
+    this.application.attachView(view.ref.hostView);
     return view;
+  }
+
+  private static changesOf(view: LiveView): ChangeDetectorRef {
+    return view.ref.injector.get(ChangeDetectorRef);
   }
 
   private mark(key: string, isShown: boolean): void {
