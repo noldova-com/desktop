@@ -11,7 +11,8 @@ import path from "node:path";
 
 import "@noldova/context.core";
 import {
-  type DiscoveredTestClass, type ITestProgressListener, TestConsoleReporter, TestDiscovery, TestExecutor, TestOutcome, TestProject, TestRunResult, TestRunner, TestSelection
+  type DiscoveredTestClass, type ITestProgressListener, type TestClassResult, TestConsoleReporter, TestDiscovery, TestExecutor, TestOutcome, TestProject, TestRunResult, TestRunner,
+  TestSelection, TestTimeRecord
 } from "@noldova/context.testing";
 
 import { Resources } from "../resources.ts";
@@ -85,6 +86,10 @@ export class SerialTestRun {
     };
   }
 
+  public static formatSlowest(suite: string, limit: number, results: readonly TestClassResult[]): string {
+    return Resources.formatSerialTestSlowest(suite, limit, TestTimeRecord.formatSlowest(TestTimeRecord.fromResult(new TestRunResult(results)), Resources.serialTestSlowestCount));
+  }
+
   public async runAsync(projectArguments: readonly string[]): Promise<void> {
     const summary = new TestRunSummary(this.environment[Resources.summaryVariable], this.environment[Resources.serialTestGroupVariable]);
     const coverage = this.environment[Resources.serialTestNodeCoverageVariable];
@@ -99,8 +104,10 @@ export class SerialTestRun {
 
     try {
       const filters = SerialTestRun.parseFilters(this.environment[Resources.serialTestFiltersVariable]);
-      const executor = new TestExecutor(SerialTestRun.parseTimeout(this.environment[Resources.serialTestTimeoutVariable], Resources.serialTestDefaultTimeout));
-      const packagingExecutor = new TestExecutor(SerialTestRun.parseTimeout(this.environment[Resources.serialTestPackagingTimeoutVariable], Resources.serialTestPackagingTimeout));
+      const timeout = SerialTestRun.parseTimeout(this.environment[Resources.serialTestTimeoutVariable], Resources.serialTestDefaultTimeout);
+      const packagingTimeout = SerialTestRun.parseTimeout(this.environment[Resources.serialTestPackagingTimeoutVariable], Resources.serialTestPackagingTimeout);
+      const executor = new TestExecutor(timeout);
+      const packagingExecutor = new TestExecutor(packagingTimeout);
       const parts = TestProcessPart.parseAll(this.environment[Resources.serialTestPartsVariable]);
       const discovered = (await new TestDiscovery().discoverAsync(SerialTestRun.parseProjects(projectArguments))).filter(t => TestProcessPart.selects(parts, t.packageName, t.filePath));
       const files = (t: TestProcessPart): string[] => discovered.filter(u => u.packageName === t.name).map(u => u.filePath);
@@ -120,9 +127,9 @@ export class SerialTestRun {
         }
       };
       const isPackaging = (t: DiscoveredTestClass): boolean => t.categories.includes(Resources.serialTestPackagingCategory);
-      const completed = await executor.executeAsync(selected.filter(t => !isPackaging(t)), listener, new Set(), () => interruption.isInterrupted);
-      if (!interruption.isInterrupted)
-        completed.push(...await packagingExecutor.executeAsync(selected.filter(isPackaging), listener, new Set(), () => interruption.isInterrupted));
+      const general = await executor.executeAsync(selected.filter(t => !isPackaging(t)), listener, new Set(), () => interruption.isInterrupted);
+      const packaging = interruption.isInterrupted ? [] : await packagingExecutor.executeAsync(selected.filter(isPackaging), listener, new Set(), () => interruption.isInterrupted);
+      const completed = [...general, ...packaging];
       const stopped = interruption.collectStopped();
       if (!Object.isNull(stopped))
         reporter.onClassCompleted(stopped);
@@ -131,6 +138,8 @@ export class SerialTestRun {
       const unreached = result.selection.selected - result.total;
 
       reporter.writeSummary(result, result.selection);
+      process.stdout.write(SerialTestRun.formatSlowest(Resources.serialTestGeneralSuite, timeout, general));
+      process.stdout.write(SerialTestRun.formatSlowest(Resources.serialTestPackagingCategory, packagingTimeout, packaging));
       summary.writeTests(result, unreached);
       const resultFile = this.environment[Resources.serialTestResultFileVariable];
       const ownsEmptySelection = Object.isUndefined(resultFile);

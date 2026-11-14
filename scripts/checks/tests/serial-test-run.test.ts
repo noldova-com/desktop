@@ -68,6 +68,24 @@ const HANGING_PACKAGING = [
   "TestClass(OtherTests);"
 ].join("\n");
 
+const PASSING_SUITES = [
+  "import \"@noldova/context.core\";",
+  "import { Category, TestClass, TestMethod } from \"@noldova/context.testing\";",
+  "export class PackagingTests {",
+  "  packages() {",
+  "  }",
+  "}",
+  "export class OtherTests {",
+  "  passes() {",
+  "  }",
+  "}",
+  "TestMethod(PackagingTests.prototype.packages);",
+  "Category(\"Packaging\")(PackagingTests);",
+  "TestClass(PackagingTests);",
+  "TestMethod(OtherTests.prototype.passes);",
+  "TestClass(OtherTests);"
+].join("\n");
+
 interface ISerialTestRunOutcome {
   readonly code: unknown;
   readonly output: string;
@@ -143,5 +161,14 @@ describe("SerialTestRun", () => {
     assert.match(output, /Passed:\s+1\b/u);
     assert.match(output, /Failed:\s+1\b/u);
     assert.match(errors, /The test Hanging\/hanging\.test\.js › PackagingTests\.waitsForATimerThatNeverFires exceeded its time limit of 300 ms while waiting on [^;]*\bTimeout\b[^;]*;/u);
+    assert.match(output, /General suite, limit 200 ms:\nSlowest tests:\n {2}\d+ ms {2}Hanging\/hanging\.test\.js — OtherTests\.passes\n/u);
+    assert.doesNotMatch(output, /Packaging suite/u);
+  });
+
+  it("prints each suite's slowest tests under its limit after the summary", async () => {
+    const { code, output, errors } = await runAsync(PASSING_SUITES, { [Resources.serialTestPackagingTimeoutVariable]: "300" });
+
+    assert.equal(code, 0, errors);
+    assert.match(output, /Passed:\s+2\b[\s\S]*General suite, limit 200 ms:\nSlowest tests:\n {2}\d+ ms {2}Hanging\/hanging\.test\.js — OtherTests\.passes\nPackaging suite, limit 300 ms:\nSlowest tests:\n {2}\d+ ms {2}Hanging\/hanging\.test\.js — PackagingTests\.packages\n/u);
   });
 });

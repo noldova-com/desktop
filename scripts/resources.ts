@@ -187,6 +187,8 @@ export class Resources {
   public static readonly serialTestDefaultTimeout: number = 30_000;
   public static readonly serialTestPackagingTimeout: number = 300_000;
   public static readonly serialTestPackagingCategory: string = "Packaging";
+  public static readonly serialTestGeneralSuite: string = "General";
+  public static readonly serialTestSlowestCount: number = 10;
   public static readonly serialTestShutdownGrace: number = 1000;
   public static readonly serialTestStandardErrorDescriptor: number = 2;
   public static readonly serialTestRemovalRetries: number = 5;
@@ -605,6 +607,10 @@ export class Resources {
   public static formatSerialTestInterrupted(identity: string, limit: number, waiting: readonly string[]): string {
     const resources = waiting.length === 0 ? "no open resource that Node names" : waiting.join(Resources.listSeparator);
     return `The test ${identity} exceeded its time limit of ${limit} ms while waiting on ${resources}; the run ended after reporting it, and the tests not yet started did not run.\n`;
+  }
+
+  public static formatSerialTestSlowest(suite: string, limit: number, lines: readonly string[]): string {
+    return lines.length === 0 ? String.empty : `${suite} suite, limit ${limit} ms:\n${lines.join(Resources.lineEnd)}\n`;
   }
 
   public static formatSerialTestLeftovers(leftovers: readonly string[]): string {
