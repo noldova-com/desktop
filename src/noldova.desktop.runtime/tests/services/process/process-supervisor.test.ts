@@ -510,7 +510,7 @@ export class NodePtyTerminalsTests {
     await ProcessSupervisorFixture.printedAsync(shell, output, ProgramFixture.READY);
     const groupHangup = Promise.withResolvers<void>();
     const shellHangup = Promise.withResolvers<void>();
-    using kill = new ProcessKillFixture((processId, signal) => {
+    using kill: ProcessKillFixture = new ProcessKillFixture((processId: number, signal: string | number): boolean => {
       const isSent = kill.real(processId, signal);
       if (signal === "SIGHUP" && processId === -shell.processId)
         groupHangup.resolve();
