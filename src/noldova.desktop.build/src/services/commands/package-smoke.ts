@@ -6,13 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, type FSWatcher, watch } from "node:fs";
 import { appendFile, copyFile, mkdir, open, readdir, readFile, readlink, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 import timers from "node:timers/promises";
 
 import "@noldova/context.core";
+import { ExceptionOptions } from "@noldova/context.exceptions";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { ProductIdentity } from "../../models/packages/product-identity.ts";
@@ -493,14 +494,43 @@ export class PackageSmoke {
   }
 
   private static async waitForLaunchAsync(logs: string, mainProcess: StartedProcess, mainLogs: readonly string[]): Promise<void> {
-    const started = Date.now();
-    while ((await readdir(logs)).some(t => Resources.smokeStartLogPattern.test(t))) {
-      if (mainProcess.hasExited)
+    const removed = Promise.withResolvers<boolean>();
+    const limit = new AbortController();
+    const fail = (error: unknown): void => removed.reject(new BuildException(Resources.formatSmokeLogsUnwatchable(logs), new ExceptionOptions(error)));
+    let watcher: FSWatcher | undefined;
+    try {
+      try {
+        watcher = watch(logs, () => void PackageSmoke.hasStartLogAsync(logs).then(t => {
+          if (!t)
+            removed.resolve(true);
+        }, removed.reject)).once(Resources.errorEvent, fail);
+      }
+      catch (error) {
+        fail(error);
+      }
+      const isRemoved = await Promise.race([removed.promise, PackageSmoke.waitForLaunchEndingAsync(logs, mainProcess, mainLogs, limit.signal)]);
+      if (!isRemoved)
         throw new BuildException(Resources.formatSmokeMainEndedBeforeLauncher(mainProcess.ending, await PackageSmoke.readTailAsync(mainLogs)));
-      if (Date.now() - started >= Resources.smokeStartLimit)
-        throw new BuildException(Resources.formatSmokeLauncherKeptStartLog(logs, await PackageSmoke.readTailAsync(mainLogs)));
-      await timers.setTimeout(Resources.smokePollInterval);
     }
+    finally {
+      limit.abort();
+      watcher?.close();
+    }
+  }
+
+  private static async waitForLaunchEndingAsync(logs: string, mainProcess: StartedProcess, mainLogs: readonly string[], signal: AbortSignal): Promise<boolean> {
+    if (!await PackageSmoke.hasStartLogAsync(logs))
+      return true;
+    return await Promise.race([
+      mainProcess.waitForExitAsync().then(async () => !await PackageSmoke.hasStartLogAsync(logs)),
+      timers.setTimeout(Resources.smokeStartLimit, undefined, { signal }).then(async () => {
+        throw new BuildException(Resources.formatSmokeLauncherKeptStartLog(logs, await PackageSmoke.readTailAsync(mainLogs)));
+      })
+    ]);
+  }
+
+  private static async hasStartLogAsync(logs: string): Promise<boolean> {
+    return (await readdir(logs)).some(t => Resources.smokeStartLogPattern.test(t));
   }
 
   private checkStarted(answer: string, version: string, data: string, moment: string): void {
