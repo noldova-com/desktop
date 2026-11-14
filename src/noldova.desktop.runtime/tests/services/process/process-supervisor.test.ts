@@ -6,9 +6,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { execFile } from "node:child_process";
 import { readFileSync, readlinkSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { mock } from "node:test";
+import { promisify } from "node:util";
 import * as pty from "node-pty";
 
 import "@noldova/context.core";
@@ -276,6 +279,9 @@ export class NodePtyTerminalsTests {
   private static readonly DEVICE_QUERY: string = "\u001b[c";
   private static readonly DEVICE_ANSWER: string = "\u001b[?1;2c";
   private static readonly SHELL: string = "/bin/bash";
+  private static readonly HUNG: string = "hung";
+  private static readonly TRAPPING: readonly string[] = ["--norc", "--noprofile", "-c", "trap 'trap - HUP; echo hung' HUP; echo ready; while :; do read -r -t 1 _; done"];
+  private static readonly STOPPED_STATE: string = "T";
   private static readonly JOB_PATTERN: RegExp = /job=(\d+)/u;
   private static readonly PROMPT_PATTERN: RegExp = /[$#] /u;
   private static readonly FLOODED: number = 65_536;
@@ -298,6 +304,11 @@ export class NodePtyTerminalsTests {
     catch (error) {
       return `its process ${processId} can't be described: ${String(error)}`;
     }
+  }
+
+  private static async readStateAsync(processId: number): Promise<string> {
+    const { stdout } = await promisify(execFile)("ps", ["-o", "stat=", "-p", String(processId)], { encoding: "utf8" });
+    return stdout.trim();
   }
 
   private static systemCallOf(processId: number): string {
@@ -454,20 +465,86 @@ export class NodePtyTerminalsTests {
   public async hangsUpAShellThatLostItsFirstHangupOnceMoreSoItEndsByTheHangupBeforeTheKill(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisorFixture.create(settings);
+    const grace = 3_000;
+    const early = grace / 3;
+    const processes = ProcessSupervisorFixture.createWith(settings, new ProcessSettings(grace, 500));
     const shell = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, new PseudoTerminalRequest(
-      pty, NodePtyTerminalsTests.SHELL, ["--norc", "--noprofile", "-c", "trap 'trap - HUP' HUP; echo ready; while :; do sleep 0.05; done"], folder.path, 80, 24,
-      NodePtyTerminalsTests.ENVIRONMENT));
+      pty, NodePtyTerminalsTests.SHELL, NodePtyTerminalsTests.TRAPPING, folder.path, 80, 24, NodePtyTerminalsTests.ENVIRONMENT));
     const output = NodePtyTerminalsTests.collect(shell);
-    const printed = (): string => `The shell printed: ${JSON.stringify(output())}; ${NodePtyTerminalsTests.describe(shell.processId)}`;
-    await ProcessSupervisorFixture.waitForAsync(() => output().includes(ProgramFixture.READY), printed, ProgramFixture.LAUNCH_MILLISECONDS);
+    const order: string[] = [];
+    void shell.exited.then(t => order.push(`exited by ${t.signal}`));
+    await ProcessSupervisorFixture.printedAsync(shell, output, ProgramFixture.READY);
 
-    const isClean = await shell.stopAsync();
-    const exit = await shell.exited;
+    mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    try {
+      const stopping = shell.stopAsync();
+      await ProcessSupervisorFixture.printedAsync(shell, output, NodePtyTerminalsTests.HUNG);
+      order.push("lost the first hangup");
+      mock.timers.tick(early);
+      await shell.exited;
+      mock.timers.tick(grace - early);
+      const isClean = await stopping;
 
-    Assert.isTrue(isClean, settings.diagnostics.text);
-    Assert.areEqual("SIGHUP", exit.signal);
-    Assert.isFalse(settings.diagnostics.text.includes("ended forcefully"), settings.diagnostics.text);
+      Assert.areEqual("lost the first hangup | exited by SIGHUP", order.join(" | "), output());
+      Assert.isTrue(isClean, settings.diagnostics.text);
+      Assert.isFalse(settings.diagnostics.text.includes("ended forcefully"), settings.diagnostics.text);
+    }
+    finally {
+      mock.timers.reset();
+    }
+  }
+
+  @TestMethod
+  @PlatformFixture.posixOnly()
+  public async killsAShellWhoseSecondHangupCameBeforeItRanItsTrapOnceTheGraceEnds(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync();
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const grace = 3_000;
+    const early = grace / 3;
+    const processes = ProcessSupervisorFixture.createWith(settings, new ProcessSettings(grace, 500));
+    const shell = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, new PseudoTerminalRequest(
+      pty, NodePtyTerminalsTests.SHELL, NodePtyTerminalsTests.TRAPPING, folder.path, 80, 24, NodePtyTerminalsTests.ENVIRONMENT));
+    const output = NodePtyTerminalsTests.collect(shell);
+    const order: string[] = [];
+    void shell.exited.then(t => order.push(`exited by ${t.signal}`));
+    await ProcessSupervisorFixture.printedAsync(shell, output, ProgramFixture.READY);
+    const groupHangup = Promise.withResolvers<void>();
+    const shellHangup = Promise.withResolvers<void>();
+    using kill: ProcessKillFixture = new ProcessKillFixture((processId: number, signal: string | number): boolean => {
+      const isSent = kill.real(processId, signal);
+      if (signal === "SIGHUP" && processId === -shell.processId)
+        groupHangup.resolve();
+      if (signal === "SIGHUP" && processId === shell.processId)
+        shellHangup.resolve();
+      return isSent;
+    });
+    process.kill(shell.processId, "SIGSTOP");
+    const isStopped = await WaitFixture.untilAsync(async () => (await NodePtyTerminalsTests.readStateAsync(shell.processId)).startsWith(NodePtyTerminalsTests.STOPPED_STATE),
+      ProgramFixture.LAUNCH_MILLISECONDS);
+    Assert.isTrue(isStopped, NodePtyTerminalsTests.describe(shell.processId));
+
+    mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    try {
+      const stopping = shell.stopAsync();
+      await groupHangup.promise;
+      mock.timers.tick(early);
+      await shellHangup.promise;
+      order.push("both hangups pending");
+      process.kill(shell.processId, "SIGCONT");
+      await ProcessSupervisorFixture.printedAsync(shell, output, NodePtyTerminalsTests.HUNG);
+      order.push("ran its trap once");
+      mock.timers.tick(grace - early);
+      const isClean = await stopping;
+      await shell.exited;
+
+      Assert.areEqual("both hangups pending | ran its trap once | exited by SIGKILL", order.join(" | "), output());
+      Assert.areEqual(1, output().split(NodePtyTerminalsTests.HUNG).length - 1, output());
+      Assert.isFalse(isClean, settings.diagnostics.text);
+      Assert.isTrue(settings.diagnostics.text.includes("did not end within the grace period"), settings.diagnostics.text);
+    }
+    finally {
+      mock.timers.reset();
+    }
   }
 
   @TestMethod

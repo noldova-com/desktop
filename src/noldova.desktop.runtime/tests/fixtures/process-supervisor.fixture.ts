@@ -98,6 +98,11 @@ export class ProcessSupervisorFixture {
     return ProcessSupervisorFixture.create(settings, "win32", { SystemRoot: ProcessSupervisorFixture.SYSTEM_ROOT }, posix, ProcessSupervisorFixture.WINDOWS, windows, processSettings);
   }
 
+  public static createWith(settings: SettingsFixture, processSettings: ProcessSettings): ProcessSupervisor {
+    return ProcessSupervisorFixture.create(settings, process.platform, process.env, PosixProcessApi.create(process.platform), ProcessClock.create(process.platform),
+      WindowsProcessApi.create(), processSettings);
+  }
+
   public static createSeeing(settings: SettingsFixture): ProcessSupervisor {
     return ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(300, 500, 20));
   }
