@@ -188,6 +188,7 @@ export class Resources {
   public static readonly serialTestShutdownGrace: number = 1000;
   public static readonly serialTestStandardErrorDescriptor: number = 2;
   public static readonly serialTestRemovalRetries: number = 5;
+  public static readonly serialTestMethodWithoutClass: string = "A test method completed before its class started.";
   public static readonly serialTestSkipDetailsVariable: string = "NOLDOVA_TEST_SKIP_TEST_DETAILS";
   public static readonly serialTestTimeoutVariable: string = "NOLDOVA_TEST_TIMEOUT_MILLISECONDS";
   public static readonly serialTestTemporaryRootVariable: string = "NOLDOVA_TEST_TEMPORARY_ROOT";
@@ -199,7 +200,6 @@ export class Resources {
   public static readonly serialTestTimeoutInvalid: string = "The timeout must be a positive integer of milliseconds.";
   public static readonly serialTestNoTestMatched: string = "No test matched the filters; a filter that selects nothing fails the run.\n";
   public static readonly serialTestPartsEmpty: string = "These parts of the test process hold no test file, so their folders and files no longer match the tests' and the split in scripts/checks/package-test-check.ts needs them renamed: ";
-  public static readonly serialTestInterrupted: string = "A test exceeded its time limit; the run ended after reporting it, and the tests not yet started did not run.\n";
   public static readonly testProcessPartWindowsSeparator: RegExp = /\\/g;
   public static readonly testProcessPartsInvalid: string = "The test process's parts must be a JSON array of package names, each with its paths and whether it leaves them out.";
   public static readonly testProcessPartExceptPrefix: string = "but ";
@@ -241,7 +241,7 @@ export class Resources {
   public static readonly testWaitQuotes: readonly string[] = ["\"", "'", "`"];
   public static readonly testWaitEscape: string = "\\";
   public static readonly testWaitCheckTitle: string = "Test waits";
-  public static readonly scriptTestArguments: readonly string[] = ["--test", "scripts/angular/tests/**/*.test.ts"];
+  public static readonly scriptTestArguments: readonly string[] = ["--test", "--test-timeout=10000", "scripts/angular/tests/**/*.test.ts", "scripts/checks/tests/**/*.test.ts"];
   public static readonly scriptTestCheckTitle: string = "Script tests";
   public static readonly typeCheckProjectArguments: readonly string[] = ["--project", "scripts/tsconfig.json"];
   public static readonly typeCheckTitle: string = "Script types";
@@ -597,6 +597,11 @@ export class Resources {
 
   public static formatPackageTestGroup(index: number, groups: readonly (readonly string[])[]): string {
     return `process ${index + 1} of ${groups.length}: ${groups[index]?.join(Resources.listSeparator) ?? ""}`;
+  }
+
+  public static formatSerialTestInterrupted(identity: string, limit: number, waiting: readonly string[]): string {
+    const resources = waiting.length === 0 ? "no open resource that Node names" : waiting.join(Resources.listSeparator);
+    return `The test ${identity} exceeded its time limit of ${limit} ms while waiting on ${resources}; the run ended after reporting it, and the tests not yet started did not run.\n`;
   }
 
   public static formatSerialTestLeftovers(leftovers: readonly string[]): string {

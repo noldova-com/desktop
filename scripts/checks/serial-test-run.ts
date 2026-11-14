@@ -11,12 +11,13 @@ import path from "node:path";
 
 import "@noldova/context.core";
 import {
-  type DiscoveredTestClass, TestConsoleReporter, TestDiscovery, TestExecutor, TestOutcome, TestProject, TestRunResult, TestRunner, TestSelection, TestTimeoutException
+  type DiscoveredTestClass, TestConsoleReporter, TestDiscovery, TestExecutor, TestOutcome, TestProject, TestRunResult, TestRunner, TestSelection
 } from "@noldova/context.testing";
 
 import { Resources } from "../resources.ts";
 import { EmptyTestPartsException } from "./empty-test-parts.exception.ts";
 import { TestFiltersException } from "./test-filters.exception.ts";
+import { TestInterruption } from "./test-interruption.ts";
 import { TestProcessPart } from "./test-process-part.ts";
 import { TestProjectsException } from "./test-projects.exception.ts";
 import { TestRunSummary } from "./test-run-summary.ts";
@@ -94,7 +95,7 @@ export class SerialTestRun {
     const temporary = mkdtempSync(path.join(this.environment[Resources.serialTestTemporaryRootVariable] ?? tmpdir(), Resources.serialTestTemporaryPrefix));
     for (const variable of Resources.serialTestTemporaryVariables)
       this.environment[variable] = temporary;
-    let isInterrupted = false;
+    const interruption = new TestInterruption();
 
     try {
       const filters = SerialTestRun.parseFilters(this.environment[Resources.serialTestFiltersVariable]);
@@ -109,13 +110,18 @@ export class SerialTestRun {
       const selected = new TestRunner(new TestDiscovery(), executor).select(discovered, filters);
       const reporter = new TestConsoleReporter(t => process.stdout.write(t), process.stdout.isTTY === true, !Object.isUndefined(this.environment[Resources.serialTestSkipDetailsVariable]));
       reporter.start();
-      const classResults = await executor.executeAsync(selected, {
-        onMethodCompleted: t => {
-          if (t.failure instanceof TestTimeoutException)
-            isInterrupted = true;
-        },
-        onClassCompleted: t => reporter.onClassCompleted(t)
-      }, new Set(), () => isInterrupted);
+      const completed = await executor.executeAsync(selected, {
+        onMethodStarted: t => interruption.start(t),
+        onMethodCompleted: t => interruption.complete(t),
+        onClassCompleted: t => {
+          interruption.finishClass();
+          reporter.onClassCompleted(t);
+        }
+      }, new Set(), () => interruption.isInterrupted);
+      const stopped = interruption.collectStopped();
+      if (!Object.isNull(stopped))
+        reporter.onClassCompleted(stopped);
+      const classResults = Object.isNull(stopped) ? completed : [...completed, stopped];
       const result = new TestRunResult(classResults, new TestSelection(filters, SerialTestRun.countMethods(discovered), SerialTestRun.countMethods(selected)));
       const unreached = result.selection.selected - result.total;
 
@@ -131,7 +137,7 @@ export class SerialTestRun {
         writeFileSync(resultFile, JSON.stringify(SerialTestRun.describe(result, unreached)));
       const resultsFile = this.environment[Resources.serialTestResultsFileVariable];
       if (!Object.isUndefined(resultsFile))
-        writeFileSync(resultsFile, JSON.stringify(SerialTestRun.describeResults(result, isInterrupted, unreached)));
+        writeFileSync(resultsFile, JSON.stringify(SerialTestRun.describeResults(result, interruption.isInterrupted, unreached)));
       process.exitCode = Math.min(result.failed + unreached + Number(ownsEmptySelection && result.total === 0), Resources.failedExitCode);
     }
     catch (error) {
@@ -142,9 +148,10 @@ export class SerialTestRun {
 
     const leftovers = readdirSync(temporary).sort();
     rmSync(temporary, { recursive: true, force: true, maxRetries: Resources.serialTestRemovalRetries });
-    if (isInterrupted) {
-      writeSync(Resources.serialTestStandardErrorDescriptor, Resources.serialTestInterrupted);
-      summary.writeFailure(Resources.serialTestInterrupted);
+    const message = interruption.message;
+    if (!Object.isNull(message)) {
+      writeSync(Resources.serialTestStandardErrorDescriptor, message);
+      summary.writeFailure(message);
       process.exit(Resources.failedExitCode);
     }
     if (leftovers.length > 0) {
