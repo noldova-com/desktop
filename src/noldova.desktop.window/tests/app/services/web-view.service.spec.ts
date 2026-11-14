@@ -503,6 +503,30 @@ describe("WebViewService", () => {
       expect(bridge.webViewCalls).toEqual([]);
     });
 
+    it("gives the person's focus back when the window loses its focus to a view an open input moved it into without a focusin, as a press does, and not for a view with no input open or a window blur elsewhere", async () => {
+      const handle = await focusableAsync();
+      const hideFocusIn = (event: Event): void => event.stopPropagation();
+      document.addEventListener("focusin", hideFocusIn, true);
+      person.focus();
+
+      window.dispatchEvent(new FocusEvent("blur"));
+      const withNoView = document.activeElement;
+      handle.guest.focus();
+      window.dispatchEvent(new FocusEvent("blur"));
+      const withNoInput = document.activeElement === handle.guest;
+      person.focus();
+      input(handle, WebViewInputKind.Start);
+      handle.guest.focus();
+      const beforeBlur = document.activeElement === handle.guest;
+      window.dispatchEvent(new FocusEvent("blur"));
+      const afterBlur = document.activeElement;
+      input(handle, WebViewInputKind.End);
+      document.removeEventListener("focusin", hideFocusIn, true);
+
+      expect([withNoView, withNoInput, beforeBlur, afterBlur]).toEqual([person, true, true, person]);
+      expect(bridge.webViewCalls).toEqual([]);
+    });
+
     it("releases the page's focus once the person's own focus enters the view, and at the end of an input during which the person's focus was in the view", async () => {
       const handle = await focusableAsync();
       person.focus();

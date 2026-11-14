@@ -140,13 +140,13 @@ The runtime part sends its views calls of the window's web engine's debugging pr
   The host tells the window when the call starts; once the engine answers, the host makes a round trip to the page's renderer, in a world the page's scripts can't reach, and only then tells the window the call has ended.
   A call that times out is answered as `TimedOut` at its deadline, but the window hears that it ended only once the call and the round trip settle, so a focus change that lands late still finds the call open.
 - A mouse press, `DOM.focus` or a script can focus one of the page's elements, which makes the view the window's focused element.
-  While a call is open, the window gives the focus back in the view's own `focusin`, at once, to the element that held the focus when the call started, or takes it out of the view when nothing held it.
+  While a call is open, the window gives the focus back at once to the element that held the focus when the call started, or takes it out of the view when nothing held it: in the view's own `focusin` for `DOM.focus` or a script, and in the window's `blur` for a press, which moves the window's focus to the view with no `focusin`.
   When the person's focus was in the view when the call started, or the person presses in the page while it runs, the window leaves the focus there and releases the emulation once the call ends.
   The window also releases the emulation when the person's own focus enters the view with no call open; the page then really has the focus, so it sees no `blur` then either.
   A new page starts with no emulation.
-- A stated limit: a key the person presses can reach the page in the one task of the window's renderer between the view taking the focus and its `focusin` giving it back.
+- A stated limit: a key the person presses can reach the page in the one task of the window's renderer between the view taking the focus and the `focusin` or `blur` that gives it back.
   The host doesn't hold back keys to replay them afterwards: a replayed key loses an input method's composition and a dead key's accent.
-- A stated limit: the window counts a call as open from its start notice to its end notice, which the host sends after the round trip to the page's renderer; a `focusin` that reached the window after the call's end notice would count as the person's, and the focus would stay in the view.
+- A stated limit: the window counts a call as open from its start notice to its end notice, which the host sends after the round trip to the page's renderer; a `focusin` or `blur` that reached the window after the call's end notice would count as the person's, and the focus would stay in the view.
 - The host owns focus emulation, so it refuses a module's own `Emulation.setFocusEmulationEnabled`, declared or not, as `NotAllowed` with a message naming that rule, and sends nothing, so a module can't end the host's hold.
   The runtime's `FakeWebViewRelay` refuses it the same way, whatever answer a test gives it.
 - The engine drops key input, the person's and the relay's alike, that a newly loaded page gets before it has drawn its first content, so a module that sends keys right after a navigation first waits for the page to show something, such as its first contentful paint.

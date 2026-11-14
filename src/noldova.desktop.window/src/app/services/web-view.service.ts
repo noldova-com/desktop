@@ -52,6 +52,9 @@ export class WebViewService {
     destroyRef.onDestroy(this.bridge.onWebViewEvent(t => this.receive(t)));
     destroyRef.onDestroy(this.bridge.onWebViewShortcut(t => commands.dispatch(t)));
     destroyRef.onDestroy(this.bridge.onWebViewInput(t => this.receiveInput(t)));
+    const noteBlur = (): void => this.noteWindowBlur();
+    globalThis.addEventListener(Resources.blurEvent, noteBlur);
+    destroyRef.onDestroy(() => globalThis.removeEventListener(Resources.blurEvent, noteBlur));
     effect(() => {
       const keys = commands.shortcuts().viewKeys;
       untracked(() => this.bridge.setWebViewShortcuts(keys));
@@ -225,10 +228,19 @@ export class WebViewService {
   }
 
   private noteFocus(handle: WebViewHandle): void {
-    if (handle.agentInputs === 0) {
+    if (handle.agentInputs === 0)
       this.releaseFocus(handle);
-      return;
-    }
+    else
+      this.giveFocusBack(handle);
+  }
+
+  private noteWindowBlur(): void {
+    const handle = [...this.handles.values()].find(t => t.guest === this.document.activeElement);
+    if (!Object.isUndefined(handle) && handle.agentInputs > 0)
+      this.giveFocusBack(handle);
+  }
+
+  private giveFocusBack(handle: WebViewHandle): void {
     const kept = handle.keptFocus;
     if (Object.isNull(kept))
       return;
