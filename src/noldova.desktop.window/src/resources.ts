@@ -659,7 +659,6 @@ export class Resources {
   public static readonly menuGlyph: string = "menu";
   public static readonly focusInEvent: string = "focusin";
   public static readonly focusOutEvent: string = "focusout";
-  public static readonly blurEvent: string = "blur";
   public static readonly pointerDownEvent: string = "pointerdown";
   public static readonly transientFocusSelector: string = ".cdk-overlay-container, [data-nol-chrome]";
   public static readonly textInputTypes: readonly string[] = ["text", "search", "url", "tel", "password", "email", "number"];
