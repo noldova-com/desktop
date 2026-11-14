@@ -96,4 +96,24 @@ export class StartedProcessTests {
       await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
     }
   }
+
+  @TestMethod
+  public async endsTheWaitForItsExitOnlyOnceTheProcessExits(): Promise<void> {
+    const folder = await mkdtemp(path.join(tmpdir(), "started-process-"));
+    try {
+      const started = await new ProcessRunner().startAsync(process.execPath, ["-e", "setInterval(() => undefined, 1000)"], folder, path.join(folder, "log.txt"));
+      const exit = started.waitForExitAsync();
+      const wasRunning = !started.hasExited;
+      started.signal("SIGKILL");
+
+      await exit;
+
+      Assert.isTrue(wasRunning);
+      Assert.isTrue(started.hasExited);
+      Assert.areEqual("SIGKILL", started.signalCode);
+    }
+    finally {
+      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
+    }
+  }
 }

@@ -45,6 +45,10 @@ export class StartedProcess {
     return Object.isNull(this.child.signalCode) ? Resources.formatProcessExited(this.child.exitCode) : Resources.formatProcessSignalled(this.child.signalCode);
   }
 
+  public waitForExitAsync(): Promise<void> {
+    return this.exited;
+  }
+
   public async waitAsync(timeout: number): Promise<boolean> {
     const deadline = Promise.withResolvers<void>();
     const timer = setTimeout(() => deadline.resolve(), timeout);
