@@ -478,6 +478,7 @@ describe("WebViewService", () => {
     async function focusableAsync(): Promise<WebViewHandle> {
       const handle = await openAsync();
       handle.mount(host);
+      handle.show();
       handle.guest.tabIndex = -1;
       bridge.webViewCalls.length = 0;
       return handle;

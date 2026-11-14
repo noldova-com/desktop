@@ -148,7 +148,7 @@ The runtime part sends its views calls of the window's web engine's debugging pr
 - The host owns focus emulation, so it refuses a module's own `Emulation.setFocusEmulationEnabled`, declared or not, as `NotAllowed` with a message naming that rule, and sends nothing, so a module can't end the host's hold.
   The runtime's `FakeWebViewRelay` refuses it the same way, whatever answer a test gives it.
 - The engine drops key input, the person's and the relay's alike, that a newly loaded page gets before it has drawn its first content, so a module that sends keys right after a navigation first waits for the page to show something, such as its first contentful paint.
-- A relay failure has one kind: `NotOwned`, `NotAllowed`, `ShortcutRefused`, `TimedOut`, `TooLarge`, `ViewClosed`, `Crashed`, `ProfileCleared`, `Unavailable`, or `Protocol` with the engine's code and message; the module maps it onto the shared failures in [TOOLS.md](TOOLS.md#failures).
+- A relay failure has one kind: `NotOwned`, `NotAllowed`, `ShortcutRefused`, `TimedOut`, `TooLarge`, `ViewClosed`, `Crashed`, `ProfileCleared`, `Unavailable`, or `Protocol` with the engine's code and message; a refusal may carry the host's message naming its rule, never a code; the module maps it onto the shared failures in [TOOLS.md](TOOLS.md#failures).
 - The runtime's calls reach the main process over its authenticated connection; while that connection is down, they fail as `Unavailable`.
 
 ### webViews.json
