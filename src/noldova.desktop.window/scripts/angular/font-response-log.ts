@@ -20,10 +20,12 @@ export class FontResponseLog {
   private static readonly FAILED_STATUS: number = 400;
 
   public readonly name: string = FontResponseLog.NAME;
-  public readonly configureServer: (server: IViteServer) => void = server => server.middlewares.use((request, response, next) => {
-    FontResponseLog.watch(server.config.logger, request, response);
-    next();
-  });
+  public readonly configureServer: (server: IViteServer) => void = server => {
+    server.middlewares.use((request, response, next) => {
+      FontResponseLog.watch(server.config.logger, request, response);
+      next();
+    });
+  };
 
   private static watch(logger: IViteLogger, request: IncomingMessage, response: ServerResponse): void {
     const url = request.url ?? String.empty;

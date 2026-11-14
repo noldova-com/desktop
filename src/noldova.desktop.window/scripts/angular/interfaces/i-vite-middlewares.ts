@@ -9,5 +9,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 export interface IViteMiddlewares {
-  use(handler: (request: IncomingMessage, response: ServerResponse, next: () => void) => void): void;
+  use(handler: (request: IncomingMessage, response: ServerResponse, next: () => void) => void): unknown;
 }

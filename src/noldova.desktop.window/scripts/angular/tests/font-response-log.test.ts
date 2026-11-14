@@ -50,6 +50,13 @@ describe("FontResponseLog", () => {
     }
   });
 
+  it("returns nothing from configureServer, so Vite runs no post hook though the server's use returns its app", () => {
+    const app = (): void => undefined;
+    const returned: unknown = new FontResponseLog().configureServer({ middlewares: { use: () => app }, config: { logger: { warn: () => undefined } } });
+
+    assert.equal(returned, undefined);
+  });
+
   it("logs a font request the server answers with a failure, and nothing for a font it serves or another file it fails", async () => {
     const warnings: string[] = [];
     let warned: () => void = () => undefined;
