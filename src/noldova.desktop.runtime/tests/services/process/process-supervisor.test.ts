@@ -9,6 +9,7 @@
 import { readFileSync, readlinkSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { mock } from "node:test";
 import * as pty from "node-pty";
 
 import "@noldova/context.core";
@@ -276,6 +277,7 @@ export class NodePtyTerminalsTests {
   private static readonly DEVICE_QUERY: string = "\u001b[c";
   private static readonly DEVICE_ANSWER: string = "\u001b[?1;2c";
   private static readonly SHELL: string = "/bin/bash";
+  private static readonly HUNG: string = "hung";
   private static readonly JOB_PATTERN: RegExp = /job=(\d+)/u;
   private static readonly PROMPT_PATTERN: RegExp = /[$#] /u;
   private static readonly FLOODED: number = 65_536;
@@ -454,20 +456,37 @@ export class NodePtyTerminalsTests {
   public async hangsUpAShellThatLostItsFirstHangupOnceMoreSoItEndsByTheHangupBeforeTheKill(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisorFixture.create(settings);
+    const grace = 3_000;
+    const early = grace / 3;
+    const processes = ProcessSupervisorFixture.createWith(settings, new ProcessSettings(grace, 500));
     const shell = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, new PseudoTerminalRequest(
-      pty, NodePtyTerminalsTests.SHELL, ["--norc", "--noprofile", "-c", "trap 'trap - HUP' HUP; echo ready; while :; do sleep 0.05; done"], folder.path, 80, 24,
+      pty, NodePtyTerminalsTests.SHELL, ["--norc", "--noprofile", "-c", "trap 'trap - HUP; echo hung' HUP; echo ready; while :; do read -r -t 1 _; done"], folder.path, 80, 24,
       NodePtyTerminalsTests.ENVIRONMENT));
     const output = NodePtyTerminalsTests.collect(shell);
-    const printed = (): string => `The shell printed: ${JSON.stringify(output())}; ${NodePtyTerminalsTests.describe(shell.processId)}`;
-    await ProcessSupervisorFixture.waitForAsync(() => output().includes(ProgramFixture.READY), printed, ProgramFixture.LAUNCH_MILLISECONDS);
+    const order: string[] = [];
+    void shell.exited.then(t => order.push(`exited by ${t.signal}`));
+    await ProcessSupervisorFixture.printedAsync(shell, output, ProgramFixture.READY);
 
-    const isClean = await shell.stopAsync();
-    const exit = await shell.exited;
+    mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+    try {
+      const stopping = shell.stopAsync().then(t => {
+        order.push("stopped");
+        return t;
+      });
+      await ProcessSupervisorFixture.printedAsync(shell, output, NodePtyTerminalsTests.HUNG);
+      order.push("lost the first hangup");
+      mock.timers.tick(early);
+      await shell.exited;
+      mock.timers.tick(grace - early);
+      const isClean = await stopping;
 
-    Assert.isTrue(isClean, settings.diagnostics.text);
-    Assert.areEqual("SIGHUP", exit.signal);
-    Assert.isFalse(settings.diagnostics.text.includes("ended forcefully"), settings.diagnostics.text);
+      Assert.isTrue(isClean, settings.diagnostics.text);
+      Assert.areEqual(["lost the first hangup", "exited by SIGHUP", "stopped"], order, output());
+      Assert.isFalse(settings.diagnostics.text.includes("ended forcefully"), settings.diagnostics.text);
+    }
+    finally {
+      mock.timers.reset();
+    }
   }
 
   @TestMethod
