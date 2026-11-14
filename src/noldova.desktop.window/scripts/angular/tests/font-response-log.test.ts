@@ -19,9 +19,9 @@ type Handler = (request: IncomingMessage, response: ServerResponse, next: () => 
 
 const servers: Server[] = [];
 
-const startAsync = async (answer: (request: IncomingMessage, response: ServerResponse) => void, warnings: string[], onWarning: () => void): Promise<number> => {
+const startAsync = async (answer: (request: IncomingMessage, response: ServerResponse) => void, warnings: string[], onWarning: () => void, log: FontResponseLog = new FontResponseLog()): Promise<number> => {
   let middleware: Handler = (_request, _response, next) => next();
-  new FontResponseLog().configureServer({
+  log.configureServer({
     middlewares: { use: handler => { middleware = handler; } },
     config: { logger: { warn: message => { warnings.push(message); onWarning(); } } }
   });
@@ -55,6 +55,23 @@ describe("FontResponseLog", () => {
     const returned: unknown = new FontResponseLog().configureServer({ middlewares: { use: () => app }, config: { logger: { warn: () => undefined } } });
 
     assert.equal(returned, undefined);
+  });
+
+  it("reports at the run's close how many font requests it watched, 0 before any, counting fonts only", async () => {
+    const log = new FontResponseLog();
+    const lines: string[] = [];
+    let close: () => void = () => undefined;
+    log.configureVitest({ vitest: { logger: { log: line => lines.push(line) }, onClose: listener => { close = listener; } } });
+    const before = log.summary;
+    const port = await startAsync((_incoming, response) => response.writeHead(200).end("x"), [], () => undefined, log);
+
+    await getAsync(port, "/fonts/inter.woff2");
+    await getAsync(port, "/fonts/inter.otf?v=2");
+    await getAsync(port, "/setup.ts");
+    close();
+
+    assert.equal(before, "The font log watched 0 font requests to the test server; 0 means it is not attached to the server that serves the fonts.");
+    assert.deepEqual(lines, ["The font log watched 2 font requests to the test server; 0 means it is not attached to the server that serves the fonts."]);
   });
 
   it("logs a font request the server answers with a failure, and nothing for a font it serves or another file it fails", async () => {
