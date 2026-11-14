@@ -481,7 +481,7 @@ export class NodePtyTerminalsTests {
       const isClean = await stopping;
 
       Assert.isTrue(isClean, settings.diagnostics.text);
-      Assert.areEqual(["lost the first hangup", "exited by SIGHUP", "stopped"], order, output());
+      Assert.areEqual("lost the first hangup | exited by SIGHUP | stopped", order.join(" | "), output());
       Assert.isFalse(settings.diagnostics.text.includes("ended forcefully"), settings.diagnostics.text);
     }
     finally {
