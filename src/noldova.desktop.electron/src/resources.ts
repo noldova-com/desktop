@@ -251,6 +251,7 @@ export class Resources {
   public static readonly willDownloadEvent: "will-download" = "will-download";
   public static readonly detachEvent: "detach" = "detach";
   public static readonly webViewReplyNotObject: string = "The engine's reply is not an object.";
+  public static readonly focusEmulationRefused: string = "The host owns focus emulation, so a module may not send Emulation.setFocusEmulationEnabled.";
   public static readonly webViewLost: string = "A web view lost its defaults, so it was closed.";
   public static readonly webViewBatchLimit: number = 64;
   public static readonly addressField: string = "address";

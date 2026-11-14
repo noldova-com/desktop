@@ -124,7 +124,7 @@ export class WebViewHostTests {
   public async refusesAnAttachFromAWindowThatDidntOpenTheView(): Promise<void> {
     const engine = new FakeWebViewEngine();
     const host = new WebViewHost(engine, new WebViewOriginCheck(), () => Promise.resolve(new Map([["browser", WebViewHostTests.DECLARATION]])), "linux",
-      () => undefined, () => undefined, () => false, () => undefined, () => undefined);
+      () => undefined, () => undefined, () => undefined, () => false, () => undefined, () => undefined);
     await host.openAsync(1, "browser", WebViewHostTests.PANE, "workspace-1");
     const inOther = engine.createGuest(2, WebViewHostTests.PARTITION);
     const inOwn = engine.createGuest(1, WebViewHostTests.PARTITION);

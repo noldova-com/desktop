@@ -137,11 +137,16 @@ The runtime part sends its views calls of the window's web engine's debugging pr
 - Any other call the relay sends reaches the page as sent, and the person's focus stays theirs.
   A mouse press, `DOM.focus` or a script can focus one of the page's elements, which makes the view the window's focused element; the window then gives the focus back to the element that held it, or takes it out of the view when nothing held it.
   The host tells the window before it sends the call; once the engine answers, the host makes a round trip to the page's renderer, in a world the page's scripts can't reach, and only then tells the window the call has ended and answers the module, so the window has heard of any focus change the call caused before it hears that the call ended.
-  When the person's focus was in the view during the call, it stays there; until the window gives the focus back, a key the person presses can still reach the page.
+  When the person's focus was in the view during the call, it stays there.
+- A stated limit: from the moment the page's renderer applies the call's focus change until the window gives the focus back, a key the person presses reaches the page.
+  The cause is the engine: it sends keys to the window's focused frame, which the page's element became, and the window can only take the focus back once it hears the call has ended, one round trip to the page's renderer and one message to the window later, plus the hold.
+  The host doesn't hold back those keys to replay them afterwards: a replayed key loses an input method's composition and a dead key's accent, and could land after a key pressed once the focus is back.
+  A key pressed before the call starts, or once the window has given the focus back, goes where the person's focus is.
 - Before giving the focus back, the window has the host hold the page's focus state with `Emulation.setFocusEmulationEnabled`, so the page sees no `blur` when the focus leaves it, or between an agent's click and the typing after it, and its field keeps its focus.
   The host releases the hold when the person's own focus enters the view, or when the person's focus was in the view during a call; the page then really has the focus, so it sees no `blur` then either.
   A new page starts with no hold.
-- The host owns focus emulation: a module's own `Emulation.setFocusEmulationEnabled` is answered `{}` and not sent, so it can't end the host's hold, and a module doesn't need to send it.
+- The host owns focus emulation, so it refuses a module's own `Emulation.setFocusEmulationEnabled`, declared or not, as `NotAllowed` with a message naming that rule, and sends nothing, so a module can't end the host's hold.
+  The runtime's `FakeWebViewRelay` refuses it the same way, whatever answer a test gives it.
 - The engine drops key input, the person's and the relay's alike, that a newly loaded page gets before it has drawn its first content, so a module that sends keys right after a navigation first waits for the page to show something, such as its first contentful paint.
 - A relay failure has one kind: `NotOwned`, `NotAllowed`, `ShortcutRefused`, `TimedOut`, `TooLarge`, `ViewClosed`, `Crashed`, `ProfileCleared`, `Unavailable`, or `Protocol` with the engine's code and message; the module maps it onto the shared failures in [TOOLS.md](TOOLS.md#failures).
 - The runtime's calls reach the main process over its authenticated connection; while that connection is down, they fail as `Unavailable`.

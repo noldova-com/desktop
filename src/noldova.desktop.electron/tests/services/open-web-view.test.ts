@@ -730,6 +730,35 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async letsThePersonsKeysReachThePageWhileACallToThePageIsOpenAndEndsTheNoticeAtTheRoundTripsAnswerTheStatedLimit(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    let roundTrip: (value: unknown) => void = () => undefined;
+    const reached = new Promise<void>(started => {
+      harness.contents.onIsolated = () => {
+        started();
+        return new Promise(resolve => {
+          roundTrip = resolve;
+        });
+      };
+    });
+    const before = harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+
+    const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 4, y: 5 }, 1000);
+    await reached;
+    const during = [
+      harness.contents.prevent("before-input-event", OpenWebViewTests.input("b", "KeyB", false)),
+      harness.contents.prevent("before-input-event", OpenWebViewTests.input("b", "KeyB", false, "keyUp"))
+    ];
+    const noticesDuring = [...harness.inputs];
+    roundTrip(0);
+    await answering;
+
+    Assert.areEqual("false|false,false", `${before}|${during.join(",")}`);
+    Assert.areEqual("[true]", JSON.stringify(noticesDuring));
+    Assert.areEqual("[true,false]", JSON.stringify(harness.inputs));
+  }
+
+  @TestMethod
   public async endsTheWindowsNoticeOfACallThatFailsTimesOutOrWhoseRoundTripFailsAndSendsNoneForKeysText(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
     harness.contents.debugger.replies.set("DOM.focus", () => Promise.reject(new Error("No node with that id.")));
@@ -752,18 +781,22 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async answersAModulesFocusEmulationWithoutSendingItSoItCantEndTheHostsHold(): Promise<void> {
+  public async refusesAModulesFocusEmulationNamingTheRuleWhetherOrNotItIsDeclaredAndSendsNothing(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    const undeclared = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     await harness.open.holdFocusAsync();
 
     const answers = [
       await harness.open.sendAsync(1, OpenWebViewTests.FOCUS_EMULATION, { enabled: false }, 1000),
-      await harness.open.sendAsync(2, OpenWebViewTests.FOCUS_EMULATION, { enabled: true }, 1000)
+      await undeclared.open.sendAsync(2, OpenWebViewTests.FOCUS_EMULATION, { enabled: true }, 1000)
     ];
 
-    Assert.areEqual("1 {} none|2 {} none", answers.map(t => OpenWebViewTests.describe(t)).join("|"));
+    Assert.areEqual("1 null NotAllowed|2 null NotAllowed", answers.map(t => OpenWebViewTests.describe(t)).join("|"));
+    const rule = "The host owns focus emulation, so a module may not send Emulation.setFocusEmulationEnabled.";
+    Assert.areEqual(`${rule}|${rule}`, answers.map(t => t.failure?.message ?? "none").join("|"));
     Assert.areEqual(JSON.stringify([{ enabled: true }]), JSON.stringify(harness.contents.debugger.sent.filter(t => t[0] === OpenWebViewTests.FOCUS_EMULATION).map(t => t[1])));
-    Assert.areEqual("[]", JSON.stringify(harness.inputs));
+    Assert.areEqual("[]", JSON.stringify(undeclared.contents.debugger.sent));
+    Assert.areEqual("[]", JSON.stringify([...harness.inputs, ...undeclared.inputs]));
   }
 
   @TestMethod

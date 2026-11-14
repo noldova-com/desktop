@@ -207,13 +207,13 @@ export class OpenWebView {
     const guest = this.guest;
     if (this.isCrashed || !this.isAttached || Object.isNull(guest))
       return OpenWebView.fail(call, this.isCrashed ? WebViewFailureKind.Crashed : WebViewFailureKind.Unavailable);
+    if (method === Resources.focusEmulationMethod)
+      return OpenWebView.fail(call, WebViewFailureKind.NotAllowed, Resources.focusEmulationRefused);
     if (!this.declaration.allows(method, params))
       return OpenWebView.fail(call, WebViewFailureKind.NotAllowed);
     const stroke = method === Resources.dispatchKeyEventMethod ? OpenWebView.readStroke(params) : null;
     if (!Object.isNull(stroke) && this.isShortcut(stroke))
       return OpenWebView.fail(call, WebViewFailureKind.ShortcutRefused);
-    if (method === Resources.focusEmulationMethod)
-      return OpenWebView.answer(call, {});
     const relayKey = !Object.isNull(stroke) && Resources.keyDownInputs.includes(String(params[Resources.typeField])) ? stroke : null;
     if (!Object.isNull(relayKey))
       this.relayKeys.push(relayKey);
@@ -741,8 +741,8 @@ export class OpenWebView {
     }
   }
 
-  private static fail(call: number, kind: WebViewFailureKind): WebViewAnswered {
-    return new WebViewAnswered(call, null, new WebViewFailure(kind));
+  private static fail(call: number, kind: WebViewFailureKind, message: string | null = null): WebViewAnswered {
+    return new WebViewAnswered(call, null, new WebViewFailure(kind, null, message));
   }
 
   private static found(matches: number, active: number): JsonObject {
