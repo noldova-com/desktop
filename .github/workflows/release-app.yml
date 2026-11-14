@@ -137,7 +137,7 @@ jobs:
         id: node
         continue-on-error: true
         timeout-minutes: 5
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
           package-manager-cache: false
@@ -154,7 +154,7 @@ jobs:
         if: steps.node.outcome == 'failure'
         continue-on-error: true
         timeout-minutes: 5
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
           package-manager-cache: false
@@ -169,7 +169,7 @@ jobs:
         name: Set up Node.js a last time
         if: steps.node-again.outcome == 'failure'
         timeout-minutes: 5
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
           package-manager-cache: false
@@ -283,7 +283,7 @@ jobs:
 
       - name: Keep desktop.build and its @noldova peers for the release jobs
         timeout-minutes: 5
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop.build
           path: ${{ runner.temp }}/desktop.build/*.tgz
@@ -321,7 +321,7 @@ jobs:
       - &take
         name: Take desktop.build
         timeout-minutes: 5
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: desktop.build
           path: ${{ runner.temp }}/desktop.build
@@ -473,7 +473,7 @@ jobs:
 
       - name: Take this run's release files
         timeout-minutes: 10
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: release-*
           merge-multiple: true
@@ -481,7 +481,7 @@ jobs:
 
       - name: Take this run's package reports
         timeout-minutes: 10
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: report-*
           path: _build/release-reports
@@ -504,7 +504,7 @@ jobs:
       - name: Keep the release files for the internal update feed
         if: inputs.internal-feed == 'copy'
         timeout-minutes: 10
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: internal-feed
           path: _build/release
@@ -536,7 +536,7 @@ jobs:
 
       - name: Take this run's release files
         timeout-minutes: 10
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: release-*
           merge-multiple: true
@@ -544,7 +544,7 @@ jobs:
 
       - name: Take this run's package reports
         timeout-minutes: 10
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: report-*
           path: _build/release-reports
@@ -565,7 +565,7 @@ jobs:
 
       - name: Keep the release files for the internal update feed
         timeout-minutes: 10
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: internal-feed
           path: _build/release
@@ -589,7 +589,7 @@ jobs:
         id: node
         continue-on-error: true
         timeout-minutes: 5
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
           package-manager-cache: false
@@ -602,7 +602,7 @@ jobs:
         if: steps.node.outcome == 'failure'
         continue-on-error: true
         timeout-minutes: 5
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
           package-manager-cache: false
@@ -613,7 +613,7 @@ jobs:
       - name: Set up Node.js a last time
         if: steps.node-again.outcome == 'failure'
         timeout-minutes: 5
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
           package-manager-cache: false
