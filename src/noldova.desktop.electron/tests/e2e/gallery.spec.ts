@@ -365,23 +365,24 @@ test.describe("gallery", () => {
 
     for (const mode of ["Light", "Dark"] as const) {
       const specimen = scope(window, mode).locator(".nol-gallery-specimen[aria-label=\"Configuration table\"]");
-      const table = specimen.getByRole("table", { name: "Environment variables", exact: true });
+      const normal = specimen.locator("nol-gallery-cell[aria-label=\"Default\"]");
+      const table = normal.getByRole("table", { name: "Environment variables", exact: true });
       const narrow = specimen.getByRole("table", { name: "Narrow environment variables" });
-      const areas = specimen.locator(".nol-configuration-table-body");
       await specimen.scrollIntoViewIfNeeded();
 
-      await expect(specimen.getByRole("heading", { name: "Environment variables" })).toBeVisible();
+      await expect(normal.getByRole("heading", { name: "Environment variables" })).toBeVisible();
       await expect(table.getByRole("columnheader")).toHaveText(["Name", "Value", "Scope", String.empty]);
       await expect(table.getByRole("columnheader").last()).toHaveAttribute("aria-label", "Actions");
       await expect(table.getByRole("button", { name: "Remove NOTES_HOME" })).toBeVisible();
-      await expect(areas).toHaveCount(5);
       await expect(narrow.getByRole("row")).toHaveCount(3);
-      const [wide, small] = [areas.first(), specimen.locator(".nol-gallery-table-holder.nol-gallery-narrow")];
+      const [wide, small] = [normal.locator(".nol-configuration-table-body"), specimen.locator(".nol-gallery-table-holder.nol-gallery-narrow")];
+      await expect(wide).toHaveCount(1);
+      await expect(small.locator(".nol-configuration-table-body")).toHaveCount(1);
       const unheaded = specimen.locator("nol-configuration-table").filter({ has: window.getByRole("table", { name: "Global environment variables" }) });
       const [heading, add, explanation, grid] = await Promise.all([
-        specimen.locator(".nol-configuration-table-heading").boundingBox(),
-        specimen.locator(".nol-configuration-table-actions button").first().boundingBox(),
-        specimen.locator(".nol-configuration-table-explanation").first().boundingBox(),
+        normal.locator(".nol-configuration-table-heading").boundingBox(),
+        normal.locator(".nol-configuration-table-actions button").boundingBox(),
+        normal.locator(".nol-configuration-table-explanation").boundingBox(),
         table.boundingBox()
       ]);
       const measured = await wide.evaluate((t: HTMLElement) => {
