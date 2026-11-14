@@ -47,7 +47,7 @@ export class OpenWebView {
   private readonly waitAsync: (milliseconds: number, signal: AbortSignal) => Promise<void>;
   private readonly now: () => number;
   private readonly lost: () => void;
-  private readonly input: (isStarting: boolean) => void;
+  private readonly input: (kind: string) => void;
   private readonly endings: Set<(kind: WebViewFailureKind) => void> = new Set();
   private readonly redirects: Set<number> = new Set();
   private readonly refusedRequests: Set<number> = new Set();
@@ -57,6 +57,7 @@ export class OpenWebView {
   private windowRequests: readonly number[] = [];
   private lastInput: number | undefined;
   private relayedInputs: number = 0;
+  private openPageCalls: number = 0;
   private allowed: readonly string[] = [];
   private guest: IWebViewContents | null = null;
   private pendingUrl: string | undefined;
@@ -88,7 +89,7 @@ export class OpenWebView {
     waitAsync: (milliseconds: number, signal: AbortSignal) => Promise<void>,
     now: () => number,
     lost: () => void,
-    input: (isStarting: boolean) => void) {
+    input: (kind: string) => void) {
     this.info = info;
     this.windowId = windowId;
     this.partition = partition;
@@ -221,15 +222,10 @@ export class OpenWebView {
     const isInput = method.startsWith(Resources.inputDomainPrefix);
     const isPageCall = method !== Resources.insertTextMethod && method !== Resources.dispatchKeyEventMethod;
     return new Promise<WebViewAnswered>(resolve => {
-      let isInputOpen = isPageCall;
       const finish = (answer: WebViewAnswered): void => {
         this.endings.delete(end);
         abort.abort();
         this.forgetRelayKey(relayKey);
-        if (isInputOpen) {
-          isInputOpen = false;
-          this.input(false);
-        }
         resolve(answer);
       };
       const end = (kind: WebViewFailureKind): void => finish(OpenWebView.fail(call, kind));
@@ -238,29 +234,18 @@ export class OpenWebView {
       if (isInput)
         this.relayedInputs += 1;
       if (isPageCall)
-        this.input(true);
-      const sent = OpenWebView.relayAsync(guest, method, params);
+        this.startPageCall();
+      const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
       if (isInput)
         void sent.then(() => this.settleInput(), () => this.settleInput());
       const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
+      if (isPageCall)
+        void handled.then(() => this.endPageCall(), () => this.endPageCall());
       handled.then(
         reply => finish(OpenWebView.answer(call, reply)),
         (error: unknown) => finish(new WebViewAnswered(call, null,
           new WebViewFailure(WebViewFailureKind.Protocol, Resources.webViewServerErrorCode, error instanceof Error ? error.message : String(error)))));
     });
-  }
-
-  public async holdFocusAsync(): Promise<boolean> {
-    const guest = this.guest;
-    if (this.isCrashed || !this.isAttached || Object.isNull(guest))
-      return false;
-    if (this.isFocusHeld)
-      return true;
-    this.isFocusHeld = true;
-    const isHeld = await guest.debugger.sendCommand(Resources.focusEmulationMethod, { [Resources.enabledParameter]: true }).then(() => true, () => false);
-    if (!isHeld && this.guest === guest)
-      this.isFocusHeld = false;
-    return isHeld && this.isFocusHeld && this.guest === guest;
   }
 
   public releaseFocus(): void {
@@ -576,9 +561,32 @@ export class OpenWebView {
     this.relayedInputs -= 1;
   }
 
+  private async holdFocusAsync(guest: IWebViewContents): Promise<void> {
+    if (this.isFocusHeld)
+      return;
+    this.isFocusHeld = true;
+    const isHeld = await guest.debugger.sendCommand(Resources.focusEmulationMethod, { [Resources.enabledParameter]: true }).then(() => true, () => false);
+    if (!isHeld && this.guest === guest)
+      this.isFocusHeld = false;
+  }
+
+  private startPageCall(): void {
+    this.openPageCalls += 1;
+    this.input(Resources.inputStartKind);
+  }
+
+  private endPageCall(): void {
+    this.openPageCalls -= 1;
+    this.input(Resources.inputEndKind);
+  }
+
   private noteInput(type: string): void {
-    if (this.relayedInputs === 0 && Resources.personInputTypes.includes(type))
+    if (this.relayedInputs > 0)
+      return;
+    if (Resources.personInputTypes.includes(type))
       this.lastInput = this.now();
+    if (this.openPageCalls > 0 && Resources.personPressTypes.includes(type))
+      this.input(Resources.inputPressKind);
   }
 
   private prevent(guest: IWebViewContents, event: IPreventableEvent, request: string): void {

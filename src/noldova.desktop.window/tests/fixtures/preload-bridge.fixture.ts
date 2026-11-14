@@ -94,7 +94,6 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   public readonly edits: string[] = [];
   public readonly windowActions: string[] = [];
   public readonly webViewCalls: string[] = [];
-  public holdsFocus: () => Promise<boolean> = () => Promise.resolve(true);
   public readonly webViewKeys: (readonly string[])[] = [];
   public readonly appShortcuts: JsonObject[] = [];
   public isWebViewOpened: boolean = true;
@@ -487,11 +486,6 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   public publishWebViewInput(input: unknown): void {
     for (const listener of this.webViewInputListeners)
       listener(input);
-  }
-
-  public holdWebViewFocus(moduleId: string, view: string): Promise<boolean> {
-    this.webViewCalls.push(`hold ${moduleId} ${view}`);
-    return this.holdsFocus();
   }
 
   public releaseWebViewFocus(moduleId: string, view: string): void {

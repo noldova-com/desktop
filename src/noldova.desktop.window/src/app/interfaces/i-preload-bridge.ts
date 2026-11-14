@@ -74,7 +74,6 @@ export interface IPreloadBridge {
   onWebViewEvent(listener: (event: unknown) => void): () => void;
   onWebViewShortcut(listener: (stroke: unknown) => void): () => void;
   onWebViewInput(listener: (input: unknown) => void): () => void;
-  holdWebViewFocus(moduleId: string, view: string): Promise<boolean>;
   releaseWebViewFocus(moduleId: string, view: string): void;
   logModule(moduleId: string, message: string): void;
   logError(moduleId: string | null, text: string): void;

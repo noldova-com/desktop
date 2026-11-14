@@ -6,8 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { WebViewInputKind } from "../enums/web-view-input-kind.js";
+
 export interface IWebViewInput {
   readonly module: string;
   readonly view: string;
-  readonly isStarting: boolean;
+  readonly kind: WebViewInputKind;
 }

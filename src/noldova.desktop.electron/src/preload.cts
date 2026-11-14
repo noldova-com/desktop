@@ -107,7 +107,6 @@ class Preload {
       onWebViewEvent: (listener: (event: unknown) => void): (() => void) => this.listen("webViewEvent", listener),
       onWebViewShortcut: (listener: (stroke: unknown) => void): (() => void) => this.listen("webViewShortcut", listener),
       onWebViewInput: (listener: (input: unknown) => void): (() => void) => this.listen("webViewInput", listener),
-      holdWebViewFocus: (moduleId: string, view: string): Promise<boolean> => this.askAsync("webViewFocusHold", moduleId, view),
       releaseWebViewFocus: (moduleId: string, view: string): void => this.send("webViewFocusRelease", moduleId, view),
       logModule: (moduleId: string, message: string): void => this.send("moduleLog", moduleId, message),
       logError: (moduleId: string | null, text: string): void => this.send("windowError", moduleId, text)

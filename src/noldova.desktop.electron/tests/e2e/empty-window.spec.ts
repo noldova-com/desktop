@@ -43,7 +43,7 @@ test.describe("the empty window", () => {
 
     expect({ ...globals, bridge }).toEqual({ require: "undefined", process: "undefined", module: "undefined", buffer: "undefined", bridge: [
       "actOnStartup", "actOnUpdate", "actOnWebView", "actOnWindow", "addToDictionary", "answerClose", "answerQuit", "answerUpdateSave", "appearance", "attachWebView", "chooseFilePath", "chooseFiles", "chooseFolder", "closeWebView", "copyDetails", "copyImage", "copyText",
-      "edit", "findInWebView", "grantFiles", "holdWebViewFocus", "installCommand", "keepAppearance", "keepSpelling", "logError", "logModule", "navigateWebView", "notifyAppearance", "notifyReady", "onCloseRequest", "onEvent", "onFieldMenu",
+      "edit", "findInWebView", "grantFiles", "installCommand", "keepAppearance", "keepSpelling", "logError", "logModule", "navigateWebView", "notifyAppearance", "notifyReady", "onCloseRequest", "onEvent", "onFieldMenu",
       "onFullScreen", "onMaximized", "onMenuCommand", "onNotificationOpened", "onQuitQuestion", "onStartup", "onTrayAvailable", "onUpdate", "onUpdateSaveRequest", "onWebViewEvent", "onWebViewInput", "onWebViewShortcut", "openFile", "openLink", "openLogFolder", "openWebView",
       "platform", "processor", "readBuild", "readFullScreen", "readLayout", "readMaximized", "readSpelling", "readStartup", "readTrayAvailable", "readUpdate", "releaseWebViewFocus", "replaceMisspelling", "request", "saveFile",
       "setAppShortcuts", "setMenuBar", "setWebViewShortcuts", "showInFolder", "writeLayout", "zoomWebView"

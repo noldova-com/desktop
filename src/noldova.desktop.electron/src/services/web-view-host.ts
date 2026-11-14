@@ -90,7 +90,7 @@ export class WebViewHost {
     this.nextId += 1;
     const open: OpenWebView = new OpenWebView(info, windowId, partition, session, this.check, declaration, t => this.report(open, t), t => this.isShortcut(windowId, t),
       t => this.pressShortcut(windowId, t), this.platform, (t, signal) => this.engine.waitAsync(t, signal), () => this.engine.now(), () => this.lose(open),
-      t => this.sendInput(windowId, { [Resources.moduleField]: info.module, [Resources.viewField]: info.id, [Resources.isStartingField]: t }));
+      t => this.sendInput(windowId, { [Resources.moduleField]: info.module, [Resources.viewField]: info.id, [Resources.kindField]: t }));
     this.views.set(info.id, open);
     this.report(open, WebViewHost.createEvent(open, WebViewEventKind.Opened, { [Resources.paneField]: info.pane.toJson(), [Resources.profileKeyField]: profileKey }));
     return { [Resources.viewField]: info.toJson(), [Resources.partitionField]: partition };
@@ -151,11 +151,6 @@ export class WebViewHost {
       return false;
     this.end(open);
     return true;
-  }
-
-  public holdFocusAsync(windowId: number, module: unknown, view: unknown): Promise<boolean> {
-    const open = this.find(windowId, module, view);
-    return Object.isNull(open) ? Promise.resolve(false) : open.holdFocusAsync();
   }
 
   public releaseFocus(windowId: number, module: unknown, view: unknown): boolean {

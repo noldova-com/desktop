@@ -24,7 +24,7 @@ export class PreloadTests {
       "keepAppearance", "readSpelling", "keepSpelling", "onFieldMenu", "replaceMisspelling", "addToDictionary", "edit", "setMenuBar", "onMenuCommand", "onNotificationOpened", "onQuitQuestion",
       "answerQuit", "readTrayAvailable", "onTrayAvailable", "readFullScreen", "onFullScreen", "readMaximized", "onMaximized", "actOnWindow", "openWebView", "attachWebView",
       "navigateWebView", "actOnWebView", "zoomWebView", "findInWebView", "closeWebView", "setWebViewShortcuts", "setAppShortcuts", "onWebViewEvent", "onWebViewShortcut", "onWebViewInput",
-      "holdWebViewFocus", "releaseWebViewFocus", "logModule", "logError"
+      "releaseWebViewFocus", "logModule", "logError"
     ].join(","), Object.keys(api).join(","));
     Assert.areEqual(process.platform, api["platform"]);
     Assert.areEqual(process.arch, api["processor"]);
@@ -157,8 +157,7 @@ export class PreloadTests {
       PreloadTests.invoke(api["navigateWebView"], "browser", "1", "https://example.com/"),
       PreloadTests.invoke(api["actOnWebView"], "browser", "1", "back"),
       PreloadTests.invoke(api["zoomWebView"], "browser", "1", "in"),
-      PreloadTests.invoke(api["findInWebView"], "browser", "1", "next"),
-      PreloadTests.invoke(api["holdWebViewFocus"], "browser", "1")
+      PreloadTests.invoke(api["findInWebView"], "browser", "1", "next")
     ]);
 
     Assert.areEqual(JSON.stringify([
@@ -198,8 +197,7 @@ export class PreloadTests {
       ["desktop:webViewNavigate", "browser", "1", "https://example.com/"],
       ["desktop:webViewAct", "browser", "1", "back"],
       ["desktop:webViewZoom", "browser", "1", "in"],
-      ["desktop:webViewFind", "browser", "1", "next"],
-      ["desktop:webViewFocusHold", "browser", "1"]
+      ["desktop:webViewFind", "browser", "1", "next"]
     ]), JSON.stringify(electron.invoked));
     Assert.areEqual(JSON.stringify(electron.invoked.map(t => t.length % 2 === 0)), JSON.stringify(replies));
   }

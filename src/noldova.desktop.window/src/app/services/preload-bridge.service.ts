@@ -16,6 +16,7 @@ import { AppShortcut, AppShortcutList, type EditAction, FailureCode, FileGrantsD
 import { FileSaveOutcome } from "../enums/file-save-outcome.js";
 import type { QuitChoice } from "../enums/quit-choice.js";
 import type { UpdateAction } from "../enums/update-action.js";
+import { WebViewInputKind } from "../enums/web-view-input-kind.js";
 import { PreloadBridgeException } from "../exceptions/preload-bridge.exception.js";
 import { RuntimeDisconnectedException } from "../exceptions/runtime-disconnected.exception.js";
 import { RuntimeRequestException } from "../exceptions/runtime-request.exception.js";
@@ -398,10 +399,6 @@ export class PreloadBridgeService extends ClipboardWriter {
     });
   }
 
-  public holdWebViewFocusAsync(moduleId: string, view: string): Promise<boolean> {
-    return this.bridge.holdWebViewFocus(moduleId, view);
-  }
-
   public releaseWebViewFocus(moduleId: string, view: string): void {
     this.bridge.releaseWebViewFocus(moduleId, view);
   }
@@ -471,7 +468,7 @@ export class PreloadBridgeService extends ClipboardWriter {
       return {
         module: json.readString(nameof<IWebViewInput>(t => t.module)),
         view: json.readString(nameof<IWebViewInput>(t => t.view)),
-        isStarting: json.readBoolean(nameof<IWebViewInput>(t => t.isStarting))
+        kind: json.readOneOf(nameof<IWebViewInput>(t => t.kind), Object.values(WebViewInputKind))
       };
     }
     catch {
@@ -569,7 +566,6 @@ export class PreloadBridgeService extends ClipboardWriter {
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewEvent))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewShortcut))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewInput))) &&
-      Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.holdWebViewFocus))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.releaseWebViewFocus))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.logModule))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.logError)));

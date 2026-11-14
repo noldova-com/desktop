@@ -13,6 +13,7 @@ import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
 import { type WebViewAction, type WebViewEvent, WebViewEventKind, type WebViewNavigation, type WebViewPane } from "@noldova/desktop.protocol";
 
+import { WebViewInputKind } from "../enums/web-view-input-kind.js";
 import { WebViewClosedException } from "../exceptions/web-view-closed.exception.js";
 import { WebViewNotOpenedException } from "../exceptions/web-view-not-opened.exception.js";
 import type { IWebViewFound } from "../interfaces/i-web-view-found.js";
@@ -195,22 +196,25 @@ export class WebViewService {
     const handle = this.handles.get(input.view);
     if (Object.isUndefined(handle) || handle.moduleId !== input.module)
       return;
-    if (input.isStarting) {
-      if (handle.agentInputs === 0 && !handle.isGivingFocusBack)
+    if (input.kind === WebViewInputKind.Start) {
+      if (handle.agentInputs === 0)
         handle.keptFocus = this.readPersonFocus(handle);
       handle.agentInputs += 1;
+      handle.isFocusHeld = true;
       return;
     }
     if (handle.agentInputs === 0)
       return;
-    handle.agentInputs -= 1;
-    if (handle.agentInputs > 0 || handle.isGivingFocusBack)
+    if (input.kind === WebViewInputKind.Press) {
+      handle.keptFocus = null;
       return;
-    const kept = handle.keptFocus;
-    if (Object.isNull(kept))
+    }
+    handle.agentInputs -= 1;
+    if (handle.agentInputs > 0)
+      return;
+    if (Object.isNull(handle.keptFocus))
       this.releaseFocus(handle);
-    else if (this.document.activeElement === handle.guest)
-      void this.giveFocusBackAsync(handle, kept).catch((error: unknown) => this.errors.handleError(error));
+    handle.keptFocus = null;
   }
 
   private readPersonFocus(handle: WebViewHandle): HTMLElement | null {
@@ -220,15 +224,13 @@ export class WebViewService {
     return active instanceof HTMLElement ? active : this.document.body;
   }
 
-  private async giveFocusBackAsync(handle: WebViewHandle, kept: HTMLElement): Promise<void> {
-    handle.isGivingFocusBack = true;
-    try {
-      handle.isFocusHeld = await this.bridge.holdWebViewFocusAsync(handle.moduleId, handle.id) || handle.isFocusHeld;
+  private noteFocus(handle: WebViewHandle): void {
+    if (handle.agentInputs === 0) {
+      this.releaseFocus(handle);
+      return;
     }
-    finally {
-      handle.isGivingFocusBack = false;
-    }
-    if (handle.isClosed || this.document.activeElement !== handle.guest)
+    const kept = handle.keptFocus;
+    if (Object.isNull(kept))
       return;
     if (kept !== this.document.body && kept.isConnected)
       kept.focus({ preventScroll: true });
@@ -236,13 +238,8 @@ export class WebViewService {
       handle.guest.blur();
   }
 
-  private noteFocus(handle: WebViewHandle): void {
-    if (handle.agentInputs === 0 && !handle.isGivingFocusBack)
-      this.releaseFocus(handle);
-  }
-
   private releaseFocus(handle: WebViewHandle): void {
-    if (!handle.isFocusHeld || handle.isClosed)
+    if (!handle.isFocusHeld)
       return;
     handle.isFocusHeld = false;
     this.bridge.releaseWebViewFocus(handle.moduleId, handle.id);

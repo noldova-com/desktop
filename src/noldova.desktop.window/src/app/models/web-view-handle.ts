@@ -38,7 +38,6 @@ export class WebViewHandle implements IWebViewHandle {
   public isShown: boolean = false;
   public agentInputs: number = 0;
   public keptFocus: HTMLElement | null = null;
-  public isGivingFocusBack: boolean = false;
   public isFocusHeld: boolean = false;
 
   public constructor(info: WebViewInfo, tab: Tab, injector: Injector, host: WebViewService, frame: HTMLElement, guest: IWebViewGuest) {
