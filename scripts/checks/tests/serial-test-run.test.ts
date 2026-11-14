@@ -49,13 +49,13 @@ const HANGING_LAST = [
   "TestClass(HangingLastTests);"
 ].join("\n");
 
-interface SerialTestRunOutcome {
+interface ISerialTestRunOutcome {
   readonly code: unknown;
   readonly output: string;
   readonly errors: string;
 }
 
-const runAsync = async (source: string): Promise<SerialTestRunOutcome> => {
+const runAsync = async (source: string): Promise<ISerialTestRunOutcome> => {
   await mkdir(path.join(ROOT, "_build"), { recursive: true });
   const folder = await mkdtemp(path.join(ROOT, "_build", "serial-test-run-"));
   const tests = path.join(folder, "tests");
