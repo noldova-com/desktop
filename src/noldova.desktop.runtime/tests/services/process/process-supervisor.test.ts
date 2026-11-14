@@ -28,6 +28,7 @@ import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { ProcessKillFixture } from "../../fixtures/process-kill.fixture.js";
 import { ProcessSupervisorFixture } from "../../fixtures/process-supervisor.fixture.js";
 import { ProcessTableFixture } from "../../fixtures/process-table.fixture.js";
+import { ProgramEndFixture } from "../../fixtures/program-end.fixture.js";
 import { ProgramFixture } from "../../fixtures/program.fixture.js";
 import { PseudoTerminalHandleFixture } from "../../fixtures/pseudo-terminal-handle.fixture.js";
 import { PseudoTerminalLibraryFixture } from "../../fixtures/pseudo-terminal-library.fixture.js";
@@ -400,7 +401,7 @@ export class NodePtyTerminalsTests {
 
     const ended = await stopped.stopAsync();
     const exit = await stopped.exited;
-    await ProcessSupervisorFixture.waitForAsync(() => earlier.programs.length === 1);
+    await ProcessSupervisorFixture.changedAsync(earlier, () => earlier.programs.length === 1);
     const later = ProcessSupervisorFixture.create(settings);
     await later.cleanUpAsync();
     await left.exited;
@@ -419,17 +420,19 @@ export class NodePtyTerminalsTests {
   public async endsAConsoleProgramWhoseParentExitedButNotAnAppItLaunchedWhenATerminalStops(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
+    await using end = await ProgramEndFixture.createAsync();
     const processes = ProcessSupervisorFixture.create(settings);
-    const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, NodePtyTerminalsTests.request(folder.path, [ProgramFixture.LAUNCH]));
+    const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, NodePtyTerminalsTests.request(folder.path, [ProgramFixture.LAUNCH, String(end.port)]));
     const output = NodePtyTerminalsTests.collect(terminal);
     try {
       await ProcessSupervisorFixture.printedAsync(terminal, output, ProgramFixture.LAUNCHED_PATTERN);
+      await end.connectedAsync();
       const [child, app] = ProgramFixture.readLaunched(output());
       Assert.isTrue(ProgramFixture.isRunning(child), "The console program ended before the terminal stopped.");
       const ended = await terminal.stopAsync();
+      await end.endedAsync();
 
       Assert.isTrue(ProgramFixture.isRunning(app), `The app the terminal's program launched ended with the terminal. ${settings.diagnostics.text}`);
-      Assert.isTrue(await ProgramFixture.waitForEndAsync(child, ProgramFixture.END_MILLISECONDS), "The console program whose parent exited outlived the terminal.");
       Assert.isTrue(ended);
       Assert.areEqual(0, settings.database.readAll(ProcessSupervisorFixture.RECORDS).length);
     }

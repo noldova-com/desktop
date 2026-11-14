@@ -9,6 +9,7 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
 import { once } from "node:events";
 import { symlink } from "node:fs/promises";
+import { connect } from "node:net";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import "@noldova/context.core";
 import { type OwnedProcess, ProcessRequest } from "@noldova/desktop.runtime";
 
+import { ProgramEndFixture } from "./program-end.fixture.js";
 import { WaitFixture } from "./wait.fixture.js";
 
 export class ProgramFixture {
@@ -125,7 +127,7 @@ export class ProgramFixture {
         ProgramFixture.startChild(launchArguments[0] ?? ProgramFixture.WAIT);
         break;
       case ProgramFixture.CONSOLE_CHILD:
-        process.stdout.write(`${process.pid}\n`);
+        ProgramFixture.connectThenReport(launchArguments[0]);
         setInterval(() => undefined, 1_000);
         break;
       case ProgramFixture.FOREVER:
@@ -143,7 +145,7 @@ export class ProgramFixture {
         ProgramFixture.waitForInputEnd();
         break;
       case ProgramFixture.LAUNCH:
-        ProgramFixture.launch();
+        ProgramFixture.launch(launchArguments);
         break;
       case ProgramFixture.FLOOD:
         ProgramFixture.flood(`${"x".repeat(1_023)}\n`);
@@ -193,22 +195,31 @@ export class ProgramFixture {
     process.stdout.write(`${ProgramFixture.READY}\n`);
   }
 
-  private static launch(): void {
+  private static connectThenReport(port: string | undefined): void {
+    const report = (): void => void process.stdout.write(`${process.pid}\n`);
+    if (Object.isUndefined(port))
+      report();
+    else
+      connect(Number(port), ProgramEndFixture.HOST, report).on("error", () => undefined);
+  }
+
+  private static launch(endArguments: readonly string[]): void {
     const launcher = spawn(process.execPath, [ProgramFixture.file, ProgramFixture.LAUNCHER], { stdio: ["ignore", "pipe", "ignore"], detached: true });
     const reportAsync = (program: ChildProcessByStdio<null, Readable, null>): Promise<string> => new Promise(resolve => ProgramFixture.readLine(program, t => {
       process.stdout.write(`started=${t}\n`);
       resolve(t);
     }));
-    void Promise.all([reportAsync(ProgramFixture.startConsoleChild()), reportAsync(launcher), once(launcher, "exit")]).then(([child, app]) => {
+    void Promise.all([reportAsync(ProgramFixture.startConsoleChild(endArguments)), reportAsync(launcher), once(launcher, "exit")]).then(([child, app]) => {
       process.stdout.write(`launched=${child} ${app}\n`);
       ProgramFixture.waitForInputEnd();
     });
   }
 
-  private static startConsoleChild(): ChildProcessByStdio<null, Readable, null> {
+  private static startConsoleChild(endArguments: readonly string[]): ChildProcessByStdio<null, Readable, null> {
+    const extra = endArguments.map(t => ` ${t}`).join(String.empty);
     return process.platform === "win32"
-      ? spawn(process.env["ComSpec"] ?? "cmd.exe", [`/d /s /c "start "" /b "${process.execPath}" "${ProgramFixture.file}" ${ProgramFixture.CONSOLE_CHILD}"`], { stdio: ["ignore", "pipe", "ignore"], windowsVerbatimArguments: true })
-      : spawn("/bin/sh", ["-c", `"$0" "$1" ${ProgramFixture.CONSOLE_CHILD} &`, process.execPath, ProgramFixture.file], { stdio: ["ignore", "pipe", "ignore"] });
+      ? spawn(process.env["ComSpec"] ?? "cmd.exe", [`/d /s /c "start "" /b "${process.execPath}" "${ProgramFixture.file}" ${ProgramFixture.CONSOLE_CHILD}${extra}"`], { stdio: ["ignore", "pipe", "ignore"], windowsVerbatimArguments: true })
+      : spawn("/bin/sh", ["-c", `"$0" "$1" ${ProgramFixture.CONSOLE_CHILD}${extra} &`, process.execPath, ProgramFixture.file], { stdio: ["ignore", "pipe", "ignore"] });
   }
 
   private static readLine(program: ChildProcessByStdio<null, Readable, null>, then: (line: string) => void): void {
