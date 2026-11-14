@@ -895,6 +895,22 @@ export class PackageSmokeTests {
     Assert.areEqual("SIGKILL", keeping.main?.signals.join("|"));
   }
 
+  @TestMethod
+  public async waitsForALauncherThatRemovesItsStartLogOnlyOnceTheWaitBeganAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new AppImageCopyRunnerFixture();
+    runner.removesStartLog = true;
+
+    const result = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, runner, processes, true);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(PackageSmokeTests.withoutTimes(result.output).includes(Resources.formatSmokeExtraction(path.join(result.folder, "extraction"),
+      AppImageCopyRunnerFixture.EXTRACTED_BYTES)), result.output);
+    Assert.isFalse(existsSync(path.join(result.data, "logs", "start-00000000-0000-0000-0000-000000000000.log")));
+  }
+
   private static async createProcessesAsync(folder: string, program: Buffer): Promise<string> {
     const processes = path.join(folder, "proc");
     const file = path.join(folder, "program");

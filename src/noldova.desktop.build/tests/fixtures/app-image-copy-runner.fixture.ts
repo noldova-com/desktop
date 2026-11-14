@@ -12,7 +12,7 @@ import path from "node:path";
 import "@noldova/context.core";
 
 import type { ProcessResult } from "../../src/models/processes/process-result.js";
-import type { StartedProcess } from "../../src/services/processes/started-process.js";
+import type { SmokeProcessFixture } from "./smoke-process.fixture.js";
 import { SmokeRunnerFixture } from "./smoke-runner.fixture.js";
 
 export type CopyRecordKind = "extraction" | "missing" | "text" | "folder";
@@ -25,6 +25,7 @@ export class AppImageCopyRunnerFixture extends SmokeRunnerFixture {
 
   public records: readonly CopyRecordKind[] = ["extraction"];
   public keepsStartLog: boolean = false;
+  public removesStartLog: boolean = false;
   public removesCopy: boolean = true;
   public extraction: string = String.empty;
   private readonly copies: string[] = [];
@@ -33,14 +34,17 @@ export class AppImageCopyRunnerFixture extends SmokeRunnerFixture {
     return path.join(logs, `copy-00000000-0000-0000-0000-00000000000${index + 1}.log`);
   }
 
-  public override async startAsync(command: string, commandArguments: readonly string[], directory: string, log: string): Promise<StartedProcess> {
+  public override async startAsync(command: string, commandArguments: readonly string[], directory: string, log: string): Promise<SmokeProcessFixture> {
     const started = await super.startAsync(command, commandArguments, directory, log);
     const data = this.data ?? String.empty;
     const logs = path.join(data, "logs");
     this.extraction = path.join(path.dirname(data), "extraction");
     await mkdir(logs, { recursive: true });
-    if (this.keepsStartLog)
-      await writeFile(path.join(logs, "start-00000000-0000-0000-0000-000000000000.log"), "launcher started\n");
+    const startLog = path.join(logs, "start-00000000-0000-0000-0000-000000000000.log");
+    if (this.keepsStartLog || this.removesStartLog)
+      await writeFile(startLog, "launcher started\n");
+    if (this.removesStartLog)
+      started.onWaitForExitAsync = () => rm(startLog);
     for (const [index, kind] of this.records.entries())
       await this.writeRecordAsync(AppImageCopyRunnerFixture.formatRecord(logs, index), kind);
     return started;

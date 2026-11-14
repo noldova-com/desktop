@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, watch } from "node:fs";
 import { appendFile, copyFile, mkdir, open, readdir, readFile, readlink, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
@@ -493,14 +493,32 @@ export class PackageSmoke {
   }
 
   private static async waitForLaunchAsync(logs: string, mainProcess: StartedProcess, mainLogs: readonly string[]): Promise<void> {
-    const started = Date.now();
-    while ((await readdir(logs)).some(t => Resources.smokeStartLogPattern.test(t))) {
-      if (mainProcess.hasExited)
+    const removed = Promise.withResolvers<boolean>();
+    const limit = new AbortController();
+    const checkAsync = (): Promise<void> => PackageSmoke.hasStartLogAsync(logs).then(t => {
+      if (!t)
+        removed.resolve(true);
+    }, removed.reject);
+    const watcher = watch(logs, () => void checkAsync()).once(Resources.errorEvent, removed.reject);
+    try {
+      const isRemoved = await Promise.race([
+        removed.promise,
+        checkAsync().then(() => mainProcess.waitForExitAsync()).then(() => false),
+        timers.setTimeout(Resources.smokeStartLimit, undefined, { signal: limit.signal }).then(async () => {
+          throw new BuildException(Resources.formatSmokeLauncherKeptStartLog(logs, await PackageSmoke.readTailAsync(mainLogs)));
+        })
+      ]);
+      if (!isRemoved)
         throw new BuildException(Resources.formatSmokeMainEndedBeforeLauncher(mainProcess.ending, await PackageSmoke.readTailAsync(mainLogs)));
-      if (Date.now() - started >= Resources.smokeStartLimit)
-        throw new BuildException(Resources.formatSmokeLauncherKeptStartLog(logs, await PackageSmoke.readTailAsync(mainLogs)));
-      await timers.setTimeout(Resources.smokePollInterval);
     }
+    finally {
+      limit.abort();
+      watcher.close();
+    }
+  }
+
+  private static async hasStartLogAsync(logs: string): Promise<boolean> {
+    return (await readdir(logs)).some(t => Resources.smokeStartLogPattern.test(t));
   }
 
   private checkStarted(answer: string, version: string, data: string, moment: string): void {
