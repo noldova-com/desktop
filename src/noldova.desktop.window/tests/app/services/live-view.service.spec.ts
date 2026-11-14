@@ -109,17 +109,30 @@ describe("LiveViewService", () => {
     expect([content.isDocked(), content.isShown(), content.element.parentElement]).toEqual([true, true, slot(0)]);
   });
 
-  it("hides a view without destroying it, tells it that it is hidden and shows it again as it was", async () => {
+  it("hides a view in its slot without destroying it, tells it that it is hidden and shows it again there as it was", async () => {
     const content = await showAsync(plan, 0);
     DomFixture.oneOf(content.element, "textarea", HTMLTextAreaElement).value = "draft";
 
     views.hide(plan, slot(0));
-    const hidden = [content.element.isConnected, content.isShown(), TestPageComponent.destroyed];
+    const hidden = [content.element.parentElement, content.element.inert, content.element.classList.contains("nol-tab-content-concealed"), content.isShown(),
+      views.shownTabs().has(plan.key), TestPageComponent.destroyed];
+    views.hide(plan, slot(0));
     const shown = await showAsync(plan, 0);
 
-    expect(hidden).toEqual([false, false, 0]);
+    expect(hidden).toEqual([slot(0), true, true, false, false, 0]);
     expect(shown).toBe(content);
-    expect([content.isShown(), DomFixture.oneOf(content.element, "textarea", HTMLTextAreaElement).value]).toEqual([true, "draft"]);
+    expect([content.element.parentElement, content.element.inert, content.element.classList.contains("nol-tab-content-concealed"), content.isShown(),
+      views.shownTabs().has(plan.key), DomFixture.oneOf(content.element, "textarea", HTMLTextAreaElement).value]).toEqual([slot(0), false, false, true, true, "draft"]);
+  });
+
+  it("moves a view hidden in one slot into sight in another", async () => {
+    const content = await showAsync(plan, 0);
+    views.hide(plan, slot(0));
+
+    await showAsync(plan, 1);
+
+    expect([slot(0).children.length, content.element.parentElement, content.element.inert, content.element.classList.contains("nol-tab-content-concealed"),
+      content.isShown(), TestPageComponent.destroyed]).toEqual([0, slot(1), false, false, true, 0]);
   });
 
   it("costs no change detection while ten views are hidden, even when what they show changes", async () => {

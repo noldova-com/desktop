@@ -35,11 +35,11 @@ The window part reaches its views through `context.webViews`.
 - The window draws each view in a `<webview>` element of its own page, in the view's profile, which the window part mounts in its pane's element; the element fills that element and follows its size, as the page lays it out.
   The page loads once the element is first mounted: the window then asks the main process to bind the element's page to the view, and the main process loads the address the module last asked for.
   Until then, `navigateAsync` waits for the page, a zoom is kept and applied to it, and `actAsync` and finding do nothing; a view never mounted stays open until it is closed.
-  When the element is mounted again and gets a new page, that page is bound to the same view and loads the address the view last showed.
+  A switch to another tab of the view's group leaves the element in the page, so its page stays; a move to another group, a dock or a dialog, or a dock that collapses, mounts the element again, and when it gets a new page, that page is bound to the same view and loads the address the view last showed.
   The main process refuses any `<webview>` whose address isn't `about:blank` or whose profile isn't one of the views it opened for that window; it removes any preload, turns Node off and sandboxes the page, and a page can't open a `<webview>` of its own.
   The element allows its page's new windows, so each request reaches the host, which [judges it](#new-windows) and opens none itself.
 - Since the view is an element of the window's page, the module's own menus, and Noldova Desktop's own menus, dialogs, cards and notifications, lie over it like over any other element, and the page under them stays live.
-- A hidden view keeps its place, its page and its size, and takes no clicks; it is hidden by `visibility`, never removed, so a tab switch shows the next view with no blank frame.
+- A view behind another tab of its group keeps its place, its page and its size, takes no clicks or focus, and still takes `navigateAsync`, `actAsync` and finding; it is hidden by `visibility`, never removed, so a tab switch shows the next view with no blank frame, and its page keeps running.
 - While the person drags a tab or a toolbar item, the views take no pointer, so the drag passes over them.
 
 ### Layers over a view

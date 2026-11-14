@@ -105,20 +105,47 @@ describe("TabSlotComponent", () => {
     expect(content?.isDocked()).toBe(true);
   });
 
-  it("hides the view of the tab it showed before and shows it again as it was when that tab comes back", async () => {
+  it("hides the view of the tab it showed before in the page and shows it again as it was when that tab comes back", async () => {
     const planned = fixture.componentInstance.slot()?.content();
-    DomFixture.oneOf(DomFixture.present(planned).element, "textarea", HTMLTextAreaElement).value = "draft";
+    const field = DomFixture.oneOf(DomFixture.present(planned).element, "textarea", HTMLTextAreaElement);
+    field.value = "draft";
+    field.focus();
 
     fixture.componentInstance.tab.set(todo);
     await fixture.whenStable();
     const other = fixture.componentInstance.slot()?.content();
-    const whileOther = [planned?.element.isConnected, other?.element.parentElement];
+    const whileOther = [planned?.element.parentElement, planned?.element.inert, planned?.isShown(), other?.element.parentElement, other?.element.inert];
     fixture.componentInstance.tab.set(plan);
     await fixture.whenStable();
 
-    expect(whileOther).toEqual([false, slotElement()]);
+    expect(whileOther).toEqual([slotElement(), true, false, slotElement(), false]);
     expect(fixture.componentInstance.slot()?.content()).toBe(planned);
-    expect(DomFixture.oneOf(DomFixture.present(planned).element, "textarea", HTMLTextAreaElement).value).toBe("draft");
+    expect([planned?.element.inert, other?.element.inert, other?.element.parentElement, field.value, document.activeElement]).toEqual([false, true, slotElement(), "draft", field]);
+  });
+
+  it("lays the hidden view over the shown one in the same box, out of sight, taking no pointer and no focus", async () => {
+    const root = DomFixture.host(fixture);
+    root.style.cssText = "display: flex; flex-direction: column; height: 300px";
+    await fixture.whenStable();
+    const planned = DomFixture.present(fixture.componentInstance.slot()?.content()).element;
+    const box = (element: Element): readonly number[] => {
+      const bounds = element.getBoundingClientRect();
+      return [bounds.top, bounds.bottom, bounds.left, bounds.right];
+    };
+
+    fixture.componentInstance.tab.set(todo);
+    await fixture.whenStable();
+    const other = DomFixture.present(fixture.componentInstance.slot()?.content()).element;
+    const area = DomFixture.present(slotElement()).getBoundingClientRect();
+    const hit = document.elementFromPoint(area.left + area.width / 2, area.top + area.height / 2);
+    const field = DomFixture.oneOf(planned, "textarea", HTMLTextAreaElement);
+    field.focus();
+
+    expect([box(planned), box(other)]).toEqual([box(DomFixture.present(slotElement())), box(DomFixture.present(slotElement()))]);
+    expect(area.height).toBe(300);
+    expect([getComputedStyle(planned).visibility, getComputedStyle(other).visibility]).toEqual(["hidden", "visible"]);
+    expect([other.contains(hit), planned.contains(hit)]).toEqual([true, false]);
+    expect(document.activeElement).not.toBe(field);
   });
 
   it("shows a new view once its tab's view is destroyed", async () => {
@@ -157,6 +184,7 @@ describe("TabSlotComponent", () => {
 
     expect(hidden).toEqual([false, false]);
     expect(fixture.componentInstance.slot()?.content()).toBe(planned);
+    expect([planned?.element.parentElement, planned?.element.inert, planned?.isShown()]).toEqual([slotElement(), false, true]);
   });
 
   it("lets nothing go when it goes before it has shown a view", () => {

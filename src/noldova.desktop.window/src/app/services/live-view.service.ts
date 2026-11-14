@@ -35,7 +35,7 @@ export class LiveViewService {
       untracked(() => {
         for (const view of this.views.values())
           view.readScrollOffsets();
-        this.removeWhere(t => Object.isNull(t.slot) && !layout.isOpen(t.tab));
+        this.removeWhere(t => (Object.isNull(t.slot) || t.isConcealed) && !layout.isOpen(t.tab));
       });
     });
     inject(DestroyRef).onDestroy(() => this.removeWhere(() => true));
@@ -45,14 +45,18 @@ export class LiveViewService {
     const view = this.views.get(tab.key) ?? this.create(tab);
     view.ref.setInput(Resources.tabInput, tab);
     view.ref.setInput(Resources.dockedInput, isDocked);
-    if (view.slot === slot)
+    if (view.slot === slot && !view.isConcealed)
       return view.ref.instance;
-    if (Object.isNull(view.slot))
+    if (Object.isNull(view.slot) || view.isConcealed)
       this.application.attachView(view.ref.hostView);
-    else
-      view.leave();
+    if (view.slot === slot)
+      view.reveal();
+    else {
+      if (!Object.isNull(view.slot))
+        view.leave();
+      view.enter(slot);
+    }
     view.ref.setInput(Resources.shownInput, true);
-    view.enter(slot);
     this.mark(tab.key, true);
     view.ref.changeDetectorRef.markForCheck();
     afterNextRender(() => view.restore(), { injector: this.environment });
@@ -61,9 +65,9 @@ export class LiveViewService {
 
   public hide(tab: Tab, slot: HTMLElement): void {
     const view = this.views.get(tab.key);
-    if (Object.isUndefined(view) || view.slot !== slot)
+    if (Object.isUndefined(view) || view.slot !== slot || view.isConcealed)
       return;
-    view.leave();
+    view.conceal();
     this.mark(tab.key, false);
     view.ref.setInput(Resources.shownInput, false);
     this.application.detachView(view.ref.hostView);

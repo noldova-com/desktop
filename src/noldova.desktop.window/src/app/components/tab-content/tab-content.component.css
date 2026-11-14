@@ -10,8 +10,14 @@
   display: flex;
   flex: 1;
   flex-direction: column;
+  grid-row: 2;
+  grid-column: 1;
   min-height: 0;
   overflow: auto;
+}
+
+:host(.nol-tab-content-concealed) {
+  visibility: hidden;
 }
 
 :host(.nol-tab-content-padded) {
