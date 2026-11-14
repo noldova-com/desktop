@@ -276,7 +276,7 @@ test.describe("settings", () => {
     for (const [key, page] of [["view/notes.list", "nol-notes-list"], ["document/notes.note/1", "nol-notes-note"]] as const) {
       const tab = window.locator(`nol-tab[data-tab-key='${key}']`);
       await tab.click();
-      const area = window.locator(`nol-tab-group:has(nol-tab[data-tab-key='${key}']) nol-tab-content`);
+      const area = window.locator(`nol-tab-group:has(nol-tab[data-tab-key='${key}']) nol-tab-content:not([inert])`);
       await expect(tab).toHaveAttribute("aria-selected", "true");
       await expect(area.locator(page)).toBeVisible();
       await expectAtEdgeAsync(area, key);
@@ -468,7 +468,7 @@ test.describe("settings", () => {
     expect(top).toBeGreaterThan(0);
 
     await TabDragFixture.tab(window, note).click();
-    await expect(window.locator("nol-settings")).toHaveCount(0);
+    await expect(window.locator("nol-settings")).toBeHidden();
     await settingsTab(window).click();
     await expectSamePageAsync(window, top);
 

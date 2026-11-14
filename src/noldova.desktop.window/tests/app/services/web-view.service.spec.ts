@@ -206,7 +206,7 @@ describe("WebViewService", () => {
     const handle = await openAsync();
     const content = liveViews.show(plan, slot, false).element;
     const pane = document.createElement("div");
-    Object.assign(pane.style, { width: "20rem", height: "12.5rem" });
+    Object.assign(pane.style, { position: "relative", width: "20rem", height: "12.5rem" });
     content.append(pane);
     handle.mount(pane);
     attach(handle, 7);
