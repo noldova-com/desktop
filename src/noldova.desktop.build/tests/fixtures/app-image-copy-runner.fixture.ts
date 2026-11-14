@@ -26,6 +26,9 @@ export class AppImageCopyRunnerFixture extends SmokeRunnerFixture {
   public records: readonly CopyRecordKind[] = ["extraction"];
   public keepsStartLog: boolean = false;
   public removesStartLog: boolean = false;
+  public exitsAfterRemovingStartLog: boolean = false;
+  public makesLogs: boolean = true;
+  public readonly launchWait: PromiseWithResolvers<void> = Promise.withResolvers<void>();
   public removesCopy: boolean = true;
   public extraction: string = String.empty;
   private readonly copies: string[] = [];
@@ -39,12 +42,18 @@ export class AppImageCopyRunnerFixture extends SmokeRunnerFixture {
     const data = this.data ?? String.empty;
     const logs = path.join(data, "logs");
     this.extraction = path.join(path.dirname(data), "extraction");
-    await mkdir(logs, { recursive: true });
+    if (this.makesLogs)
+      await mkdir(logs, { recursive: true });
     const startLog = path.join(logs, "start-00000000-0000-0000-0000-000000000000.log");
     if (this.keepsStartLog || this.removesStartLog)
       await writeFile(startLog, "launcher started\n");
-    if (this.removesStartLog)
-      started.onWaitForExitAsync = () => rm(startLog);
+    started.onWaitForExitAsync = async () => {
+      this.launchWait.resolve();
+      if (this.removesStartLog)
+        await rm(startLog);
+      if (this.exitsAfterRemovingStartLog)
+        started.exit(0);
+    };
     for (const [index, kind] of this.records.entries())
       await this.writeRecordAsync(AppImageCopyRunnerFixture.formatRecord(logs, index), kind);
     return started;
