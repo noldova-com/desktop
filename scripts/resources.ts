@@ -188,6 +188,7 @@ export class Resources {
   public static readonly serialTestShutdownGrace: number = 1000;
   public static readonly serialTestStandardErrorDescriptor: number = 2;
   public static readonly serialTestRemovalRetries: number = 5;
+  public static readonly serialTestMethodWithoutClass: string = "A test method completed before its class started.";
   public static readonly serialTestSkipDetailsVariable: string = "NOLDOVA_TEST_SKIP_TEST_DETAILS";
   public static readonly serialTestTimeoutVariable: string = "NOLDOVA_TEST_TIMEOUT_MILLISECONDS";
   public static readonly serialTestTemporaryRootVariable: string = "NOLDOVA_TEST_TEMPORARY_ROOT";
@@ -240,7 +241,7 @@ export class Resources {
   public static readonly testWaitQuotes: readonly string[] = ["\"", "'", "`"];
   public static readonly testWaitEscape: string = "\\";
   public static readonly testWaitCheckTitle: string = "Test waits";
-  public static readonly scriptTestArguments: readonly string[] = ["--test", "scripts/angular/tests/**/*.test.ts", "scripts/checks/tests/**/*.test.ts"];
+  public static readonly scriptTestArguments: readonly string[] = ["--test", "--test-timeout=10000", "scripts/angular/tests/**/*.test.ts", "scripts/checks/tests/**/*.test.ts"];
   public static readonly scriptTestCheckTitle: string = "Script tests";
   public static readonly typeCheckProjectArguments: readonly string[] = ["--project", "scripts/tsconfig.json"];
   public static readonly typeCheckTitle: string = "Script types";

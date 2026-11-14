@@ -11,13 +11,13 @@ import path from "node:path";
 
 import "@noldova/context.core";
 import {
-  type DiscoveredTestClass, TestClassResult, TestConsoleReporter, TestDiscovery, TestExecutor, type TestMethodResult, TestOutcome, TestProject, TestRunResult, TestRunner,
-  TestSelection, TestTimeoutException
+  type DiscoveredTestClass, TestConsoleReporter, TestDiscovery, TestExecutor, TestOutcome, TestProject, TestRunResult, TestRunner, TestSelection
 } from "@noldova/context.testing";
 
 import { Resources } from "../resources.ts";
 import { EmptyTestPartsException } from "./empty-test-parts.exception.ts";
 import { TestFiltersException } from "./test-filters.exception.ts";
+import { TestInterruption } from "./test-interruption.ts";
 import { TestProcessPart } from "./test-process-part.ts";
 import { TestProjectsException } from "./test-projects.exception.ts";
 import { TestRunSummary } from "./test-run-summary.ts";
@@ -62,19 +62,6 @@ export class SerialTestRun {
     return testClasses.reduce((total, t) => total + t.methods.length, 0);
   }
 
-  public static identify(testClasses: readonly DiscoveredTestClass[], method: TestMethodResult): string {
-    return `${method.packageName}${Resources.pathSeparator}${SerialTestRun.findFile(testClasses, method)}${Resources.testIdentitySeparator}${method.displayName}`;
-  }
-
-  public static collectStopped(testClasses: readonly DiscoveredTestClass[], methodResults: readonly TestMethodResult[]): TestClassResult | null {
-    const [first] = methodResults;
-    return Object.isUndefined(first) ? null : new TestClassResult(first.packageName, first.className, SerialTestRun.findFile(testClasses, first), methodResults);
-  }
-
-  private static findFile(testClasses: readonly DiscoveredTestClass[], method: TestMethodResult): string {
-    return testClasses.find(t => t.packageName === method.packageName && t.className === method.className)?.filePath ?? String.empty;
-  }
-
   public static describe(result: TestRunResult, unreached: number): object {
     return {
       discovered: result.selection.discovered,
@@ -108,7 +95,7 @@ export class SerialTestRun {
     const temporary = mkdtempSync(path.join(this.environment[Resources.serialTestTemporaryRootVariable] ?? tmpdir(), Resources.serialTestTemporaryPrefix));
     for (const variable of Resources.serialTestTemporaryVariables)
       this.environment[variable] = temporary;
-    const interruptions: string[] = [];
+    const interruption = new TestInterruption();
 
     try {
       const filters = SerialTestRun.parseFilters(this.environment[Resources.serialTestFiltersVariable]);
@@ -123,19 +110,15 @@ export class SerialTestRun {
       const selected = new TestRunner(new TestDiscovery(), executor).select(discovered, filters);
       const reporter = new TestConsoleReporter(t => process.stdout.write(t), process.stdout.isTTY === true, !Object.isUndefined(this.environment[Resources.serialTestSkipDetailsVariable]));
       reporter.start();
-      const partial: TestMethodResult[] = [];
       const completed = await executor.executeAsync(selected, {
-        onMethodCompleted: t => {
-          partial.push(t);
-          if (t.failure instanceof TestTimeoutException)
-            interruptions.push(Resources.formatSerialTestInterrupted(SerialTestRun.identify(selected, t), t.failure.timeoutMilliseconds, process.getActiveResourcesInfo()));
-        },
+        onMethodStarted: t => interruption.start(t),
+        onMethodCompleted: t => interruption.complete(t),
         onClassCompleted: t => {
-          partial.splice(0);
+          interruption.finishClass();
           reporter.onClassCompleted(t);
         }
-      }, new Set(), () => interruptions.length > 0);
-      const stopped = SerialTestRun.collectStopped(selected, partial);
+      }, new Set(), () => interruption.isInterrupted);
+      const stopped = interruption.collectStopped();
       if (!Object.isNull(stopped))
         reporter.onClassCompleted(stopped);
       const classResults = Object.isNull(stopped) ? completed : [...completed, stopped];
@@ -154,7 +137,7 @@ export class SerialTestRun {
         writeFileSync(resultFile, JSON.stringify(SerialTestRun.describe(result, unreached)));
       const resultsFile = this.environment[Resources.serialTestResultsFileVariable];
       if (!Object.isUndefined(resultsFile))
-        writeFileSync(resultsFile, JSON.stringify(SerialTestRun.describeResults(result, interruptions.length > 0, unreached)));
+        writeFileSync(resultsFile, JSON.stringify(SerialTestRun.describeResults(result, interruption.isInterrupted, unreached)));
       process.exitCode = Math.min(result.failed + unreached + Number(ownsEmptySelection && result.total === 0), Resources.failedExitCode);
     }
     catch (error) {
@@ -165,10 +148,10 @@ export class SerialTestRun {
 
     const leftovers = readdirSync(temporary).sort();
     rmSync(temporary, { recursive: true, force: true, maxRetries: Resources.serialTestRemovalRetries });
-    const [interruption] = interruptions;
-    if (!Object.isUndefined(interruption)) {
-      writeSync(Resources.serialTestStandardErrorDescriptor, interruption);
-      summary.writeFailure(interruption);
+    const message = interruption.message;
+    if (!Object.isNull(message)) {
+      writeSync(Resources.serialTestStandardErrorDescriptor, message);
+      summary.writeFailure(message);
       process.exit(Resources.failedExitCode);
     }
     if (leftovers.length > 0) {
