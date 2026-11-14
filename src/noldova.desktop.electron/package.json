@@ -1,0 +1,74 @@
+{
+  "name": "@noldova/desktop.electron",
+  "version": "__VERSION__",
+  "description": "Noldova Desktop's Electron main process and preload: it starts and connects to the runtime, opens the window, and owns the tray, notifications from the operating system, the menu bar on macOS, shutdown and updates.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noldova-com/desktop.git",
+    "directory": "src/noldova.desktop.electron"
+  },
+  "homepage": "https://github.com/noldova-com/desktop#readme",
+  "bugs": {
+    "url": "https://github.com/noldova-com/desktop/issues"
+  },
+  "exports": {
+    ".": {
+      "types": "./api/index.d.ts",
+      "default": "./api/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "**/*.js",
+    "**/*.js.map",
+    "preload.cjs",
+    "preload.cjs.map",
+    "api/index.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@noldova/desktop.protocol": "__VERSION__",
+    "@noldova/desktop.runtime": "__VERSION__",
+    "electron-updater": "6.8.9"
+  },
+  "peerDependencies": {
+    "@noldova/context.core": ">=0.0.7 <0.1.0",
+    "@noldova/context.exceptions": ">=0.0.7 <0.1.0",
+    "@noldova/context.json": ">=0.0.7 <0.1.0",
+    "@noldova/context.text": ">=0.0.7 <0.1.0",
+    "electron": "44.9.1"
+  },
+  "noldova": {
+    "coverageExclusions": [
+      {
+        "file": "main.ts",
+        "reason": "Composes the main process from Electron's own modules, which load only inside Electron; the desktop UI workflows run it."
+      },
+      {
+        "file": "services/electron-web-view-engine.ts",
+        "reason": "Adapts Electron's sessions, webview guests and its will-attach-webview event, which load only inside Electron; the desktop UI workflows run it."
+      },
+      {
+        "file": "services/electron-web-view-contents.ts",
+        "reason": "Adapts an Electron web contents, which loads only inside Electron; the desktop UI workflows run it."
+      },
+      {
+        "file": "services/electron-web-view-session.ts",
+        "reason": "Adapts an Electron session, which loads only inside Electron; the desktop UI workflows run it."
+      },
+      {
+        "file": "services/product-app-adapter.ts",
+        "reason": "Wraps electron-updater's cache folder, network session and Electron request executor, which load only inside Electron; the desktop UI workflows run it."
+      },
+      {
+        "file": "utility-entry.ts",
+        "reason": "Connects DetachedStart to Electron's parent port, which exists only inside an Electron utility process; the Windows start test runs it."
+      }
+    ]
+  }
+}

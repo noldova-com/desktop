@@ -1,0 +1,65 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { readFileSync } from "node:fs";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+
+import "@noldova/context.core";
+import { ExceptionOptions } from "@noldova/context.exceptions";
+import { JsonReader } from "@noldova/context.json";
+import { Installation } from "@noldova/desktop.runtime";
+
+import { RestartArgumentsNotWrittenException } from "../exceptions/restart-arguments-not-written.exception.js";
+import { ErrorCode } from "../models/error-code.js";
+import { Resources } from "../resources.js";
+
+export class RestartArguments {
+  private readonly file: string;
+
+  public constructor(folder: string, programPath: string, platform: string) {
+    this.file = join(folder, Resources.formatRestartArgumentsFile(basename(Installation.locate(folder, programPath, platform))));
+  }
+
+  public async writeAsync(version: string, launchArguments: readonly string[], written: number): Promise<void> {
+    try {
+      await mkdir(dirname(this.file), { recursive: true });
+      await writeFile(this.file, JSON.stringify({
+        [Resources.restartVersionField]: version,
+        [Resources.restartArgumentsField]: launchArguments,
+        [Resources.restartWrittenField]: written
+      }));
+    }
+    catch (error) {
+      throw new RestartArgumentsNotWrittenException(new ExceptionOptions(error));
+    }
+  }
+
+  public removeAsync(): Promise<void> {
+    return rm(this.file, { force: true });
+  }
+
+  public read(version: string, now: number, unread: (error: unknown) => void): readonly string[] {
+    let target: string;
+    let launchArguments: readonly string[];
+    let written: number;
+    try {
+      const reader = JsonReader.parse(readFileSync(this.file, Resources.textEncoding));
+      target = reader.readString(Resources.restartVersionField);
+      launchArguments = reader.readStringArray(Resources.restartArgumentsField);
+      written = reader.readNumber(Resources.restartWrittenField);
+    }
+    catch (error) {
+      if (!ErrorCode.isOneOf(error, [Resources.missingErrorCode]))
+        unread(error);
+      return [];
+    }
+    const isCurrent = target === version && written <= now && now - written <= Resources.restartArgumentsLimit;
+    return isCurrent && launchArguments.every(t => Resources.handoverArguments.some(u => t.startsWith(u))) ? launchArguments : [];
+  }
+}

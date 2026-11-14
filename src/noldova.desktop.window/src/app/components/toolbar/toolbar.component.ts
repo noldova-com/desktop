@@ -1,0 +1,131 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { Component, DestroyRef, ElementRef, ErrorHandler, type Signal, type WritableSignal, afterRenderEffect, computed, effect, inject, input, signal, viewChild } from "@angular/core";
+
+import "@noldova/context.core";
+import { MenuTriggerDirective, OverlaySide, ToolbarButtonComponent, ToolbarDirective, ToolbarItemDirective, TooltipDirective } from "@noldova/ui.components.angular";
+import type { JsonObject } from "@noldova/context.json";
+
+import { Resources } from "../../../resources.js";
+import { MenuCheck } from "../../enums/menu-check.js";
+import type { CommandRow } from "../../models/command-row.js";
+import type { MenuSection } from "../../models/menu-section.js";
+import { ToolbarFit } from "../../models/toolbar-fit.js";
+import type { Toolbar } from "../../models/toolbar.js";
+import { CommandService } from "../../services/command.service.js";
+import { ToolbarDragService } from "../../services/toolbar-drag.service.js";
+import { PlaceMenuComponent } from "../place-menu/place-menu.component.js";
+
+@Component({
+  selector: "nol-toolbar",
+  imports: [MenuTriggerDirective, PlaceMenuComponent, ToolbarButtonComponent, ToolbarDirective, ToolbarItemDirective, TooltipDirective],
+  templateUrl: "./toolbar.component.html",
+  styleUrl: "./toolbar.component.css",
+  host: {
+    "class": "nol-toolbar",
+    "[attr.data-toolbar]": "toolbar().name",
+    "[class.nol-toolbar-dragging]": "drag.dragging() === toolbar().name",
+    "[style.flex-basis.px]": "naturalWidth()",
+    "(keydown)": "openMenuFromKey($event)",
+    "(contextmenu)": "openMenuAtToolbar($event)"
+  }
+})
+export class ToolbarComponent {
+  private readonly commands: CommandService = inject(CommandService);
+  private readonly errors: ErrorHandler = inject(ErrorHandler);
+  private isRefocusing: boolean = false;
+  private readonly content: Signal<ElementRef<HTMLElement>> = viewChild.required<ElementRef<HTMLElement>>("content");
+  private readonly ghost: Signal<ElementRef<HTMLElement>> = viewChild.required<ElementRef<HTMLElement>>("ghost");
+  private readonly grip: Signal<ElementRef<HTMLElement>> = viewChild.required<ElementRef<HTMLElement>>("grip");
+  private readonly gripMenu: Signal<MenuTriggerDirective> = viewChild.required("grip", { read: MenuTriggerDirective });
+  private readonly edges: WritableSignal<readonly number[]> = signal([]);
+  private readonly overflowSpace: WritableSignal<number> = signal(0);
+  private readonly available: WritableSignal<number> = signal(Number.POSITIVE_INFINITY);
+  private readonly gripWidth: WritableSignal<number> = signal(0);
+
+  protected readonly resources: typeof Resources = Resources;
+  protected readonly menuCheck: typeof MenuCheck = MenuCheck;
+  protected readonly below: OverlaySide = OverlaySide.below;
+  protected readonly drag: ToolbarDragService = inject(ToolbarDragService);
+  protected readonly menuContext: Signal<JsonObject> = computed(() => ({ [Resources.toolbarArgument]: this.toolbar().name }));
+
+  public readonly toolbar = input.required<Toolbar>();
+  public readonly count: Signal<number> = computed(() => ToolbarFit.count(this.edges(), this.overflowSpace(), this.available()));
+  public readonly shown: Signal<readonly MenuSection[]> = computed(() => this.toolbar().sections.slice(0, this.count()));
+  public readonly overflowing: Signal<readonly MenuSection[]> = computed(() => this.toolbar().sections.slice(this.count()));
+  public readonly naturalWidth: Signal<number | null> = computed(() => {
+    const last = this.edges().at(-1);
+    return Object.isUndefined(last) ? null : this.gripWidth() + last;
+  });
+
+  public constructor() {
+    const observer = new ResizeObserver(() => this.measure());
+    inject(DestroyRef).onDestroy(() => observer.disconnect());
+    effect(() => {
+      const count = this.count();
+      const group = this.content().nativeElement.querySelector<HTMLElement>(Resources.focusedSelector)?.closest<HTMLElement>(Resources.toolbarContentSectionSelector)
+        ?.dataset[Resources.toolbarGroupData];
+      this.isRefocusing = this.toolbar().sections.findIndex(t => t.group === group) >= count;
+    });
+    afterRenderEffect(() => {
+      this.count();
+      if (this.isRefocusing)
+        this.content().nativeElement.querySelector<HTMLElement>(Resources.toolbarOverflowItemSelector)?.focus();
+      this.isRefocusing = false;
+    });
+    afterRenderEffect(() => {
+      this.toolbar();
+      const [content, ghost, grip] = [this.content().nativeElement, this.ghost().nativeElement, this.grip().nativeElement];
+      observer.disconnect();
+      observer.observe(content);
+      observer.observe(ghost);
+      observer.observe(grip);
+      this.measure();
+    });
+  }
+
+  protected openMenuFromKey(event: KeyboardEvent): void {
+    if (event.key === Resources.toolbarMenuKey || (event.key === Resources.toolbarMenuShiftKey && event.shiftKey)) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.gripMenu().openFocusing(Resources.keyboardFocusOrigin);
+    }
+  }
+
+  protected openMenuAtToolbar(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.gripMenu().openFocusing(Resources.mouseFocusOrigin);
+  }
+
+  protected tooltipOf(row: CommandRow): string {
+    return Object.isNull(row.key) ? row.title : Resources.formatShortcutTitle(row.title, row.key);
+  }
+
+  protected run(row: CommandRow): void {
+    if (row.isEnabled)
+      this.commands.runAsync(row.command, row.commandArguments).catch((error: unknown) => this.errors.handleError(error));
+  }
+
+  private measure(): void {
+    const ghost = this.ghost().nativeElement;
+    const isRightToLeft = getComputedStyle(ghost).direction === Resources.rightToLeft;
+    const box = ghost.getBoundingClientRect();
+    const extentOf = (element: Element): number => {
+      const rect = element.getBoundingClientRect();
+      return isRightToLeft ? box.right - rect.left : rect.right - box.left;
+    };
+    const edges = [...ghost.querySelectorAll<HTMLElement>(Resources.toolbarSectionSelector)].map(extentOf);
+    this.edges.set(edges);
+    this.overflowSpace.set(Math.max(0, ...[...ghost.querySelectorAll<HTMLElement>(Resources.toolbarOverflowSelector)].map(extentOf)) - Math.max(0, ...edges));
+    const [content, grip] = [this.content().nativeElement.getBoundingClientRect(), this.grip().nativeElement.getBoundingClientRect()];
+    this.available.set(content.width);
+    this.gripWidth.set(isRightToLeft ? grip.right - content.right : content.left - grip.left);
+  }
+}

@@ -1,0 +1,37 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { type Signal, type WritableSignal, signal } from "@angular/core";
+
+import type { TopBarSide } from "../enums/top-bar-side.js";
+import type { TopBarActionContribution } from "./top-bar-action-contribution.js";
+import type { TopBarActionState } from "./top-bar-action-state.js";
+
+export class TopBarAction {
+  private readonly stateValue: WritableSignal<TopBarActionState>;
+  private readonly check: (state: TopBarActionState) => void;
+
+  public readonly name: string;
+  public readonly side: TopBarSide;
+  public readonly state: Signal<TopBarActionState>;
+
+  public constructor(contribution: TopBarActionContribution, check: (state: TopBarActionState) => void) {
+    check(contribution.state);
+
+    this.check = check;
+    this.name = contribution.name;
+    this.side = contribution.side;
+    this.stateValue = signal(contribution.state);
+    this.state = this.stateValue.asReadonly();
+  }
+
+  public update(state: TopBarActionState): void {
+    this.check(state);
+    this.stateValue.set(state);
+  }
+}

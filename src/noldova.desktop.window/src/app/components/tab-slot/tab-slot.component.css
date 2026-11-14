@@ -1,0 +1,35 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.nol-tab-slot-stopped {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--nol-space-2);
+  padding: var(--nol-space-1) var(--nol-content-padding-inline);
+  background-color: var(--nol-raised);
+}
+
+:host(.nol-tab-slot-docked) .nol-tab-slot-stopped {
+  background-color: var(--nol-panel);
+}
+
+.nol-tab-slot-stopped-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

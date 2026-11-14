@@ -1,0 +1,94 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import {
+  Component, ErrorHandler, type OutputEmitterRef, type Signal, computed, inject, output
+} from "@angular/core";
+
+import "@noldova/context.core";
+import { ButtonComponent, ButtonVariant, CheckboxComponent, IconButtonComponent, PopoverDirective, ProgressComponent, TooltipDirective } from "@noldova/ui.components.angular";
+import { type CommandRun, type Notification, NotificationPost, NotificationSeverity } from "@noldova/desktop.protocol";
+
+import { ModuleStatusService } from "../../services/module-status.service.js";
+import { NotificationService } from "../../services/notification.service.js";
+import { Resources } from "../../../resources.js";
+
+@Component({
+  selector: "nol-notifications-popover",
+  imports: [ButtonComponent, CheckboxComponent, IconButtonComponent, ProgressComponent, TooltipDirective],
+  templateUrl: "./notifications-popover.component.html",
+  styleUrl: "./notifications-popover.component.css",
+  hostDirectives: [{ directive: PopoverDirective, inputs: ["label"] }],
+  host: {
+    "class": "nol-notifications-popover"
+  }
+})
+export class NotificationsPopoverComponent {
+  private readonly service: NotificationService = inject(NotificationService);
+  private readonly errors: ErrorHandler = inject(ErrorHandler);
+  private readonly statuses: ModuleStatusService = inject(ModuleStatusService);
+  private readonly time: Intl.DateTimeFormat = new Intl.DateTimeFormat(undefined, Resources.timeFormat);
+
+  protected readonly resources: typeof Resources = Resources;
+  protected readonly secondary: ButtonVariant = ButtonVariant.Secondary;
+  protected readonly notifications: Signal<readonly Notification[]> = computed(() => this.service.state().notifications);
+  protected readonly isQuiet: Signal<boolean> = computed(() => this.service.state().isDoNotDisturb);
+  protected readonly hasFinished: Signal<boolean> = computed(() => this.notifications().some(t => !NotificationsPopoverComponent.isInProgress(t)));
+
+  public readonly closed: OutputEmitterRef<void> = output<void>();
+
+  protected glyph(severity: NotificationSeverity): string {
+    return Resources.severityGlyphs[severity];
+  }
+
+  protected severityName(severity: NotificationSeverity): string {
+    return Resources.severityNames[severity];
+  }
+
+  protected moduleName(notification: Notification): string {
+    return this.statuses.nameOf(notification.post.kind.owner);
+  }
+
+  protected timeOf(notification: Notification): string {
+    return this.time.format(new Date(notification.postedAt));
+  }
+
+  protected progressOf(notification: Notification): number | null {
+    return Object.isNumber(notification.post.progress) ? notification.post.progress : null;
+  }
+
+  protected isIndeterminate(notification: Notification): boolean {
+    return notification.post.progress === NotificationPost.indeterminate;
+  }
+
+  protected isAvailable(command: CommandRun): boolean {
+    return this.service.isAvailable(command);
+  }
+
+  protected run(command: CommandRun): void {
+    this.service.runAsync(command).catch((error: unknown) => this.errors.handleError(error));
+    this.closed.emit();
+  }
+
+  protected dismiss(notification: Notification): void {
+    this.service.dismiss(notification.id);
+  }
+
+  protected clear(): void {
+    this.service.clear();
+  }
+
+  protected setQuiet(isOn: boolean): void {
+    this.service.setDoNotDisturb(isOn);
+  }
+
+  private static isInProgress(notification: Notification): boolean {
+    const progress = notification.post.progress;
+    return progress === NotificationPost.indeterminate || (Object.isNumber(progress) && progress < 1);
+  }
+}

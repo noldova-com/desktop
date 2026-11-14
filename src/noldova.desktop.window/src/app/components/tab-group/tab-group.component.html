@@ -1,0 +1,89 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<nol-panel-card class="nol-tab-group-card" [surface]="surface()" [attr.data-drop-group]="group().id">
+  @if (header(); as tab) {
+    @let label = labels.of(tab);
+    <div class="nol-tab-group-bar nol-tab-group-header" data-drop-tabs>
+      <span class="nol-tab-group-title" data-truncates [attr.id]="activeTabId()" [attr.data-header-key]="tab.key" [nolTooltip]="label.title" [nolTooltipSide]="below" [nolTooltipTruncated]="true">{{ label.title }}</span>
+      <div class="nol-tab-group-actions" [class.nol-tab-group-actions-shell]="isShell()" [class.nol-drop-line-before]="isDropAtEnd()">
+        <nol-tab-row-actions [group]="group()" />
+        <ng-container [ngTemplateOutlet]="groupActions" />
+      </div>
+    </div>
+  } @else {
+    <div class="nol-tab-group-bar nol-tab-group-tabs" data-drop-tabs>
+      <div #scroller="nolTabScroller" class="nol-tab-group-scroller" [nolTabScroller]="actionBar" [nolTabScrollerFrame]="frame()" [nolTabScrollerRows]="rowActions().length">
+        <div class="nol-tab-group-strip" role="tablist" (keydown)="onStripKey($event)">
+          @for (tab of group().tabs; track tab.key; let index = $index) {
+            @let label = labels.of(tab);
+            <nol-place-menu #menu [place]="resources.tabMenu" [context]="{ tab: tab.key }" />
+            @let badge = labels.badgeOf(tab);
+            @let look = labels.lookOf(tab);
+            <nol-tab [label]="label.title" [icon]="label.icon" [badge]="badge?.description ?? null" [badgeCount]="badge?.count ?? null" [selected]="tab.equals(group().active)" [preview]="tab.equals(group().preview)" [working]="labels.isWorking(tab)" [waiting]="labels.isWaiting(tab)" [editing]="tab.equals(renames.editing())" [attr.data-tab-index]="index"
+              [image]="look.image" [imageGlyph]="look.imageGlyph" [status]="look.status" [marker]="look.marker" [underline]="look.underline" [leadingSpinner]="tab.leadsSpinner"
+              [attr.id]="tabId(index)" [attr.data-tab-key]="tab.key" [class.nol-drop-line-before]="drag.isDropBefore(group().id, index)" [class.nol-tab-dragged]="tab.equals(drag.dragging())"
+              [nolTooltip]="label.title" [nolTooltipSide]="below" [nolTooltipTruncated]="true"
+              [nolContextMenuTriggerFor]="menu.menu()" (activate)="layout.activate(tab)" (click)="onTabClick(tab, $event)" (close)="close(tab)" (pointerdown)="onTabPointerDown(tab, $event)" (dblclick)="onTabDoubleClick(tab)"
+              (labelKept)="renames.keep($event)" (labelCancelled)="renames.cancel()" />
+          }
+          <span class="nol-tab-group-end" [class.nol-drop-line-before]="isDropAtEnd() && !scroller.isOverflowing()"></span>
+        </div>
+        <div #actionBar class="nol-tab-group-actions" [class.nol-tab-group-actions-shell]="isShell()" [class.nol-drop-line-before]="isDropAtEnd() && scroller.isOverflowing()">
+          @if (!scroller.isOverflowing()) {
+            <nol-tab-row-actions [group]="group()" />
+          }
+          @if (scroller.isOverflowing()) {
+            <button #overflowTrigger="nolMenuTriggerFor" type="button" nol-icon-button class="nol-tab-group-overflow" [icon]="resources.overflowGlyph"
+              [label]="resources.overflowLabel" [nolTooltip]="resources.overflowLabel" [nolTooltipSide]="below" [nolMenuTriggerFor]="overflow" [nolMenuAlignment]="end"></button>
+            <ng-template #overflow>
+              <nol-menu class="nol-tab-group-overflow-menu">
+                @for (row of rowActions(); track $index) {
+                  @if (row.isSubmenu) {
+                    <nol-place-menu #nested [place]="row.place" [context]="row.context" />
+                    <button nol-menu-item class="nol-tab-row-menu-submenu" [attr.data-submenu]="row.place" [icon]="row.icon ?? resources.tabRowSubmenuGlyph" [label]="row.title" [nolMenuTriggerFor]="nested.menu()"></button>
+                  } @else {
+                    <button nol-menu-item class="nol-tab-row-menu-command" [attr.data-command]="row.command" [icon]="row.icon ?? resources.tabRowCommandGlyph" [label]="row.title"
+                      [shortcut]="row.key" [disabled]="!row.isEnabled" (triggered)="tabRows.run(row)"></button>
+                  }
+                }
+                @if (group().active; as active) {
+                  <nol-place-menu #folded [place]="resources.tabMenu" [context]="{ tab: active.key }" />
+                  <button nol-menu-item class="nol-tab-group-overflow-actions" [icon]="resources.panelActionsGlyph" [label]="resources.panelActionsLabel" [nolMenuTriggerFor]="folded.menu()"></button>
+                  <nol-menu-separator />
+                }
+                <button nol-menu-item class="nol-tab-group-overflow-close-all" [icon]="resources.closeAllGlyph" [label]="resources.closeAllLabel" (triggered)="closeAll()"></button>
+                <nol-menu-separator />
+                @for (tab of group().tabs; track tab.key) {
+                  @let label = labels.of(tab);
+                  <button nol-menu-item class="nol-tab-group-overflow-tab" [attr.data-tab]="tab.key" [attr.aria-current]="tab.equals(group().active) ? 'true' : null"
+                    [icon]="label.icon" [label]="label.title" [nolTooltip]="label.title" [nolTooltipSide]="besides" [nolTooltipTruncated]="true" (triggered)="choose(tab)"></button>
+                }
+              </nol-menu>
+            </ng-template>
+          }
+          <ng-container [ngTemplateOutlet]="groupActions" [ngTemplateOutletContext]="{ $implicit: scroller.isOverflowing() }" />
+        </div>
+      </div>
+    </div>
+  }
+  <ng-template #groupActions let-folded>
+    @if (!folded && group().active; as active) {
+      <nol-place-menu #actions [place]="resources.tabMenu" [context]="{ tab: active.key }" />
+      <button type="button" nol-icon-button class="nol-tab-group-menu" [icon]="resources.panelActionsGlyph" [label]="resources.panelActionsLabel"
+        [nolTooltip]="resources.panelActionsLabel" [nolTooltipSide]="below" [nolMenuTriggerFor]="actions.menu()" [nolMenuAlignment]="end"></button>
+    }
+    @if (hideSide(); as side) {
+      <button type="button" nol-icon-button class="nol-tab-group-hide" [icon]="resources.hideDockGlyphs[side]" [label]="resources.hideDockLabels[side]"
+        [nolTooltip]="resources.hideDockLabels[side]" [nolTooltipSide]="below" (click)="layout.toggleDock(side)"></button>
+    }
+  </ng-template>
+  <div class="nol-tab-group-body" [attr.role]="header() ? resources.regionRole : resources.tabPanelRole" [attr.id]="panelId()" [attr.aria-labelledby]="activeTabId()">
+    <ng-content />
+  </div>
+</nol-panel-card>

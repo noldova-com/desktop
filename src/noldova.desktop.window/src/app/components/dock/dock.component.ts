@@ -1,0 +1,119 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { Component, type Signal, computed, inject, input } from "@angular/core";
+
+import "@noldova/context.core";
+import {
+  AppearanceService, ContextMenuTriggerDirective, IconButtonComponent, OverlaySide, PanelCardComponent, PanelSurface, SashComponent, SashOrientation, ToolbarDirective, ToolbarItemDirective, ToolbarOrientation,
+  TooltipDirective, ViewBadgeComponent
+} from "@noldova/ui.components.angular";
+
+import { Resources } from "../../../resources.js";
+import { DockSide } from "../../enums/dock-side.js";
+import { Bounds } from "../../models/layout/bounds.js";
+import type { Dock } from "../../models/layout/dock.js";
+import type { LayoutNode } from "../../models/layout/layout.node.js";
+import { DockStripIcon } from "../../models/layout/dock-strip-icon.js";
+import type { Tab } from "../../models/layout/tab.js";
+import { TabDropTarget } from "../../models/layout/tab-drop-target.js";
+import type { TabGroup } from "../../models/layout/tab-group.js";
+import { LayoutService } from "../../services/layout.service.js";
+import { TabFocusService } from "../../services/tab-focus.service.js";
+import { TabDragService } from "../../services/tab-drag.service.js";
+import { TabLabelService } from "../../services/tab-label.service.js";
+import { PlaceMenuComponent } from "../place-menu/place-menu.component.js";
+
+@Component({
+  selector: "nol-dock",
+  imports: [ContextMenuTriggerDirective, IconButtonComponent, PanelCardComponent, PlaceMenuComponent, SashComponent, ToolbarDirective, ToolbarItemDirective, TooltipDirective, ViewBadgeComponent],
+  templateUrl: "./dock.component.html",
+  styleUrl: "./dock.component.css",
+  host: {
+    "[attr.data-side]": "side()",
+    "[class.nol-dock-collapsed]": "isCollapsed()"
+  }
+})
+export class DockComponent {
+  private readonly appearance: AppearanceService = inject(AppearanceService);
+  private readonly tabFocus: TabFocusService = inject(TabFocusService);
+
+  protected readonly resources: typeof Resources = Resources;
+  protected readonly surface: PanelSurface = PanelSurface.Shell;
+  protected readonly layout: LayoutService = inject(LayoutService);
+  protected readonly labels: TabLabelService = inject(TabLabelService);
+  protected readonly drag: TabDragService = inject(TabDragService);
+  protected readonly dock: Signal<Dock> = computed(() => this.layout.layout().dock(this.side()));
+  protected readonly bounds: Signal<Bounds> = computed(() => this.layout.geometry().dock(this.side()));
+  protected readonly isShown: Signal<boolean> = computed(() => this.layout.geometry().isShown(this.side()));
+  protected readonly isCollapsed: Signal<boolean> = computed(() => this.layout.geometry().isCollapsed(this.side()));
+  protected readonly orientation: Signal<SashOrientation> = computed(() => this.side() === DockSide.Bottom ? SashOrientation.Horizontal : SashOrientation.Vertical);
+  protected readonly size: Signal<number> = computed(() => this.bounds().length(this.dock().axis));
+  protected readonly minimumSize: Signal<number> = computed(() => Math.min(this.dock().minimumSize(this.layout.geometry().metrics), this.size()));
+  protected readonly isVertical: Signal<boolean> = computed(() => this.side() !== DockSide.Bottom);
+  protected readonly tooltipSide: Signal<OverlaySide> = computed(() => Resources.dockStripTooltipSides[this.side()]);
+  protected readonly isRail: Signal<boolean> = computed(() => !Object.isNull(this.layout.geometry().rail(this.side())));
+  protected readonly stripBounds: Signal<Bounds | null> = computed(() => this.layout.geometry().rail(this.side()) ?? (this.isCollapsed() ? this.bounds() : null));
+  protected readonly stripOrientation: Signal<ToolbarOrientation> = computed(() => this.isVertical() ? ToolbarOrientation.Vertical : ToolbarOrientation.Horizontal);
+  protected readonly axis: Signal<string> = computed(() => this.isVertical() ? Resources.verticalOrientation : Resources.horizontalOrientation);
+  protected readonly separatorOrientation: Signal<string> = computed(() => this.isVertical() ? Resources.horizontalOrientation : Resources.verticalOrientation);
+  protected readonly sash: Signal<Bounds> = computed(() => {
+    const bounds = this.bounds();
+    const gap = this.layout.geometry().metrics.gap;
+    switch (this.side()) {
+      case DockSide.Left:
+        return new Bounds(bounds.right, bounds.y, gap, bounds.height);
+      case DockSide.Right:
+        return new Bounds(bounds.x - gap, bounds.y, gap, bounds.height);
+      default:
+        return new Bounds(bounds.x, bounds.y - gap, bounds.width, gap);
+    }
+  });
+
+  public readonly side = input.required<DockSide>();
+
+  protected iconsOf(root: LayoutNode): readonly (readonly DockStripIcon[])[] {
+    const groups = root.groups.map(t => [t, t.tabs.filter(u => u.isAvailable(this.layout.registry()) && !u.equals(this.layout.hidden()))] as const).filter(([, tabs]) => tabs.length > 0);
+    return groups.map(([group, tabs], position) => tabs.map((tab, order) => {
+      const index = group.tabs.findIndex(t => t.equals(tab));
+      const previous = order === 0 ? groups[position - 1]?.[0] : undefined;
+      const before = Object.isUndefined(previous) ? new TabDropTarget(group.id, index) : new TabDropTarget(previous.id, previous.tabs.length);
+      return new DockStripIcon(group, tab, before, new TabDropTarget(group.id, index + 1));
+    }));
+  }
+
+  protected encode(target: TabDropTarget): string {
+    return `${target.groupId}${Resources.dropTargetSeparator}${target.index}`;
+  }
+
+  protected isShowing(group: TabGroup, tab: Tab): boolean {
+    return !this.isCollapsed() && tab.equals(group.active);
+  }
+
+  protected toggle(group: TabGroup, tab: Tab, event: MouseEvent): void {
+    if (this.isShowing(group, tab))
+      this.layout.toggleDock(this.side());
+    else {
+      this.layout.activate(tab);
+      this.layout.keepOpen(this.side());
+      if (event.detail > 0)
+        this.tabFocus.focusContent(tab);
+    }
+  }
+
+  protected pixels(rem: number): number {
+    return Math.round(rem * this.appearance.typography().rootSize);
+  }
+
+  protected resize(delta: number): void {
+    const rem = delta / this.appearance.typography().rootSize;
+    const grow = this.side() === DockSide.Left ? rem : -rem;
+    const size = Math.max(this.minimumSize(), Math.min(this.layout.geometry().maximumSize(this.side()), this.size() + grow));
+    this.layout.resizeDock(this.side(), size);
+  }
+}

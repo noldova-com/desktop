@@ -1,0 +1,177 @@
+# @license
+# Copyright (c) Noldova.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+name: End-to-end specs
+
+on:
+  workflow_call:
+    inputs:
+      targets:
+        description: The targets as a JSON array of objects with target, system and runner, as end-to-end.yml lists them.
+        type: string
+        required: true
+      shards:
+        description: How many jobs split the specs on each target, 3, or 1 for a runner kept to one job at a time; any other number leaves the matrix empty, which fails the run
+        type: number
+        default: 3
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  versions:
+    name: Versions
+    uses: noldova-com/.github/.github/workflows/versions.yml@7640859ac0de8cc03fadbd705b45376c2e1bd88b # v2.25.0
+    permissions: {}
+
+  end-to-end:
+    name: End-to-end specs (${{ matrix.platform.target }}, shard ${{ matrix.shard }} of ${{ inputs.shards }})
+    needs: versions
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.targets) }}
+        shard: ${{ fromJSON(inputs.shards == 1 && '[1]' || inputs.shards == 3 && '[1, 2, 3]' || '[]') }}
+    runs-on: ${{ fromJSON(matrix.platform.runner) }}
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          package-manager-cache: false
+
+      - name: Verify the toolchain
+        env:
+          EXPECTED_NODE: ${{ needs.versions.outputs.node-version }}
+          EXPECTED_NPM: ${{ needs.versions.outputs.npm-version }}
+        run: |
+          node --version
+          npm --version
+          test "$(node --version)" = "v$EXPECTED_NODE"
+          if [ -n "$EXPECTED_NPM" ]; then
+            test "$(npm --version)" = "$EXPECTED_NPM"
+          fi
+
+      - name: Install the dependencies
+        env:
+          npm_config_ignore_scripts: 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Install the app's packages and the browser for the Angular tests as the build does
+        timeout-minutes: 10
+        env:
+          npm_config_ignore_scripts: 'true'
+        run: npm run build:install
+
+      - name: Install Electron
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3 4; do
+            if node node_modules/electron/install.js; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 4 ]; then
+              echo "Electron's binary download failed (attempt $attempt of 4); trying again in 15 seconds."
+              sleep 15
+            fi
+          done
+          echo "::error::Electron's binary could not be downloaded in 4 attempts."
+          exit 1
+
+      - name: Build
+        env:
+          npm_config_ignore_scripts: 'true'
+          ELECTRON_MIRROR: https://download.invalid/
+          PLAYWRIGHT_DOWNLOAD_HOST: https://download.invalid
+        run: npm run build
+
+      - name: Write a crashed process's core as a plain file rather than through systemd-coredump
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        timeout-minutes: 1
+        run: |
+          sudo sysctl -w kernel.core_pattern=core
+          echo "A crashed process ends at once, so the specs that crash a web view's page see it gone."
+
+      - name: Install the session bus
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: command -v dbus-run-session >/dev/null || { sudo apt-get update && sudo apt-get install -y --no-install-recommends dbus-daemon dbus-bin; }
+
+      - name: Give Chromium's sandbox its setuid helper where user namespaces are refused
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        env:
+          HELPER: _build/development-app/chrome-sandbox
+        run: |
+          node src/noldova.desktop.build/src/services/desktop/development-binary.ts
+          if unshare -Ur true; then
+            echo "Unprivileged user namespaces are allowed, so the specs start Electron with Chromium's sandbox."
+            exit 0
+          fi
+          if ! { sudo --non-interactive chown root:root "$HELPER" && sudo --non-interactive chmod 4755 "$HELPER"; }; then
+            echo "::error::This runner refuses unprivileged user namespaces and its user can't run sudo without a password, so the specs can't start Electron with Chromium's sandbox; the README says what a self-hosted runner needs."
+            exit 1
+          fi
+          echo "Unprivileged user namespaces are refused, so the specs start Electron with Chromium's sandbox through its setuid helper, as the README says for npm start."
+
+      - name: Run the end-to-end specs
+        timeout-minutes: 90
+        env:
+          SHARD: ${{ matrix.shard }}/${{ inputs.shards }}
+        run: npm run test:ui:ci -- "--shard=$SHARD"
+
+      - name: List the failed specs
+        if: failure()
+        env:
+          TARGET: ${{ matrix.platform.target }}, shard ${{ matrix.shard }} of ${{ inputs.shards }}
+          LIST: _build/ui/failed/${{ matrix.platform.system }}-${{ matrix.shard }}.md
+        run: |
+          mkdir -p _build/ui/failed
+          node --input-type=module <<'SCRIPT'
+          import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
+          const report = "_build/ui/report.json";
+          const failed = [];
+          const visit = suite => {
+            for (const spec of suite.specs ?? [])
+              if (!spec.ok)
+                failed.push(`- ${spec.file}:${spec.line} › ${spec.title}`);
+            for (const child of suite.suites ?? [])
+              visit(child);
+          };
+          const hasReport = existsSync(report);
+          if (hasReport)
+            for (const suite of JSON.parse(readFileSync(report, "utf8")).suites ?? [])
+              visit(suite);
+          const reason = hasReport
+            ? "- The report lists no failed spec; the run failed outside the specs."
+            : "- No report: the run stopped before Playwright wrote one, or the specs step timed out.";
+          const lines = failed.length > 0 ? failed : [reason];
+          writeFileSync(process.env.LIST, `### ${process.env.TARGET}\n\n${lines.join("\n")}\n`);
+          SCRIPT
+
+      - name: Keep the failed specs and the report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: end-to-end-${{ matrix.platform.system }}-${{ matrix.shard }}
+          path: |
+            _build/ui/failed
+            _build/ui/report
+            _build/ui/results
+          if-no-files-found: ignore
+          retention-days: 14

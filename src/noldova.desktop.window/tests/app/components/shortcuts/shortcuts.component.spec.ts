@@ -1,0 +1,495 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import "@noldova/context.core";
+import { ErrorHandler, type Signal, type WritableSignal, computed, signal } from "@angular/core";
+import { type ComponentFixture, TestBed } from "@angular/core/testing";
+import { page, userEvent } from "vitest/browser";
+
+import type { JsonValue } from "@noldova/context.json";
+import type { SettingDefinition } from "@noldova/desktop.protocol";
+
+import { SettingsComponent } from "../../../../src/app/components/settings/settings.component";
+import { CommandContribution } from "../../../../src/app/models/command-contribution";
+import { CommandService } from "../../../../src/app/services/command.service";
+import { SettingsService } from "../../../../src/app/services/settings.service";
+import { WindowPartHostService } from "../../../../src/app/services/window-part-host.service";
+import { AppearanceFixture } from "@noldova/ui.components.angular/testing";
+import { PreloadBridgeFixture } from "../../../fixtures/preload-bridge.fixture";
+import { DomFixture } from "../../../fixtures/dom.fixture";
+
+class FakeSettingsService {
+  public readonly definitions: WritableSignal<readonly SettingDefinition[]> = signal([]);
+  public readonly values: WritableSignal<ReadonlyMap<string, JsonValue>> = signal(new Map());
+  public readonly sets: WritableSignal<ReadonlySet<string>> = signal(new Set());
+  public readonly calls: string[] = [];
+  public readonly late: (() => void)[] = [];
+  public failure: Error | null = null;
+  public isLate: boolean = false;
+
+  public isSet(name: string): Signal<boolean> {
+    return computed(() => this.sets().has(name));
+  }
+
+  public setAsync(name: string, value: JsonValue): Promise<void> {
+    this.calls.push(`set ${name} ${JSON.stringify(value)}`);
+    if (!Object.is(this.failure, null))
+      return Promise.reject(this.failure);
+    const apply = (): void => {
+      const isSet = JSON.stringify(value) !== "{}";
+      this.values.update(t => new Map([...t, [name, value]]));
+      this.sets.update(t => new Set([...[...t].filter(u => u !== name), ...isSet ? [name] : []]));
+    };
+    if (this.isLate)
+      this.late.push(apply);
+    else
+      apply();
+    return Promise.resolve();
+  }
+
+  public deliver(): void {
+    for (const apply of this.late.splice(0))
+      apply();
+  }
+
+  public resetAsync(name: string): Promise<void> {
+    this.calls.push(`reset ${name}`);
+    if (!Object.is(this.failure, null))
+      return Promise.reject(this.failure);
+    this.values.update(t => new Map([...t, [name, {}]]));
+    this.sets.update(t => new Set([...t].filter(u => u !== name)));
+    return Promise.resolve();
+  }
+}
+
+describe("ShortcutsComponent", () => {
+  let fixture: ComponentFixture<SettingsComponent>;
+  let settings: FakeSettingsService;
+  let errors: unknown[];
+  let runs: string[];
+
+  const element = (): HTMLElement => DomFixture.host(fixture);
+  const row = (command: string): HTMLElement => DomFixture.one(element(), `[data-command='${command}']`);
+  const keyOf = (command: string): HTMLButtonElement => DomFixture.oneOf(row(command), ".nol-shortcut-key", HTMLButtonElement);
+  const cells = (command: string): readonly string[] => [...row(command).querySelectorAll("td")].map(t => t.textContent?.trim() ?? String.empty);
+  const notice = (command: string): string | null => row(command).querySelector(".nol-shortcut-notice-text")?.textContent ?? null;
+
+  async function renderAsync(platform: string = "linux", bindings: JsonValue = {}): Promise<void> {
+    PreloadBridgeFixture.install(platform);
+    settings.values.set(new Map([["desktop.keyBindings", bindings]]));
+    if (JSON.stringify(bindings) !== "{}")
+      settings.sets.set(new Set(["desktop.keyBindings"]));
+    TestBed.inject(CommandService).setCommands([
+      new CommandContribution("clock.tick", "Tick the clock", null, "Ctrl+Alt+T", () => Promise.resolve(null)),
+      new CommandContribution("notes.newNote", "New note", null, "Mod+Alt+N", async () => {
+        runs.push("notes.newNote");
+        return null;
+      })
+    ]);
+    fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    await page.getByRole("treeitem", { name: "Keyboard shortcuts" }).click();
+    await settleAsync();
+  }
+
+  async function settleAsync(): Promise<void> {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  async function recordAsync(command: string): Promise<void> {
+    keyOf(command).click();
+    keyOf(command).focus();
+    await settleAsync();
+  }
+
+  async function pressAsync(command: string, init: KeyboardEventInit, type: string = "keydown"): Promise<KeyboardEvent> {
+    const event = new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init });
+    keyOf(command).dispatchEvent(event);
+    await settleAsync();
+    return event;
+  }
+
+  beforeEach(() => {
+    settings = new FakeSettingsService();
+    errors = [];
+    runs = [];
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: SettingsService, useValue: settings },
+        { provide: WindowPartHostService, useValue: { settingsPages: signal([]) } },
+        { provide: ErrorHandler, useValue: { handleError: (error: unknown) => errors.push(error) } }
+      ]
+    });
+  });
+
+  afterEach(async () => {
+    await userEvent.keyboard("{Escape}");
+    PreloadBridgeFixture.remove();
+    AppearanceFixture.reset();
+  });
+
+  it("shows each command's id under its title, muted in the label size like a setting's id, with From and Key on the title's line", async () => {
+    AppearanceFixture.apply();
+    await renderAsync();
+    const probe = document.createElement("span");
+    probe.style.cssText = "color: var(--nol-text-muted); font-size: var(--nol-text-label); line-height: var(--nol-line-label)";
+    row("clock.tick").append(probe);
+    const look = (element: Element): readonly string[] => [getComputedStyle(element).color, getComputedStyle(element).fontSize, getComputedStyle(element).lineHeight];
+    const name = DomFixture.one(row("clock.tick"), ".nol-shortcut-name");
+    const title = DomFixture.one(row("clock.tick"), ".nol-shortcut-title").getBoundingClientRect();
+    const textTop = (element: Element): number => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getBoundingClientRect().top;
+    };
+    const ownerLine = textTop(DomFixture.oneOf(row("clock.tick"), ".nol-shortcut-owner nol-highlighted-text", Element));
+    const titleLine = textTop(DomFixture.oneOf(row("clock.tick"), ".nol-shortcut-title nol-highlighted-text", Element));
+    const key = keyOf("clock.tick").getBoundingClientRect();
+
+    const rows = [...element().querySelectorAll("tbody tr")];
+    expect(rows.length).toBeGreaterThan(2);
+    expect(rows.map(t => t.querySelector(".nol-shortcut-name")?.textContent)).toEqual(rows.map(t => t.getAttribute("data-command")));
+    expect(look(name)).toEqual(look(probe));
+    expect(name.getBoundingClientRect().top).toBeCloseTo(title.bottom, 0);
+    expect(Math.abs(ownerLine - titleLine)).toBeLessThanOrEqual(1);
+    expect(Math.abs(key.top - title.top)).toBeLessThanOrEqual(1);
+    expect(key.height).toBeCloseTo(title.height, 0);
+    probe.remove();
+  });
+
+  for (const query of [String.empty, "Each"])
+    it(`keeps every id within its Command cell, which stays a text field wide, wraps an id longer than the cell at its word boundaries, and scrolls the Settings content sideways when the page is narrow${query === String.empty ? String.empty : ` and a search marks "${query}" in it`}`, async () => {
+      const long = "notes.sortByTheLastChangeThenByTheTitleOfEachNote";
+      AppearanceFixture.apply();
+      await renderAsync();
+      TestBed.inject(CommandService).setCommands([new CommandContribution(long, "Sort the notes", null, null, () => Promise.resolve(null))]);
+      element().style.width = "20rem";
+      const field = DomFixture.oneOf(element(), ".nol-settings-search-field", HTMLInputElement);
+      field.value = query;
+      field.dispatchEvent(new Event("input"));
+      await settleAsync();
+      const overflows = [...element().querySelectorAll<HTMLElement>("tbody tr")].map(t => {
+        const cell = DomFixture.one(t, "td");
+        const end = cell.getBoundingClientRect().right - Number.parseFloat(getComputedStyle(cell).paddingRight);
+        return [t.getAttribute("data-command"), Math.max(0, Math.round(DomFixture.one(t, ".nol-shortcut-name").getBoundingClientRect().right - end))];
+      });
+      const name = DomFixture.one(row(long), ".nol-shortcut-name");
+      const walker = document.createTreeWalker(name, NodeFilter.SHOW_TEXT);
+      const texts: Node[] = [];
+      for (let node = walker.nextNode(); !Object.isNull(node); node = walker.nextNode())
+        if (!String.isNullOrWhitespace(node.textContent))
+          texts.push(node);
+      const pieces = texts.map(t => {
+        const range = document.createRange();
+        range.selectNodeContents(t);
+        return [t.textContent, range.getClientRects().length, Math.round(range.getBoundingClientRect().left - name.getBoundingClientRect().left)];
+      });
+      const scroll = DomFixture.one(element(), ".nol-settings-content");
+
+      expect(overflows.length).toBeGreaterThan(query === String.empty ? 20 : 0);
+      expect(overflows.filter(t => t[1] !== 0)).toEqual([]);
+      expect(DomFixture.one(row(long), "td").getBoundingClientRect().width).toBeGreaterThanOrEqual(AppearanceFixture.measureLook("text-field-width") - 0.5);
+      expect(scroll.scrollWidth).toBeGreaterThan(scroll.clientWidth);
+      expect(pieces.map(t => t[0])).toEqual(["notes.", "sort", "By", "The", "Last", "Change", "Then", "By", "The", "Title", "Of", "Each", "Note"]);
+      expect(pieces.filter(t => t[1] !== 1)).toEqual([]);
+      expect(pieces.slice(1).some(t => t[2] === 0)).toBe(true);
+      expect(name.getBoundingClientRect().height).toBeGreaterThan(Number.parseFloat(getComputedStyle(name).lineHeight));
+      expect([...name.querySelectorAll("mark")].map(t => t.textContent)).toEqual(query === String.empty ? [] : [query]);
+    });
+
+  for (const [platform, note] of [
+    ["linux", "Under Wayland the desktop decides whether the key works in other apps and never tells the app: GNOME asks once, and if it was declined, or the desktop can't share keys, the key works only here. The tray's Stop agents always works."],
+    ["win32", null]
+  ] as const)
+    it(`says under the stop key's id ${Object.isNull(note) ? "nothing" : "that the desktop decides under Wayland"} on ${platform}, and nothing under other commands`, async () => {
+      await renderAsync(platform);
+      TestBed.inject(CommandService).setCommands([
+        new CommandContribution("desktop.stopAgentControl", "Stop agents", null, "Mod+Shift+Period", () => Promise.resolve(null)),
+        new CommandContribution("clock.tick", "Tick the clock", null, "Ctrl+Alt+T", () => Promise.resolve(null))
+      ]);
+      await settleAsync();
+
+      expect([row("desktop.stopAgentControl").querySelector(".nol-shortcut-system")?.textContent ?? null, row("clock.tick").querySelector(".nol-shortcut-system")]).toEqual([note, null]);
+    });
+
+  it("records a new key from the first key pressed after the modifiers, without running the command it would run, and keeps the focus", async () => {
+    await renderAsync();
+
+    await recordAsync("clock.tick");
+    const recording = [keyOf("clock.tick").textContent?.trim(), keyOf("clock.tick").getAttribute("aria-label")];
+    await pressAsync("clock.tick", { key: "Control", code: "ControlLeft", ctrlKey: true });
+    await pressAsync("clock.tick", { key: "Shift", code: "ShiftLeft", ctrlKey: true, shiftKey: true });
+    const held = keyOf("clock.tick").textContent?.trim();
+    await pressAsync("clock.tick", { key: "Shift", code: "ShiftLeft", ctrlKey: true }, "keyup");
+    const released = keyOf("clock.tick").textContent?.trim();
+    await pressAsync("clock.tick", { key: "Control", code: "ControlLeft" }, "keyup");
+    const none = keyOf("clock.tick").textContent?.trim();
+    const pressed = await pressAsync("clock.tick", { key: "K", code: "KeyK", ctrlKey: true, shiftKey: true });
+
+    expect(recording).toEqual(["Press the new key", "Press the new key for Tick the clock"]);
+    expect([held, released, none]).toEqual(["Ctrl+Shift+…", "Ctrl+…", "Press the new key"]);
+    expect(pressed.defaultPrevented).toBe(true);
+    expect(settings.calls).toEqual(["set desktop.keyBindings {\"clock.tick\":\"Mod+Shift+K\"}"]);
+    expect(cells("clock.tick").slice(1)).toEqual(["clock", "Ctrl+Shift+K", "RemoveReset"]);
+    expect(row("clock.tick").querySelector(".nol-shortcut-marker")?.getAttribute("aria-label")).toBe("Modified");
+    expect(getComputedStyle(DomFixture.oneOf(row("clock.tick"), ".nol-shortcut-marker", Element)).fontVariationSettings).toBe("\"FILL\" 1");
+    expect(keyOf("clock.tick").getAttribute("aria-label")).toBe("Change the key of Tick the clock, now Ctrl+Shift+K");
+    expect(document.activeElement).toBe(keyOf("clock.tick"));
+  });
+
+  it("shows a key another command holds and moves it on Use it here, leaving that command without a key", async () => {
+    await renderAsync();
+
+    await recordAsync("clock.tick");
+    await pressAsync("clock.tick", { key: "n", code: "KeyN", ctrlKey: true, altKey: true });
+    const used = notice("clock.tick");
+    await page.getByRole("button", { name: "Use it here" }).click();
+    await settleAsync();
+
+    expect(used).toBe("Ctrl+Alt+N is used by New note");
+    expect(runs).toEqual([]);
+    expect(settings.calls).toEqual(["set desktop.keyBindings {\"clock.tick\":\"Mod+Alt+N\",\"notes.newNote\":null}"]);
+    expect([cells("clock.tick")[2], cells("notes.newNote").slice(2)]).toEqual(["Ctrl+Alt+N", ["No key", "Reset"]]);
+    expect(notice("clock.tick")).toBeNull();
+    expect(document.activeElement).toBe(keyOf("clock.tick"));
+  });
+
+  for (const [platform, taken, stroke, kept, binding] of [
+    ["linux", "Ctrl+PageDown", { key: "PageDown", code: "PageDown", ctrlKey: true }, "Ctrl+Tab", "Mod+PageDown"],
+    ["darwin", "⌃⇥", { key: "Tab", code: "Tab", ctrlKey: true }, "⌥⌘→", "Ctrl+Tab"]
+  ] as const) {
+    it(`leaves Show the next tab only its other default key ${kept}, wherever its key shows, when Use it here takes ${taken} on ${platform}`, async () => {
+      await renderAsync(platform);
+
+      await recordAsync("clock.tick");
+      await pressAsync("clock.tick", stroke);
+      const used = notice("clock.tick");
+      await page.getByRole("button", { name: "Use it here" }).click();
+      await settleAsync();
+
+      expect(used).toBe(`${taken} is used by Show the next tab`);
+      expect(settings.calls).toEqual([`set desktop.keyBindings {"clock.tick":"${binding}"}`]);
+      expect(cells("desktop.nextTab").slice(2)).toEqual([`${kept}${taken} is taken by Tick the clock`, "Remove"]);
+      expect(TestBed.inject(CommandService).keyLabel("desktop.nextTab")).toBe(kept);
+    });
+  }
+
+  it("keeps both keys when the person cancels a collision", async () => {
+    await renderAsync();
+
+    await recordAsync("clock.tick");
+    await pressAsync("clock.tick", { key: "n", code: "KeyN", ctrlKey: true, altKey: true });
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await settleAsync();
+
+    expect([settings.calls, notice("clock.tick"), cells("clock.tick")[2], cells("notes.newNote")[2]]).toEqual([[], null, "Ctrl+Alt+T", "Ctrl+Alt+N"]);
+    expect(document.activeElement).toBe(keyOf("clock.tick"));
+  });
+
+  it("describes each key button by its row's collision and notice while they show", async () => {
+    const description = (command: string): readonly (string | undefined)[] | null =>
+      keyOf(command).getAttribute("aria-describedby")?.split(" ").map(t => document.getElementById(t)?.textContent?.trim()) ?? null;
+    await renderAsync("linux", { "clock.tick": "Mod+PageDown" });
+
+    const plain = description("clock.tick");
+    const collided = description("desktop.nextTab");
+    await recordAsync("desktop.nextTab");
+    await pressAsync("desktop.nextTab", { key: "n", code: "KeyN", ctrlKey: true, altKey: true });
+    const both = description("desktop.nextTab");
+    await recordAsync("notes.newNote");
+    await pressAsync("notes.newNote", { key: "PageDown", code: "PageDown", ctrlKey: true });
+
+    expect([plain, collided, description("notes.newNote")]).toEqual([null, ["Ctrl+PageDown is taken by Tick the clock"], ["Ctrl+PageDown is used by Tick the clock"]]);
+    expect(both).toEqual(["Ctrl+PageDown is taken by Tick the clock", "Ctrl+Alt+N is used by New note"]);
+    expect(description("desktop.nextTab")).toEqual(["Ctrl+PageDown is taken by Tick the clock"]);
+  });
+
+  it("refuses a key that takes typing, one editing or the system owns, the Super key and a key no shortcut names, with the reason", async () => {
+    await renderAsync();
+    const reasons: (string | null)[] = [];
+
+    for (const init of [
+      { key: "k", code: "KeyK" },
+      { key: "c", code: "KeyC", ctrlKey: true },
+      { key: "F4", code: "F4", altKey: true },
+      { key: "w", code: "KeyW", ctrlKey: true },
+      { key: "k", code: "KeyK", metaKey: true },
+      { key: "Unidentified", code: "IntlRo", ctrlKey: true }
+    ]) {
+      await recordAsync("clock.tick");
+      await pressAsync("clock.tick", init);
+      reasons.push(notice("clock.tick"));
+    }
+
+    expect(reasons).toEqual([
+      "A key needs Ctrl, Alt or a function key.",
+      "Ctrl+C belongs to editing",
+      "Alt+F4 belongs to Windows and Linux",
+      "Ctrl+W belongs to macOS",
+      "The Super key can't be part of a shortcut.",
+      "This key can't be part of a shortcut."
+    ]);
+    expect(settings.calls).toEqual([]);
+    expect(keyOf("clock.tick").textContent?.trim()).toBe("Ctrl+Alt+T");
+  });
+
+  it("lets a shell command take the keys the shell handles itself", async () => {
+    await renderAsync();
+
+    await recordAsync("desktop.toggleLeftDock");
+    await pressAsync("desktop.toggleLeftDock", { key: "w", code: "KeyW", ctrlKey: true });
+    const used = notice("desktop.toggleLeftDock");
+    await page.getByRole("button", { name: "Use it here" }).click();
+    await settleAsync();
+
+    expect(used).toBe("Ctrl+W is used by Close the tab");
+    expect(settings.calls).toEqual(["set desktop.keyBindings {\"desktop.toggleLeftDock\":\"Mod+W\",\"desktop.closeTab\":null}"]);
+  });
+
+  it("changes nothing for any key the command has, before refusing a key the rules would refuse elsewhere", async () => {
+    await renderAsync();
+
+    await recordAsync("desktop.nextTab");
+    await pressAsync("desktop.nextTab", { key: "Tab", code: "Tab", ctrlKey: true });
+    await recordAsync("desktop.nextTab");
+    await pressAsync("desktop.nextTab", { key: "PageDown", code: "PageDown", ctrlKey: true });
+
+    expect([settings.calls, notice("desktop.nextTab"), cells("desktop.nextTab")[2]]).toEqual([[], null, "Ctrl+Tab"]);
+  });
+
+  it("builds each change on the last one written until the setting reports it", async () => {
+    await renderAsync();
+    settings.isLate = true;
+
+    await page.getByRole("button", { name: "Remove the key of Tick the clock" }).click();
+    await page.getByRole("button", { name: "Remove the key of New note" }).click();
+    await settleAsync();
+    const before = cells("clock.tick")[2];
+    settings.deliver();
+    await settleAsync();
+    settings.isLate = false;
+    await page.getByRole("button", { name: "Reset Tick the clock" }).click();
+    await settleAsync();
+
+    expect(before).toBe("Ctrl+Alt+T");
+    expect(settings.calls).toEqual([
+      "set desktop.keyBindings {\"clock.tick\":null}",
+      "set desktop.keyBindings {\"clock.tick\":null,\"notes.newNote\":null}",
+      "set desktop.keyBindings {\"notes.newNote\":null}"
+    ]);
+    expect([cells("clock.tick")[2], cells("notes.newNote")[2]]).toEqual(["Ctrl+Alt+T", "No key"]);
+  });
+
+  it("builds on the setting again after the writes fail", async () => {
+    await renderAsync();
+    settings.failure = new Error("The runtime refused the value.");
+
+    keyOf("clock.tick").closest("tr")?.querySelector<HTMLButtonElement>(".nol-shortcut-actions button")?.click();
+    keyOf("notes.newNote").closest("tr")?.querySelector<HTMLButtonElement>(".nol-shortcut-actions button")?.click();
+    await expect.poll(() => errors.length).toBe(2);
+    settings.failure = null;
+    await page.getByRole("button", { name: "Remove the key of Tick the clock" }).click();
+    await settleAsync();
+
+    expect(settings.calls).toEqual([
+      "set desktop.keyBindings {\"clock.tick\":null}",
+      "set desktop.keyBindings {\"clock.tick\":null,\"notes.newNote\":null}",
+      "set desktop.keyBindings {\"clock.tick\":null}"
+    ]);
+  });
+
+  it("changes nothing for the key the command has, and stops recording on Escape, on leaving the key and on another row", async () => {
+    await renderAsync();
+
+    await recordAsync("clock.tick");
+    await pressAsync("clock.tick", { key: "t", code: "KeyT", ctrlKey: true, altKey: true });
+    await recordAsync("clock.tick");
+    const escape = await pressAsync("clock.tick", { key: "Escape", code: "Escape" });
+    const afterEscape = keyOf("clock.tick").textContent?.trim();
+    await recordAsync("clock.tick");
+    keyOf("clock.tick").blur();
+    await settleAsync();
+    const afterBlur = keyOf("clock.tick").textContent?.trim();
+    await recordAsync("clock.tick");
+    const elsewhere = await pressAsync("notes.newNote", { key: "u", code: "KeyU", ctrlKey: true });
+
+    expect([escape.defaultPrevented, afterEscape, afterBlur, elsewhere.defaultPrevented]).toEqual([true, "Ctrl+Alt+T", "Ctrl+Alt+T", false]);
+    expect([settings.calls, notice("clock.tick")]).toEqual([[], null]);
+  });
+
+  it("leaves Tab to move the focus while recording", async () => {
+    await renderAsync();
+
+    await recordAsync("clock.tick");
+    const tab = await pressAsync("clock.tick", { key: "Tab", code: "Tab", shiftKey: true });
+    const keyup = await pressAsync("clock.tick", { key: "k", code: "KeyK" }, "keyup");
+
+    expect([tab.defaultPrevented, keyup.defaultPrevented, keyOf("clock.tick").textContent?.trim()]).toEqual([false, false, "Press the new key"]);
+  });
+
+  it("removes a key, resets a command to its default, resets every shortcut, and reports a write that fails", async () => {
+    await renderAsync("linux", { "notes.newNote": "F6" });
+
+    const resetAll = page.getByRole("button", { name: "Reset all shortcuts" });
+    await page.getByRole("button", { name: "Remove the key of Tick the clock" }).click();
+    await settleAsync();
+    const removed = cells("clock.tick").slice(2);
+    await page.getByRole("button", { name: "Reset Tick the clock" }).click();
+    await settleAsync();
+    await resetAll.click();
+    await settleAsync();
+    const resetAllButton = resetAll.element();
+    if (!(resetAllButton instanceof HTMLButtonElement))
+      throw new Error("Reset all shortcuts is not a button.");
+    const isDisabled = resetAllButton.disabled;
+    settings.sets.set(new Set(["desktop.keyBindings"]));
+    settings.failure = new Error("The runtime refused the value.");
+    await settleAsync();
+    await resetAll.click();
+    await page.getByRole("button", { name: "Remove the key of New note" }).click();
+    await expect.poll(() => errors.length).toBe(2);
+
+    expect(removed).toEqual(["No key", "Reset"]);
+    expect(isDisabled).toBe(true);
+    expect(settings.calls).toEqual([
+      "set desktop.keyBindings {\"notes.newNote\":\"F6\",\"clock.tick\":null}",
+      "set desktop.keyBindings {\"notes.newNote\":\"F6\"}",
+      "reset desktop.keyBindings",
+      "reset desktop.keyBindings",
+      "set desktop.keyBindings {\"notes.newNote\":null}"
+    ]);
+    expect(errors.map(t => t instanceof Error ? t.message : t)).toEqual(["The runtime refused the value.", "The runtime refused the value."]);
+  });
+
+  it("records Cmd as Mod and Control as Ctrl on macOS, with the held modifiers as symbols and its own reasons", async () => {
+    await renderAsync("darwin");
+
+    await recordAsync("clock.tick");
+    await pressAsync("clock.tick", { key: "Meta", code: "MetaLeft", metaKey: true, ctrlKey: true, altKey: true, shiftKey: true });
+    const held = keyOf("clock.tick").textContent?.trim();
+    await pressAsync("clock.tick", { key: "k", code: "KeyK", metaKey: true, altKey: true });
+    await recordAsync("notes.newNote");
+    await pressAsync("notes.newNote", { key: "Enter", code: "Enter", shiftKey: true });
+
+    expect(held).toBe("⌃⌥⇧⌘…");
+    expect(settings.calls).toEqual(["set desktop.keyBindings {\"clock.tick\":\"Mod+Alt+K\"}"]);
+    expect(cells("clock.tick")[2]).toBe("⌥⌘K");
+    expect(notice("notes.newNote")).toBe("A key needs Command, Control, Option or a function key.");
+  });
+
+  it("names the Windows key on Windows", async () => {
+    await renderAsync("win32");
+
+    await recordAsync("clock.tick");
+    await pressAsync("clock.tick", { key: "k", code: "KeyK", metaKey: true });
+
+    expect(notice("clock.tick")).toBe("The Windows key can't be part of a shortcut.");
+  });
+});

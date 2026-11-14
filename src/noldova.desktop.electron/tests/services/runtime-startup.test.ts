@@ -1,0 +1,642 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { setImmediate } from "node:timers/promises";
+
+import "@noldova/context.core";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { BuildIdentity, Event, Failure, FailureCode, PreShellData, QualifiedName, RunningWork, RuntimeHandover, ShellEvents, UpdateSaved } from "@noldova/desktop.protocol";
+import {
+  ConnectionClosedException,
+  ConnectionRefusedException,
+  LaunchTimedOutException,
+  PreShellDataFoundException,
+  RuntimeHandoverException,
+  StopTimedOutException,
+  UpdateBarrierStatus,
+  UpdateInProgressException,
+  WorkInProgressException
+} from "@noldova/desktop.runtime";
+import { RuntimeStartup, type StartupState } from "@noldova/desktop.electron";
+
+import { Condition } from "../fixtures/condition.fixture.js";
+import { FakeClock } from "../fixtures/fake-clock.fixture.js";
+import { FakeRuntimeConnection } from "../fixtures/fake-runtime-connection.fixture.js";
+import { FakeRuntimeLauncher } from "../fixtures/fake-runtime-launcher.fixture.js";
+import { FakeUpdateHost } from "../fixtures/fake-update-host.fixture.js";
+
+@TestClass
+export class RuntimeStartupTests {
+  private static readonly HANDOVER: RuntimeHandover = new RuntimeHandover(new BuildIdentity("2.0.0", 1, "newer"), "/opt/noldova-desktop/noldova-desktop");
+  private static readonly WAIT_INTERVAL: number = 2000;
+  private static readonly INVALID: Failure = new Failure(FailureCode.InvalidMessage, "A frame is not a valid message.");
+
+  private readonly published: string[] = [];
+  private readonly handedOver: string[] = [];
+  private readonly events: string[] = [];
+  private readonly logged: string[] = [];
+  private readonly clock: FakeClock = new FakeClock();
+  private readonly updates: FakeUpdateHost = new FakeUpdateHost();
+
+  @TestMethod
+  public async attachesAndReportsTheWindowReady(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+
+    Assert.areEqual("Connecting", startup.current.kind);
+    await startup.startAsync();
+
+    Assert.areEqual(JSON.stringify(["attach main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual(JSON.stringify(["Connecting", "Ready"]), JSON.stringify(this.published));
+    Assert.areEqual(JSON.stringify({ kind: "Ready", details: [] }), JSON.stringify(startup.current.toJson()));
+  }
+
+  @TestMethod
+  public async showsDataFromBeforeTheShellAndMovesItAsideOnRequest(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new PreShellDataFoundException(new PreShellData("/data/old")));
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    Assert.areEqual(JSON.stringify({ kind: "PreShellData", details: ["/data/old"] }), JSON.stringify(startup.current.toJson()));
+    Assert.isTrue(await startup.actAsync("moveAside"));
+
+    Assert.areEqual(JSON.stringify(["attach main IfIdle", "moveAside main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual("Ready", startup.current.kind);
+  }
+
+  @TestMethod
+  public async stopsAnOlderBuildsWorkWhenThePersonChoosesTo(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new WorkInProgressException(new RunningWork(["A reply"])));
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    Assert.areEqual(JSON.stringify({ kind: "WorkInProgress", details: ["A reply"] }), JSON.stringify(startup.current.toJson()));
+    Assert.isTrue(await startup.actAsync("stopWork"));
+
+    Assert.areEqual(JSON.stringify(["attach main IfIdle", "attach main StopWork"]), JSON.stringify(launcher.calls));
+    Assert.areEqual("Ready", startup.current.kind);
+  }
+
+  @TestMethod
+  public async waitsForAnOlderBuildsWorkToFinish(): Promise<void> {
+    const busy = (): WorkInProgressException => new WorkInProgressException(new RunningWork(["A reply", "A command"]));
+    const launcher = new FakeRuntimeLauncher(busy(), busy(), busy());
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    const waiting = startup.actAsync("wait");
+    for (let pause = 0; pause < 2; pause++) {
+      await Condition.waitAsync(() => this.clock.pending > 0);
+      this.clock.advance(RuntimeStartupTests.WAIT_INTERVAL);
+    }
+
+    Assert.isTrue(await waiting);
+    Assert.areEqual(JSON.stringify([2000, 2000]), JSON.stringify(this.clock.waits));
+    Assert.areEqual(4, launcher.calls.length);
+    Assert.isTrue(launcher.calls.every(t => t === "attach main IfIdle"));
+    Assert.areEqual(JSON.stringify(["Connecting", "WorkInProgress", "WaitingForWork", "WaitingForWork", "Ready"]), JSON.stringify(this.published));
+  }
+
+  @TestMethod
+  public async stopsWaitingWhenWaitingEndsInAnotherRefusal(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new WorkInProgressException(new RunningWork(["A reply"])), new StopTimedOutException());
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    await startup.actAsync("wait");
+
+    Assert.areEqual(JSON.stringify({ kind: "Failed", details: ["The other build's runtime did not stop in time."] }), JSON.stringify(startup.current.toJson()));
+  }
+
+  @TestMethod
+  public async stopsWaitingWhenTheApplicationCloses(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new WorkInProgressException(new RunningWork(["A reply"])), new WorkInProgressException(new RunningWork(["A reply"])));
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    const waiting = startup.actAsync("wait");
+    await setImmediate();
+    startup.close();
+
+    Assert.isTrue(await waiting);
+    Assert.areEqual(0, this.clock.pending);
+    Assert.areEqual(2, launcher.calls.length);
+  }
+
+  @TestMethod
+  public async passesOnAWaitThatFailsWhileOpen(): Promise<void> {
+    const busy = (): WorkInProgressException => new WorkInProgressException(new RunningWork(["A reply"]));
+    const startup = this.create(new FakeRuntimeLauncher(busy(), busy()), false, () => Promise.reject(new RangeError("The timer failed.")));
+
+    await startup.startAsync();
+    const failure = await Assert.throwsAsync(() => startup.actAsync("wait"), RangeError);
+
+    Assert.areEqual("The timer failed.", failure.message);
+  }
+
+  @TestMethod
+  public async offersToTryAgainAfterAFailedLaunchOrConnection(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new LaunchTimedOutException(), new ConnectionRefusedException(new Failure(FailureCode.Unavailable, "The runtime refused the connection.")));
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    Assert.areEqual(JSON.stringify({ kind: "Failed", details: ["The runtime did not start in time."] }), JSON.stringify(startup.current.toJson()));
+    Assert.isTrue(await startup.actAsync("retry"));
+    Assert.areEqual("The runtime refused the connection.", startup.current.details[0]);
+    Assert.isTrue(await startup.actAsync("retry"));
+
+    Assert.areEqual("Ready", startup.current.kind);
+    Assert.areEqual(
+      JSON.stringify([
+        "The runtime could not be started or reached, so the window offers to try again: The runtime did not start in time.",
+        "The runtime could not be started or reached, so the window offers to try again: The runtime refused the connection."
+      ]),
+      JSON.stringify(this.logged));
+  }
+
+  @TestMethod
+  public async handsOverToANewerBuildOrSaysOneIsRunning(): Promise<void> {
+    const handingOver = this.create(new FakeRuntimeLauncher(new RuntimeHandoverException(RuntimeStartupTests.HANDOVER)), true);
+    const showing = this.create(new FakeRuntimeLauncher(new RuntimeHandoverException(RuntimeStartupTests.HANDOVER)));
+
+    await handingOver.startAsync();
+    await showing.startAsync();
+
+    Assert.areEqual("Connecting", handingOver.current.kind);
+    Assert.areEqual(JSON.stringify({ kind: "NewerBuild", details: ["2.0.0"] }), JSON.stringify(showing.current.toJson()));
+    Assert.areEqual(JSON.stringify(["2.0.0", "2.0.0"]), JSON.stringify(this.handedOver));
+  }
+
+  @TestMethod
+  public async refusesActionsThatDoNotFitTheCurrentState(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new PreShellDataFoundException(new PreShellData("/data/old")));
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+
+    for (const action of ["stopWork", "wait", "retry", "quit", 1])
+      Assert.isFalse(await startup.actAsync(action));
+    Assert.areEqual(1, launcher.calls.length);
+  }
+
+  @TestMethod
+  public async logsAnUnexpectedFailureInFullAndOffersToTryAgain(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new TypeError("A defect."));
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    const failed = startup.current.toJson();
+    Assert.isTrue(await startup.actAsync("retry"));
+
+    Assert.areEqual(JSON.stringify({ kind: "Failed", details: ["TypeError: A defect."] }), JSON.stringify(failed));
+    Assert.areEqual(1, this.logged.length);
+    Assert.isTrue(String(this.logged[0]).startsWith("The runtime could not be started or reached, so the window offers to try again: TypeError: A defect.\n    at "));
+    Assert.areEqual("Ready", startup.current.kind);
+    Assert.areEqual(2, launcher.calls.length);
+  }
+
+  @TestMethod
+  public async reconnectsWhenTheRuntimeDisconnects(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    launcher.listener?.onEvent(new Event(new QualifiedName("notes", "changed"), null));
+    launcher.listener?.onDisconnected(new Failure(FailureCode.FrameTooLarge, "A frame exceeds the maximum length of 16777216 characters."));
+    await setImmediate();
+
+    Assert.areEqual(2, launcher.calls.length);
+    Assert.areEqual("Ready", startup.current.kind);
+    Assert.areEqual(JSON.stringify(["notes.changed"]), JSON.stringify(this.events));
+    Assert.areEqual(
+      JSON.stringify(["The main process ended its connection to the runtime, so it connects again (FrameTooLarge): A frame exceeds the maximum length of 16777216 characters."]),
+      JSON.stringify(this.logged));
+  }
+
+  @TestMethod
+  public async logsEachEndTheRuntimeMadeAndConnectsAgain(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    launcher.listener?.onDisconnected(null);
+    await setImmediate();
+    const once = [...this.logged];
+    await this.endSoonAsync(launcher, null);
+
+    const line = "The runtime ended its connection to the main process, so the main process connects again.";
+    Assert.areEqual(JSON.stringify([line]), JSON.stringify(once));
+    Assert.areEqual(JSON.stringify([line, line]), JSON.stringify(this.logged));
+    Assert.areEqual("Ready", startup.current.kind);
+    Assert.areEqual(3, launcher.calls.length);
+  }
+
+  @TestMethod
+  public async waitsLongerBeforeEachReconnectionWhileConnectionsEndSoonAfterConnecting(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    for (const delay of [0, 1000, 2000, 4000, 8000]) {
+      launcher.listener?.onDisconnected(RuntimeStartupTests.INVALID);
+      await setImmediate();
+      if (delay > 0) {
+        this.clock.advance(delay - 1);
+        await setImmediate();
+        Assert.areEqual("Connecting", startup.current.kind);
+        this.clock.advance(1);
+        await setImmediate();
+      }
+      Assert.areEqual("Ready", startup.current.kind);
+    }
+
+    Assert.areEqual(JSON.stringify([1000, 2000, 4000, 8000]), JSON.stringify(this.clock.waits));
+    Assert.areEqual(6, launcher.calls.length);
+    Assert.areEqual(12, this.published.length);
+    Assert.isTrue(this.published.every((t, i) => t === (i % 2 === 0 ? "Connecting" : "Ready")));
+  }
+
+  @TestMethod
+  public async stopsOnTheSixthEndInARowWithTheLastCauseAndStartsAfreshOnRetry(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    for (let end = 0; end < 5; end++)
+      await this.endSoonAsync(launcher, null);
+    await this.endSoonAsync(launcher, RuntimeStartupTests.INVALID);
+    const stopped = startup.current.toJson();
+    this.clock.advance(60000);
+    await setImmediate();
+    const callsWhileStopped = launcher.calls.length;
+    Assert.isTrue(await startup.actAsync("retry"));
+    await this.endSoonAsync(launcher, null);
+
+    const details = "The connection to the runtime ended 6 times in a row, each within 30 seconds of connecting, so the main process stopped connecting again. The last time, the main process ended it (InvalidMessage): A frame is not a valid message.";
+    Assert.areEqual(JSON.stringify({ kind: "Failed", details: [details] }), JSON.stringify(stopped));
+    Assert.areEqual(6, callsWhileStopped);
+    const ended = "The runtime ended its connection to the main process, so the main process connects again.";
+    Assert.areEqual(
+      JSON.stringify([...Array<string>(5).fill(ended), `The runtime could not be started or reached, so the window offers to try again: ${details}`, ended]),
+      JSON.stringify(this.logged));
+    Assert.areEqual(JSON.stringify([1000, 2000, 4000, 8000]), JSON.stringify(this.clock.waits));
+    Assert.areEqual("Ready", startup.current.kind);
+    Assert.areEqual(8, launcher.calls.length);
+  }
+
+  @TestMethod
+  public async saysTheRuntimeEndedTheLastConnectionWhenItStops(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    for (let end = 0; end < 6; end++)
+      await this.endSoonAsync(launcher, null);
+
+    Assert.areEqual("Failed", startup.current.kind);
+    Assert.isTrue(startup.current.details[0]?.endsWith("so the main process stopped connecting again. The last time, the runtime ended it.") === true);
+    Assert.areEqual(6, launcher.calls.length);
+  }
+
+  @TestMethod
+  public async reconnectsAtOnceAgainAfterAConnectionStaysReadyFor30Seconds(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    await this.endSoonAsync(launcher, null);
+    await this.endSoonAsync(launcher, null);
+    this.clock.advance(29999);
+    await this.endSoonAsync(launcher, null);
+    this.clock.advance(30000);
+    launcher.listener?.onDisconnected(null);
+    await setImmediate();
+
+    Assert.areEqual(JSON.stringify([1000, 2000]), JSON.stringify(this.clock.waits));
+    Assert.areEqual("Ready", startup.current.kind);
+    Assert.areEqual(5, launcher.calls.length);
+  }
+
+  @TestMethod
+  public async closingDuringAReconnectionWaitEndsTheWait(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    await this.endSoonAsync(launcher, null);
+    launcher.listener?.onDisconnected(null);
+    await setImmediate();
+    const pending = this.clock.pending;
+    startup.close();
+    this.clock.advance(1000);
+    await setImmediate();
+
+    Assert.areEqual(1, pending);
+    Assert.areEqual(0, this.clock.pending);
+    Assert.areEqual("Connecting", startup.current.kind);
+    Assert.areEqual(2, launcher.calls.length);
+  }
+
+  @TestMethod
+  public async offersToTryAgainWhenReconnectingFailsUnexpectedly(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new FakeRuntimeConnection(), new Error("ENOENT: no such file or directory, open 'runtime.json'"));
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    launcher.listener?.onDisconnected(null);
+    await setImmediate();
+    const failed = startup.current.toJson();
+    Assert.isTrue(await startup.actAsync("retry"));
+
+    Assert.areEqual(JSON.stringify({ kind: "Failed", details: ["Error: ENOENT: no such file or directory, open 'runtime.json'"] }), JSON.stringify(failed));
+    Assert.areEqual(2, this.logged.length);
+    Assert.areEqual("The runtime ended its connection to the main process, so the main process connects again.", this.logged[0]);
+    Assert.areEqual(JSON.stringify(["Connecting", "Ready", "Connecting", "Failed", "Connecting", "Ready"]), JSON.stringify(this.published));
+    Assert.areEqual(3, launcher.calls.length);
+  }
+
+  @TestMethod
+  public async ignoresTheEndOfARefusedConnection(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new PreShellDataFoundException(new PreShellData("/data/old")));
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    launcher.listener?.onDisconnected(null);
+    await setImmediate();
+
+    Assert.areEqual(1, launcher.calls.length);
+    Assert.areEqual("PreShellData", startup.current.kind);
+  }
+
+  @TestMethod
+  public async closesItsConnectionAndOneThatArrivesAfterClosing(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    startup.close();
+    launcher.listener?.onDisconnected(null);
+    const lateConnection = new FakeRuntimeConnection();
+    const late = this.create(new FakeRuntimeLauncher(lateConnection));
+    const arriving = late.startAsync();
+    late.close();
+    await arriving;
+
+    Assert.isTrue(launcher.connections[0]?.isClosed === true);
+    Assert.areEqual(1, launcher.calls.length);
+    Assert.isTrue(lateConnection.isClosed);
+    Assert.areEqual("Connecting", late.current.kind);
+  }
+
+  @TestMethod
+  public async freezesForAnUpdateSavesTheWindowsAndThawsWhenItEnds(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+    await startup.startAsync();
+    this.updates.problems = ["Notes couldn't save"];
+
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await setImmediate();
+    const frozen = startup.current.toJson();
+    launcher.listener?.onEvent(new Event(ShellEvents.updateEnded, null));
+    launcher.listener?.onEvent(new Event(ShellEvents.updateEnded, null));
+
+    const connection = launcher.connections[0];
+    Assert.areEqual(JSON.stringify({ kind: "Updating", details: ["0.3.0"] }), JSON.stringify(frozen));
+    Assert.areEqual(1, this.updates.saveCount);
+    Assert.areEqual(JSON.stringify(["desktop.updateSaved"]), JSON.stringify(connection?.calls));
+    Assert.areEqual(JSON.stringify(new UpdateSaved(4121, ["Notes couldn't save"]).toJson()), JSON.stringify(connection?.payloads[0]));
+    Assert.areEqual(JSON.stringify(["Connecting", "Ready", "Updating", "Updating", "Ready"]), JSON.stringify(this.published));
+    Assert.areEqual(JSON.stringify(["desktop.updating", "desktop.updateEnded", "desktop.updateEnded"]), JSON.stringify(this.events));
+  }
+
+  @TestMethod
+  public async namesNoVersionWhenTheBarrierCannotBeReadAndLogsASaveItCouldNotReport(): Promise<void> {
+    const connection = new FakeRuntimeConnection();
+    connection.rejection = new ConnectionClosedException();
+    const launcher = new FakeRuntimeLauncher(connection);
+    const startup = this.create(launcher);
+    await startup.startAsync();
+    this.updates.barriers.push(new Error("The barrier is not JSON."));
+
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await setImmediate();
+
+    Assert.areEqual(JSON.stringify({ kind: "Updating", details: [String.empty] }), JSON.stringify(startup.current.toJson()));
+    Assert.areEqual(JSON.stringify(["The runtime was not told that the windows had saved for the update: ConnectionClosedException: The connection to the runtime is closed."]), JSON.stringify(this.logged));
+  }
+
+  @TestMethod
+  public async ignoresAnUpdateAnnouncedOnceItHasClosed(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+    await startup.startAsync();
+    startup.close();
+
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await setImmediate();
+
+    Assert.areEqual(0, this.updates.saveCount);
+    Assert.areEqual("Ready", startup.current.kind);
+  }
+
+  @TestMethod
+  public async keepsWaitingWhileItsRuntimeIsGoneUntilTheUpdateCanBeSeenToHaveEnded(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+    await startup.startAsync();
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await setImmediate();
+    this.updates.ended.push(new Error("ps exited with code 1."), false, true);
+    const published = this.published.length;
+
+    launcher.listener?.onDisconnected(null);
+    const republished = this.published.slice(published);
+    for (let check = 0; check < 3; check++) {
+      await setImmediate();
+      this.clock.advance(1000);
+      await setImmediate();
+    }
+    await setImmediate();
+
+    Assert.areEqual(0, this.updates.quitCount);
+    Assert.areEqual(JSON.stringify(["attach main IfIdle", "attach main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual(JSON.stringify([1000, 1000]), JSON.stringify(this.clock.waits));
+    Assert.areEqual("Ready", startup.current.kind);
+    Assert.areEqual(JSON.stringify(["Updating"]), JSON.stringify(republished));
+  }
+
+  @TestMethod
+  public async goesBackToWhereItWasWhenTheUpdateEndsBeforeItKnowsTheVersion(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+    await startup.startAsync();
+    let read: (barrier: null) => void = () => undefined;
+    this.updates.reading = new Promise(resolve => {
+      read = resolve;
+    });
+
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    const frozen = startup.current.toJson();
+    launcher.listener?.onEvent(new Event(ShellEvents.updateEnded, null));
+    read(null);
+    await setImmediate();
+
+    Assert.areEqual(JSON.stringify({ kind: "Updating", details: [String.empty] }), JSON.stringify(frozen));
+    Assert.areEqual(0, this.updates.saveCount);
+    Assert.areEqual(JSON.stringify(["Connecting", "Ready", "Updating", "Ready"]), JSON.stringify(this.published));
+  }
+
+  @TestMethod
+  public async reconnectsOnceTheBarrierIsGoneAndStopsWaitingWhenClosed(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+    await startup.startAsync();
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await setImmediate();
+    this.updates.ended.push(true);
+
+    launcher.listener?.onDisconnected(null);
+    await setImmediate();
+    this.clock.advance(1000);
+    for (let turn = 0; turn < 4; turn++)
+      await setImmediate();
+    const reconnected = startup.current.kind;
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await setImmediate();
+    launcher.listener?.onDisconnected(null);
+    await setImmediate();
+    startup.close();
+    await setImmediate();
+
+    Assert.areEqual("Ready", reconnected);
+    Assert.areEqual(JSON.stringify(["attach main IfIdle", "attach main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual(0, this.updates.quitCount);
+    Assert.areEqual(0, this.clock.pending);
+  }
+
+  @TestMethod
+  public async checksAgainAtOnceWhenTheBarrierChangesWhileItsRuntimeIsGone(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+    await startup.startAsync();
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await setImmediate();
+    this.updates.ended.push(false, true);
+
+    launcher.listener?.onDisconnected(null);
+    await setImmediate();
+    const waiting = this.clock.pending;
+    startup.barrierChanged();
+    for (let turn = 0; turn < 3; turn++)
+      await setImmediate();
+
+    Assert.areEqual(1, waiting);
+    Assert.areEqual(JSON.stringify(["attach main IfIdle", "attach main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual(JSON.stringify([1000]), JSON.stringify(this.clock.waits));
+    Assert.areEqual(0, this.clock.pending);
+    Assert.areEqual("Ready", startup.current.kind);
+  }
+
+  @TestMethod
+  public async keepsABarrierChangeThatArrivesWhileItChecks(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+    await startup.startAsync();
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await setImmediate();
+    this.updates.ended.push(false, true);
+
+    launcher.listener?.onDisconnected(null);
+    startup.barrierChanged();
+    for (let turn = 0; turn < 3; turn++)
+      await setImmediate();
+
+    Assert.areEqual(JSON.stringify(["attach main IfIdle", "attach main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual(JSON.stringify([1000]), JSON.stringify(this.clock.waits));
+    Assert.areEqual(0, this.clock.pending);
+  }
+
+  @TestMethod
+  public async attachesNoMoreOnceClosedWhileItsRuntimeIsGone(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const startup = this.create(launcher);
+    await startup.startAsync();
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await setImmediate();
+
+    launcher.listener?.onDisconnected(null);
+    await setImmediate();
+    startup.close();
+    this.updates.ended.push(true);
+    startup.barrierChanged();
+    this.clock.advance(1000);
+    for (let turn = 0; turn < 3; turn++)
+      await setImmediate();
+
+    Assert.areEqual(JSON.stringify(["attach main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual(1, this.updates.ended.length);
+    Assert.areEqual(0, this.clock.pending);
+  }
+
+  @TestMethod
+  public async quitsWhenTheRuntimeStartFindsAnUpdateInstalling(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher(new UpdateInProgressException(UpdateBarrierStatus.Held));
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+
+    Assert.areEqual(JSON.stringify(["Held"]), JSON.stringify(this.updates.passed));
+    Assert.areEqual(1, this.updates.quitCount);
+    Assert.areEqual(JSON.stringify(["attach main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual(JSON.stringify(["Connecting"]), JSON.stringify(this.published));
+  }
+
+  @TestMethod
+  public async startsAgainOnceThePersonSettlesAnUnfinishedUpdate(): Promise<void> {
+    const busy = (): WorkInProgressException => new WorkInProgressException(new RunningWork(["A reply"]));
+    const launcher = new FakeRuntimeLauncher(busy(), new UpdateInProgressException(UpdateBarrierStatus.Unfinished));
+    const startup = this.create(launcher);
+    this.updates.passes = true;
+
+    await startup.startAsync();
+    await startup.actAsync("wait");
+
+    Assert.areEqual(JSON.stringify(["Unfinished"]), JSON.stringify(this.updates.passed));
+    Assert.areEqual(0, this.updates.quitCount);
+    Assert.areEqual(JSON.stringify(["attach main IfIdle", "attach main IfIdle", "attach main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual("Ready", startup.current.kind);
+  }
+
+  private async endSoonAsync(launcher: FakeRuntimeLauncher, failure: Failure | null): Promise<void> {
+    launcher.listener?.onDisconnected(failure);
+    await setImmediate();
+    if (this.clock.pending > 0)
+      this.clock.advance(this.clock.waits.at(-1) ?? 0);
+    await setImmediate();
+  }
+
+  private create(
+    launcher: FakeRuntimeLauncher,
+    handsOver: boolean = false,
+    wait: (milliseconds: number, signal: AbortSignal) => Promise<void> = (t, signal) => this.clock.waitAsync(t, signal)): RuntimeStartup {
+    return new RuntimeStartup(
+      launcher,
+      (t: StartupState) => this.published.push(t.kind),
+      t => {
+        this.handedOver.push(t.identity.productVersion);
+        return handsOver;
+      },
+      RuntimeStartupTests.WAIT_INTERVAL,
+      t => this.events.push(t.name.text),
+      t => this.logged.push(t),
+      () => this.clock.now(),
+      wait,
+      this.updates);
+  }
+}

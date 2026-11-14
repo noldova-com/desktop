@@ -1,0 +1,656 @@
+# @license
+# Copyright (c) Noldova.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+name: Release an app
+
+on:
+  workflow_call:
+    inputs:
+      app-folder:
+        description: The folder, from the repository's root, whose package.json and package-lock.json are the app's.
+        type: string
+        default: .
+      prepare:
+        description: The command that builds the app at the repository's root after npm ci and the root package's own preinstall, install, postinstall and prepare scripts, which run by name with their pre- and post-scripts in npm's order; npm runs no dependency's install scripts in it, and no pre- or post-script of a script it runs.
+        type: string
+        default: npm run build
+      version:
+        description: The version to release, which is the app manifest's, such as 0.0.2.
+        type: string
+        required: true
+      revision:
+        description: The full commit SHA on main to release.
+        type: string
+        required: true
+      update-feed:
+        description: A loopback HTTP URL the packages check for updates, for a test of updating.
+        type: string
+        default: ''
+      package-version:
+        description: The version the packages take instead of the app's, newer than it, for a test of updating.
+        type: string
+        default: ''
+      internal-feed:
+        description: "build: the signed packages check the internal update feed, the input internal-feed-url, as version X.Y.Z-internal.<run number>, X.Y.Z being the release's version, on a run's first attempt only, and the run publishes nothing but keeps them, checked, as the internal-feed artifact; copy: the release publishes as usual and also keeps its files as that artifact."
+        type: string
+        default: ''
+      runs-on-linux-x64:
+        description: The runner of the release's own jobs and of Linux x64, as the JSON runs-on takes; default takes the organization's from its versions workflow.
+        type: string
+        default: default
+      runs-on-linux-arm64:
+        description: The runner of Linux ARM64, as the JSON runs-on takes; empty leaves the target out.
+        type: string
+        default: ''
+      runs-on-windows-x64:
+        description: The runner of Windows x64, as the JSON runs-on takes; default takes the organization's from its versions workflow.
+        type: string
+        default: default
+      runs-on-windows-arm64:
+        description: The runner of Windows ARM64, as the JSON runs-on takes; empty leaves the target out.
+        type: string
+        default: ''
+      runs-on-macos-x64:
+        description: The runner of macOS x64, as the JSON runs-on takes; default takes the organization's from its versions workflow.
+        type: string
+        default: default
+      runs-on-macos-arm64:
+        description: The runner of macOS ARM64, as the JSON runs-on takes; default takes the organization's from its versions workflow, and empty, or a default the organization has none for, leaves the target out.
+        type: string
+        default: default
+      internal-feed-url:
+        description: The internal update feed's HTTPS URL, which internal-feed needs.
+        type: string
+        default: ''
+      skip-feed-check:
+        description: True skips the update feed check after the release publishes, for an app whose releases its installed copies can't read yet.
+        type: boolean
+        default: false
+      registry-url:
+        description: The registry of the scope registry-scope, for an app that installs packages from a private registry; empty installs from npm alone.
+        type: string
+        default: ''
+      registry-scope:
+        description: The npm scope, such as '@example', that registry-url serves.
+        type: string
+        default: ''
+    secrets:
+      REGISTRY_TOKEN:
+        required: false
+      AZURE_TENANT_ID:
+        required: false
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_CLIENT_SECRET:
+        required: false
+      WINDOWS_PUBLISHER:
+        required: false
+      MAC_CERTIFICATE:
+        required: false
+      MAC_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_API_KEY_P8:
+        required: false
+      APPLE_API_KEY_ID:
+        required: false
+      APPLE_API_ISSUER:
+        required: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  versions:
+    name: Versions
+    uses: noldova-com/.github/.github/workflows/versions.yml@7640859ac0de8cc03fadbd705b45376c2e1bd88b # v2.25.0
+    permissions: {}
+
+  fetch:
+    name: Take desktop.build from the app's lockfile
+    needs: versions
+    runs-on: ${{ fromJSON(inputs.runs-on-linux-x64 == 'default' && needs.versions.outputs.runs-on-linux-x64 || inputs.runs-on-linux-x64) }}
+    timeout-minutes: 15
+    outputs:
+      integrity: ${{ steps.integrity.outputs.integrity }}
+      peers: ${{ steps.peers.outputs.peers }}
+    steps:
+      - &require-main
+        name: Require the workflow from main
+        timeout-minutes: 1
+        env:
+          REFERENCE: ${{ github.ref }}
+        run: |
+          if [ "$REFERENCE" != refs/heads/main ]; then
+            echo "::error::A release runs the workflow from main, not from $REFERENCE."
+            exit 1
+          fi
+
+      - &node
+        name: Set up Node.js
+        id: node
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          package-manager-cache: false
+
+      - &node-wait
+        name: Wait before setting up Node.js again
+        if: steps.node.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+
+      - &node-again
+        name: Set up Node.js again
+        id: node-again
+        if: steps.node.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          package-manager-cache: false
+
+      - &node-wait-again
+        name: Wait before setting up Node.js a last time
+        if: steps.node-again.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+
+      - &node-last
+        name: Set up Node.js a last time
+        if: steps.node-again.outcome == 'failure'
+        timeout-minutes: 5
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          package-manager-cache: false
+
+      - name: Require a full commit SHA on main
+        timeout-minutes: 2
+        env:
+          API_URL: ${{ github.api_url }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          set -euo pipefail
+          node --input-type=module --eval '
+            const { API_URL, GH_TOKEN, REPOSITORY, REVISION } = process.env;
+            if (!/^[0-9a-f]{40}$/.test(REVISION)) {
+              console.error(`::error::The revision ${JSON.stringify(REVISION)} is not a full commit SHA of 40 lowercase hex characters.`);
+              process.exit(1);
+            }
+            const response = await fetch(`${API_URL}/repos/${REPOSITORY}/compare/${REVISION}...main?per_page=1`, { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${GH_TOKEN}` } });
+            const status = response.ok ? (await response.json()).status : `HTTP ${response.status}`;
+            if (status !== "ahead" && status !== "identical") {
+              console.error(`::error::The revision ${REVISION} is not on main of ${REPOSITORY}: ${status}.`);
+              process.exit(1);
+            }
+          '
+
+      - &check-out
+        name: Check out the revision
+        timeout-minutes: 5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+
+      - name: Download desktop.build and its @noldova peers
+        id: peers
+        timeout-minutes: 5
+        env:
+          LOCKFILE: ${{ inputs.app-folder }}/package-lock.json
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/desktop.build"
+          download() {
+            for name in "$@"; do
+              resolved=$(node --print 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).packages?.[`node_modules/@noldova/${process.argv[2]}`]?.resolved ?? ""' "$LOCKFILE" "$name")
+              case "$resolved" in
+                "https://registry.npmjs.org/@noldova/$name/-/$name-"*.tgz) ;;
+                *)
+                  echo "::error::$LOCKFILE locks no @noldova/$name from the npm registry."
+                  exit 1
+                  ;;
+              esac
+              curl --fail --silent --show-error --location --retry 3 --output "$RUNNER_TEMP/desktop.build/$name.tgz" "$resolved"
+            done
+          }
+          download desktop.build
+          peers=$(tar --extract --gzip --to-stdout --file "$RUNNER_TEMP/desktop.build/desktop.build.tgz" package/package.json | node --input-type=module --eval '
+            import { readFileSync } from "node:fs";
+            const lockfile = process.argv[1];
+            const manifest = JSON.parse(readFileSync(0, "utf8"));
+            const packages = JSON.parse(readFileSync(lockfile, "utf8")).packages ?? {};
+            const peers = Object.keys(manifest.peerDependencies ?? {}).filter(t => t.startsWith("@noldova/")).map(t => t.slice("@noldova/".length)).sort();
+            const missing = peers.filter(t => !Object.hasOwn(packages, `node_modules/@noldova/${t}`));
+            if (missing.length > 0) {
+              console.error(`::error::desktop.build ${manifest.version} has the peers ${missing.map(t => `@noldova/${t}`).join(", ")}, which ${lockfile} does not lock; the release loads each @noldova peer of desktop.build at the version that lockfile holds.`);
+              process.exit(1);
+            }
+            console.log(peers.join(" "));
+          ' "$LOCKFILE")
+          download $peers
+          echo "peers=$peers" >> "$GITHUB_OUTPUT"
+          echo "PEER_PACKAGES=$peers" >> "$GITHUB_ENV"
+
+      - &verify
+        name: Check desktop.build and its @noldova peers against the app's lockfile
+        timeout-minutes: 1
+        env:
+          LOCKFILE: ${{ inputs.app-folder }}/package-lock.json
+        run: |
+          set -euo pipefail
+          node --input-type=module --eval '
+            import { createHash } from "node:crypto";
+            import { readFileSync } from "node:fs";
+            import path from "node:path";
+            const [lockfile, folder, ...names] = process.argv.slice(1);
+            const packages = JSON.parse(readFileSync(lockfile, "utf8")).packages ?? {};
+            for (const name of names) {
+              const integrity = packages[`node_modules/@noldova/${name}`]?.integrity ?? "";
+              const actual = `sha512-${createHash("sha512").update(readFileSync(path.join(folder, `${name}.tgz`))).digest("base64")}`;
+              if (!integrity.startsWith("sha512-") || actual !== integrity) {
+                console.error(`::error::The ${name} archive is ${actual}, but ${lockfile} locks ${integrity || "no SHA-512"}.`);
+                process.exit(1);
+              }
+            }
+          ' "$LOCKFILE" "$RUNNER_TEMP/desktop.build" desktop.build $PEER_PACKAGES
+
+      - name: Keep the checked SHA-512s for the jobs without a checkout
+        id: integrity
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          node --input-type=module --eval '
+            import { createHash } from "node:crypto";
+            import { appendFileSync, readFileSync } from "node:fs";
+            import path from "node:path";
+            const [output, folder, ...names] = process.argv.slice(1);
+            const integrity = Object.fromEntries(names.map(t => [t, `sha512-${createHash("sha512").update(readFileSync(path.join(folder, `${t}.tgz`))).digest("base64")}`]));
+            appendFileSync(output, `integrity=${JSON.stringify(integrity)}\n`);
+          ' "$GITHUB_OUTPUT" "$RUNNER_TEMP/desktop.build" desktop.build $PEER_PACKAGES
+
+      - name: Keep desktop.build and its @noldova peers for the release jobs
+        timeout-minutes: 5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop.build
+          path: ${{ runner.temp }}/desktop.build/*.tgz
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
+
+  check:
+    name: Check the release
+    needs: [versions, fetch]
+    runs-on: ${{ fromJSON(inputs.runs-on-linux-x64 == 'default' && needs.versions.outputs.runs-on-linux-x64 || inputs.runs-on-linux-x64) }}
+    timeout-minutes: 15
+    env:
+      PEER_PACKAGES: ${{ needs.fetch.outputs.peers }}
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      peers: ${{ needs.fetch.outputs.peers }}
+      targets: ${{ steps.targets.outputs.targets }}
+      signed-targets: ${{ steps.targets.outputs.signed-targets }}
+      release-targets: ${{ steps.targets.outputs.release-targets }}
+      update-feed: ${{ steps.feed.outputs.update-feed }}
+      package-version: ${{ steps.feed.outputs.package-version }}
+      product-feed: ${{ steps.check.outputs.product-feed }}
+    steps:
+      - *require-main
+      - *check-out
+      - *node
+      - *node-wait
+      - *node-again
+      - *node-wait-again
+      - *node-last
+
+      - &take
+        name: Take desktop.build
+        timeout-minutes: 5
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: desktop.build
+          path: ${{ runner.temp }}/desktop.build
+
+      - *verify
+
+      - &unpack
+        name: Unpack desktop.build
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          tar --extract --gzip --file "$RUNNER_TEMP/desktop.build/desktop.build.tgz" --directory "$RUNNER_TEMP/desktop.build"
+          for name in $PEER_PACKAGES; do
+            folder="$RUNNER_TEMP/desktop.build/node_modules/@noldova/$name"
+            mkdir -p "$folder"
+            tar --extract --gzip --file "$RUNNER_TEMP/desktop.build/$name.tgz" --directory "$folder" --strip-components=1
+          done
+
+      - name: Check the version and the revision
+        id: check
+        timeout-minutes: 5
+        working-directory: ${{ inputs.app-folder }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_REVISION: ${{ inputs.revision }}
+        run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" release-check
+
+      - name: Choose the update feed and the packages' version
+        id: feed
+        timeout-minutes: 1
+        env:
+          INTERNAL_FEED: ${{ inputs.internal-feed }}
+          INTERNAL_FEED_URL: ${{ inputs.internal-feed-url }}
+          UPDATE_FEED: ${{ inputs.update-feed }}
+          PACKAGE_VERSION: ${{ inputs.package-version }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          SIGNING: ${{ steps.check.outputs.signed }}
+        run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" choose-feed
+
+      - name: List the targets, apart from those the release signs
+        id: targets
+        timeout-minutes: 1
+        working-directory: ${{ inputs.app-folder }}
+        env:
+          SIGNING: ${{ steps.check.outputs.signed }}
+          RUNS_ON_LINUX: ${{ inputs.runs-on-linux-x64 == 'default' && needs.versions.outputs.runs-on-linux-x64 || inputs.runs-on-linux-x64 != 'default' && inputs.runs-on-linux-x64 || '' }}
+          RUNS_ON_LINUX_ARM64: ${{ inputs.runs-on-linux-arm64 }}
+          RUNS_ON_WINDOWS: ${{ inputs.runs-on-windows-x64 == 'default' && needs.versions.outputs.runs-on-windows-x64 || inputs.runs-on-windows-x64 != 'default' && inputs.runs-on-windows-x64 || '' }}
+          RUNS_ON_WINDOWS_ARM64: ${{ inputs.runs-on-windows-arm64 }}
+          RUNS_ON_MACOS: ${{ inputs.runs-on-macos-x64 == 'default' && needs.versions.outputs.runs-on-macos-x64 || inputs.runs-on-macos-x64 != 'default' && inputs.runs-on-macos-x64 || '' }}
+          RUNS_ON_MACOS_ARM64: ${{ inputs.runs-on-macos-arm64 == 'default' && needs.versions.outputs.runs-on-macos-arm64 || inputs.runs-on-macos-arm64 != 'default' && inputs.runs-on-macos-arm64 || '' }}
+        run: |
+          set -euo pipefail
+          table=$(node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" list-targets .)
+          targets=''
+          signed_targets=''
+          release_targets=''
+          while IFS='|' read -r target runner architecture platform _; do
+            signed=false
+            case " $SIGNING " in
+              *" $platform "*) signed=true ;;
+            esac
+            release_targets="$release_targets${release_targets:+,}$platform-$architecture"
+            entry="{\"target\":\"$target\",\"runner\":$runner,\"architecture\":\"$architecture\",\"platform\":\"$platform\",\"signed\":\"$signed\"}"
+            if [ "$signed" = true ]; then
+              signed_targets="$signed_targets${signed_targets:+,}$entry"
+            else
+              targets="$targets${targets:+,}$entry"
+            fi
+          done <<< "$table"
+          echo "targets=[$targets]" >> "$GITHUB_OUTPUT"
+          echo "signed-targets=[$signed_targets]" >> "$GITHUB_OUTPUT"
+          echo "release-targets=$release_targets" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and package
+    needs: check
+    if: needs.check.outputs.targets != '[]'
+    uses: $/.github/workflows/package-app.yml
+    with:
+      app-folder: ${{ inputs.app-folder }}
+      prepare: ${{ inputs.prepare }}
+      revision: ${{ inputs.revision }}
+      targets: ${{ needs.check.outputs.targets }}
+      update-feed: ${{ needs.check.outputs.update-feed }}
+      package-version: ${{ needs.check.outputs.package-version }}
+      keep-release-files: true
+      registry-url: ${{ inputs.registry-url }}
+      registry-scope: ${{ inputs.registry-scope }}
+    secrets:
+      REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+
+  build-signed:
+    name: Build, package and sign
+    needs: check
+    if: needs.check.outputs.signed-targets != '[]'
+    uses: $/.github/workflows/package-app.yml
+    with:
+      app-folder: ${{ inputs.app-folder }}
+      prepare: ${{ inputs.prepare }}
+      revision: ${{ inputs.revision }}
+      targets: ${{ needs.check.outputs.signed-targets }}
+      signed: true
+      update-feed: ${{ needs.check.outputs.update-feed }}
+      package-version: ${{ needs.check.outputs.package-version }}
+      keep-release-files: true
+      registry-url: ${{ inputs.registry-url }}
+      registry-scope: ${{ inputs.registry-scope }}
+    secrets:
+      REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      WINDOWS_PUBLISHER: ${{ secrets.WINDOWS_PUBLISHER }}
+      MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE }}
+      MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+  publish:
+    name: Publish the release
+    needs: [versions, check, build, build-signed]
+    if: ${{ !cancelled() && needs.check.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-signed.result == 'success' || needs.build-signed.result == 'skipped') && inputs.internal-feed != 'build' && inputs.update-feed == '' }}
+    runs-on: ${{ fromJSON(inputs.runs-on-linux-x64 == 'default' && needs.versions.outputs.runs-on-linux-x64 || inputs.runs-on-linux-x64) }}
+    timeout-minutes: 30
+    env:
+      PEER_PACKAGES: ${{ needs.check.outputs.peers }}
+    environment: publish
+    permissions:
+      contents: write
+    concurrency:
+      group: release-publish-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - *check-out
+      - *node
+      - *node-wait
+      - *node-again
+      - *node-wait-again
+      - *node-last
+      - *take
+      - *verify
+      - *unpack
+
+      - name: Take this run's release files
+        timeout-minutes: 10
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: _build/release
+
+      - name: Take this run's package reports
+        timeout-minutes: 10
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: report-*
+          path: _build/release-reports
+
+      - name: Publish the release
+        timeout-minutes: 20
+        working-directory: ${{ inputs.app-folder }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_REVISION: ${{ inputs.revision }}
+          RELEASE_FOLDER: ${{ github.workspace }}/_build/release
+          RELEASE_REPORTS: ${{ github.workspace }}/_build/release-reports
+          RELEASE_TARGETS: ${{ needs.check.outputs.release-targets }}
+          RELEASE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RELEASE_UPDATE_FEED: ${{ inputs.update-feed }}
+        run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" release-publish
+
+      - name: Keep the release files for the internal update feed
+        if: inputs.internal-feed == 'copy'
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: internal-feed
+          path: _build/release
+          retention-days: 1
+          if-no-files-found: error
+
+  internal:
+    name: Check the release files for the internal update feed
+    needs: [versions, check, build, build-signed]
+    if: ${{ !cancelled() && needs.check.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-signed.result == 'success' || needs.build-signed.result == 'skipped') && inputs.internal-feed == 'build' }}
+    runs-on: ${{ fromJSON(inputs.runs-on-linux-x64 == 'default' && needs.versions.outputs.runs-on-linux-x64 || inputs.runs-on-linux-x64) }}
+    timeout-minutes: 30
+    env:
+      PEER_PACKAGES: ${{ needs.check.outputs.peers }}
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - *require-main
+      - *check-out
+      - *node
+      - *node-wait
+      - *node-again
+      - *node-wait-again
+      - *node-last
+      - *take
+      - *verify
+      - *unpack
+
+      - name: Take this run's release files
+        timeout-minutes: 10
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: _build/release
+
+      - name: Take this run's package reports
+        timeout-minutes: 10
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: report-*
+          path: _build/release-reports
+
+      - name: Check the release files
+        timeout-minutes: 10
+        working-directory: ${{ inputs.app-folder }}
+        env:
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_REVISION: ${{ inputs.revision }}
+          RELEASE_FOLDER: ${{ github.workspace }}/_build/release
+          RELEASE_REPORTS: ${{ github.workspace }}/_build/release-reports
+          RELEASE_TARGETS: ${{ needs.check.outputs.release-targets }}
+          RELEASE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RELEASE_INTERNAL_VERSION: ${{ needs.check.outputs.package-version }}
+        run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" release-publish
+
+      - name: Keep the release files for the internal update feed
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: internal-feed
+          path: _build/release
+          retention-days: 1
+          if-no-files-found: error
+
+  feed:
+    name: Check the update feed
+    needs: [versions, fetch, check, publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ${{ fromJSON(inputs.runs-on-linux-x64 == 'default' && needs.versions.outputs.runs-on-linux-x64 || inputs.runs-on-linux-x64) }}
+    timeout-minutes: 30
+    env:
+      PEER_PACKAGES: ${{ needs.fetch.outputs.peers }}
+    permissions: {}
+    concurrency:
+      group: release-publish-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - name: Set up Node.js
+        id: node
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          package-manager-cache: false
+          token: ''
+
+      - *node-wait
+
+      - name: Set up Node.js again
+        id: node-again
+        if: steps.node.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          package-manager-cache: false
+          token: ''
+
+      - *node-wait-again
+
+      - name: Set up Node.js a last time
+        if: steps.node-again.outcome == 'failure'
+        timeout-minutes: 5
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          package-manager-cache: false
+          token: ''
+
+      - *take
+
+      - name: Check desktop.build and its @noldova peers against the archives the fetch job checked
+        timeout-minutes: 1
+        env:
+          INTEGRITY: ${{ needs.fetch.outputs.integrity }}
+        run: |
+          set -euo pipefail
+          node --input-type=module --eval '
+            import { createHash } from "node:crypto";
+            import { readFileSync } from "node:fs";
+            import path from "node:path";
+            const [checked, folder, ...names] = process.argv.slice(1);
+            const integrity = JSON.parse(checked || "{}");
+            for (const name of names) {
+              const expected = Object.hasOwn(integrity, name) ? String(integrity[name]) : "";
+              const actual = `sha512-${createHash("sha512").update(readFileSync(path.join(folder, `${name}.tgz`))).digest("base64")}`;
+              if (!expected.startsWith("sha512-") || actual !== expected) {
+                console.error(`::error::The ${name} archive is ${actual}, but the fetch job checked ${expected || "no SHA-512"}.`);
+                process.exit(1);
+              }
+            }
+          ' "$INTEGRITY" "$RUNNER_TEMP/desktop.build" desktop.build $PEER_PACKAGES
+
+      - *unpack
+
+      - name: Check the update feed as an installed app reads it
+        timeout-minutes: 25
+        env:
+          SKIP_FEED_CHECK: ${{ inputs.skip-feed-check }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          FEED_URL: ${{ needs.check.outputs.product-feed }}
+          FEED_VERSION: ${{ inputs.version }}
+          RELEASE_TARGETS: ${{ needs.check.outputs.release-targets }}
+        run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" feed-check

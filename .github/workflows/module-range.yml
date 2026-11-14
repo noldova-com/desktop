@@ -1,0 +1,247 @@
+# @license
+# Copyright (c) Noldova.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+
+name: Module range
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        description: The folder that holds the module's module.json, relative to the repository's root
+        type: string
+        required: true
+      runner:
+        description: The runs-on value the job takes, as JSON, such as '"ubuntu-24.04"'; empty takes the organization's Linux x64 runner from its versions workflow
+        type: string
+        default: ''
+      build:
+        description: The command that builds and type-checks the module
+        type: string
+        default: npm run build
+      test:
+        description: The command that runs the module's tests
+        type: string
+        default: npm test
+      registry-url:
+        description: The registry of the scope registry-scope, for an app that installs packages from a private registry; empty installs from npm alone.
+        type: string
+        default: ''
+      registry-scope:
+        description: The npm scope, such as '@example', that registry-url serves.
+        type: string
+        default: ''
+    secrets:
+      REGISTRY_TOKEN:
+        required: false
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  versions:
+    name: Versions
+    uses: noldova-com/.github/.github/workflows/versions.yml@7640859ac0de8cc03fadbd705b45376c2e1bd88b # v2.25.0
+    permissions: {}
+
+  range:
+    name: Newest Noldova Desktop in the range
+    needs: versions
+    runs-on: ${{ fromJSON(inputs.runner || needs.versions.outputs.runs-on-linux-x64) }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      range: ${{ steps.choose.outputs.range }}
+      version: ${{ steps.choose.outputs.version }}
+    steps:
+      - name: Check out the module
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          package-manager-cache: false
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.registry-scope }}
+
+      - name: Download desktop.build and its @noldova peers
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: |
+          pin=$(node --print '
+            const manifest = JSON.parse(require("node:fs").readFileSync("package.json", "utf8"));
+            Object.entries({ ...manifest.dependencies, ...manifest.devDependencies })
+              .find(([name, version]) => name.startsWith("@noldova/desktop.") && /^\d+\.\d+\.\d+$/.test(version))?.[1] ?? ""')
+          if [ -z "$pin" ]; then
+            echo "::error::The root package.json pins no Noldova Desktop package to one exact version."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/desktop.build"
+          npm pack "@noldova/desktop.build@$pin" --pack-destination "$RUNNER_TEMP/desktop.build" --silent
+          archive="$RUNNER_TEMP/desktop.build/noldova-desktop.build-$pin.tgz"
+          integrity=$(npm view "@noldova/desktop.build@$pin" dist.integrity)
+          node --print '
+            const [file, expected] = process.argv.slice(1);
+            const actual = `sha512-${require("node:crypto").createHash("sha512").update(require("node:fs").readFileSync(file)).digest("base64")}`;
+            if (actual !== expected) {
+              console.error(`::error::The desktop.build archive is ${actual}, but the registry gives ${expected || "no SHA-512"} for it.`);
+              process.exit(1);
+            }
+            `The desktop.build archive matches the registry: ${actual}.`' "$archive" "$integrity"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/desktop.build"
+          peers=$(node --print '
+            Object.keys(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).peerDependencies ?? {})
+              .filter(name => name.startsWith("@noldova/")).map(name => name.slice("@noldova/".length)).sort().join(" ")' "$RUNNER_TEMP/desktop.build/package/package.json")
+          for name in $peers; do
+            version=$(node --print '
+              const locked = JSON.parse(require("node:fs").readFileSync("package-lock.json", "utf8")).packages?.[`node_modules/@noldova/${process.argv[1]}`]?.version ?? "";
+              /^\d+\.\d+\.\d+$/.test(locked) ? locked : ""' "$name")
+            if [ -z "$version" ]; then
+              echo "::error::desktop.build $pin has the peer @noldova/$name, which the root package-lock.json locks at no exact version; the run loads each @noldova peer of desktop.build at the version that lockfile holds."
+              exit 1
+            fi
+            npm pack "@noldova/$name@$version" --pack-destination "$RUNNER_TEMP/desktop.build" --silent
+            archive="$RUNNER_TEMP/desktop.build/noldova-$name-$version.tgz"
+            integrity=$(npm view "@noldova/$name@$version" dist.integrity)
+            node --print '
+              const [file, expected, name] = process.argv.slice(1);
+              const actual = `sha512-${require("node:crypto").createHash("sha512").update(require("node:fs").readFileSync(file)).digest("base64")}`;
+              if (actual !== expected) {
+                console.error(`::error::The ${name} archive is ${actual}, but the registry gives ${expected || "no SHA-512"} for it.`);
+                process.exit(1);
+              }
+              `The ${name} archive matches the registry: ${actual}.`' "$archive" "$integrity" "$name"
+            mkdir -p "$RUNNER_TEMP/desktop.build/node_modules/@noldova/$name"
+            tar -xzf "$archive" -C "$RUNNER_TEMP/desktop.build/node_modules/@noldova/$name" --strip-components=1
+          done
+
+      - name: Choose the Noldova Desktop version
+        id: choose
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          MODULE: ${{ inputs.module }}
+        run: |
+          PUBLISHED_VERSIONS=$(npm view @noldova/desktop.build versions --json)
+          export PUBLISHED_VERSIONS
+          node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" module-range "$MODULE"
+
+      - name: Install the dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Move to Noldova Desktop ${{ steps.choose.outputs.version }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          VERSION: ${{ steps.choose.outputs.version }}
+        run: |
+          node --input-type=module <<'SCRIPT' > "$RUNNER_TEMP/moves.tsv"
+          import { execFileSync } from "node:child_process";
+          import { existsSync, readFileSync } from "node:fs";
+          import { dirname, join } from "node:path";
+
+          const isCore = name => name.startsWith("@noldova/desktop.");
+          const isFoundation = name => name === "@noldova/ui.components.angular" || name.startsWith("@noldova/context.");
+          const files = execFileSync("git", ["ls-files", "package.json", "**/package.json"], { encoding: "utf8" }).split("\n").filter(t => t !== "");
+          const folders = [];
+          for (const file of files) {
+            const folder = dirname(file).endsWith(".window.app") ? "." : dirname(file);
+            if (!existsSync(join(folder, "node_modules")))
+              continue;
+            const manifest = JSON.parse(readFileSync(file, "utf8"));
+            const names = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
+            if (names.some(isCore))
+              folders.push([folder, names]);
+          }
+          const pinned = new Map();
+          const read = new Set();
+          const waiting = ["@noldova/desktop.build", ...folders.flatMap(([, names]) => names.filter(isCore))];
+          while (waiting.length > 0) {
+            const name = waiting.shift();
+            if (read.has(name))
+              continue;
+            read.add(name);
+            for (const field of ["dependencies", "peerDependencies"]) {
+              const text = execFileSync("npm", ["view", `${name}@${process.env.VERSION}`, field, "--json"], { encoding: "utf8" }).trim();
+              for (const [dependency, version] of Object.entries(text === "" ? {} : JSON.parse(text)))
+                if (isCore(dependency))
+                  waiting.push(dependency);
+                else if (isFoundation(dependency) && /^\d+\.\d+\.\d+$/.test(version))
+                  pinned.set(dependency, version);
+            }
+          }
+          console.error(`Pins read from ${[...read].sort().join(", ")}.`);
+          const moves = new Map();
+          for (const [folder, names] of folders) {
+            const folderMoves = moves.get(folder) ?? new Set();
+            for (const move of names.flatMap(t => isCore(t) ? [`${t}@${process.env.VERSION}`] : pinned.has(t) ? [`${t}@${pinned.get(t)}`] : []))
+              folderMoves.add(move);
+            moves.set(folder, folderMoves);
+          }
+          for (const [folder, folderMoves] of moves)
+            console.log(`${folder}\t${[...folderMoves].join(" ")}`);
+          SCRIPT
+          sort -t "$(printf '\t')" -k1,1 "$RUNNER_TEMP/moves.tsv" | while IFS="$(printf '\t')" read -r folder moves; do
+            echo "::group::$folder: $moves"
+            # shellcheck disable=SC2086
+            (cd "$folder" && npm install --no-save --no-audit --no-fund --ignore-scripts $moves < /dev/null)
+            for move in $moves; do
+              name="${move%@*}"
+              installed=$(node --print "JSON.parse(require('node:fs').readFileSync('$folder/node_modules/$name/package.json', 'utf8')).version" < /dev/null)
+              if [ "$installed" != "${move##*@}" ]; then
+                echo "::error::$folder holds $name $installed after the move, not ${move##*@}."
+                exit 1
+              fi
+            done
+            echo "::endgroup::"
+          done
+
+      - name: Build
+        run: ${{ inputs.build }}
+
+      - name: Test
+        run: ${{ inputs.test }}
+
+  report:
+    name: Report a failing nightly run
+    needs: [versions, range]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ${{ fromJSON(inputs.runner || needs.versions.outputs.runs-on-linux-x64) }}
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RANGE: ${{ needs.range.outputs.range }}
+          VERSION: ${{ needs.range.outputs.version }}
+          TITLE: The module fails on the newest Noldova Desktop in its range
+          BODY: ${{ runner.temp }}/module-range-issue.md
+        run: |
+          {
+            if [ -n "$VERSION" ]; then
+              echo "The nightly run $RUN_URL built and tested the module against Noldova Desktop $VERSION, the newest published version inside its range $RANGE, and it failed."
+            else
+              echo "The nightly run $RUN_URL could not choose a Noldova Desktop version from the module's range; its log says why."
+            fi
+          } > "$BODY"
+          number=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq '.[] | select(.title == env.TITLE) | .number' | head -n 1)
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file "$BODY"
+          else
+            url=$(gh issue create --title "$TITLE" --body-file "$BODY")
+            gh api -X PATCH "repos/$GH_REPO/issues/${url##*/}" -f type=Bug > /dev/null
+          fi

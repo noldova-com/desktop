@@ -1,0 +1,18 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<h1 class="nol-pages-page-title" [attr.data-fixture-content]="'pages-page-' + instance()">{{ title() }}</h1>
+<div #content class="nol-pages-page-content" data-fixture-content="pages-content">
+  <p>The web views are mounted in this part of the page and follow its size.</p>
+  <p>The first one shows, and the second one loads hidden behind it.</p>
+  <p>Both close with the page.</p>
+</div>
+@for (view of views(); track view.id) {
+  <p class="nol-pages-page-view" [attr.data-fixture-content]="'pages-view-' + $index" [attr.data-view]="view.id" [attr.data-event]="view.event" [attr.data-keys]="view.keys" [attr.data-requests]="view.requests" [attr.data-zoom]="view.zoom" [attr.data-found]="view.found">{{ view.title }}</p>
+}
+<p class="nol-pages-page-failure" data-fixture-content="pages-failure" [attr.data-layer]="layer()">{{ failure() }}</p>

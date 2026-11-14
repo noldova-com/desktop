@@ -1,0 +1,166 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import "@noldova/context.core";
+import type { JsonObject } from "@noldova/context.json";
+
+import { WindowStateNotConnectedException } from "../exceptions/window-state-not-connected.exception.js";
+import { WindowStateUnavailableException } from "../exceptions/window-state-unavailable.exception.js";
+import type { IMainProcessLog } from "../interfaces/i-main-process-log.js";
+import type { IMainProcessWindow } from "../interfaces/i-main-process-window.js";
+import type { IDisplayHost } from "../interfaces/i-display-host.js";
+import type { IWindowStateStore } from "../interfaces/i-window-state-store.js";
+import { ScreenArea } from "../models/screen-area.js";
+import { WindowState } from "../models/window-state.js";
+import { Resources } from "../resources.js";
+
+export class WindowBoundsKeeper {
+  private readonly window: IMainProcessWindow;
+  private readonly displays: IDisplayHost;
+  private readonly saveDelay: number;
+  private readonly log: IMainProcessLog;
+  private readonly keepsStoredPosition: boolean;
+  private restored: WindowState | null = null;
+  private isRead: boolean = false;
+  private store: IWindowStateStore | undefined;
+  private timer: NodeJS.Timeout | undefined;
+  private hasUnsaved: boolean = false;
+  private isMaximizedAtShow: boolean = false;
+  private isHeld: boolean = false;
+
+  public constructor(window: IMainProcessWindow, displays: IDisplayHost, saveDelay: number, log: IMainProcessLog, holdsPersonsMoves: boolean, keepsStoredPosition: boolean = false) {
+    this.window = window;
+    this.displays = displays;
+    this.saveDelay = saveDelay;
+    this.log = log;
+    this.keepsStoredPosition = keepsStoredPosition;
+    this.store = undefined;
+    this.timer = undefined;
+    const changed = (): void => this.noteChange();
+    window.on(Resources.resizeEvent, changed);
+    window.on(Resources.moveEvent, changed);
+    window.on(Resources.maximizeEvent, changed);
+    window.on(Resources.unmaximizeEvent, changed);
+    if (holdsPersonsMoves) {
+      const placed = (): void => this.notePlacedByPerson();
+      window.on(Resources.willMoveEvent, placed);
+      window.on(Resources.willResizeEvent, placed);
+    }
+  }
+
+  public begin(store: IWindowStateStore, state: WindowState): void {
+    this.isRead = true;
+    this.restored = state;
+    this.place(state);
+    this.store = store;
+  }
+
+  public async followAsync(store: IWindowStateStore): Promise<void> {
+    this.store = store;
+    this.isHeld = false;
+    await this.saveAsync();
+  }
+
+  public async restoreAsync(store: IWindowStateStore): Promise<void> {
+    this.store = store;
+    this.isHeld = false;
+    if (this.hasUnsaved) {
+      if (this.keepsStoredPosition && !this.isRead)
+        this.keepRead(await store.readAsync());
+      await this.saveAsync();
+      return;
+    }
+    const state = this.keepRead(await store.readAsync());
+    if (!Object.isNull(state))
+      this.place(state);
+  }
+
+  public show(): void {
+    if (this.isMaximizedAtShow)
+      this.window.maximize();
+    this.isMaximizedAtShow = false;
+    this.window.show();
+  }
+
+  public async saveAsync(): Promise<void> {
+    this.cancelSave();
+    if (this.window.isDestroyed())
+      return;
+    if (this.isHeld) {
+      this.hasUnsaved = true;
+      return;
+    }
+    if (Object.isUndefined(this.store)) {
+      if (this.hasUnsaved)
+        throw new WindowStateNotConnectedException();
+      return;
+    }
+    if (this.keepsStoredPosition && !this.isRead)
+      return;
+    const bounds = this.window.getNormalBounds();
+    const [x, y] = this.keepsStoredPosition ? [this.restored?.x ?? null, this.restored?.y ?? null] : [bounds.x, bounds.y];
+    this.hasUnsaved = true;
+    await this.store.writeAsync(new WindowState(x, y, bounds.width, bounds.height, this.window.isMaximized() || this.isMaximizedAtShow).toJson());
+    this.hasUnsaved = false;
+  }
+
+  public async holdAsync(): Promise<void> {
+    try {
+      if (!Object.isUndefined(this.timer) || this.hasUnsaved)
+        await this.saveAsync();
+    }
+    finally {
+      this.isHeld = true;
+    }
+  }
+
+  public async saveUnsavedAsync(): Promise<void> {
+    this.isHeld = false;
+    if (this.hasUnsaved)
+      await this.saveAsync();
+  }
+
+  public cancelSave(): void {
+    if (!Object.isUndefined(this.timer))
+      clearTimeout(this.timer);
+    this.timer = undefined;
+  }
+
+  private place(state: WindowState): void {
+    const areas = this.displays.getAllDisplays().map(t => ScreenArea.of(t.workArea));
+    const bounds = state.placeOn(areas, ScreenArea.of(this.displays.getPrimaryDisplay().workArea));
+    this.window.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
+    this.isMaximizedAtShow = state.isMaximized && !this.window.isVisible();
+    if (state.isMaximized && !this.isMaximizedAtShow)
+      this.window.maximize();
+  }
+
+  private keepRead(saved: JsonObject | null): WindowState | null {
+    this.isRead = true;
+    this.restored = Object.isNull(saved) ? null : WindowState.fromJson(saved);
+    return this.restored;
+  }
+
+  private noteChange(): void {
+    if (!Object.isUndefined(this.store))
+      this.scheduleSave();
+  }
+
+  private notePlacedByPerson(): void {
+    if (Object.isUndefined(this.store))
+      this.hasUnsaved = true;
+  }
+
+  private scheduleSave(): void {
+    this.cancelSave();
+    this.timer = setTimeout(() => void this.saveAsync().catch((error: unknown) => {
+      if (!(error instanceof WindowStateUnavailableException))
+        this.log.write(Resources.formatBoundsUnsaved(String(error)));
+    }), this.saveDelay);
+  }
+}

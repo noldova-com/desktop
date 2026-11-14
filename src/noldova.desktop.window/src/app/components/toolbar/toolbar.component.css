@@ -1,0 +1,111 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: calc(var(--nol-sash-grip) * 2.5 + var(--nol-toolbar-button));
+  height: var(--nol-toolbar-button);
+  overflow: hidden;
+}
+
+:host(.nol-toolbar-dragging) {
+  opacity: 0.5;
+}
+
+.nol-toolbar-grip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nol-toolbar-grip-gap);
+  align-self: stretch;
+  flex: none;
+  box-sizing: border-box;
+  width: calc(var(--nol-sash-grip) * 2);
+  margin: 0;
+  margin-inline-end: calc(var(--nol-sash-grip) / 2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--nol-radius-small);
+  background: none;
+  opacity: 0.3;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.nol-toolbar-grip:hover,
+.nol-toolbar-grip:focus-visible {
+  opacity: 1;
+}
+
+.nol-toolbar-grip:focus-visible {
+  outline: var(--nol-border-width) solid var(--nol-accent);
+  outline-offset: calc(var(--nol-border-width) * -1);
+
+  @media (forced-colors: active) {
+    outline: calc(var(--nol-border-width) * 2) solid Highlight;
+  }
+}
+
+.nol-toolbar-dot {
+  flex: none;
+  width: var(--nol-sash-grip);
+  height: var(--nol-sash-grip);
+  border-radius: 50%;
+  background-color: var(--nol-icon-color);
+
+  @media (forced-colors: active) {
+    background-color: CanvasText;
+  }
+}
+
+.nol-toolbar-content,
+.nol-toolbar-ghost {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--nol-border-width) * 2);
+}
+
+.nol-toolbar-content {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.nol-toolbar-section,
+.nol-toolbar-ghost-section {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: calc(var(--nol-border-width) * 2);
+}
+
+.nol-toolbar-separator {
+  flex: none;
+  align-self: center;
+  width: var(--nol-border-width);
+  height: var(--nol-icon);
+  margin-inline: calc(var(--nol-toolbar-gap) / 2);
+  background-color: var(--nol-menu-separator);
+
+  @media (forced-colors: active) {
+    background-color: CanvasText;
+  }
+}
+
+.nol-toolbar-ghost {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  visibility: hidden;
+  pointer-events: none;
+}

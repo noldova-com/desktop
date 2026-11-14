@@ -1,0 +1,161 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import type { Locator, Page } from "@playwright/test";
+
+import { CommandSearchFixture } from "./fixtures/command-search.fixture.ts";
+import { expect, test } from "./fixtures/main-process-test.fixture.ts";
+import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
+
+function dialog(window: Page): Locator {
+  return window.getByRole("dialog");
+}
+
+async function showAsync(window: Page, title: string): Promise<void> {
+  await CommandSearchFixture.searchAsync(window, title);
+  await window.keyboard.press("Enter");
+  await expect(dialog(window)).toBeVisible();
+}
+
+async function expectInsideAsync(window: Page, locator: Locator): Promise<void> {
+  const bounds = await locator.boundingBox();
+  const viewport = await window.evaluate(() => [innerWidth, innerHeight]);
+  expect(bounds).not.toBeNull();
+  expect(bounds?.x).toBeGreaterThanOrEqual(0);
+  expect(bounds?.y).toBeGreaterThanOrEqual(0);
+  expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(viewport[0] ?? 0);
+  expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThanOrEqual(viewport[1] ?? 0);
+}
+
+test.describe("view dialog", () => {
+  test("an open document moves into a large dialog and out of its tab strip, works there while the window behind stays still, maximizes, and returns to its tab on Escape", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const tab = window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]");
+    const other = window.locator("nol-tab[data-tab-key=\"document/notes.note/2\"]");
+    await tab.click();
+    await expect(window.locator("[data-tab-content=\"document/notes.note/1\"]").getByRole("textbox", { name: "Tag" })).toBeFocused();
+
+    await showAsync(window, "Show note 1 in a dialog");
+
+    await expect(dialog(window)).toHaveAccessibleName("Note 1");
+    await expect(tab).toHaveCount(0);
+    await expect(other).toHaveAttribute("aria-selected", "true");
+    await expect(dialog(window).getByRole("textbox", { name: "Tag" })).toBeFocused();
+    await expect(window.locator("[data-fixture-content=notes-note-1]")).toHaveCount(1);
+    await expect(dialog(window).locator("[data-fixture-content=notes-note-1]")).toBeVisible();
+    const bounds = await window.locator("nol-dialog").boundingBox();
+    expect(Math.abs((bounds?.width ?? 0) - 1920 * 0.8)).toBeLessThan(2);
+    expect(Math.abs((bounds?.height ?? 0) - 1080 * 0.8)).toBeLessThan(2);
+    const summary = dialog(window).getByRole("textbox", { name: "Summary" });
+    await summary.click();
+    await window.keyboard.type("Plan the week");
+    await expect(summary).toHaveValue("Plan the week");
+    await window.keyboard.press("ControlOrMeta+KeyW");
+    await window.keyboard.press("ControlOrMeta+KeyB");
+    const behind = await other.boundingBox();
+    const point = { x: (behind?.x ?? 0) + (behind?.width ?? 0) / 2, y: (behind?.y ?? 0) + (behind?.height ?? 0) / 4 };
+    expect(point.y).toBeLessThan(bounds?.y ?? 0);
+    await window.mouse.click(point.x, point.y);
+    await expect(summary).toBeFocused();
+    await window.keyboard.press("End");
+    await window.keyboard.type("!");
+    await expect(summary).toHaveValue("Plan the week!");
+    await expect(dialog(window)).toBeVisible();
+    await expect(tab).toHaveCount(0);
+    await expect(other).toHaveAttribute("aria-selected", "true");
+    await expect(window.locator("[data-fixture-content=notes-list]")).toBeAttached();
+    await mainProcess.checkpointAsync("view-dialog-note-light");
+    await WindowModeFixture.setAsync(window, "Dark");
+    await mainProcess.checkpointAsync("view-dialog-note-dark");
+    await WindowModeFixture.setAsync(window, "Light");
+    await dialog(window).getByRole("button", { name: "Maximize" }).click();
+    await expect(dialog(window).getByRole("button", { name: "Restore" })).toBeVisible();
+    const maximized = await window.locator("nol-dialog").boundingBox();
+    expect(maximized?.x ?? Infinity).toBeLessThan(20);
+    expect(maximized?.width ?? 0).toBeGreaterThan(1920 - 40);
+    expect(maximized?.height ?? 0).toBeGreaterThan(bounds?.height ?? Infinity);
+    await mainProcess.checkpointAsync("view-dialog-note-maximized-light");
+    await WindowModeFixture.setAsync(window, "Dark");
+    await mainProcess.checkpointAsync("view-dialog-note-maximized-dark");
+    await WindowModeFixture.setAsync(window, "Light");
+    await dialog(window).getByRole("button", { name: "Restore" }).click();
+    await expect(dialog(window).getByRole("button", { name: "Maximize" })).toBeVisible();
+    expect(await window.locator("nol-dialog").boundingBox()).toEqual(bounds);
+
+    await summary.focus();
+    await window.keyboard.press("Escape");
+
+    await expect(dialog(window)).toHaveCount(0);
+    await expect(window.locator("nol-workspace [data-fixture-content=notes-note-1]")).toBeVisible();
+    await expect(tab).toBeFocused();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("the keys of the module whose view a dialog shows run there while the shell's do nothing, and a document one opens closes the dialog and shows its tab", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const note = window.locator("nol-tab[data-tab-key=\"document/notes.note/3\"]");
+    await window.locator("[data-fixture-content=notes-list]").click();
+    await showAsync(window, "Show the notes list in a dialog");
+    await expect(dialog(window).locator(".nol-notes-list-item").first()).toBeFocused();
+
+    await window.keyboard.press("ControlOrMeta+KeyW");
+    await window.keyboard.press("ControlOrMeta+Alt+KeyN");
+
+    await expect(dialog(window)).toHaveCount(0);
+    await expect(note).toHaveAttribute("aria-selected", "true");
+    await expect(note).toBeFocused();
+    await expect(window.locator("nol-tab[data-tab-key=\"view/notes.list\"]")).toBeAttached();
+    await expect(window.locator("nol-workspace [data-fixture-content=notes-list]")).toBeVisible();
+  });
+
+  test("a module's docked view and the shell's Settings show in a dialog that fits the smallest window and 200% zoom, and a tab that was not open closes with it", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    await mainProcess.useViewportAsync(640, 480);
+    await window.locator("nol-dock[data-side=Left] .nol-dock-strip-view").first().click();
+    await window.locator("[data-fixture-content=notes-list]").click();
+
+    await showAsync(window, "Show the notes list in a dialog");
+    await expect(dialog(window)).toHaveAccessibleName("Notes");
+    await expect(dialog(window).locator("[data-fixture-content=notes-list]")).toBeVisible();
+    await expect(dialog(window).locator(".nol-notes-list-item").first()).toBeFocused();
+    await expectInsideAsync(window, window.locator("nol-dialog"));
+    await mainProcess.checkpointAsync("view-dialog-list-smallest");
+    await window.keyboard.press("Escape");
+    await expect(dialog(window)).toHaveCount(0);
+    await expect(window.locator("nol-workspace [data-fixture-content=notes-list]")).toBeVisible();
+    await expect(window.locator("nol-tab[data-tab-key=\"view/notes.list\"]")).toBeFocused();
+
+    await showAsync(window, "Show Settings in a dialog");
+    await expect(dialog(window)).toHaveAccessibleName("Settings");
+    await expectInsideAsync(window, window.locator("nol-dialog"));
+    await dialog(window).getByRole("button", { name: "Close" }).click();
+    await expect(dialog(window)).toHaveCount(0);
+    await expect(window.locator("nol-tab[data-tab-key=\"document/desktop.settings\"]")).toHaveCount(0);
+
+    await showAsync(window, "Show Settings in a dialog");
+    await dialog(window).getByRole("button", { name: "Open in main window" }).click();
+    await expect(dialog(window)).toHaveCount(0);
+    await expect(window.locator("nol-tab[data-tab-key=\"document/desktop.settings\"]")).toHaveAttribute("aria-selected", "true");
+    await expect(window.locator("nol-tab[data-tab-key=\"document/desktop.settings\"]")).toBeFocused();
+
+    await mainProcess.zoomAsync(2, 320);
+    try {
+      await showAsync(window, "Show the notes list in a dialog");
+      await expectInsideAsync(window, window.locator("nol-dialog"));
+      await expectInsideAsync(window, dialog(window).getByRole("button", { name: "Close" }));
+      await expect(dialog(window).locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await window.mouse.move(1, 1);
+      await expect(window.getByRole("tooltip")).toHaveCount(0);
+      await window.keyboard.press("Escape");
+      await expect(dialog(window)).toHaveCount(0);
+    }
+    finally {
+      await mainProcess.zoomAsync(1, 640);
+    }
+  });
+});

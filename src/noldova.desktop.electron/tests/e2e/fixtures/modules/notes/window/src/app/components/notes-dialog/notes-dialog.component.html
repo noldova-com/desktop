@@ -1,0 +1,12 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<nol-dialog title="Rename the note" (dismissed)="reference.close()">
+  <input class="nol-notes-dialog-name" type="text" aria-label="Name" data-fixture-content="notes-dialog-name">
+  <button nol-button nolDialogAction type="button" data-fixture-content="notes-dialog-done" (click)="reference.close()">Done</button>
+</nol-dialog>

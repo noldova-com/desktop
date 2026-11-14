@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../_build/angular/spec-tsc",
+    "types": [
+      "vitest/globals"
+    ],
+    "paths": {
+      "@noldova/desktop.window": [
+        "./src/api/index.ts"
+      ],
+      "@noldova/desktop.window/build": [
+        "./src/api/build.ts"
+      ],
+      "@noldova/desktop.window/testing": [
+        "./src/api/testing.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts"
+  ]
+}

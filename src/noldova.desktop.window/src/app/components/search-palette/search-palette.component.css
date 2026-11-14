@@ -1,0 +1,52 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+.nol-search-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.3125rem;
+  height: 1.375rem;
+  padding: 0 0.5625rem;
+  border: 0;
+  border-radius: 0.6875rem;
+  background: transparent;
+  color: var(--nol-text);
+  font: inherit;
+  font-size: var(--nol-text-small);
+}
+
+.nol-search-filter[aria-pressed="true"] {
+  background: var(--nol-selected);
+  color: var(--nol-text-strong);
+}
+
+.nol-search-filter-count {
+  color: var(--nol-text-muted);
+}
+
+.nol-search-hint-end {
+  margin-inline-start: auto;
+}
+
+@media (forced-colors: active) {
+  .nol-search-filter {
+    padding: 0 calc(0.5625rem - var(--nol-border-width));
+    border: var(--nol-border-width) solid ButtonText;
+    color: ButtonText;
+  }
+
+  .nol-search-filter[aria-pressed="true"] {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+
+  .nol-search-filter[aria-pressed="true"] .nol-search-filter-count {
+    color: HighlightText;
+  }
+}

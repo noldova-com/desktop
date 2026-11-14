@@ -1,0 +1,42 @@
+{
+  "name": "@noldova/desktop.protocol",
+  "version": "__VERSION__",
+  "description": "Noldova Desktop's local protocol between an app's window, its runtime and its command line: the messages, their JSON forms and their checks.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noldova-com/desktop.git",
+    "directory": "src/noldova.desktop.protocol"
+  },
+  "homepage": "https://github.com/noldova-com/desktop#readme",
+  "bugs": {
+    "url": "https://github.com/noldova-com/desktop/issues"
+  },
+  "exports": {
+    ".": {
+      "types": "./api/index.d.ts",
+      "default": "./api/index.js"
+    },
+    "./testing": {
+      "types": "./api/testing.d.ts",
+      "default": "./api/testing.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "**/*.js",
+    "**/*.js.map",
+    "api/index.d.ts",
+    "api/testing.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "@noldova/context.core": ">=0.0.7 <0.1.0",
+    "@noldova/context.exceptions": ">=0.0.7 <0.1.0",
+    "@noldova/context.json": ">=0.0.7 <0.1.0"
+  }
+}

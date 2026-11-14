@@ -1,0 +1,27 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<ng-template #placeMenu>
+  <nol-menu class="nol-place-menu" [attr.data-place]="place()">
+    @for (section of sections(); track section.group; let first = $first) {
+      @if (!first) {
+        <nol-menu-separator />
+      }
+      @for (row of section.rows; track $index) {
+        @if (row.isSubmenu) {
+          <nol-place-menu #nested [place]="row.place" [context]="context()" />
+          <button nol-menu-item class="nol-place-menu-submenu" [attr.data-submenu]="row.place" [label]="row.title" [icon]="row.icon" [nolMenuTriggerFor]="nested.menu()"></button>
+        } @else {
+          <button nol-menu-item class="nol-place-menu-item" [attr.data-command]="row.command" [label]="row.title" [icon]="row.icon"
+            [shortcut]="row.key" [checked]="row.check === menuCheck.None ? null : row.isChecked" [checkbox]="row.check === menuCheck.Checkbox"
+            [disabled]="!row.isEnabled" (triggered)="run(row)"></button>
+        }
+      }
+    }
+  </nol-menu>
+</ng-template>

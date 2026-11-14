@@ -1,0 +1,23 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<nol-card class="nol-module-failure-card">
+  @if (failure().switchSetting; as setting) {
+    <h2 class="nol-module-failure-card-title">
+      <span class="material-symbols-rounded nol-module-failure-card-icon nol-module-failure-card-off" aria-hidden="true">{{ resources.moduleOffGlyph }}</span>
+      <span>{{ resources.formatModuleOff(failure().displayName) }}</span>
+    </h2>
+    <nol-module-switch [setting]="setting" />
+  } @else {
+    <h2 class="nol-module-failure-card-title">
+      <span class="material-symbols-rounded nol-module-failure-card-icon" [class.nol-module-failure-card-off]="failure().isTurnedOff" aria-hidden="true">{{ failure().glyph }}</span>
+      <span>{{ resources.formatModuleDidNotStart(failure().displayName) }}</span>
+    </h2>
+    <p class="nol-module-failure-card-cause">{{ failure().cause }}</p>
+  }
+</nol-card>

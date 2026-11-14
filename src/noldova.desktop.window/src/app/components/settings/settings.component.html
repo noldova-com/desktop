@@ -1,0 +1,98 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<div class="nol-settings-search">
+  <nol-select #pageSelect class="nol-settings-page-select" [label]="resources.settingsPagesLabel" [options]="pageOptions()" [value]="pageChoice()" (valueChange)="select($event)" />
+  <input nol-text-field type="search" class="nol-settings-search-field" [attr.aria-label]="resources.searchSettingsLabel" [placeholder]="resources.searchSettingsLabel"
+    [value]="query()" (input)="search($event)" />
+</div>
+<div class="nol-settings-body">
+  <div #pageList class="nol-settings-pages">
+    <nol-tree [nodes]="pageNodes()" [label]="resources.settingsPagesLabel" [current]="isSearching() ? null : currentPage()?.title ?? null" (activated)="select($event.id)" />
+  </div>
+  <div class="nol-settings-content">
+    <div #column class="nol-settings-column">
+      @if (isSearching()) {
+        @for (page of results(); track page.title) {
+          <section class="nol-settings-result" [attr.aria-label]="page.title">
+            <h2 class="nol-settings-result-title">{{ page.title }}</h2>
+            <ng-container [ngTemplateOutlet]="body" [ngTemplateOutletContext]="{ $implicit: page, isResult: true }" />
+          </section>
+        } @empty {
+          <p class="nol-settings-empty">{{ resources.noSettingsFound }}</p>
+        }
+      } @else if (currentPage(); as page) {
+        <ng-container [ngTemplateOutlet]="body" [ngTemplateOutletContext]="{ $implicit: page, isResult: false }" />
+      }
+    </div>
+  </div>
+</div>
+
+<ng-template #body let-page let-isResult="isResult">
+  @if (page.isGallery) {
+    <ng-container [ngComponentOutlet]="gallery" />
+  } @else if (page.entry; as entry) {
+    @if (isResult) {
+      <button type="button" nol-button [variant]="secondary" (click)="select(page.title)">{{ resources.openSettingsPageLabel }}</button>
+      @if (matchingRows(entry).length > 0) {
+        <ul class="nol-settings-found-rows">
+          @for (row of matchingRows(entry); track row.id) {
+            <li class="nol-settings-found-row">
+              <button type="button" nol-button [variant]="text" class="nol-settings-found-row-open" (click)="openRow(page.title, row.id)">
+                <nol-highlighted-text [text]="row.title" [query]="query()" />
+              </button>
+              @if (row.description; as description) {
+                <p class="nol-settings-found-row-description"><nol-highlighted-text [text]="description" [query]="query()" /></p>
+              }
+            </li>
+          }
+        </ul>
+      }
+    } @else {
+      <h2 class="nol-settings-group-title">{{ page.title }}</h2>
+      <nol-settings-page-host [entry]="entry" />
+    }
+    <ng-container [ngTemplateOutlet]="groups" [ngTemplateOutletContext]="{ $implicit: page, isResult: isResult }" />
+  } @else if (page.isShortcuts) {
+    @if (!isResult) {
+      <h2 class="nol-settings-group-title">{{ page.title }}</h2>
+    }
+    <nol-shortcuts [rows]="matchingShortcuts()" [query]="query()" />
+  } @else {
+    @if (page.isAbout && !isResult) {
+      <nol-about />
+    }
+    @if (page.isGeneral && !isResult) {
+      <section class="nol-settings-group" [attr.aria-label]="resources.runtimeGroup">
+        <h2 class="nol-settings-group-title">{{ resources.runtimeGroup }}</h2>
+        <nol-runtime-status />
+      </section>
+    }
+    <ng-container [ngTemplateOutlet]="groups" [ngTemplateOutletContext]="{ $implicit: page, isResult: isResult }" />
+  }
+</ng-template>
+
+<ng-template #groups let-page let-isResult="isResult">
+  @for (group of page.groups; track group.title) {
+    <section class="nol-settings-group" [attr.aria-label]="group.title">
+      @if (isResult) {
+        <h3 class="nol-settings-result-group">{{ group.title }}</h3>
+      } @else {
+        <h2 class="nol-settings-group-title">{{ group.title }}</h2>
+      }
+      <div class="nol-settings-rows">
+        @for (definition of group.definitions; track definition.name.text) {
+          <nol-setting-row [definition]="definition" [value]="values().get(definition.name.text)" [isSet]="setFlags().get(definition.name.text)?.() ?? false"
+            [query]="query()" [modules]="isMutedModules(definition) ? notifyingModules() : modules()" [isInverse]="isMutedModules(definition)" [canRun]="canRun(definition)"
+            [languages]="spelling.options()" [note]="noteFor(definition)" [isRequired]="isFormat(definition)" [supplied]="settingOptions.read(definition.name.text)"
+            [check]="settingChecks.read(definition.name.text)" (changed)="change(definition, $event)" (drafted)="draft(definition, $event)" (reset)="reset(definition)" (run)="run(definition)" />
+        }
+      </div>
+    </section>
+  }
+</ng-template>

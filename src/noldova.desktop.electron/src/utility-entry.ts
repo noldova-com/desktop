@@ -1,0 +1,14 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import type { MessageEvent } from "electron";
+
+import { DetachedStart } from "./services/detached-start.js";
+import { Resources } from "./resources.js";
+
+process.parentPort.once(Resources.messageEvent, (event: MessageEvent) => void DetachedStart.runAsync(event.data, process.parentPort).then(() => process.exit(0)));

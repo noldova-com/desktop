@@ -1,0 +1,51 @@
+{
+  "name": "@noldova/desktop.window",
+  "version": "__VERSION__",
+  "description": "Noldova Desktop's window: the Angular app that shows the modules' window parts, and what a module's window part builds against.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noldova-com/desktop.git",
+    "directory": "src/noldova.desktop.window"
+  },
+  "homepage": "https://github.com/noldova-com/desktop#readme",
+  "bugs": {
+    "url": "https://github.com/noldova-com/desktop/issues"
+  },
+  "exports": {
+    ".": {
+      "types": "./api/index.d.ts",
+      "default": "./api/index.js"
+    },
+    "./build": {
+      "types": "./api/build.d.ts",
+      "default": "./api/build.js"
+    },
+    "./testing": {
+      "types": "./api/testing.d.ts",
+      "default": "./api/testing.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "**/*.js",
+    "**/*.js.map",
+    "**/*.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "@angular/cdk": "22.2.7",
+    "@angular/common": "22.2.6",
+    "@angular/core": "22.2.6",
+    "@angular/platform-browser": "22.2.6",
+    "@noldova/context.core": ">=0.0.7 <0.1.0",
+    "@noldova/context.exceptions": ">=0.0.7 <0.1.0",
+    "@noldova/context.json": ">=0.0.7 <0.1.0",
+    "@noldova/desktop.protocol": "__VERSION__",
+    "@noldova/ui.components.angular": ">=0.0.5 <0.1.0"
+  }
+}

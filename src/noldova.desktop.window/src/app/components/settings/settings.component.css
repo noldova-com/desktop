@@ -1,0 +1,154 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding-block: var(--nol-space-4) 0;
+  padding-inline: var(--nol-settings-margin) 0;
+  container: settings / inline-size;
+  --nol-settings-margin: var(--nol-space-6);
+  --nol-settings-gap: var(--nol-space-6);
+  --nol-settings-edge: var(--nol-settings-item-padding-inline);
+}
+
+.nol-settings-search {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--nol-space-2);
+  padding-inline-end: var(--nol-settings-margin);
+  padding-bottom: var(--nol-space-4);
+}
+
+.nol-settings-search-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nol-settings-body {
+  display: flex;
+  flex: auto;
+  min-height: 0;
+}
+
+.nol-settings-pages {
+  flex: none;
+  width: var(--nol-settings-pages-width);
+  overflow-y: auto;
+}
+
+.nol-settings-content {
+  flex: auto;
+  min-width: 0;
+  overflow: auto;
+  padding-inline-start: var(--nol-settings-gap);
+  scrollbar-gutter: stable;
+}
+
+.nol-settings-column {
+  padding-inline: var(--nol-settings-content-inset) calc(var(--nol-settings-margin) - var(--nol-scrollbar-size));
+  padding-bottom: var(--nol-space-6);
+}
+
+.nol-settings-group-title,
+.nol-settings-result-title {
+  margin: 0 0 var(--nol-settings-heading-space);
+  color: var(--nol-setting-title);
+  font-size: var(--nol-text-heading);
+  font-weight: var(--nol-weight-emphasis);
+  line-height: var(--nol-line-heading);
+}
+
+.nol-settings-group-title,
+.nol-settings-result-title,
+.nol-settings-result-group,
+nol-about,
+nol-shortcuts {
+  padding-inline: var(--nol-settings-edge);
+}
+
+.nol-settings-result > button {
+  margin-inline-start: var(--nol-settings-edge);
+}
+
+.nol-settings-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-row-gap);
+}
+
+.nol-settings-group + .nol-settings-group,
+nol-settings-page-host + .nol-settings-group,
+.nol-settings-result + .nol-settings-result {
+  margin-top: var(--nol-space-6);
+}
+
+.nol-settings-result-group {
+  margin: var(--nol-space-3) 0 0;
+  color: var(--nol-text-muted);
+  font-size: var(--nol-text-label);
+  font-weight: var(--nol-weight-emphasis);
+  line-height: var(--nol-line-label);
+}
+
+.nol-settings-empty {
+  margin: 0 0 var(--nol-space-3);
+  color: var(--nol-text);
+}
+
+@container settings (width >= 35.5rem) {
+  .nol-settings-page-select {
+    display: none;
+  }
+}
+
+@container settings (width < 35.5rem) {
+  .nol-settings-page-select,
+  .nol-settings-search-field {
+    flex: 1 1 10rem;
+  }
+
+  .nol-settings-pages {
+    display: none;
+  }
+
+  .nol-settings-content,
+  .nol-settings-column {
+    padding-inline-start: 0;
+  }
+}
+
+.nol-settings-found-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-row-gap);
+  margin: var(--nol-settings-heading-space) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nol-settings-found-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-inline: var(--nol-settings-edge);
+}
+
+.nol-settings-found-row-open {
+  margin-inline-start: calc(-1 * var(--nol-button-padding));
+  font-weight: var(--nol-weight-emphasis);
+}
+
+.nol-settings-found-row-description {
+  margin: 0;
+  color: var(--nol-text);
+}

@@ -1,0 +1,114 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import "@noldova/context.core";
+import type { WorkReport } from "@noldova/desktop.protocol";
+
+import { QuitChoice } from "../enums/quit-choice.js";
+import { QuitOutcome } from "../enums/quit-outcome.js";
+import type { IQuitPrompt } from "../interfaces/i-quit-prompt.js";
+import { PendingQuit } from "../models/pending-quit.js";
+
+export class QuitCoordinator {
+  private readonly readWorkAsync: () => Promise<WorkReport | null>;
+  private isAsking: boolean = false;
+  private heard: WorkReport | null = null;
+  private pending: PendingQuit | undefined;
+
+  public constructor(readWorkAsync: () => Promise<WorkReport | null>) {
+    this.readWorkAsync = readWorkAsync;
+    this.pending = undefined;
+  }
+
+  public async askAsync(prompt: IQuitPrompt): Promise<QuitOutcome> {
+    if (this.isAsking)
+      return QuitOutcome.Stay;
+
+    this.isAsking = true;
+    this.heard = null;
+    const answered = await this.readWorkAsync();
+    const heard = this.takeHeard();
+    if (Object.isNull(answered))
+      return this.quitNow();
+    const report = !Object.isNull(heard) && heard.isNewerThan(answered) ? heard : answered;
+    if (report.descriptions.length === 0)
+      return this.quitNow();
+
+    return await new Promise<QuitOutcome>(resolve => {
+      this.pending = new PendingQuit(prompt, report, resolve);
+      this.present(this.pending);
+    });
+  }
+
+  public receive(report: WorkReport): void {
+    if (!this.isAsking)
+      return;
+    if (Object.isUndefined(this.pending)) {
+      if (report.isNewerThan(this.heard))
+        this.heard = report;
+      return;
+    }
+    if (!report.isNewerThan(this.pending.report))
+      return;
+    this.pending.report = report;
+    this.present(this.pending);
+  }
+
+  public answer(prompt: IQuitPrompt, choice: unknown): boolean {
+    const pending = this.pending;
+    if (Object.isUndefined(pending) || prompt !== pending.prompt)
+      return false;
+    switch (choice) {
+      case QuitChoice.Wait:
+        pending.isWaiting = true;
+        this.present(pending);
+        return true;
+      case QuitChoice.Stop:
+        this.finish(pending, QuitOutcome.StopWork);
+        return true;
+      case QuitChoice.Cancel:
+        this.finish(pending, QuitOutcome.Stay);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  public dismiss(prompt: IQuitPrompt): void {
+    if (!Object.isUndefined(this.pending) && this.pending.prompt === prompt)
+      this.finish(this.pending, QuitOutcome.Stay);
+  }
+
+  public release(): void {
+    if (!Object.isUndefined(this.pending))
+      this.finish(this.pending, QuitOutcome.Quit);
+  }
+
+  private takeHeard(): WorkReport | null {
+    const heard = this.heard;
+    this.heard = null;
+    return heard;
+  }
+
+  private quitNow(): QuitOutcome {
+    this.isAsking = false;
+    return QuitOutcome.Quit;
+  }
+
+  private present(pending: PendingQuit): void {
+    if (pending.isAnswered || !pending.show())
+      this.finish(pending, QuitOutcome.Quit);
+  }
+
+  private finish(pending: PendingQuit, outcome: QuitOutcome): void {
+    this.pending = undefined;
+    this.isAsking = false;
+    pending.prompt.show(null);
+    pending.settle(outcome);
+  }
+}

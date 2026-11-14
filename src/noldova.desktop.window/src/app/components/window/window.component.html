@@ -1,0 +1,26 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<nol-window-row />
+<nol-toolbar-band />
+@if (startup.hasStarted()) {
+  <nol-workspace cdkOverlayOrigin #workspace="cdkOverlayOrigin" />
+  @if (startup.isReconnecting() && !cover.isCovering()) {
+    <nol-startup class="nol-window-reconnecting" />
+  }
+  <ng-template cdkConnectedOverlay #covering="cdkConnectedOverlay" [cdkConnectedOverlayOrigin]="workspace" [cdkConnectedOverlayOpen]="cover.isCovering()" [cdkConnectedOverlayPositions]="resources.coverPositions" [cdkConnectedOverlayDisableClose]="true"
+    [cdkConnectedOverlayWidth]="coverSize().width" [cdkConnectedOverlayHeight]="coverSize().height" (attach)="attachCover(covering.overlayRef)" (detach)="detachCover()">
+    <nol-startup class="nol-window-reconnecting nol-window-covering" />
+  </ng-template>
+} @else {
+  <nol-startup />
+}
+<nol-status-bar />
+<nol-toasts />
+<nol-field-menu />
+<nol-link-menu />

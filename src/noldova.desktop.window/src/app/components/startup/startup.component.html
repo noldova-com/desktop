@@ -1,0 +1,60 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<section class="nol-startup-card" role="status" aria-live="polite">
+  @switch (state().kind) {
+    @case (kinds.PreShellData) {
+      <h1 class="nol-startup-title">{{ resources.formatPreShellDataTitle(productName) }}</h1>
+      <p class="nol-startup-detail">{{ state().details[0] }}</p>
+      <p>{{ resources.formatPreShellDataText(productName) }}</p>
+      <div class="nol-startup-actions">
+        <button type="button" nol-button [disabled]="isActing()" (click)="act(resources.moveAsideAction)">{{ resources.moveAside }}</button>
+      </div>
+    }
+    @case (kinds.WorkInProgress) {
+      <h1 class="nol-startup-title">{{ resources.formatWorkInProgressTitle(productName) }}</h1>
+      <ul class="nol-startup-work">
+        @for (description of state().details; track $index) {
+          <li>{{ description }}</li>
+        }
+      </ul>
+      <p>{{ resources.formatWorkInProgressText(productName) }}</p>
+      <div class="nol-startup-actions">
+        <button type="button" nol-button [disabled]="isActing()" (click)="act(resources.waitAction)">{{ resources.waitForWork }}</button>
+        <button type="button" nol-button [variant]="secondary" [disabled]="isActing()" (click)="act(resources.stopWorkAction)">{{ resources.stopWork }}</button>
+      </div>
+    }
+    @case (kinds.WaitingForWork) {
+      <h1 class="nol-startup-title">{{ resources.formatWaitingTitle(productName) }}</h1>
+      <ul class="nol-startup-work">
+        @for (description of state().details; track $index) {
+          <li>{{ description }}</li>
+        }
+      </ul>
+      <p>{{ resources.formatWaitingText(productName) }}</p>
+    }
+    @case (kinds.NewerBuild) {
+      <h1 class="nol-startup-title">{{ resources.formatNewerBuildTitle(productName) }}</h1>
+      <p>{{ resources.formatNewerBuild(productName, state().details[0] ?? "") }}</p>
+    }
+    @case (kinds.Updating) {
+      <h1 class="nol-startup-title">{{ resources.formatUpdatingTitle(productName, state().details[0] ?? "") }}</h1>
+      <p class="nol-startup-detail">{{ resources.formatUpdatingText(productName) }}</p>
+    }
+    @case (kinds.Failed) {
+      <h1 class="nol-startup-title">{{ resources.formatFailedTitle(productName) }}</h1>
+      <p class="nol-startup-detail">{{ state().details[0] }}</p>
+      <div class="nol-startup-actions">
+        <button type="button" nol-button [disabled]="isActing()" (click)="act(resources.retryAction)">{{ resources.tryAgain }}</button>
+      </div>
+    }
+    @default {
+      <p class="nol-startup-quiet">{{ resources.formatStartingTitle(productName) }}</p>
+    }
+  }
+</section>

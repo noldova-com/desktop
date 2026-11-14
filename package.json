@@ -1,0 +1,77 @@
+{
+  "name": "@noldova/desktop",
+  "version": "0.0.1",
+  "desktop": {
+    "protocolVersion": 1,
+    "modules": [],
+    "product": {
+      "name": "Noldova Desktop Sample",
+      "publisher": "Noldova",
+      "slug": "noldova-desktop",
+      "applicationId": "com.noldova.desktop",
+      "developmentApplicationId": "com.noldova.desktop.development",
+      "dataFolder": ".noldova/desktop",
+      "deviceFolders": {
+        "windows": "Noldova/Desktop",
+        "macos": "Noldova/Desktop",
+        "linux": "noldova/desktop"
+      },
+      "dataDirectoryVariable": "NOLDOVA_DESKTOP_DATA_DIR",
+      "icons": "assets/icons",
+      "releaseRepository": "noldova-com/desktop"
+    },
+    "supportedTargets": [],
+    "signedPlatforms": [
+      "windows",
+      "macos"
+    ]
+  },
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": "24.21.0",
+    "npm": "11.19.0"
+  },
+  "workspaces": [
+    "src/noldova.desktop.window.app"
+  ],
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "build:install": "node src/noldova.desktop.build/src/services/build-command-line.ts install",
+    "desktop-tools": "node src/noldova.desktop.build/src/services/build-command-line.ts desktop-tools",
+    "format:documents": "node scripts/format-documents.ts",
+    "package": "node src/noldova.desktop.build/src/services/build-command-line.ts package",
+    "package:smoke": "node src/noldova.desktop.build/src/services/build-command-line.ts package-smoke",
+    "release:assets": "node src/noldova.desktop.build/src/services/build-command-line.ts release-assets",
+    "release:check": "node src/noldova.desktop.build/src/services/build-command-line.ts release-check",
+    "release:publish": "node src/noldova.desktop.build/src/services/build-command-line.ts release-publish",
+    "start": "node src/noldova.desktop.build/src/services/build-command-line.ts start",
+    "test": "node scripts/test.ts",
+    "test:ui": "node scripts/ui-workflows.ts",
+    "test:ui:ci": "node scripts/ui-workflows-ci.ts"
+  },
+  "dependencies": {
+    "@noldova/context.core": "0.0.7",
+    "@noldova/context.exceptions": "0.0.7",
+    "@noldova/context.json": "0.0.7",
+    "@noldova/context.text": "0.0.7",
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "@noldova/context.testing": "0.0.7",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.2",
+    "@types/semver": "7.8.0",
+    "electron": "44.9.1",
+    "electron-builder": "26.16.1",
+    "node-pty": "1.2.0-beta.15",
+    "resedit": "3.1.0",
+    "typescript": "6.0.3"
+  },
+  "allowScripts": {
+    "msgpackr-extract": false,
+    "node-pty": true
+  }
+}

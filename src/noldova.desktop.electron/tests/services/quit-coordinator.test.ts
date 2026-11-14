@@ -1,0 +1,148 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { WorkReport } from "@noldova/desktop.protocol";
+import { QuitChoice, QuitCoordinator, QuitOutcome } from "@noldova/desktop.electron";
+
+import { Condition } from "../fixtures/condition.fixture.js";
+import { FakeQuitPrompt } from "../fixtures/fake-quit-prompt.fixture.js";
+
+@TestClass
+export class QuitCoordinatorTests {
+  @TestMethod
+  public async quitsWithoutAskingWhenTheWorkCannotBeReadOrNoneIsInProgress(): Promise<void> {
+    const prompt = new FakeQuitPrompt();
+    let reads = 0;
+    const answers: (WorkReport | null)[] = [null, new WorkReport([], 3)];
+    const coordinator = new QuitCoordinator(() => Promise.resolve(answers[reads++] ?? null));
+
+    const outcomes = [await coordinator.askAsync(prompt), await coordinator.askAsync(prompt)];
+
+    Assert.areEqual([QuitOutcome.Quit, QuitOutcome.Quit].join(","), outcomes.join(","));
+    Assert.areEqual(2, reads);
+    Assert.areEqual(0, prompt.shown.length);
+  }
+
+  @TestMethod
+  public async asksWithTheWorkAndTakesOnlyItsOwnWindowsKnownAnswers(): Promise<void> {
+    const prompt = new FakeQuitPrompt();
+    const stranger = new FakeQuitPrompt();
+    const coordinator = QuitCoordinatorTests.create(new WorkReport(["Indexing the project"], 1));
+
+    const stopping = coordinator.askAsync(prompt);
+    await Condition.waitAsync(() => prompt.shown.length === 1);
+    const second = await coordinator.askAsync(stranger);
+    const taken = [coordinator.answer(stranger, QuitChoice.Stop), coordinator.answer(prompt, "Later"), coordinator.answer(prompt, QuitChoice.Stop)];
+    const outcome = await stopping;
+    const cancelling = coordinator.askAsync(prompt);
+    await Condition.waitAsync(() => prompt.shown.length === 3);
+    coordinator.answer(prompt, QuitChoice.Cancel);
+
+    Assert.areEqual(QuitOutcome.Stay, second);
+    Assert.areEqual("false,false,true", taken.join(","));
+    Assert.areEqual(QuitOutcome.StopWork, outcome);
+    Assert.areEqual(QuitOutcome.Stay, await cancelling);
+    Assert.isFalse(coordinator.answer(prompt, QuitChoice.Wait));
+    Assert.areEqual("Indexing the project,none,Indexing the project,none", prompt.shown.join(","));
+    Assert.areEqual(0, stranger.shown.length);
+  }
+
+  @TestMethod
+  public async keepsTheNewestReportWhenAnEventIsHandledBeforeTheAnswerThatPrecededIt(): Promise<void> {
+    const ended = QuitCoordinatorTests.createRacing(new WorkReport(["Indexing"], 1), new WorkReport([], 2));
+    const stale = QuitCoordinatorTests.createRacing(new WorkReport([], 2), new WorkReport(["Indexing"], 1));
+    const began = QuitCoordinatorTests.createRacing(new WorkReport([], 1), new WorkReport(["Saving"], 2));
+    const prompt = new FakeQuitPrompt();
+
+    const outcomes = [await ended.askAsync(new FakeQuitPrompt()), await stale.askAsync(new FakeQuitPrompt())];
+    const asking = began.askAsync(prompt);
+    await Condition.waitAsync(() => prompt.shown.length === 1);
+    began.receive(new WorkReport([], 3));
+
+    Assert.areEqual([QuitOutcome.Quit, QuitOutcome.Quit].join(","), outcomes.join(","));
+    Assert.areEqual(QuitOutcome.Quit, await asking);
+    Assert.areEqual("Saving,none", prompt.shown.join(","));
+  }
+
+  @TestMethod
+  public async waitsUntilNoWorkIsLeftEvenWhenWorkBeginsWhileWaiting(): Promise<void> {
+    const prompt = new FakeQuitPrompt();
+    const coordinator = QuitCoordinatorTests.create(new WorkReport(["Indexing"], 1));
+    let isSettled = false;
+
+    const waiting = coordinator.askAsync(prompt).then(t => {
+      isSettled = true;
+      return t;
+    });
+    await Condition.waitAsync(() => prompt.shown.length === 1);
+    coordinator.answer(prompt, QuitChoice.Wait);
+    coordinator.receive(new WorkReport(["Indexing", "Saving"], 2));
+    coordinator.receive(new WorkReport([], 1));
+    coordinator.receive(new WorkReport(["Saving"], 3));
+    await Promise.resolve();
+    const settledWhileWorking = isSettled;
+    coordinator.receive(new WorkReport([], 4));
+
+    Assert.isFalse(settledWhileWorking);
+    Assert.areEqual(QuitOutcome.Quit, await waiting);
+    Assert.areEqual("Indexing,Indexing waiting,Indexing+Saving waiting,Saving waiting,none", prompt.shown.join(","));
+  }
+
+  @TestMethod
+  public async quitsWhenTheWindowCanNoLongerShowTheQuestionOrTheRuntimeIsGone(): Promise<void> {
+    const gone = new FakeQuitPrompt();
+    gone.canShow = false;
+    const prompt = new FakeQuitPrompt();
+    const coordinator = QuitCoordinatorTests.create(new WorkReport(["Indexing"], 1));
+
+    coordinator.release();
+    coordinator.receive(new WorkReport([], 5));
+    const unshown = await coordinator.askAsync(gone);
+    const asking = coordinator.askAsync(prompt);
+    await Condition.waitAsync(() => prompt.shown.length === 1);
+    coordinator.release();
+
+    Assert.areEqual(QuitOutcome.Quit, unshown);
+    Assert.areEqual(QuitOutcome.Quit, await asking);
+    Assert.areEqual("Indexing,none", gone.shown.join(","));
+    Assert.areEqual("Indexing,none", prompt.shown.join(","));
+  }
+
+  @TestMethod
+  public async staysWhenTheAskingWindowIsDismissedAndIgnoresAnotherWindow(): Promise<void> {
+    const prompt = new FakeQuitPrompt();
+    const stranger = new FakeQuitPrompt();
+    const coordinator = QuitCoordinatorTests.create(new WorkReport(["Indexing"], 1));
+
+    coordinator.dismiss(prompt);
+    const asking = coordinator.askAsync(prompt);
+    await Condition.waitAsync(() => prompt.shown.length === 1);
+    coordinator.dismiss(stranger);
+    const isAskingAfterStranger = prompt.shown.length === 1;
+    coordinator.dismiss(prompt);
+
+    Assert.isTrue(isAskingAfterStranger);
+    Assert.areEqual(QuitOutcome.Stay, await asking);
+    Assert.areEqual("Indexing,none", prompt.shown.join(","));
+    Assert.areEqual(0, stranger.shown.length);
+  }
+
+  private static create(report: WorkReport): QuitCoordinator {
+    return new QuitCoordinator(() => Promise.resolve(report));
+  }
+
+  private static createRacing(answered: WorkReport, heard: WorkReport): QuitCoordinator {
+    const coordinator: QuitCoordinator = new QuitCoordinator(() => {
+      coordinator.receive(heard);
+      coordinator.receive(new WorkReport(["Older"], 0));
+      return Promise.resolve(answered);
+    });
+    return coordinator;
+  }
+}

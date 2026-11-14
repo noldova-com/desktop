@@ -1,0 +1,82 @@
+{
+  "$schema": "../../node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "cli": {
+    "analytics": false,
+    "cache": {
+      "enabled": false
+    }
+  },
+  "projects": {
+    "noldova-desktop-window": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": ".",
+      "prefix": "nol",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "../../_build/angular/build",
+            "tsConfig": "tsconfig.spec.json",
+            "styles": [
+              "@noldova/ui.components.angular/styles/kit.css"
+            ]
+          },
+          "configurations": {
+            "development": {
+              "optimization": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "tsconfig.spec.json",
+            "runner": "vitest",
+            "runnerConfig": "vitest.config.mts",
+            "browsers": [
+              "chromiumHeadless"
+            ],
+            "browserViewport": "1280x800",
+            "include": [
+              "tests/**/*.spec.ts"
+            ],
+            "providersFile": "tests/test-providers.ts",
+            "setupFiles": [
+              "tests/product-name.setup.ts",
+              "tests/browser-matchers.setup.ts",
+              "tests/kit-stylesheet.setup.ts"
+            ],
+            "watch": false,
+            "coverage": true,
+            "coverageInclude": [
+              "src/**/*.ts"
+            ],
+            "coverageReporters": [
+              [
+                "text",
+                {
+                  "skipEmpty": true,
+                  "skipFull": true
+                }
+              ],
+              "json-summary"
+            ],
+            "coverageThresholds": {
+              "statements": 100,
+              "branches": 100,
+              "functions": 100,
+              "lines": 100
+            },
+            "coverageExclude": [
+              "src/app/enums/**"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

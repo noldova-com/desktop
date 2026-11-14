@@ -1,0 +1,61 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { stat } from "node:fs/promises";
+import type { Socket } from "node:net";
+
+import "@noldova/context.core";
+
+import type { IMainProcessCheck } from "../../interfaces/i-main-process-check.js";
+import type { IPeerProcessApi } from "../../interfaces/i-peer-process-api.js";
+import { Resources } from "../../resources.js";
+import { PosixPeerProcessApi } from "../process/posix-peer-process-api.js";
+import { WindowsPeerProcessApi } from "../process/windows-peer-process-api.js";
+
+export class MainProcessCheck implements IMainProcessCheck {
+  private static readonly RUN_AS_NODE: string = `${Resources.runAsNodeVariable}${Resources.environmentEntrySeparator}`;
+
+  private readonly peers: IPeerProcessApi;
+  private readonly platform: string;
+  private readonly program: string;
+  private readonly senders: WeakMap<Socket, string | null> = new WeakMap();
+
+  public constructor(peers: IPeerProcessApi, platform: string = process.platform, program: string = process.execPath) {
+    this.peers = peers;
+    this.platform = platform;
+    this.program = program;
+  }
+
+  public static create(platform: string = process.platform, program: string = process.execPath): MainProcessCheck {
+    const peers = platform === Resources.windowsPlatform ? WindowsPeerProcessApi.create() : PosixPeerProcessApi.create(platform);
+    return new MainProcessCheck(peers, platform, program);
+  }
+
+  private static isRunAsNode(entry: string): boolean {
+    return entry.toUpperCase().startsWith(MainProcessCheck.RUN_AS_NODE);
+  }
+
+  public async isMainProcessAsync(socket: Socket): Promise<boolean> {
+    const peer = await this.peers.readAsync(socket);
+    if (Object.isNull(peer) || peer.environment.some(t => MainProcessCheck.isRunAsNode(t))
+      || (this.platform !== Resources.linuxPlatform && !await this.isSameFileAsync(peer.program)))
+      return false;
+    this.senders.set(socket, peer.sender);
+    return true;
+  }
+
+  public isSameSender(socket: Socket): boolean {
+    const sender = this.senders.get(socket);
+    return !Object.isUndefined(sender) && this.peers.readSender(socket) === sender;
+  }
+
+  private async isSameFileAsync(file: string): Promise<boolean> {
+    const [own, peer] = await Promise.all([stat(this.program, { bigint: true }), stat(file, { bigint: true })]);
+    return own.dev === peer.dev && own.ino === peer.ino;
+  }
+}

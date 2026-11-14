@@ -1,0 +1,13 @@
+{
+  "id": "pages",
+  "version": "0.0.1",
+  "displayName": "Pages",
+  "description": "Shows web pages in two web views on its document, and loads and captures them from its runtime part, for the UI workflows.",
+  "parts": ["runtime", "window"],
+  "dependencies": {},
+  "contributes": {
+    "methods": ["pages.allow", "pages.navigate", "pages.list", "pages.capture", "pages.events", "pages.press", "pages.type"],
+    "commands": ["pages.openPage"],
+    "documents": ["pages.page"]
+  }
+}

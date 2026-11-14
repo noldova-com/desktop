@@ -1,0 +1,27 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  box-sizing: border-box;
+  min-height: var(--nol-status-bar-height);
+  padding: 0 var(--nol-panel-card-margin);
+  background-color: var(--nol-window);
+  color: var(--nol-text);
+  font-size: var(--nol-text-label);
+  line-height: var(--nol-line-label);
+}
+
+.nol-status-bar-side {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nol-status-bar-item-gap);
+  min-width: 0;
+}

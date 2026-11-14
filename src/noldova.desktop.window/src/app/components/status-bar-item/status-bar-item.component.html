@@ -1,0 +1,29 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+@let current = state();
+@if (current.command; as command) {
+  <button type="button" class="nol-status-bar-item" [disabled]="!isAvailable(command, current.commandArguments)" [attr.aria-label]="current.text ? null : current.tooltip"
+    [nolTooltip]="current.label" [nolTooltipTruncated]="!current.tooltip" (click)="run(command, current.commandArguments)">
+    @if (current.icon) {
+      <span class="material-symbols-rounded nol-status-bar-item-icon" aria-hidden="true">{{ current.icon }}</span>
+    }
+    @if (current.text) {
+      <span class="nol-status-bar-item-text" data-truncates>{{ current.text }}</span>
+    }
+  </button>
+} @else {
+  <span class="nol-status-bar-item" role="status" [attr.aria-label]="current.text || current.tooltip" [nolTooltip]="current.label" [nolTooltipTruncated]="!current.tooltip">
+    @if (current.icon) {
+      <span class="material-symbols-rounded nol-status-bar-item-icon" aria-hidden="true">{{ current.icon }}</span>
+    }
+    @if (current.text) {
+      <span class="nol-status-bar-item-text" data-truncates>{{ current.text }}</span>
+    }
+  </span>
+}

@@ -1,0 +1,17 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<button #trigger="nolPopoverTrigger" type="button" class="nol-notifications-item" [class.nol-notifications-counted]="unread() > 0" [attr.aria-label]="label()" [nolTooltip]="label()" [nolTooltipSide]="above" [nolPopoverTrigger]="popover" (opened)="markRead()">
+  <span class="material-symbols-rounded nol-notifications-icon" aria-hidden="true">{{ isQuiet() ? resources.notificationsOffGlyph : resources.notificationsGlyph }}</span>
+  @if (unread() > 0) {
+    <span class="nol-notifications-count" aria-hidden="true">{{ resources.formatUnreadCount(unread()) }}</span>
+  }
+</button>
+<ng-template #popover>
+  <nol-notifications-popover [label]="resources.notificationsTitle" (closed)="trigger.close()" />
+</ng-template>

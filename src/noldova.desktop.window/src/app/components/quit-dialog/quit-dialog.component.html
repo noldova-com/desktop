@@ -1,0 +1,35 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+@if (quit.question(); as question) {
+  <nol-dialog [title]="question.isWaiting ? resources.quitWaitingTitle : resources.quitTitle" (dismissed)="quit.answer(choices.Cancel)">
+    <div class="nol-quit-work" aria-live="polite">
+      <p class="nol-quit-text">{{ question.isWaiting ? (question.isUpdate ? resources.formatUpdateWaitingText(productName) : resources.formatQuitWaitingText(productName)) : resources.formatQuitText(productName) }}</p>
+      <ul class="nol-quit-list">
+        @for (description of question.shown; track $index) {
+          <li>{{ description }}</li>
+        }
+        @if (question.hiddenCount > 0) {
+          <li class="nol-quit-more">{{ resources.formatMoreWork(question.hiddenCount) }}</li>
+        }
+      </ul>
+    </div>
+    @if (!question.isWaiting) {
+      <p class="nol-quit-text">{{ resources.quitHint }}</p>
+    }
+    @if (!question.isWaiting) {
+      <button nol-button nolDialogAction type="button" [attr.data-nol-quit]="choices.Wait" (click)="quit.answer(choices.Wait)">{{ question.isUpdate ? resources.waitThenUpdate : resources.waitThenQuit }}</button>
+    }
+    <button nol-button nolDialogAction type="button" [variant]="secondary" [attr.data-nol-quit]="choices.Stop" (click)="quit.answer(choices.Stop)">
+      {{ question.isUpdate ? resources.stopWorkAndUpdate : resources.stopWorkAndQuit }}
+    </button>
+    <button #cancel nol-button nolDialogAction type="button" [variant]="secondary" [attr.data-nol-quit]="choices.Cancel" (click)="quit.answer(choices.Cancel)">
+      {{ resources.cancel }}
+    </button>
+  </nol-dialog>
+}

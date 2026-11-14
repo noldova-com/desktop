@@ -1,0 +1,16 @@
+{
+  "methods": [
+    { "name": "Page.captureScreenshot", "parameters": { "format": { "values": ["png"] } } },
+    { "name": "Input.dispatchKeyEvent", "parameters": { "type": { "values": ["rawKeyDown", "keyUp"] }, "key": {}, "code": {}, "modifiers": {}, "nativeVirtualKeyCode": {} } },
+    { "name": "Input.insertText", "parameters": { "text": {} } }
+  ],
+  "keys": [
+    { "name": "find", "keys": ["F7"] },
+    { "name": "findLetter", "keys": ["F8"] },
+    { "name": "findMissing", "keys": ["Shift+F7"] },
+    { "name": "next", "keys": ["F9"] },
+    { "name": "previous", "keys": ["Shift+F9"] },
+    { "name": "mark", "keys": ["Shift+F8"] }
+  ],
+  "newWindows": true
+}

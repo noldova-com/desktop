@@ -1,0 +1,49 @@
+{
+  "name": "@noldova/desktop.build",
+  "version": "__VERSION__",
+  "description": "Noldova Desktop's app build: from an app's desktop section and module list to its window, its development app, signed packages for each target and a release.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noldova-com/desktop.git",
+    "directory": "src/noldova.desktop.build"
+  },
+  "homepage": "https://github.com/noldova-com/desktop#readme",
+  "bugs": {
+    "url": "https://github.com/noldova-com/desktop/issues"
+  },
+  "bin": {
+    "noldova-desktop-build": "./services/build-command-line.js",
+    "noldova-desktop-release": "./services/release-command-line.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./api/index.d.ts",
+      "default": "./api/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "**/*.js",
+    "**/*.js.map",
+    "api/index.d.ts",
+    "assets/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "electron-builder": "26.16.1",
+    "resedit": "3.1.0",
+    "typescript": "6.0.3"
+  },
+  "peerDependencies": {
+    "@noldova/context.core": ">=0.0.7 <0.1.0",
+    "@noldova/context.exceptions": ">=0.0.7 <0.1.0",
+    "@noldova/context.json": ">=0.0.7 <0.1.0",
+    "@noldova/context.text": ">=0.0.7 <0.1.0",
+    "electron": "44.9.1"
+  }
+}

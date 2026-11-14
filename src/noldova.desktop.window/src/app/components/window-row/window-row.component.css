@@ -1,0 +1,140 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  position: relative;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--nol-window-row-height);
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+  padding-left: var(--nol-panel-card-margin);
+  background-color: var(--nol-title-bar);
+  color: var(--nol-title-bar-text);
+  font-size: var(--nol-text-panel);
+  app-region: drag;
+  user-select: none;
+  --nol-window-row-drag: 6rem;
+  --nol-window-row-search-width: 27.5rem;
+  --nol-window-row-traffic-lights: 78px;
+}
+
+:host(.nol-window-row-mac) {
+  padding-right: var(--nol-panel-card-margin);
+  padding-left: var(--nol-window-row-traffic-lights);
+}
+
+:host(.nol-window-row-mac.nol-window-row-full-screen) {
+  padding-left: var(--nol-panel-card-margin);
+}
+
+:host(.nol-window-row-drawn-controls) {
+  padding-right: var(--nol-panel-card-margin);
+}
+
+:host(.nol-window-row-drawn-controls:not(.nol-window-row-full-screen)) {
+  padding-inline-end: 0;
+}
+
+.nol-window-row-middle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding-inline: var(--nol-space-2);
+}
+
+.nol-window-row-search {
+  display: flex;
+  flex: 0 1 auto;
+  gap: var(--nol-space-2);
+  align-items: center;
+  box-sizing: border-box;
+  width: var(--nol-window-row-search-width);
+  min-width: 0;
+  height: var(--nol-icon-button-target);
+  padding: 0 var(--nol-space-2);
+  border: var(--nol-border-width) solid var(--nol-menu-border);
+  border-radius: var(--nol-radius-medium);
+  background: var(--nol-input);
+  color: var(--nol-text-muted);
+  font: inherit;
+  font-size: var(--nol-text-small);
+  text-align: start;
+  cursor: text;
+}
+
+.nol-window-row-search-covered {
+  opacity: 0;
+}
+
+.nol-window-row-search:focus-visible {
+  outline: var(--nol-border-width) solid var(--nol-accent);
+  outline-offset: calc(var(--nol-border-width) * -1);
+}
+
+.nol-window-row-search-glyph {
+  flex: none;
+  font-size: var(--nol-quick-input-glyph);
+}
+
+.nol-window-row-search-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nol-window-row-search-key {
+  flex: none;
+  padding: calc(0.0625rem + var(--nol-border-width)) calc(0.3125rem + var(--nol-border-width));
+  font-size: var(--nol-quick-input-key-text);
+}
+
+@media (forced-colors: active) {
+  .nol-window-row-search {
+    border-color: ButtonText;
+    color: ButtonText;
+  }
+}
+
+.nol-window-row-start,
+.nol-window-row-actions {
+  display: flex;
+  align-items: center;
+}
+
+.nol-window-row-action,
+.nol-window-row-control,
+.nol-window-row-menu,
+.nol-window-row-menu-bar,
+.nol-window-row-search {
+  app-region: no-drag;
+}
+
+:dir(rtl) .nol-window-row-back,
+:dir(rtl) .nol-window-row-forward {
+  scale: -1 1;
+}
+
+.nol-window-row-menu-bar {
+  flex: none;
+  margin-inline-end: var(--nol-space-1);
+}
+
+.nol-window-row-menu-bar-folded {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.nol-window-row-menu {
+  margin-inline-end: var(--nol-space-1);
+}

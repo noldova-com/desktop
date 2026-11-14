@@ -1,0 +1,42 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: block;
+}
+
+.nol-module-failure-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-space-1);
+}
+
+.nol-module-failure-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--nol-space-2);
+  margin: 0;
+  font-size: inherit;
+  font-weight: var(--nol-weight-emphasis);
+  line-height: inherit;
+}
+
+.nol-module-failure-card-icon {
+  color: var(--nol-error);
+  font-size: var(--nol-icon);
+}
+
+.nol-module-failure-card-off {
+  color: var(--nol-text-muted);
+}
+
+.nol-module-failure-card-cause {
+  margin: 0;
+  color: var(--nol-text-muted);
+  overflow-wrap: anywhere;
+}

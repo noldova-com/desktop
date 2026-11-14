@@ -1,0 +1,110 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  position: fixed;
+  right: var(--nol-space-2);
+  bottom: calc(var(--nol-status-bar-height) + var(--nol-space-2));
+  z-index: 1;
+  display: block;
+  pointer-events: none;
+}
+
+.nol-toasts-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-space-2);
+}
+
+.nol-toast {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--nol-space-2);
+  box-sizing: border-box;
+  width: min(var(--nol-toast-width), calc(100vw - var(--nol-space-4)));
+  padding: var(--nol-space-3);
+  border: var(--nol-border-width) solid var(--nol-notification-border);
+  border-radius: var(--nol-radius-large);
+  background-color: var(--nol-notification);
+  box-shadow: var(--nol-shadow-large);
+  color: var(--nol-text);
+  font-size: var(--nol-text-panel);
+  line-height: var(--nol-line-panel);
+  pointer-events: auto;
+}
+
+.nol-toast-severity {
+  color: var(--nol-icon-color);
+  font-size: var(--nol-icon);
+  line-height: var(--nol-line-panel);
+}
+
+.nol-toast[data-severity="Error"] .nol-toast-severity {
+  color: var(--nol-error);
+}
+
+.nol-toast[data-severity="Success"] .nol-toast-severity {
+  color: var(--nol-added);
+}
+
+.nol-toast-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-space-1);
+  min-width: 0;
+}
+
+.nol-toast-title {
+  font-weight: var(--nol-weight-emphasis);
+  color: var(--nol-text-strong);
+  overflow-wrap: anywhere;
+}
+
+.nol-toast-open {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nol-link);
+  font: inherit;
+  font-weight: var(--nol-weight-emphasis);
+  text-align: start;
+  cursor: pointer;
+}
+
+.nol-toast-open:disabled {
+  color: inherit;
+  cursor: default;
+}
+
+.nol-toast-open:focus-visible {
+  outline: var(--nol-border-width) solid var(--nol-accent);
+
+  @media (forced-colors: active) {
+    outline: calc(var(--nol-border-width) * 2) solid Highlight;
+  }
+}
+
+.nol-toast-meta {
+  color: var(--nol-text-muted);
+}
+
+.nol-toast-text {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.nol-toast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nol-space-2);
+}

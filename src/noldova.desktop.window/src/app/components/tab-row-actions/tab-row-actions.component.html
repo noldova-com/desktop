@@ -1,0 +1,18 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+@for (row of rows(); track $index) {
+  @if (row.isSubmenu) {
+    <nol-place-menu #nested [place]="row.place" [context]="row.context" />
+    <button type="button" nol-icon-button class="nol-tab-row-submenu" [attr.data-submenu]="row.place" [icon]="row.icon ?? resources.tabRowSubmenuGlyph" [label]="row.title"
+      [nolTooltip]="row.title" [nolTooltipSide]="below" [nolMenuTriggerFor]="nested.menu()" [nolMenuAlignment]="end"></button>
+  } @else {
+    <button type="button" nol-icon-button class="nol-tab-row-command" [attr.data-command]="row.command" [icon]="row.icon ?? resources.tabRowCommandGlyph" [label]="row.title"
+      [attr.aria-disabled]="row.isEnabled ? null : 'true'" [nolTooltip]="tooltipOf(row)" [nolTooltipSide]="below" (click)="run(row)"></button>
+  }
+}

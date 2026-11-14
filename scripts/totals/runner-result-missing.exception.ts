@@ -1,0 +1,20 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { Resources } from "../resources.ts";
+import { TotalsException } from "./totals.exception.ts";
+
+export class RunnerResultMissingException extends TotalsException {
+  public readonly source: string;
+
+  public constructor(source: string) {
+    super(Resources.formatRunnerResultNoResult(source));
+
+    this.source = source;
+  }
+}

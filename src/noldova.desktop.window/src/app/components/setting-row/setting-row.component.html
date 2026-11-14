@@ -1,0 +1,74 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<div class="nol-setting-row-heading">
+  @if (isSet()) {
+    <span class="nol-setting-row-marker material-symbols-rounded" role="img" [attr.aria-label]="resources.modifiedLabel" [nolTooltip]="resources.modifiedLabel">{{ resources.modifiedGlyph }}</span>
+  }
+  <span class="nol-setting-row-title"><nol-highlighted-text [text]="definition().title" [query]="query()" /></span>
+  @if (isSet()) {
+    <button type="button" class="nol-setting-row-reset" nol-button [variant]="secondary" [attr.aria-label]="resources.formatResetLabel(definition().title)" (click)="reset.emit()">
+      {{ resources.resetLabel }}
+    </button>
+  }
+</div>
+<div class="nol-setting-row-name"><nol-highlighted-text [text]="definition().name.text" [query]="query()" [breaksWords]="true" /></div>
+@if (definition().type.kind !== kinds.Boolean) {
+  <div class="nol-setting-row-description" [id]="descriptionId"><nol-highlighted-text [text]="definition().description" [query]="query()" /></div>
+}
+<div class="nol-setting-row-control" [class.nol-setting-row-text]="definition().type.kind === kinds.Text">
+  @switch (definition().type.kind) {
+    @case (kinds.Boolean) {
+      <nol-checkbox [checked]="current() === true" (checkedChange)="choose($event)">
+        <nol-highlighted-text [text]="definition().description" [query]="query()" />
+      </nol-checkbox>
+    }
+    @case (kinds.Choice) {
+      @if (isFew()) {
+        <nol-choice-pills [label]="definition().title" [describedBy]="describedBy()" [options]="options()" [value]="asString(current())" (valueChange)="choose($event)" />
+      } @else {
+        <nol-select [label]="definition().title" [describedBy]="describedBy()" [options]="options()" [value]="asString(current())" [disabled]="isWaiting()" (valueChange)="choose($event)" />
+      }
+    }
+    @case (kinds.Number) {
+      <input nol-text-field type="number" class="nol-setting-row-number" [attr.aria-label]="definition().title" [min]="definition().type.minimum" [max]="definition().type.maximum"
+        [step]="definition().type.step" [value]="current()" [attr.aria-invalid]="error() ? true : null" [attr.aria-describedby]="describedBy()"
+        (change)="commitNumber($event)" (keydown.escape)="revertNumber($event)" />
+    }
+    @case (kinds.Text) {
+      <input nol-text-field type="text" [attr.aria-label]="definition().title" [attr.aria-invalid]="message() ? true : null" [attr.aria-describedby]="describedBy()" [attr.maxlength]="definition().type.maxLength" [value]="fieldText()" (input)="draftText($event)" (change)="commitText($event)" />
+    }
+    @case (kinds.Action) {
+      <button type="button" nol-button [variant]="secondary" [attr.aria-describedby]="describedBy()" [disabled]="!canRun()" (click)="run.emit()">
+        <nol-highlighted-text [text]="asString(definition().type.label)" [query]="query()" />
+      </button>
+    }
+    @case (kinds.Modules) {
+      <div class="nol-setting-row-list" role="group" [attr.aria-label]="definition().title" [attr.aria-describedby]="describedBy()">
+        @for (module of modules(); track module.value) {
+          <nol-checkbox [checked]="chosen().has(module.value) !== isInverse()" (checkedChange)="toggleModule(module.value, $event)">{{ module.title }}</nol-checkbox>
+        }
+      </div>
+    }
+    @case (kinds.Languages) {
+      @if (languages().length > 0) {
+        <div class="nol-setting-row-list" role="group" [attr.aria-label]="definition().title" [attr.aria-describedby]="describedBy()">
+          @for (language of languages(); track language.value) {
+            <nol-checkbox [checked]="chosen().has(language.value)" (checkedChange)="toggleLanguage(language.value, $event)">{{ language.title }}</nol-checkbox>
+          }
+        </div>
+      }
+    }
+  }
+  @if (note(); as text) {
+    <div class="nol-setting-row-note" [id]="noteId">{{ text }}</div>
+  }
+</div>
+@if (message(); as text) {
+  <nol-field-message [id]="errorId">{{ text }}</nol-field-message>
+}

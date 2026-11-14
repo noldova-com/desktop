@@ -1,0 +1,39 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<div class="nol-toasts-stack">
+  @for (toast of toasts(); track toast.id) {
+    <section #card class="nol-toast" [attr.data-notification]="toast.id" [attr.data-severity]="toast.post.severity" [attr.aria-label]="toast.post.title"
+      (mouseenter)="pause(toast)" (mouseleave)="resume(toast, card)" (focusin)="pause(toast)" (focusout)="resume(toast, card)">
+      <span class="material-symbols-rounded nol-toast-severity" role="img" [attr.aria-label]="severityName(toast.post.severity)">{{ glyph(toast.post.severity) }}</span>
+      <div class="nol-toast-body">
+        @if (toast.post.open !== null) {
+          <button type="button" class="nol-toast-title nol-toast-open" [disabled]="!isAvailable(toast.post.open)" (click)="run(toast, toast.post.open)">{{ toast.post.title }}</button>
+        }
+        @else {
+          <span class="nol-toast-title">{{ toast.post.title }}</span>
+        }
+        @if (toast.post.text !== null) {
+          <span class="nol-toast-text">{{ toast.post.text }}</span>
+        }
+        @if (isIndeterminate(toast) || progressOf(toast) !== null) {
+          <nol-progress [value]="progressOf(toast)" [label]="toast.post.title" />
+        }
+        <span class="nol-toast-meta">{{ moduleName(toast) }} · {{ timeOf(toast) }}</span>
+        @if (toast.post.actions.length > 0) {
+          <div class="nol-toast-actions">
+            @for (action of toast.post.actions; track $index) {
+              <button type="button" nol-button class="nol-toast-action" [variant]="secondary" [disabled]="!isAvailable(action.command)" (click)="run(toast, action.command)">{{ action.title }}</button>
+            }
+          </div>
+        }
+      </div>
+      <button type="button" nol-icon-button class="nol-toast-close" [icon]="resources.closeGlyph" [label]="resources.closeToastLabel" [nolTooltip]="resources.closeToastLabel" (click)="close(toast)"></button>
+    </section>
+  }
+</div>

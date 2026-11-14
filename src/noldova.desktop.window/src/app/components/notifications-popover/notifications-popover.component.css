@@ -1,0 +1,112 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+.nol-notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nol-space-2);
+}
+
+.nol-notifications-title {
+  margin: 0;
+  font-size: inherit;
+  font-weight: var(--nol-weight-emphasis);
+  color: var(--nol-text-strong);
+  line-height: inherit;
+}
+
+.nol-notifications-empty {
+  margin: 0;
+  color: var(--nol-text-muted);
+}
+
+.nol-notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-space-2);
+  min-height: 0;
+  margin: 0 calc(-1 * var(--nol-space-3)) calc(-1 * var(--nol-space-3));
+  padding: 0 var(--nol-space-3) var(--nol-space-3);
+  overflow: auto;
+  scroll-padding-block-end: var(--nol-space-3);
+  list-style: none;
+}
+
+.nol-notifications-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--nol-space-2);
+}
+
+.nol-notifications-severity {
+  color: var(--nol-icon-color);
+  font-size: var(--nol-icon);
+  line-height: var(--nol-line-panel);
+}
+
+.nol-notifications-row[data-severity="Error"] .nol-notifications-severity {
+  color: var(--nol-error);
+}
+
+.nol-notifications-row[data-severity="Success"] .nol-notifications-severity {
+  color: var(--nol-added);
+}
+
+.nol-notifications-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-space-1);
+  min-width: 0;
+}
+
+.nol-notifications-row-title {
+  font-weight: var(--nol-weight-emphasis);
+  color: var(--nol-text-strong);
+  overflow-wrap: anywhere;
+}
+
+.nol-notifications-open {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nol-link);
+  font: inherit;
+  font-weight: var(--nol-weight-emphasis);
+  text-align: start;
+  cursor: pointer;
+}
+
+.nol-notifications-open:disabled {
+  color: inherit;
+  cursor: default;
+}
+
+.nol-notifications-open:focus-visible {
+  outline: var(--nol-border-width) solid var(--nol-accent);
+
+  @media (forced-colors: active) {
+    outline: calc(var(--nol-border-width) * 2) solid Highlight;
+  }
+}
+
+.nol-notifications-text {
+  overflow-wrap: anywhere;
+}
+
+.nol-notifications-meta {
+  color: var(--nol-text-muted);
+}
+
+.nol-notifications-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nol-space-2);
+}

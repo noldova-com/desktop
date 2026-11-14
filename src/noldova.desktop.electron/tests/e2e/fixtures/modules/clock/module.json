@@ -1,0 +1,20 @@
+{
+  "id": "clock",
+  "version": "0.0.1",
+  "displayName": "Clock",
+  "description": "Tells the time, also on the command line, ticks, and starts and stops a program that starts one of its own, also in a pseudo-terminal, and turns off and on with its own setting, for the UI workflows.",
+  "parts": ["runtime", "window", "cli"],
+  "dependencies": {},
+  "pseudoTerminals": true,
+  "switchSetting": "clock.enabled",
+  "contributes": {
+    "methods": ["clock.time", "clock.record"],
+    "events": ["clock.ticked"],
+    "commands": ["clock.tick", "clock.pause", "clock.beginWork", "clock.finishWork", "clock.startProgram", "clock.stopProgram", "clock.showFace", "clock.hideFace"],
+    "notifications": ["clock.alarm", "clock.sync"],
+    "views": ["clock.face"],
+    "statusBarItems": ["clock.ticks"],
+    "settings": ["clock.tickStep", "clock.enabled"],
+    "cliCommands": ["clock.showTime"]
+  }
+}

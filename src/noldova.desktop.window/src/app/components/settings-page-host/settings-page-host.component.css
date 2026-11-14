@@ -1,0 +1,76 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+nol-settings-page-host {
+  display: block;
+  padding-inline: var(--nol-settings-edge);
+}
+
+nol-settings-page-host .nol-settings-group-title {
+  margin: 0 0 var(--nol-settings-heading-space);
+  padding: 0;
+  color: var(--nol-setting-title);
+  font-size: var(--nol-text-heading);
+  font-weight: var(--nol-weight-emphasis);
+  line-height: var(--nol-line-heading);
+}
+
+nol-settings-page-host .nol-settings-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-row-gap);
+}
+
+nol-settings-page-host .nol-settings-group + .nol-settings-group {
+  margin-top: var(--nol-space-6);
+}
+
+nol-settings-page-host .nol-setting-row {
+  display: flex;
+  flex-direction: column;
+  margin-inline: calc(-1 * var(--nol-settings-edge));
+  padding: var(--nol-settings-item-padding);
+  border-radius: var(--nol-radius-medium);
+}
+
+nol-settings-page-host .nol-setting-row:hover:has(a[href], audio[controls], button, input, select, summary, textarea, video[controls], [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"])) {
+  background-color: var(--nol-hover);
+}
+
+nol-settings-page-host .nol-setting-row-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nol-space-2);
+  min-height: var(--nol-field-height);
+}
+
+nol-settings-page-host .nol-setting-row-title {
+  color: var(--nol-setting-title);
+  font-weight: var(--nol-weight-emphasis);
+}
+
+nol-settings-page-host .nol-setting-row-end {
+  margin-inline-start: auto;
+}
+
+nol-settings-page-host .nol-setting-row-description {
+  margin-top: var(--nol-settings-item-description-gap);
+  color: var(--nol-text);
+}
+
+nol-settings-page-host .nol-setting-row-control {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-top: var(--nol-settings-item-control-gap);
+}
+
+nol-settings-page-host .nol-setting-row-found {
+  background-color: var(--nol-selected);
+}

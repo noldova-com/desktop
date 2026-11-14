@@ -1,0 +1,308 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding-block: var(--nol-space-4) 0;
+  padding-inline: var(--nol-space-6) 0;
+}
+
+.nol-modules-header {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--nol-space-1) var(--nol-space-3);
+  padding-inline-end: var(--nol-space-6);
+  padding-bottom: var(--nol-space-4);
+}
+
+.nol-modules-title {
+  margin: 0;
+  color: var(--nol-setting-title);
+  font-weight: var(--nol-weight-emphasis);
+}
+
+.nol-modules-version {
+  color: var(--nol-text-muted);
+}
+
+.nol-modules-body {
+  display: flex;
+  flex: auto;
+  min-height: 0;
+}
+
+.nol-modules-list {
+  display: flex;
+  flex: 0 1 var(--nol-modules-list-width);
+  flex-direction: column;
+  gap: var(--nol-row-gap);
+  min-width: 0;
+  overflow-y: auto;
+  padding-bottom: var(--nol-space-6);
+}
+
+.nol-modules-row {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--nol-space-1);
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--nol-space-2);
+  border: none;
+  border-radius: var(--nol-radius-small);
+  background-color: transparent;
+  color: var(--nol-text);
+  font: inherit;
+  text-align: start;
+}
+
+.nol-modules-row:hover {
+  background-color: var(--nol-hover);
+
+  @media (forced-colors: active) {
+    outline: var(--nol-border-width) dashed Highlight;
+    outline-offset: calc(var(--nol-border-width) * -1);
+  }
+}
+
+.nol-modules-row-current,
+.nol-modules-row-current:hover {
+  --nol-text-muted: var(--nol-text);
+  background-color: var(--nol-selected);
+}
+
+@media (forced-colors: active) {
+  .nol-modules-row-current,
+  .nol-modules-row-current:hover {
+    --nol-text: HighlightText;
+    --nol-text-muted: HighlightText;
+    --nol-menu-text: HighlightText;
+    --nol-icon-color: HighlightText;
+    --nol-list-highlight: HighlightText;
+    --nol-list-active-text: HighlightText;
+
+    color: HighlightText;
+    forced-color-adjust: none;
+    background-color: Highlight;
+  }
+}
+
+.nol-modules-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--nol-space-2);
+}
+
+.nol-modules-row-meta {
+  display: flex;
+  gap: var(--nol-space-2);
+  min-width: 0;
+}
+
+.nol-modules-row-version,
+.nol-modules-row-programs,
+.nol-modules-program-state {
+  flex: none;
+}
+
+.nol-modules-row-meta,
+.nol-modules-detail-id,
+.nol-modules-contribution-name,
+.nol-modules-program-state {
+  color: var(--nol-text-muted);
+  font-size: var(--nol-text-label);
+  line-height: var(--nol-line-label);
+}
+
+.nol-modules-detail-id,
+.nol-modules-contribution-name {
+  overflow-wrap: anywhere;
+}
+
+.nol-modules-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nol-modules-state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--nol-space-1);
+  color: var(--nol-text-muted);
+  font-size: var(--nol-text-label);
+  line-height: var(--nol-line-label);
+}
+
+.nol-modules-state-label {
+  align-self: baseline;
+}
+
+.nol-modules-state-down {
+  color: var(--nol-text);
+}
+
+.nol-modules-state-icon {
+  color: var(--nol-error);
+}
+
+.nol-modules-fact-state .nol-modules-state {
+  color: var(--nol-text);
+  font-size: var(--nol-text-panel);
+  line-height: var(--nol-line-panel);
+}
+
+.nol-modules-detail-scroller {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-y: auto;
+  padding-inline: var(--nol-space-6);
+}
+
+.nol-modules-detail {
+  max-width: var(--nol-modules-detail-width);
+  padding-bottom: var(--nol-space-6);
+}
+
+.nol-modules-detail-title {
+  margin: 0;
+  font-size: var(--nol-text-title);
+  font-weight: var(--nol-weight-emphasis);
+  color: var(--nol-text-strong);
+  line-height: var(--nol-line-title);
+  overflow-wrap: anywhere;
+}
+
+.nol-modules-detail-id {
+  margin: 0;
+}
+
+.nol-modules-detail-description {
+  margin: var(--nol-space-2) 0 var(--nol-space-4);
+  overflow-wrap: anywhere;
+}
+
+.nol-modules-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--nol-space-2) var(--nol-space-4);
+  margin: 0;
+}
+
+.nol-modules-facts dt {
+  color: var(--nol-text-muted);
+}
+
+.nol-modules-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.nol-modules-fact-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--nol-space-2);
+}
+
+.nol-modules-cause {
+  color: var(--nol-text-muted);
+}
+
+.nol-module-actions {
+  margin-top: var(--nol-space-4);
+}
+
+.nol-modules-section-title {
+  margin: calc(var(--nol-space-4) * 2) 0 var(--nol-space-3);
+  font-size: var(--nol-text-label);
+  font-weight: var(--nol-weight-emphasis);
+  color: var(--nol-text-strong);
+  line-height: var(--nol-line-label);
+}
+
+.nol-modules-programs,
+.nol-modules-contributions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nol-modules-program {
+  display: flex;
+  align-items: center;
+  gap: var(--nol-space-2);
+  min-width: 0;
+}
+
+.nol-modules-program-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nol-modules-program-state {
+  margin-inline-start: auto;
+}
+
+.nol-modules-program-copy {
+  flex: none;
+}
+
+.nol-modules-program-copied {
+  --nol-icon-color: var(--nol-added);
+}
+
+.nol-modules-group {
+  margin-inline-start: calc(var(--nol-space-2) * -1);
+}
+
+.nol-modules-contributions {
+  margin-top: var(--nol-space-1);
+  padding-inline-start: calc(var(--nol-icon) + var(--nol-space-1));
+}
+
+.nol-modules-contribution {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--nol-space-2);
+}
+
+.nol-modules-link {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nol-link);
+  font: inherit;
+  text-align: start;
+}
+
+.nol-modules-link:hover {
+  text-decoration: underline;
+}
+
+.nol-modules-none,
+.nol-modules-empty {
+  margin: 0;
+  color: var(--nol-text-muted);
+}

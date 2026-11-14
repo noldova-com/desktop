@@ -1,0 +1,23 @@
+{
+  "name": "@noldova/desktop.fixture.packages.beacon",
+  "version": "__VERSION__",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    "./runtime": {
+      "types": "./api/index.d.ts",
+      "default": "./api/index.js"
+    },
+    "./window": {
+      "types": "./api/window.d.ts",
+      "default": "./api/window.js"
+    }
+  },
+  "dependencies": {
+    "@noldova/desktop.fixture.packages.beacon.window": "__VERSION__"
+  },
+  "peerDependencies": {
+    "@noldova/desktop.runtime": "__VERSION__"
+  }
+}

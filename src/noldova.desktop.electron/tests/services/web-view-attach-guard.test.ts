@@ -1,0 +1,95 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import "@noldova/context.core";
+import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
+
+import type { IWebViewAttachPreferences } from "../../src/interfaces/i-web-view-attach-preferences.js";
+import { WebViewAttachGuard } from "../../src/services/web-view-attach-guard.js";
+import { FakePreventableEvent } from "../fixtures/fake-preventable-event.fixture.js";
+
+@TestClass
+export class WebViewAttachGuardTests {
+  private static readonly WINDOW: number = 3;
+  private static readonly PARTITION: string = "persist:browser.workspace-1";
+
+  @TestMethod
+  public allowsTheWindowsWebviewOnABlankPageInItsViewsPartitionAndLocksItDown(): void {
+    const [guard, asked, logs] = WebViewAttachGuardTests.create();
+    const event = new FakePreventableEvent();
+    const preferences: IWebViewAttachPreferences = {
+      preload: "file:///forbidden.js",
+      preloadURL: "file:///forbidden.js",
+      nodeIntegration: true,
+      nodeIntegrationInSubFrames: true,
+      nodeIntegrationInWorker: true,
+      contextIsolation: false,
+      sandbox: false,
+      webviewTag: true,
+      navigateOnDragDrop: true,
+      safeDialogs: false,
+      zoomMode: "default"
+    };
+
+    guard.judge(WebViewAttachGuardTests.WINDOW, false, event, preferences, { src: "about:blank", partition: WebViewAttachGuardTests.PARTITION });
+
+    Assert.isFalse(event.isPrevented);
+    Assert.areEqual(JSON.stringify({
+      nodeIntegration: false,
+      nodeIntegrationInSubFrames: false,
+      nodeIntegrationInWorker: false,
+      contextIsolation: true,
+      sandbox: true,
+      webviewTag: false,
+      navigateOnDragDrop: false,
+      safeDialogs: true,
+      zoomMode: "isolated"
+    }), JSON.stringify(preferences));
+    Assert.areEqual(`3 ${WebViewAttachGuardTests.PARTITION}`, asked.join(","));
+    Assert.areEqual(0, logs.length);
+  }
+
+  @TestMethod
+  @TestData("persist:other.workspace-1", "about:blank")
+  @TestData("persist:browser.workspace-1", "https://example.com/")
+  @TestData("persist:browser.workspace-1", String.empty)
+  @TestData(null, "about:blank")
+  public refusesAndLogsAnIntruderWebviewWithAnotherPartitionOrAFirstPageThatIsNotBlank(partition: string | null, src: string): void {
+    const [guard, , logs] = WebViewAttachGuardTests.create();
+    const event = new FakePreventableEvent();
+    const preferences: IWebViewAttachPreferences = { preload: "file:///forbidden.js" };
+
+    guard.judge(WebViewAttachGuardTests.WINDOW, false, event, preferences, Object.isNull(partition) ? { src } : { src, partition });
+
+    Assert.isTrue(event.isPrevented);
+    Assert.areEqual("file:///forbidden.js", preferences.preload);
+    Assert.areEqual(`A <webview> in window 3 was refused, because its partition "${partition ?? String.empty}" belongs to no web view the window opened or its first page is not about:blank.`,
+      logs.join("|"));
+  }
+
+  @TestMethod
+  public refusesAWebviewInsideAWebViewsPageWithoutAsking(): void {
+    const [guard, asked, logs] = WebViewAttachGuardTests.create();
+    const event = new FakePreventableEvent();
+
+    guard.judge(WebViewAttachGuardTests.WINDOW, true, event, {}, { src: "about:blank", partition: WebViewAttachGuardTests.PARTITION });
+
+    Assert.isTrue(event.isPrevented);
+    Assert.areEqual("0,0", [asked.length, logs.length].join(","));
+  }
+
+  private static create(): [WebViewAttachGuard, string[], string[]] {
+    const asked: string[] = [];
+    const logs: string[] = [];
+    const guard = new WebViewAttachGuard((windowId, partition) => {
+      asked.push(`${windowId} ${partition}`);
+      return windowId === WebViewAttachGuardTests.WINDOW && partition === WebViewAttachGuardTests.PARTITION;
+    }, t => logs.push(t));
+    return [guard, asked, logs];
+  }
+}

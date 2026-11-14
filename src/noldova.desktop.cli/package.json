@@ -1,0 +1,41 @@
+{
+  "name": "@noldova/desktop.cli",
+  "version": "__VERSION__",
+  "description": "Noldova Desktop's command line: it finds or starts the runtime, runs the commands that modules contribute, and opens the window.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noldova-com/desktop.git",
+    "directory": "src/noldova.desktop.cli"
+  },
+  "homepage": "https://github.com/noldova-com/desktop#readme",
+  "bugs": {
+    "url": "https://github.com/noldova-com/desktop/issues"
+  },
+  "exports": {
+    ".": {
+      "types": "./api/index.d.ts",
+      "default": "./api/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "**/*.js",
+    "**/*.js.map",
+    "api/index.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@noldova/desktop.protocol": "__VERSION__",
+    "@noldova/desktop.runtime": "__VERSION__"
+  },
+  "peerDependencies": {
+    "@noldova/context.core": ">=0.0.7 <0.1.0",
+    "@noldova/context.exceptions": ">=0.0.7 <0.1.0",
+    "@noldova/context.json": ">=0.0.7 <0.1.0"
+  }
+}

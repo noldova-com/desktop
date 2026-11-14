@@ -1,0 +1,102 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: block;
+}
+
+.nol-about-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--nol-space-3);
+}
+
+.nol-about-logo {
+  flex: none;
+  width: calc(var(--nol-space-6) + var(--nol-space-3));
+  height: calc(var(--nol-space-6) + var(--nol-space-3));
+}
+
+.nol-about-title {
+  margin: 0;
+  color: var(--nol-setting-title);
+  font-size: var(--nol-text-heading);
+  font-weight: var(--nol-weight-emphasis);
+  line-height: var(--nol-line-heading);
+}
+
+.nol-about-description {
+  margin: var(--nol-space-3) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.nol-about-platform {
+  margin: 0;
+  color: var(--nol-text-muted);
+}
+
+.nol-about-description + .nol-about-platform {
+  margin-top: var(--nol-space-1);
+}
+
+.nol-about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nol-space-4);
+  margin: var(--nol-space-1) 0 0;
+}
+
+.nol-about-link {
+  color: var(--nol-link);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  overflow-wrap: anywhere;
+}
+
+.nol-about-state {
+  display: grid;
+  grid-template-columns: minmax(0, max-content);
+  margin-top: var(--nol-space-2);
+}
+
+.nol-about-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--nol-space-2);
+}
+
+.nol-about-status {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.nol-about-detail {
+  color: var(--nol-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.nol-about-progress {
+  display: block;
+  margin-top: var(--nol-space-1);
+}
+
+.nol-about-licenses-title {
+  margin: var(--nol-space-6) 0 var(--nol-space-1);
+  color: var(--nol-setting-title);
+  font-size: inherit;
+  font-weight: var(--nol-weight-emphasis);
+}
+
+.nol-about-licenses {
+  margin: 0;
+  color: var(--nol-text-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

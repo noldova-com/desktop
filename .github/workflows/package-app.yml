@@ -1,0 +1,567 @@
+# @license
+# Copyright (c) Noldova.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+name: Package an app
+
+on:
+  workflow_call:
+    inputs:
+      app-folder:
+        description: The folder, from the repository's root, whose package.json is the app's, with the scripts package, package:smoke and release:assets.
+        type: string
+        default: .
+      prepare:
+        description: The command that builds the app at the repository's root after npm ci and the root package's own preinstall, install, postinstall and prepare scripts, which run by name with their pre- and post-scripts in npm's order; npm runs no dependency's install scripts in it, and no pre- or post-script of a script it runs.
+        type: string
+        default: npm run build
+      revision:
+        description: The full commit SHA to package; empty takes the commit that started the run.
+        type: string
+        default: ''
+      targets:
+        description: The targets as a JSON array of objects with target, runner, architecture, platform and signed, as release-app.yml lists them.
+        type: string
+        required: true
+      signed:
+        description: Whether the targets are signed, in the environment release, from main only.
+        type: boolean
+        default: false
+      update-feed:
+        description: The URL the package checks for updates instead of the app's own feed, a loopback HTTP URL for a test of updating or the internal feed's HTTPS URL.
+        type: string
+        default: ''
+      package-version:
+        description: The version the package takes instead of the app's, newer than it, for a test of updating, or the app's own X.Y.Z-internal.N for the internal feed.
+        type: string
+        default: ''
+      keep-release-files:
+        description: Whether the run keeps its release files as the release-<platform>-<architecture> artifact, which a release's publish job takes; a pull request's run keeps none unless its caller asks.
+        type: boolean
+        default: false
+      registry-url:
+        description: The registry of the scope registry-scope, for an app that installs packages from a private registry; empty installs from npm alone.
+        type: string
+        default: ''
+      registry-scope:
+        description: The npm scope, such as '@example', that registry-url serves.
+        type: string
+        default: ''
+    secrets:
+      REGISTRY_TOKEN:
+        required: false
+      AZURE_TENANT_ID:
+        required: false
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_CLIENT_SECRET:
+        required: false
+      WINDOWS_PUBLISHER:
+        required: false
+      MAC_CERTIFICATE:
+        required: false
+      MAC_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_API_KEY_P8:
+        required: false
+      APPLE_API_KEY_ID:
+        required: false
+      APPLE_API_ISSUER:
+        required: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  versions:
+    name: Versions
+    uses: noldova-com/.github/.github/workflows/versions.yml@7640859ac0de8cc03fadbd705b45376c2e1bd88b # v2.25.0
+    permissions: {}
+
+  package:
+    name: Package (${{ matrix.target }})
+    needs: versions
+    if: ${{ !inputs.signed }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include: ${{ fromJSON(inputs.targets) }}
+    runs-on: ${{ fromJSON(matrix.runner) }}
+    timeout-minutes: 105
+    steps: &package-steps
+      - name: Stop Spotlight indexing
+        if: runner.os == 'macOS'
+        timeout-minutes: 2
+        run: |
+          state="$(mdutil -s /System/Volumes/Data | tail -n 1 | sed 's/^[[:space:]]*//')"
+          case "$state" in
+            'Indexing disabled.' | 'Indexing and searching disabled.')
+              echo "Spotlight indexing is already off: $state"
+              ;;
+            *)
+              if ! sudo -n mdutil -i off /System/Volumes/Data; then
+                echo "::error::Spotlight indexing is not off ($state), and this runner does not allow sudo without a password to turn it off."
+                exit 1
+              fi
+              ;;
+          esac
+
+      - name: Check out the revision
+        timeout-minutes: 5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        id: node
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          architecture: ${{ matrix.architecture }}
+          package-manager-cache: false
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.registry-scope }}
+
+      - name: Wait before setting up Node.js again
+        if: steps.node.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+
+      - name: Set up Node.js again
+        id: node-again
+        if: steps.node.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          architecture: ${{ matrix.architecture }}
+          package-manager-cache: false
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.registry-scope }}
+
+      - name: Wait before setting up Node.js a last time
+        if: steps.node-again.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+
+      - name: Set up Node.js a last time
+        if: steps.node-again.outcome == 'failure'
+        timeout-minutes: 5
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          architecture: ${{ matrix.architecture }}
+          package-manager-cache: false
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.registry-scope }}
+
+      - name: Verify the toolchain
+        timeout-minutes: 1
+        env:
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+          EXPECTED_NODE: ${{ needs.versions.outputs.node-version }}
+          EXPECTED_NPM: ${{ needs.versions.outputs.npm-version }}
+        run: |
+          node --version
+          npm --version
+          test "$(node --version)" = "v$EXPECTED_NODE"
+          if [ -n "$EXPECTED_NPM" ]; then
+            test "$(npm --version)" = "$EXPECTED_NPM"
+          fi
+          test "$(node --print process.arch)" = "$EXPECTED_ARCHITECTURE"
+
+      - name: Install the dependencies
+        timeout-minutes: 15
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          npm_config_ignore_scripts: 'true'
+        run: |
+          npm ci --no-audit --no-fund
+          for script in preinstall install postinstall prepublish preprepare prepare postprepare; do
+            npm run --if-present "$script"
+          done
+
+      - name: Build the app
+        timeout-minutes: 30
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          npm_config_ignore_scripts: 'true'
+          PREPARE: ${{ inputs.prepare }}
+        run: eval "$PREPARE"
+
+      - name: Install Electron
+        timeout-minutes: 5
+        working-directory: ${{ inputs.app-folder }}
+        run: |
+          for attempt in 1 2 3 4; do
+            if node node_modules/electron/install.js; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 4 ]; then
+              echo "Electron's binary download failed (attempt $attempt of 4); trying again in 15 seconds."
+              sleep 15
+            fi
+          done
+          echo "::error::Electron's binary could not be downloaded in 4 attempts."
+          exit 1
+
+      - name: Remove libfuse2, which a stock Ubuntu does not install
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: |
+          for name in libfuse2 libfuse2t64; do
+            if dpkg-query -W -f='${Status}' "$name" 2>/dev/null | grep 'ok installed' > /dev/null; then
+              sudo apt-get remove -y "$name"
+            fi
+          done
+          if ldconfig -p | grep 'libfuse\.so\.2' > /dev/null; then
+            echo "::error::libfuse2 is still installed."
+            exit 1
+          fi
+          echo "libfuse2 is not installed."
+
+      - name: Read electron-builder's version
+        id: builder
+        timeout-minutes: 1
+        working-directory: ${{ inputs.app-folder }}
+        run: |
+          version=$(node --print 'require("electron-builder/package.json").version')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore electron-builder's tools
+        id: tool-cache
+        timeout-minutes: 5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.app-folder }}/_build/package/tool-cache
+          key: electron-builder-tools-${{ runner.os }}-${{ matrix.architecture }}-${{ steps.builder.outputs.version }}
+
+      - name: Download the packaging tools
+        if: (runner.os == 'Linux' || runner.os == 'macOS') && steps.tool-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 10
+        working-directory: ${{ inputs.app-folder }}
+        run: |
+          export ELECTRON_BUILDER_CACHE="$PWD/_build/package/tool-cache"
+          for attempt in 1 2 3 4; do
+            if node --input-type=commonjs --eval '
+              const path = require("node:path");
+              const builder = path.dirname(require.resolve("electron-builder/package.json", { paths: [process.cwd()] }));
+              const library = path.dirname(require.resolve("app-builder-lib/package.json", { paths: [builder] }));
+              const { Arch } = require(require.resolve("builder-util", { paths: [library] }));
+              const toolset = name => require(path.join(library, "out", "toolsets", name));
+              (async () => {
+                if (process.platform === "linux") {
+                  const { appimageChecksums, getAppImageTools, getFpmPath } = toolset("linux.js");
+                  for (const version of Object.keys(appimageChecksums).filter(t => t !== "0.0.0"))
+                    await getAppImageTools(version, Arch[process.arch]);
+                  await getFpmPath();
+                } else {
+                  await toolset("icons.js").getIconsToolsetPath();
+                  await toolset("7zip.js").getPath7za();
+                }
+              })().catch(error => {
+                console.error(error);
+                process.exitCode = 1;
+              });
+            '; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 4 ]; then
+              echo "The packaging tools' download failed (attempt $attempt of 4); trying again in 30 seconds."
+              sleep 30
+            fi
+          done
+          echo "::error::The packaging tools could not be downloaded in 4 attempts."
+          exit 1
+
+      - name: Make the package
+        timeout-minutes: 40
+        working-directory: ${{ inputs.app-folder }}
+        env:
+          SIGNED: ${{ matrix.signed }}
+          UPDATE_FEED: ${{ inputs.update-feed }}
+          PACKAGE_VERSION: ${{ inputs.package-version }}
+          AZURE_TENANT_ID: ${{ matrix.signed == 'true' && matrix.platform == 'windows' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.signed == 'true' && matrix.platform == 'windows' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.signed == 'true' && matrix.platform == 'windows' && secrets.AZURE_CLIENT_SECRET || '' }}
+          WINDOWS_PUBLISHER: ${{ matrix.signed == 'true' && matrix.platform == 'windows' && secrets.WINDOWS_PUBLISHER || '' }}
+          MAC_CERTIFICATE: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.MAC_CERTIFICATE || '' }}
+          MAC_CERTIFICATE_PASSWORD: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.MAC_CERTIFICATE_PASSWORD || '' }}
+          APPLE_API_KEY_P8: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.APPLE_API_KEY_P8 || '' }}
+          APPLE_API_KEY_ID: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.APPLE_API_ISSUER || '' }}
+        run: |
+          options=()
+          if [ "$SIGNED" = true ]; then
+            options+=(--signed)
+          fi
+          if [ -n "$UPDATE_FEED" ]; then
+            if [[ "$UPDATE_FEED" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/([A-Za-z0-9._~-]+/)*$ ]]; then
+              :
+            elif ! [[ "$UPDATE_FEED" =~ ^http://(127\.0\.0\.1|localhost|\[::1\]):([0-9]{1,5})/$ ]] || [ $((10#${BASH_REMATCH[2]})) -lt 1 ] || [ $((10#${BASH_REMATCH[2]})) -gt 65535 ]; then
+              echo "::error::The update feed must be an HTTPS URL ending in /, for the internal feed, or a loopback HTTP URL such as http://127.0.0.1:47325/, not $UPDATE_FEED."
+              exit 1
+            fi
+            options+=(--update-feed "$UPDATE_FEED")
+          fi
+          if [ -n "$PACKAGE_VERSION" ]; then
+            current=$(npm pkg get version)
+            current=${current//\"/}
+            next=''
+            previous=''
+            internal=''
+            if [[ "$PACKAGE_VERSION" =~ ^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(-internal\.(0|[1-9][0-9]{0,8}))?$ ]]; then
+              printf -v next '%09d%09d%09d' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+              internal=${BASH_REMATCH[4]}
+            fi
+            if [[ "$current" =~ ^([0-9]{1,9})\.([0-9]{1,9})\.([0-9]{1,9})$ ]]; then
+              printf -v previous '%09d%09d%09d' $((10#${BASH_REMATCH[1]})) $((10#${BASH_REMATCH[2]})) $((10#${BASH_REMATCH[3]}))
+            fi
+            if [ -z "$next" ] || [ -z "$previous" ] || { [ -z "$internal" ] && ! [[ "$next" > "$previous" ]]; } || { [ -n "$internal" ] && [ "$next" != "$previous" ]; }; then
+              echo "::error::The version must be X.Y.Z newer than the app manifest's $current, or $current-internal.N for the internal feed, not $PACKAGE_VERSION."
+              exit 1
+            fi
+            npm pkg set "version=$PACKAGE_VERSION"
+          fi
+          if [ ${#options[@]} -eq 0 ]; then
+            npm run package
+          else
+            npm run package -- "${options[@]}"
+          fi
+
+      - name: Keep electron-builder's tools
+        if: steps.tool-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.app-folder }}/_build/package/tool-cache
+          key: ${{ steps.tool-cache.outputs.cache-primary-key }}
+
+      - name: Install, start and quit the package
+        id: smoke
+        if: matrix.platform != 'macos' || matrix.architecture != 'x64'
+        timeout-minutes: 15
+        working-directory: ${{ inputs.app-folder }}
+        env:
+          WINDOWS_PUBLISHER: ${{ matrix.signed == 'true' && matrix.platform == 'windows' && secrets.WINDOWS_PUBLISHER || '' }}
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            sudo apt-get update
+            xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --deb --require-sandbox
+            if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
+              xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-fallback
+            else
+              xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke
+            fi
+            TMPDIR="$RUNNER_TEMP" APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --no-sandbox
+            if ! compgen -G "$RUNNER_TEMP/appimage_extracted_*" > /dev/null; then
+              echo "::error::The extract-and-run smoke left no extraction in the job's temporary folder, so TMPDIR did not reach the AppImage."
+              exit 1
+            fi
+          else
+            npm run package:smoke
+          fi
+
+      - name: Remove a Windows install the smoke left
+        if: always() && runner.os == 'Windows' && steps.smoke.outcome != 'skipped'
+        timeout-minutes: 5
+        working-directory: ${{ inputs.app-folder }}
+        run: npm run package:smoke -- --remove-leftover
+
+      - name: Remove the AppImage's extraction
+        if: always() && runner.os == 'Linux'
+        timeout-minutes: 2
+        run: |
+          shopt -s nullglob
+          mine=()
+          for extraction in "$RUNNER_TEMP"/appimage_extracted_*; do
+            mine+=("$(basename "$extraction")")
+            rm -rf "$extraction"
+          done
+          left=()
+          others=()
+          for extraction in /tmp/appimage_extracted_*; do
+            if [[ " ${mine[*]} " == *" $(basename "$extraction") "* ]]; then
+              left+=("$extraction")
+            else
+              others+=("$extraction")
+            fi
+          done
+          if [ ${#others[@]} -gt 0 ]; then
+            echo "::warning::/tmp holds AppImage extractions of other runs, which this job leaves alone: $(IFS=,; echo "${others[*]}" | sed 's/,/, /g')"
+          fi
+          if [ ${#left[@]} -gt 0 ]; then
+            echo "::error::The package's smoke left its AppImage extraction in /tmp: $(IFS=,; echo "${left[*]}" | sed 's/,/, /g')"
+            exit 1
+          fi
+          echo "The package's smoke left no AppImage extraction of its own in /tmp: ${mine[*]:-none}."
+
+      - name: Write the checksums and the update information
+        timeout-minutes: 5
+        working-directory: ${{ inputs.app-folder }}
+        env:
+          UPDATE_FEED: ${{ inputs.update-feed }}
+        run: |
+          if [ -n "$UPDATE_FEED" ]; then
+            npm run release:assets -- --update-feed "$UPDATE_FEED"
+          else
+            npm run release:assets
+          fi
+
+      - name: Read the product's name
+        id: product
+        timeout-minutes: 1
+        working-directory: ${{ inputs.app-folder }}
+        run: |
+          name=$(npm pkg get desktop.product.name)
+          echo "name=${name//\"/}" >> "$GITHUB_OUTPUT"
+
+      - name: Check the release files
+        timeout-minutes: 1
+        working-directory: ${{ inputs.app-folder }}/_build/package/out
+        env:
+          PRODUCT: ${{ steps.product.outputs.name }}
+        run: |
+          shopt -s nullglob
+          packages=("$PRODUCT"-*.exe "$PRODUCT"-*.dmg "$PRODUCT"-*.zip "$PRODUCT"-*.AppImage "$PRODUCT"-*.deb)
+          updates=(latest-*.yml)
+          missing=()
+          if [ ${#packages[@]} -eq 0 ]; then
+            missing+=("a package")
+          fi
+          for package in "${packages[@]}"; do
+            if [ ! -f "$package.sha256" ]; then
+              missing+=("$package.sha256")
+            fi
+          done
+          if [ ${#updates[@]} -eq 0 ]; then
+            missing+=("the update information")
+          fi
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::The release files lack $(IFS=,; echo "${missing[*]}" | sed 's/,/, /g')."
+            exit 1
+          fi
+          echo "The release files: $(IFS=,; echo "${packages[*]}" | sed 's/,/, /g'), their checksums and ${updates[*]}."
+
+      - name: Keep the release files
+        id: keep
+        if: ${{ inputs.keep-release-files }}
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: &release-files |
+            ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.exe
+            ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.dmg
+            ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.zip
+            ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.AppImage
+            ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.deb
+            ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.sha256
+            ${{ inputs.app-folder }}/_build/package/out/latest-*.yml
+          retention-days: &retention ${{ inputs.revision == '' && 1 || 14 }}
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Wait before keeping the release files again
+        if: steps.keep.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+
+      - name: Keep the release files again
+        id: keep-again
+        if: steps.keep.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: *release-files
+          retention-days: *retention
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Wait before keeping the release files a last time
+        if: steps.keep-again.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+
+      - name: Keep the release files a last time
+        if: steps.keep-again.outcome == 'failure'
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: *release-files
+          retention-days: *retention
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Keep the package report
+        id: keep-report
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: ${{ inputs.app-folder }}/_build/package/package-report.json
+          retention-days: *retention
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Wait before keeping the package report again
+        if: steps.keep-report.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+
+      - name: Keep the package report again
+        id: keep-report-again
+        if: steps.keep-report.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: ${{ inputs.app-folder }}/_build/package/package-report.json
+          retention-days: *retention
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Wait before keeping the package report a last time
+        if: steps.keep-report-again.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+
+      - name: Keep the package report a last time
+        if: steps.keep-report-again.outcome == 'failure'
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: ${{ inputs.app-folder }}/_build/package/package-report.json
+          retention-days: *retention
+          if-no-files-found: error
+          overwrite: true
+
+  package-signed:
+    name: Package and sign (${{ matrix.target }})
+    needs: versions
+    if: inputs.signed && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: true
+      matrix:
+        include: ${{ fromJSON(inputs.targets) }}
+    runs-on: ${{ fromJSON(matrix.runner) }}
+    environment: release
+    timeout-minutes: 105
+    steps: *package-steps

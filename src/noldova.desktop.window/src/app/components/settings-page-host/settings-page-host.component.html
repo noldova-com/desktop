@@ -1,0 +1,15 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+@if (failure(); as failure) {
+  <nol-module-failure-card [failure]="failure" />
+} @else if (loaded(); as type) {
+  <ng-container *ngComponentOutlet="type; injector: pageInjector()" />
+} @else {
+  <nol-spinner [label]="resources.settingsPageLoading" [isDelayed]="true" />
+}

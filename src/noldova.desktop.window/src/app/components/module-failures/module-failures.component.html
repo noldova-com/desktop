@@ -1,0 +1,14 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+@if (failures()[0]; as first) {
+  <button type="button" class="nol-module-failures-item" (click)="open(first.moduleId)">
+    <span class="material-symbols-rounded nol-module-failures-icon" aria-hidden="true">{{ resources.moduleFailureGlyph }}</span>
+    <span>{{ resources.formatModulesDidNotStart(failures().length) }}</span>
+  </button>
+}

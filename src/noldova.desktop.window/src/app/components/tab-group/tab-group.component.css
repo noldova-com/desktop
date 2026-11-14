@@ -1,0 +1,113 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  position: absolute;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.nol-tab-group-card {
+  flex: 1;
+}
+
+.nol-tab-group-bar {
+  display: flex;
+  flex-shrink: 0;
+  min-height: var(--nol-tab-height);
+  padding-inline: var(--nol-tab-inset);
+}
+
+.nol-tab-group-header {
+  align-items: center;
+}
+
+.nol-tab-group-tabs {
+  padding-inline: 0;
+}
+
+.nol-tab-group-title {
+  flex: 1;
+  padding-inline-start: calc(var(--nol-tab-inset) * 2 + var(--nol-pill-padding));
+  font-size: var(--nol-text-panel);
+  font-weight: var(--nol-weight-emphasis);
+  color: var(--nol-text-strong);
+}
+
+.nol-tab-group-scroller {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  --nol-tab-group-scroller-start: calc(var(--nol-tab-inset) * 2);
+  --nol-tab-group-reveal-start: calc(var(--nol-space-2) + var(--nol-tab-inset));
+
+  min-width: 0;
+  padding-inline-start: var(--nol-tab-group-scroller-start);
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scroll-padding-inline-start: var(--nol-tab-group-reveal-start);
+  container-type: inline-size;
+}
+
+@media (forced-colors: active) {
+  .nol-tab-group-scroller {
+    scrollbar-width: none;
+  }
+}
+
+.nol-tab-group-strip {
+  display: flex;
+  flex: 1 0 auto;
+  min-height: var(--nol-tab-height);
+}
+
+.nol-tab-group-strip > nol-tab {
+  flex-shrink: 0;
+  max-width: min(var(--nol-tab-max-width),
+    calc(100cqi + var(--nol-tab-group-scroller-start) - var(--nol-tab-group-reveal-start) - var(--nol-tab-group-actions-width, 0px)));
+}
+
+.nol-tab-group-end {
+  flex: 1;
+}
+
+.nol-tab-dragged {
+  opacity: 0.5;
+}
+
+.nol-tab-group-actions {
+  position: sticky;
+  inset-inline-end: 0;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding-inline: var(--nol-space-1) var(--nol-tab-inset);
+  background-color: var(--nol-panel);
+}
+
+.nol-tab-group-scroller > .nol-tab-group-actions {
+  padding-inline-end: calc(var(--nol-tab-inset) * 2);
+}
+
+.nol-tab-group-actions-shell {
+  background-color: var(--nol-window);
+}
+
+.nol-tab-group-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.nol-tab-group-overflow-menu {
+  max-width: min(var(--nol-popover-width), calc(100vw - var(--nol-space-4)));
+  max-height: min(60vh, calc(20 * (var(--nol-menu-item-height) + var(--nol-row-gap)) + 2 * (var(--nol-menu-padding) + var(--nol-border-width))));
+}

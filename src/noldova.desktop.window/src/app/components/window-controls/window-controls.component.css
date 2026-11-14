@@ -1,0 +1,62 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: flex;
+  flex: none;
+  align-self: stretch;
+  gap: var(--nol-window-controls-gap);
+  app-region: no-drag;
+  --nol-window-controls-button: 2.8125rem;
+  --nol-window-controls-gap: 0.0625rem;
+  --nol-window-controls-glyph: 0.625rem;
+}
+
+.nol-window-controls-button {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--nol-window-controls-button);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  outline: none;
+}
+
+.nol-window-controls-button:hover {
+  background-color: var(--nol-toolbar-hover);
+
+  @media (forced-colors: active) {
+    outline: var(--nol-border-width) dashed Highlight;
+    outline-offset: calc(var(--nol-border-width) * -1);
+  }
+}
+
+.nol-window-controls-close:hover {
+  background-color: var(--nol-error);
+  color: var(--nol-button-danger-text);
+}
+
+.nol-window-controls-button:focus-visible {
+  outline: var(--nol-border-width) solid var(--nol-accent);
+  outline-offset: calc(var(--nol-border-width) * -1);
+
+  @media (forced-colors: active) {
+    outline: calc(var(--nol-border-width) * 2) solid Highlight;
+  }
+}
+
+.nol-window-controls-glyph {
+  width: var(--nol-window-controls-glyph);
+  height: var(--nol-window-controls-glyph);
+  overflow: visible;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1;
+}

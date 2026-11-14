@@ -1,0 +1,12 @@
+{
+  "id": "beacon",
+  "version": "0.0.1",
+  "displayName": "Beacon",
+  "description": "Comes from a package, with its window part from a package of its own, and depends on the reminder, so it is blocked whenever the reminder fails or is at another version, for the UI workflows.",
+  "parts": ["runtime", "window"],
+  "dependencies": { "reminder": "0.0.1" },
+  "contributes": {
+    "commands": ["beacon.ping", "beacon.showSignal"],
+    "views": ["beacon.signal"]
+  }
+}

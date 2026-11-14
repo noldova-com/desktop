@@ -1,0 +1,26 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { QuitQuestion } from "@noldova/desktop.electron";
+
+@TestClass
+export class QuitQuestionTests {
+  @TestMethod
+  public keepsItsOwnCopyOfTheWorkAndWritesItAsJson(): void {
+    const descriptions = ["Indexing the project"];
+
+    const question = new QuitQuestion(descriptions, true, true);
+    descriptions.push("Building");
+
+    Assert.areEqual(JSON.stringify(["Indexing the project"]), JSON.stringify(question.descriptions));
+    Assert.isTrue(question.isWaiting);
+    Assert.areEqual(JSON.stringify({ descriptions: ["Indexing the project"], isWaiting: true, isUpdate: true }), JSON.stringify(question.toJson()));
+    Assert.areEqual(JSON.stringify({ descriptions: [], isWaiting: false, isUpdate: false }), JSON.stringify(new QuitQuestion([], false, false).toJson()));
+  }
+}

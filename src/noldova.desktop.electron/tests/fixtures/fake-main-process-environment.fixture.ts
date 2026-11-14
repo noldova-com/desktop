@@ -1,0 +1,103 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { lstat, readlink, realpath } from "node:fs/promises";
+import path from "node:path";
+import { Writable } from "node:stream";
+
+import "@noldova/context.core";
+import type { WebViewDeclaration } from "@noldova/desktop.protocol";
+import { ProcessPresence } from "@noldova/desktop.runtime";
+import type { IMainProcessEnvironment, IShownPathFiles } from "@noldova/desktop.electron";
+
+import { FakeProgramHost } from "./fake-program-host.fixture.js";
+
+export class FakeMainProcessEnvironment implements IMainProcessEnvironment {
+  private written: string = String.empty;
+
+  public readonly argv: readonly string[];
+  public readonly env: NodeJS.ProcessEnv;
+  public readonly platform: string;
+  public readonly execPath: string = "/electron/electron";
+  public readonly homeFolder: string;
+  public temporaryFolder: string = path.resolve("work", "temporary");
+  public accountHomeFolder: string = path.resolve("work", "account");
+  public readonly workingDirectory: string = path.resolve("work");
+  public isDefaultApp: boolean = false;
+  public isTerminal: boolean = false;
+  public readonly errorOutput: Writable = new Writable({
+    write: (chunk: Buffer, _encoding, callback): void => {
+      this.written += chunk.toString();
+      callback();
+    }
+  });
+  public readonly started: (readonly string[])[] = [];
+  public readonly relaunched: { readonly command: readonly string[]; readonly environment: NodeJS.ProcessEnv; readonly workingDirectory: string }[] = [];
+  public readonly startedApart: { readonly command: readonly string[]; readonly environment: NodeJS.ProcessEnv }[] = [];
+  public readonly ended: number[] = [];
+  public processId: number = 1000;
+  public webViews: ReadonlyMap<string, WebViewDeclaration> = new Map();
+  public webViewsFailure: Error | null = null;
+  public readonly programs: FakeProgramHost = new FakeProgramHost();
+  public files: IShownPathFiles = { lstat, readlink, realpath };
+  public readonly presence: ProcessPresence = ProcessPresence.create(process.platform);
+  public readonly exceptionListeners: ((error: unknown) => void)[] = [];
+  public readonly rejectionListeners: ((reason: unknown) => void)[] = [];
+  public endFailure: Error | null = null;
+  public startFailure: Error | null = null;
+  public relaunchFailure: Error | null = null;
+
+  public constructor(platform: string, argv: readonly string[] = [], env: NodeJS.ProcessEnv = {}, homeFolder: string = "/home/person") {
+    this.platform = platform;
+    this.argv = argv;
+    this.env = env;
+    this.homeFolder = homeFolder;
+  }
+
+  public get errors(): string {
+    return this.written;
+  }
+
+  public startDetached(executablePath: string, args: readonly string[], onFailure: (error: Error) => void): void {
+    this.started.push([executablePath, ...args]);
+    if (!Object.isNull(this.startFailure))
+      onFailure(this.startFailure);
+  }
+
+  public startDetachedAsync(executablePath: string, args: readonly string[], environment: NodeJS.ProcessEnv, workingDirectory: string): Promise<void> {
+    this.relaunched.push({ command: [executablePath, ...args], environment, workingDirectory });
+    return Object.isNull(this.relaunchFailure) ? Promise.resolve() : Promise.reject(this.relaunchFailure);
+  }
+
+  public startApartAsync(executablePath: string, args: readonly string[], environment: NodeJS.ProcessEnv): Promise<void> {
+    this.startedApart.push({ command: [executablePath, ...args], environment });
+    return Object.isNull(this.relaunchFailure) ? Promise.resolve() : Promise.reject(this.relaunchFailure);
+  }
+
+  public endProcess(processId: number): void {
+    if (!Object.isNull(this.endFailure))
+      throw this.endFailure;
+    this.ended.push(processId);
+  }
+
+  public onUncaughtException(listener: (error: unknown) => void): void {
+    this.exceptionListeners.push(listener);
+  }
+
+  public onUnhandledRejection(listener: (reason: unknown) => void): void {
+    this.rejectionListeners.push(listener);
+  }
+
+  public readAccountHomeFolder(): string {
+    return this.accountHomeFolder;
+  }
+
+  public readWebViewsAsync(): Promise<ReadonlyMap<string, WebViewDeclaration>> {
+    return Object.isNull(this.webViewsFailure) ? Promise.resolve(this.webViews) : Promise.reject(this.webViewsFailure);
+  }
+}

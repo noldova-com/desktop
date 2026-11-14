@@ -1,0 +1,23 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<div class="nol-status-bar-side nol-status-bar-left">
+  @for (item of bars.leftItems(); track item.name) {
+    <nol-status-bar-item [item]="item" />
+  }
+</div>
+<div class="nol-status-bar-side nol-status-bar-right">
+  @for (item of bars.rightItems(); track item.name) {
+    <nol-status-bar-item [item]="item" />
+  }
+  @if (updates.state().showsItem) {
+    <nol-update-item />
+  }
+  <nol-notifications />
+  <nol-module-failures />
+</div>

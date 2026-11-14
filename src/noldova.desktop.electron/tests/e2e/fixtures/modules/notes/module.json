@@ -1,0 +1,26 @@
+{
+  "id": "notes",
+  "version": "0.0.1",
+  "displayName": "Notes",
+  "description": "Keeps notes in documents and views, for the UI workflows.",
+  "parts": ["runtime", "window"],
+  "dependencies": {},
+  "contributes": {
+    "methods": ["notes.options", "notes.holdOptions", "notes.heldOptions", "notes.releaseOptions", "notes.sharePhoto"],
+    "commands": ["notes.newNote", "notes.openNote", "notes.moveNote", "notes.sortByTitle", "notes.sortByWeek", "notes.wrapLines", "notes.showListInDialog", "notes.showNoteInDialog", "notes.showSettingsInDialog"],
+    "notifications": ["notes.saveFailed"],
+    "views": [
+      "notes.list", "notes.outline", "notes.search", "notes.changes", "notes.tasks", "notes.bookmarks", "notes.teammates", "notes.conversation",
+      "notes.timeline", "notes.references", "notes.activity", "notes.comments", "notes.reviews", "notes.history", "notes.terminal", "notes.problems",
+      "notes.output", "notes.debug", "notes.session"
+    ],
+    "documents": ["notes.note", "notes.feed"],
+    "placeholders": ["notes.welcome"],
+    "statusBarItems": ["notes.count"],
+    "topBarActions": ["notes.compose", "notes.back"],
+    "settings": ["notes.start", "notes.wrapsLines"],
+    "settingScopes": ["notes.folder", "notes.entry"],
+    "tools": ["notes_search"],
+    "menus": ["notes.templates", "notes.tools", "notes.sortChoice", "notes.main", "notes.second", "notes.spare"]
+  }
+}

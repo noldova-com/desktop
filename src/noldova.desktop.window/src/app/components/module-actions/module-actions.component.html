@@ -1,0 +1,21 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<div class="nol-module-actions-buttons">
+  <button type="button" nol-button class="nol-module-actions-copy" [variant]="secondary" (click)="copy()">
+    <span nolButtonIcon class="material-symbols-rounded nol-module-actions-glyph" aria-hidden="true">{{ isCopied() ? resources.copiedGlyph : resources.copyGlyph }}</span>
+    <span>{{ isCopied() ? resources.copiedLabel : resources.copyDetailsLabel }}</span>
+  </button>
+  <button type="button" nol-button class="nol-module-actions-logs" [variant]="secondary" (click)="openLogFolder()">
+    <span nolButtonIcon class="material-symbols-rounded nol-module-actions-glyph" aria-hidden="true">{{ resources.logFolderGlyph }}</span>
+    <span>{{ resources.openLogFolderLabel }}</span>
+  </button>
+</div>
+@if (isLogFolderFailed()) {
+  <p class="nol-module-actions-notice" role="status">{{ resources.logFolderNotOpened }}</p>
+}

@@ -1,0 +1,57 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: flex;
+  height: var(--nol-status-bar-item-height);
+}
+
+.nol-notifications-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nol-space-1);
+  box-sizing: border-box;
+  width: var(--nol-status-bar-item-height);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--nol-radius-hover);
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.nol-notifications-counted {
+  width: auto;
+  padding: 0 var(--nol-pill-padding);
+}
+
+.nol-notifications-item:hover {
+  background-color: var(--nol-toolbar-hover);
+
+  @media (forced-colors: active) {
+    outline: var(--nol-border-width) dashed Highlight;
+    outline-offset: calc(var(--nol-border-width) * -1);
+  }
+}
+
+.nol-notifications-item:focus-visible {
+  outline: var(--nol-border-width) solid var(--nol-accent);
+  outline-offset: calc(var(--nol-border-width) * -1);
+
+  @media (forced-colors: active) {
+    outline: calc(var(--nol-border-width) * 2) solid Highlight;
+  }
+}
+
+.nol-notifications-icon {
+  color: var(--nol-icon-color);
+  font-size: var(--nol-icon);
+}

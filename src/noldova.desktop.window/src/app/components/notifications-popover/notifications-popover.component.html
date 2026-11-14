@@ -1,0 +1,48 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<div class="nol-notifications-header">
+  <h2 class="nol-notifications-title">{{ resources.notificationsTitle }}</h2>
+  <button type="button" nol-button class="nol-notifications-clear" [variant]="secondary" [disabled]="!hasFinished()" (click)="clear()">{{ resources.clearAllLabel }}</button>
+</div>
+<nol-checkbox class="nol-notifications-quiet" [checked]="isQuiet()" (checkedChange)="setQuiet($event)">{{ resources.doNotDisturbLabel }}</nol-checkbox>
+@if (notifications().length === 0) {
+  <p class="nol-notifications-empty">{{ resources.noNotifications }}</p>
+}
+@else {
+  <ul class="nol-notifications-list">
+    @for (notification of notifications(); track notification.id) {
+      <li class="nol-notifications-row" [attr.data-notification]="notification.id" [attr.data-severity]="notification.post.severity">
+        <span class="material-symbols-rounded nol-notifications-severity" role="img" [attr.aria-label]="severityName(notification.post.severity)">{{ glyph(notification.post.severity) }}</span>
+        <div class="nol-notifications-body">
+          @if (notification.post.open !== null) {
+            <button type="button" class="nol-notifications-row-title nol-notifications-open" [disabled]="!isAvailable(notification.post.open)" (click)="run(notification.post.open)">{{ notification.post.title }}</button>
+          }
+          @else {
+            <span class="nol-notifications-row-title">{{ notification.post.title }}</span>
+          }
+          @if (notification.post.text !== null) {
+            <span class="nol-notifications-text">{{ notification.post.text }}</span>
+          }
+          @if (isIndeterminate(notification) || progressOf(notification) !== null) {
+            <nol-progress [value]="progressOf(notification)" [label]="notification.post.title" />
+          }
+          <span class="nol-notifications-meta">{{ moduleName(notification) }} · {{ timeOf(notification) }}</span>
+          @if (notification.post.actions.length > 0) {
+            <div class="nol-notifications-actions">
+              @for (action of notification.post.actions; track $index) {
+                <button type="button" nol-button class="nol-notifications-action" [variant]="secondary" [disabled]="!isAvailable(action.command)" (click)="run(action.command)">{{ action.title }}</button>
+              }
+            </div>
+          }
+        </div>
+        <button type="button" nol-icon-button class="nol-notifications-dismiss" [icon]="resources.closeGlyph" [label]="resources.dismissLabel" [nolTooltip]="resources.dismissLabel" (click)="dismiss(notification)"></button>
+      </li>
+    }
+  </ul>
+}

@@ -1,0 +1,45 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+@if (isShown()) {
+  @if (stripBounds(); as box) {
+    @if (dock().root; as root) {
+      <nol-panel-card class="nol-dock-strip" [class.nol-dock-strip-vertical]="isVertical()" [class.nol-dock-strip-rail]="isRail()" [surface]="surface"
+        [attr.data-drop-group]="root.cornerGroup.id" data-drop-tabs nolToolbar [nolToolbarOrientation]="stripOrientation()" [nolToolbarLabel]="resources.dockStripLabels[side()]"
+        [style.left.rem]="box.x" [style.top.rem]="box.y" [style.width.rem]="box.width" [style.height.rem]="box.height">
+        @for (icons of iconsOf(root); track icons[0]?.group?.id; let first = $first, lastGroup = $last) {
+          @if (!first) {
+            <span class="nol-dock-strip-separator" role="separator" [attr.aria-orientation]="separatorOrientation()"></span>
+          }
+          @for (icon of icons; track icon.tab.key; let last = $last) {
+            @let tab = icon.tab;
+            @let label = labels.of(tab);
+            @let badge = labels.badgeOf(tab);
+            <nol-place-menu #menu [place]="resources.tabMenu" [context]="{ tab: tab.key }" />
+            <button type="button" nol-icon-button nolToolbarItem class="nol-dock-strip-view" [nolContextMenuTriggerFor]="menu.menu()" [attr.data-view]="tab.key" [icon]="label.icon"
+              [attr.data-drop-before]="encode(icon.before)" [attr.data-drop-after]="encode(icon.after)" [attr.data-drop-axis]="axis()"
+              [class.nol-drop-line-before]="icon.before.equals(drag.target())" [class.nol-drop-line-after]="lastGroup && last && icon.after.equals(drag.target())" [class.nol-drop-line-vertical]="isVertical()"
+              [class.nol-dock-strip-dragged]="tab.equals(drag.dragging())" (pointerdown)="drag.begin(tab, $event)"
+              [label]="badge ? resources.formatBadged(label.title, badge.description) : label.title"
+              [pressed]="isShowing(icon.group, tab)" [nolTooltip]="label.title" [nolTooltipSide]="tooltipSide()" [nolTooltipBeside]="resources.dockStripSelector" (click)="toggle(icon.group, tab, $event)">
+              @if (badge) {
+                <nol-view-badge class="nol-dock-strip-badge" [count]="badge.count" />
+              }
+            </button>
+          }
+        }
+      </nol-panel-card>
+    }
+  }
+  @if (!isCollapsed()) {
+    @let box = sash();
+    <nol-sash class="nol-dock-sash" [orientation]="orientation()" [label]="resources.resizeDockLabels[side()]" [value]="pixels(size())"
+      [minimum]="pixels(minimumSize())" [maximum]="pixels(layout.geometry().maximumSize(side()))" (resize)="resize($event)"
+      [style.left.rem]="box.x" [style.top.rem]="box.y" [style.width.rem]="box.width" [style.height.rem]="box.height" />
+  }
+}

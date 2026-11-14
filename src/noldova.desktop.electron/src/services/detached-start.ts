@@ -1,0 +1,30 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { ChildProcessStarter, type IProcessStarter } from "@noldova/desktop.runtime";
+
+import type { IParentPort } from "../interfaces/i-parent-port.js";
+import { DetachedStartReply } from "../models/detached-start-reply.js";
+import { DetachedStartRequest } from "../models/detached-start-request.js";
+import { Resources } from "../resources.js";
+
+export class DetachedStart {
+  public static async runAsync(message: unknown, port: IParentPort, starter: IProcessStarter = new ChildProcessStarter()): Promise<void> {
+    let reply: DetachedStartReply;
+    try {
+      const request = DetachedStartRequest.fromJson(message);
+      reply = DetachedStartReply.started(await starter.startAsync(request.executable, request.launchArguments, request.environment, request.errorFile));
+    }
+    catch (error) {
+      reply = DetachedStartReply.failed(String(error));
+    }
+    const acknowledged = new Promise<void>(resolve => port.once(Resources.messageEvent, resolve));
+    port.postMessage(reply.toJson());
+    await acknowledged;
+  }
+}

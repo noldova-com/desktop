@@ -1,0 +1,63 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: flex;
+  min-width: 0;
+  height: var(--nol-status-bar-item-height);
+}
+
+:host(.nol-status-bar-item-hidden) {
+  display: none;
+}
+
+.nol-status-bar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nol-space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--nol-pill-padding);
+  border: 0;
+  border-radius: var(--nol-radius-hover);
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+button.nol-status-bar-item:enabled:hover {
+  background-color: var(--nol-toolbar-hover);
+
+  @media (forced-colors: active) {
+    outline: var(--nol-border-width) dashed Highlight;
+    outline-offset: calc(var(--nol-border-width) * -1);
+  }
+}
+
+button.nol-status-bar-item:focus-visible {
+  outline: var(--nol-border-width) solid var(--nol-accent);
+  outline-offset: calc(var(--nol-border-width) * -1);
+
+  @media (forced-colors: active) {
+    outline: calc(var(--nol-border-width) * 2) solid Highlight;
+  }
+}
+
+button.nol-status-bar-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+:host(.nol-status-bar-item-muted) .nol-status-bar-item {
+  color: var(--nol-text-muted);
+}
+
+.nol-status-bar-item-icon {
+  font-size: var(--nol-icon);
+}

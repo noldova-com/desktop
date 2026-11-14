@@ -1,0 +1,53 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<nol-place-menu #moves [place]="resources.toolbarMenu" [context]="menuContext()" />
+<button #grip type="button" tabindex="-1" class="nol-toolbar-grip" [attr.aria-label]="resources.toolbarGripLabel" [nolMenuTriggerFor]="moves.menu()" [nolTooltip]="resources.toolbarGripLabel"
+  [nolTooltipSide]="below" (pointerdown)="drag.begin(toolbar().name, $event)">
+  <span class="nol-toolbar-dot"></span>
+  <span class="nol-toolbar-dot"></span>
+  <span class="nol-toolbar-dot"></span>
+</button>
+<div #content class="nol-toolbar-content" nolToolbar [nolToolbarLabel]="toolbar().title">
+  @for (section of shown(); track section.group; let first = $first) {
+    @if (!first) {
+      <span class="nol-toolbar-separator" role="separator" aria-orientation="vertical"></span>
+    }
+    <div class="nol-toolbar-section" [attr.data-group]="section.group">
+      @for (row of section.rows; track $index) {
+        @if (row.isSubmenu) {
+          <nol-place-menu #nested [place]="row.place" />
+          <button nol-toolbar-button nolToolbarItem class="nol-toolbar-item" [attr.data-submenu]="row.place" [label]="row.title" [icon]="row.icon" [isShowingLabel]="true"
+            [hasMenu]="true" [nolMenuTriggerFor]="nested.menu()" [nolTooltip]="row.title" [nolTooltipTruncated]="true" [nolTooltipSide]="below"></button>
+        } @else {
+          <button nol-toolbar-button nolToolbarItem class="nol-toolbar-item" [attr.data-command]="row.command" [label]="row.title" [icon]="row.icon"
+            [pressed]="row.check === menuCheck.None ? undefined : row.isChecked" [isUnavailable]="!row.isEnabled" [nolTooltip]="tooltipOf(row)"
+            [nolTooltipSide]="below" (click)="run(row)"></button>
+        }
+      }
+    </div>
+  }
+  @if (overflowing().length > 0) {
+    <nol-place-menu #overflow [rows]="overflowing()" />
+    <button nol-toolbar-button nolToolbarItem class="nol-toolbar-item nol-toolbar-overflow" [label]="resources.toolbarOverflowLabel" [icon]="resources.toolbarOverflowGlyph"
+      [nolMenuTriggerFor]="overflow.menu()" [nolTooltip]="resources.toolbarOverflowLabel" [nolTooltipSide]="below"></button>
+  }
+</div>
+<div #ghost class="nol-toolbar-ghost" aria-hidden="true">
+  @for (section of toolbar().sections; track section.group; let first = $first) {
+    @if (!first) {
+      <span class="nol-toolbar-separator"></span>
+    }
+    <div class="nol-toolbar-ghost-section">
+      @for (row of section.rows; track $index) {
+        <button nol-toolbar-button tabindex="-1" [label]="row.title" [icon]="row.icon" [isShowingLabel]="row.isSubmenu" [hasMenu]="row.isSubmenu"></button>
+      }
+    </div>
+  }
+  <button nol-toolbar-button tabindex="-1" class="nol-toolbar-ghost-overflow" [label]="resources.toolbarOverflowLabel" [icon]="resources.toolbarOverflowGlyph"></button>
+</div>

@@ -1,0 +1,16 @@
+{
+  "name": "@noldova/desktop.fixture.clock.runtime",
+  "version": "__VERSION__",
+  "private": true,
+  "type": "module",
+  "main": "api/index.js",
+  "types": "api/index.d.ts",
+  "license": "MIT",
+  "dependencies": {
+    "@noldova/desktop.protocol": "__VERSION__",
+    "@noldova/desktop.runtime": "__VERSION__"
+  },
+  "devDependencies": {
+    "node-pty": "1.2.0-beta.15"
+  }
+}

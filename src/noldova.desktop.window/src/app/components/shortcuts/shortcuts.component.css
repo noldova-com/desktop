@@ -1,0 +1,93 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: block;
+}
+
+.nol-shortcuts-key-column {
+  min-width: 12rem;
+}
+
+.nol-shortcuts-actions-column {
+  min-width: 9rem;
+}
+
+.nol-shortcut-title {
+  display: flex;
+  align-items: center;
+  gap: var(--nol-space-2);
+  min-height: var(--nol-button-height);
+}
+
+.nol-shortcut-name {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--nol-text-muted);
+  font-size: var(--nol-text-label);
+  line-height: var(--nol-line-label);
+}
+
+.nol-shortcut-system {
+  margin-block-start: var(--nol-space-1);
+}
+
+.nol-shortcut-marker {
+  flex: none;
+  color: var(--nol-accent);
+  font-size: var(--nol-setting-marker);
+  font-variation-settings: "FILL" 1;
+}
+
+.nol-shortcut-owner {
+  color: var(--nol-text-muted);
+}
+
+.nol-shortcut-key-recording {
+  border-color: var(--nol-accent);
+
+  @media (forced-colors: active) {
+    outline: calc(var(--nol-border-width) * 2) solid Highlight;
+  }
+}
+
+.nol-shortcut-collision,
+.nol-shortcut-notice {
+  display: block;
+  width: 0;
+  min-width: 100%;
+  white-space: normal;
+  margin-top: var(--nol-space-1);
+  font-size: var(--nol-text-label);
+  line-height: var(--nol-line-label);
+}
+
+.nol-shortcut-collision {
+  color: var(--nol-text-muted);
+}
+
+.nol-shortcut-notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nol-space-1);
+}
+
+.nol-shortcut-notice-actions,
+.nol-shortcut-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nol-space-2);
+}
+
+.nol-shortcut-actions {
+  justify-content: flex-end;
+}
+
+.nol-setting-row-found {
+  background-color: var(--nol-selected);
+}

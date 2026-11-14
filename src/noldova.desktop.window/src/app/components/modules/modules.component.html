@@ -1,0 +1,142 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<header class="nol-modules-header">
+  <h1 class="nol-modules-title">{{ resources.modulesTitle }}</h1>
+  @if (version(); as version) {
+    <span class="nol-modules-version">{{ version }}</span>
+  }
+</header>
+<div class="nol-modules-body">
+  <nav class="nol-modules-list" [attr.aria-label]="resources.modulesTitle">
+    @for (module of overview().modules; track module.id) {
+      @let isCurrent = module.id === current()?.id;
+      <button type="button" class="nol-modules-row" [class.nol-modules-row-current]="isCurrent" [attr.aria-current]="isCurrent ? 'true' : null"
+        [attr.data-module]="module.id" (click)="select(module.id)">
+        <span class="nol-modules-row-head">
+          <span class="nol-modules-name" data-truncates [nolTooltip]="module.displayName" [nolTooltipTruncated]="true">{{ module.displayName }}</span>
+          <ng-container [ngTemplateOutlet]="state" [ngTemplateOutletContext]="{ $implicit: module }" />
+        </span>
+        <span class="nol-modules-row-meta">
+          <span class="nol-modules-id" data-truncates [nolTooltip]="module.id" [nolTooltipTruncated]="true">{{ module.id }}</span>
+          <span class="nol-modules-row-version">{{ module.version }}</span>
+          @if (countOf(module); as count) {
+            <span class="nol-modules-row-programs">{{ count }}</span>
+          }
+        </span>
+        <span class="nol-modules-description" data-truncates [nolTooltip]="module.description" [nolTooltipTruncated]="true">{{ module.description }}</span>
+      </button>
+    } @empty {
+      <p class="nol-modules-empty">{{ resources.noModules }}</p>
+    }
+  </nav>
+  @if (current(); as module) {
+    @let contributions = contributionsOf(module);
+    @let programs = programsOf(module);
+    <div class="nol-modules-detail-scroller">
+      <section class="nol-modules-detail" [attr.aria-labelledby]="'nol-modules-detail-' + module.id">
+        <h2 class="nol-modules-detail-title" [id]="'nol-modules-detail-' + module.id">{{ module.displayName }}</h2>
+        <p class="nol-modules-detail-id">{{ module.id }}</p>
+        <p class="nol-modules-detail-description">{{ module.description }}</p>
+        <dl class="nol-modules-facts">
+          <dt>{{ resources.moduleVersionTitle }}</dt>
+          <dd class="nol-modules-fact-version">{{ module.version }}</dd>
+          <dt>{{ resources.moduleStateTitle }}</dt>
+          <dd class="nol-modules-fact-state">
+            <ng-container [ngTemplateOutlet]="state" [ngTemplateOutletContext]="{ $implicit: module }" />
+            @if (module.cause; as cause) {
+              <span class="nol-modules-cause">{{ cause }}</span>
+            }
+          </dd>
+          @if (module.switchSetting; as setting) {
+            <dt>{{ resources.moduleSwitchTitle }}</dt>
+            <dd class="nol-modules-fact-switch"><nol-module-switch [setting]="setting" /></dd>
+          }
+          @if (overview().findBlocker(module); as blocker) {
+            <dt>{{ resources.blockedByTitle }}</dt>
+            <dd class="nol-modules-fact-blocker"><ng-container [ngTemplateOutlet]="links" [ngTemplateOutletContext]="{ $implicit: [blocker] }" /></dd>
+          }
+          <dt>{{ resources.dependenciesTitle }}</dt>
+          <dd class="nol-modules-fact-dependencies"><ng-container [ngTemplateOutlet]="links" [ngTemplateOutletContext]="{ $implicit: overview().listDependencies(module) }" /></dd>
+          @let optional = overview().listOptionalDependencies(module);
+          @if (optional.length > 0) {
+            <dt>{{ resources.optionalDependenciesTitle }}</dt>
+            <dd class="nol-modules-fact-optional-dependencies"><ng-container [ngTemplateOutlet]="links" [ngTemplateOutletContext]="{ $implicit: optional }" /></dd>
+          }
+          <dt>{{ resources.dependentsTitle }}</dt>
+          <dd class="nol-modules-fact-dependents"><ng-container [ngTemplateOutlet]="links" [ngTemplateOutletContext]="{ $implicit: overview().listDependents(module) }" /></dd>
+        </dl>
+        @if (module.state !== active && module.state !== off && module.state !== unavailable) {
+          <nol-module-actions [module]="module" />
+        }
+        <h3 class="nol-modules-section-title">{{ resources.programsTitle }}</h3>
+        @if (programs.length > 0) {
+          <ul class="nol-modules-programs">
+            @for (program of programs; track program.processId) {
+              @let isCopied = copiedProcess() === program.processId;
+              @let copyLabel = isCopied ? resources.copiedLabel : resources.copyPathLabel;
+              <li class="nol-modules-program" [attr.data-process]="program.processId" [nolTooltip]="program.details">
+                <span class="nol-modules-program-name" data-truncates>{{ program.name }}</span>
+                <span class="nol-modules-program-state">{{ program.state }}</span>
+                <button type="button" nol-icon-button class="nol-modules-program-copy" [class.nol-modules-program-copied]="isCopied"
+                  [icon]="isCopied ? resources.copiedGlyph : resources.copyGlyph" [label]="copyLabel"
+                  [nolTooltip]="resources.formatCopyPathTooltip(copyLabel, program.details)" (click)="copyPath(program)"></button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="nol-modules-none">{{ resources.noPrograms }}</p>
+        }
+        <h3 class="nol-modules-section-title">{{ resources.contributionsTitle }}</h3>
+        @if (contributions.length > 0) {
+          @for (group of contributions; track group.kind) {
+            @let isGroupOpen = isOpen(module, group.kind);
+            @let listId = 'nol-modules-contributions-' + module.id + '-' + group.kind;
+            <nol-group-header class="nol-modules-group" [attr.data-kind]="group.kind" [label]="group.title" [count]="group.rows.length" [level]="4" [controls]="isGroupOpen ? listId : null"
+              [expanded]="isGroupOpen" (expandedChange)="setOpen(module, group.kind, $event)" />
+            @if (isGroupOpen) {
+              <ul class="nol-modules-contributions" [id]="listId" [attr.data-kind]="group.kind">
+                @for (row of group.rows; track row.name) {
+                  <li class="nol-modules-contribution">
+                    @if (row.title; as title) {
+                      <span class="nol-modules-contribution-title">{{ title }}</span>
+                    }
+                    <span class="nol-modules-contribution-name">{{ row.name }}</span>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        } @else {
+          <p class="nol-modules-none">{{ resources.noContributions }}</p>
+        }
+      </section>
+    </div>
+  }
+</div>
+
+<ng-template #state let-module>
+  <span class="nol-modules-state" [class.nol-modules-state-down]="module.state !== active && module.state !== off && module.state !== unavailable">
+    @if (module.state === off) {
+      <span class="material-symbols-rounded" aria-hidden="true">{{ resources.moduleOffGlyph }}</span>
+    } @else if (module.state === unavailable) {
+      <span class="material-symbols-rounded" aria-hidden="true">{{ resources.moduleUnavailableGlyph }}</span>
+    } @else if (module.state !== active) {
+      <span class="material-symbols-rounded nol-modules-state-icon" aria-hidden="true">{{ resources.moduleFailureGlyph }}</span>
+    }
+    <span class="nol-modules-state-label">{{ labelOf(module.state) }}</span>
+  </span>
+</ng-template>
+
+<ng-template #links let-references>
+  @for (reference of references; track reference.id; let isLast = $last) {
+    @if (reference.module; as module) {<button type="button" class="nol-modules-link" (click)="follow(module.id)">{{ module.displayName }}</button>} @else {<span class="nol-modules-unknown">{{ reference.id }}</span>}@if (!isLast) {<span>, </span>}
+  } @empty {
+    <span class="nol-modules-none">{{ resources.noModulesNamed }}</span>
+  }
+</ng-template>

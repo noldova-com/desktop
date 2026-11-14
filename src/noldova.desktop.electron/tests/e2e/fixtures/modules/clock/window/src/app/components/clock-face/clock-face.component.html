@@ -1,0 +1,12 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<p class="nol-clock-face-answer" data-fixture-content="clock-face">{{ answer() }}</p>
+<p class="nol-clock-face-ticks" data-fixture-content="clock-ticks">{{ ticks() }}</p>
+<p class="nol-clock-face-step" data-fixture-content="clock-step">Step: {{ step() }}</p>
+<button type="button" data-fixture-content="clock-step-up" (click)="stepUp()">Step up</button>

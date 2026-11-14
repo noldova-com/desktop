@@ -1,0 +1,76 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<nol-configuration-table [label]="resources.shortcutsPage" [explanation]="resources.shortcutsExplanation">
+  <button type="button" class="nol-shortcuts-reset-all" nolConfigurationTableAction nol-button [variant]="secondary" [disabled]="!isModified()" (click)="resetAll()">{{ resources.resetAllShortcutsLabel }}</button>
+  <table class="nol-shortcuts-table" nolConfigurationTable>
+    <thead>
+      <tr>
+        <th scope="col" nolConfigurationTableFill>{{ resources.commandColumn }}</th>
+        <th scope="col">{{ resources.ownerColumn }}</th>
+        <th scope="col" class="nol-shortcuts-key-column">{{ resources.keyColumn }}</th>
+        <th scope="col" class="nol-shortcuts-actions-column" [attr.aria-label]="resources.actionsColumn"></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.name) {
+        @let isRecording = recording() === row.name;
+        @let rowNotice = notice()?.command === row.name ? notice() : null;
+        <tr [attr.data-command]="row.name" [attr.data-setting]="row.name">
+          <td nolConfigurationTableFill>
+            <span class="nol-shortcut-title">
+              @if (row.isModified) {
+                <span class="nol-shortcut-marker material-symbols-rounded" role="img" [attr.aria-label]="resources.modifiedLabel" [nolTooltip]="resources.modifiedLabel">{{ resources.modifiedGlyph }}</span>
+              }
+              <nol-highlighted-text [text]="row.title" [query]="query()" />
+            </span>
+            <span class="nol-shortcut-name"><nol-highlighted-text [text]="row.name" [query]="query()" [breaksWords]="true" /></span>
+            @if (row.name === resources.stopAgentControlCommand && isLinux) {
+              <span class="nol-shortcut-name nol-shortcut-system">{{ resources.stopKeyWaylandNote }}</span>
+            }
+          </td>
+          <td class="nol-shortcut-owner"><nol-highlighted-text [text]="row.owner" [query]="query()" /></td>
+          <td>
+            <button type="button" class="nol-shortcut-key" nol-button [variant]="secondary" [class.nol-shortcut-key-recording]="isRecording"
+              [attr.aria-label]="formatKeyLabel(row, isRecording)" [attr.aria-describedby]="describeKey(row, rowNotice !== null)" (click)="record(row)" (keydown)="press(row, $event)" (keyup)="release(row, $event)" (blur)="stopRecording(row)">
+              @if (isRecording) {
+                {{ hint() }}
+              } @else {
+                <nol-highlighted-text [text]="row.key" [query]="query()" />
+              }
+            </button>
+            @if (row.collision; as collision) {
+              <span class="nol-shortcut-collision" [id]="collisionId(row)">{{ collision }}</span>
+            }
+            @if (rowNotice) {
+              <div class="nol-shortcut-notice" role="alert">
+                <span class="nol-shortcut-notice-text" [id]="noticeId(row)">{{ rowNotice.text }}</span>
+                @if (rowNotice.holder; as holder) {
+                  <span class="nol-shortcut-notice-actions">
+                    <button type="button" nol-button [variant]="primary" (click)="useHere(rowNotice, holder)">{{ resources.useKeyHereLabel }}</button>
+                    <button type="button" nol-button [variant]="secondary" (click)="dismiss(rowNotice)">{{ resources.cancelLabel }}</button>
+                  </span>
+                }
+              </div>
+            }
+          </td>
+          <td>
+            <div class="nol-shortcut-actions">
+              @if (row.hasKey) {
+                <button type="button" nol-button [variant]="secondary" [attr.aria-label]="resources.formatRemoveKeyLabel(row.title)" (click)="remove(row)">{{ resources.removeKeyLabel }}</button>
+              }
+              @if (row.isModified) {
+                <button type="button" nol-button [variant]="secondary" [attr.aria-label]="resources.formatResetLabel(row.title)" (click)="reset(row)">{{ resources.resetLabel }}</button>
+              }
+            </div>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</nol-configuration-table>

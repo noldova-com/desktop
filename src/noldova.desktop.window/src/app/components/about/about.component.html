@@ -1,0 +1,59 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<div class="nol-about-heading">
+  @if (logo(); as logo) {
+    <img class="nol-about-logo" [src]="logo" alt="" />
+  }
+  <h2 class="nol-about-title">{{ version() }}</h2>
+</div>
+@if (about.description; as description) {
+  <p class="nol-about-description">{{ description }}</p>
+}
+<p class="nol-about-platform">{{ platform }}</p>
+@if (about.website || about.releases) {
+  <p class="nol-about-links">
+    @if (about.website; as website) {
+      <a class="nol-about-link" [href]="website">{{ websiteLabel }}</a>
+    }
+    @if (about.releases; as releases) {
+      <a class="nol-about-link" [href]="releases">{{ resources.releasesLink }}</a>
+    }
+  </p>
+}
+<div class="nol-about-state">
+<div class="nol-about-update">
+  <p #statusLine class="nol-about-status" role="status" tabindex="-1">
+    <span>{{ status() }}@if (percent(); as percent) {<span aria-hidden="true">{{ percent }}</span>}</span>
+    @for (detail of details(); track $index) {
+      <span class="nol-about-detail">{{ detail }}</span>
+    }
+    @if (showsMoveHint()) {
+      <span>{{ resources.formatMoveToApplications(productName) }}</span>
+    }
+  </p>
+  @switch (state().kind) {
+    @case (kinds.UpToDate) {
+      <button type="button" nol-button [variant]="secondary" (click)="check()">{{ resources.checkForUpdatesTitle }}</button>
+    }
+    @case (kinds.Ready) {
+      <button type="button" nol-button (click)="restart()">{{ resources.restartToUpdateLabel }}</button>
+    }
+    @case (kinds.Failed) {
+      <button type="button" nol-button [variant]="secondary" (click)="check()">{{ resources.tryAgain }}</button>
+    }
+  }
+</div>
+@if (state().kind === kinds.Downloading) {
+  <nol-progress class="nol-about-progress" [label]="progressLabel()" [value]="share()" />
+}
+</div>
+@if (about.licenses; as licenses) {
+  <h3 class="nol-about-licenses-title">{{ resources.licensesTitle }}</h3>
+  <p class="nol-about-licenses">{{ licenses }}</p>
+}

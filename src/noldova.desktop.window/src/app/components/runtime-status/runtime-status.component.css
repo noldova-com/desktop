@@ -1,0 +1,23 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: block;
+  padding: var(--nol-settings-item-padding);
+}
+
+.nol-runtime-status {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.nol-runtime-detail {
+  color: var(--nol-text-muted);
+  overflow-wrap: anywhere;
+}

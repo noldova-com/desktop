@@ -1,0 +1,24 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<nol-quick-input [items]="items()" [label]="label()" [icon]="resources.searchGlyph" [query]="query()" [emptyText]="emptyText()" (queryChange)="search($event)"
+  [attr.data-searching]="isSearching()" (chosen)="open($event)" (dismissed)="close()" (tabKey)="moveFilter($event)">
+  @for (filter of filters(); track filter.source) {
+    <button nolQuickInputFilters type="button" class="nol-search-filter" [attr.data-source]="filter.source" [attr.aria-pressed]="filter.isActive" tabindex="-1"
+      (mousedown)="$event.preventDefault()" (click)="choose(filter)">
+      <span>{{ filter.label }}</span>
+      @if (filter.count !== null) {
+        <span class="nol-search-filter-count">{{ filter.count }}</span>
+      }
+    </button>
+  }
+  @for (hint of resources.searchFooterHints; track hint) {
+    <span nolQuickInputFooter class="nol-search-hint">{{ hint }}</span>
+  }
+  <span nolQuickInputFooter class="nol-search-hint nol-search-hint-end">{{ resources.commandsOnlyHint }}</span>
+</nol-quick-input>

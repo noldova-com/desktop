@@ -1,0 +1,15 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+@if (dialogs.shown(); as tab) {
+  <nol-dialog [title]="labels.of(tab).title" [size]="large" (dismissed)="dialogs.close()">
+    <button type="button" nol-icon-button nolDialogControl class="nol-view-dialog-open" [icon]="resources.openInMainWindowGlyph" [label]="resources.openInMainWindowLabel"
+      [nolTooltip]="resources.openInMainWindowLabel" (click)="dialogs.openInMainWindow(tab)"></button>
+    <nol-tab-slot class="nol-view-dialog-content" [tab]="tab" />
+  </nol-dialog>
+}

@@ -1,0 +1,183 @@
+# @license
+# Copyright (c) Noldova.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+name: Build and test
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  versions:
+    name: Versions
+    uses: noldova-com/.github/.github/workflows/versions.yml@7640859ac0de8cc03fadbd705b45376c2e1bd88b # v2.25.0
+    permissions: {}
+
+  build-and-test:
+    name: Build and test
+    uses: noldova-com/.github/.github/workflows/build-and-test.yml@7640859ac0de8cc03fadbd705b45376c2e1bd88b # v2.25.0
+    permissions:
+      contents: read
+      packages: read
+    with:
+      targets: linux-x64 windows-x64 macos-x64 macos-arm64
+      publishes: true
+
+  package-targets:
+    name: List the package targets
+    needs: versions
+    runs-on: ${{ fromJSON(needs.versions.outputs.runs-on-linux-x64) }}
+    timeout-minutes: 5
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+    steps:
+      - name: Check out the revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ needs.versions.outputs.node-version }}
+          package-manager-cache: false
+
+      - name: Install the build's runtime packages
+        env:
+          npm_config_ignore_scripts: 'true'
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: List the targets that have runners
+        id: targets
+        timeout-minutes: 1
+        env:
+          RUNS_ON_LINUX: ${{ needs.versions.outputs.runs-on-linux-x64 }}
+          RUNS_ON_WINDOWS: ${{ needs.versions.outputs.runs-on-windows-x64 }}
+          RUNS_ON_MACOS: ${{ needs.versions.outputs.runs-on-macos-x64 }}
+          RUNS_ON_MACOS_ARM64: ${{ needs.versions.outputs.runs-on-macos-arm64 }}
+        run: |
+          set -euo pipefail
+          table=$(node src/noldova.desktop.build/src/services/release-command-line.ts list-targets)
+          targets=''
+          while IFS='|' read -r target runner architecture platform _; do
+            targets="$targets${targets:+,}{\"target\":\"$target\",\"runner\":$runner,\"architecture\":\"$architecture\",\"platform\":\"$platform\",\"signed\":\"false\"}"
+          done <<< "$table"
+          echo "targets=[$targets]" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Package unsigned
+    needs: package-targets
+    uses: ./.github/workflows/package-app.yml
+    with:
+      targets: ${{ needs.package-targets.outputs.targets }}
+      signed: false
+
+  code-changes:
+    name: Code changes
+    needs: versions
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ fromJSON(needs.versions.outputs.runs-on-linux-x64) }}
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.paths.outputs.code }}
+    steps:
+      - name: Check out the revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Find whether the pull request changes more than documents and the callers of shared workflows
+        id: paths
+        run: |
+          has_code() {
+            grep -qvE '^documents/|\.md$|^\.github/workflows/(require-linked-issue|flake-proof|release-npm)\.yml$' <<< "$1"
+          }
+          expect_code() {
+            if has_code "$2"; then got=true; else got=false; fi
+            if [ "$got" != "$1" ]; then
+              echo "::error::The check gives code=$got, not code=$1, for: ${2//$'\n'/, }"
+              exit 1
+            fi
+          }
+          expect_code false $'documents/BUILD.md\nREADME.md\n.github/workflows/require-linked-issue.yml\n.github/workflows/flake-proof.yml\n.github/workflows/release-npm.yml'
+          expect_code true $'.github/workflows/flake-proof.yml\nsrc/noldova.desktop.window.app/package.json'
+          expect_code true $'.github/workflows/release-npm.yml\n.github/workflows/end-to-end-specs.yml'
+          expect_code true '.github/workflows/build-and-test.yml'
+          expect_code true '.github/workflows/flake-proof.yml.orig'
+          expect_code true 'src/documents/notes.ts'
+          expect_code true 'src/.github/workflows/release-npm.yml'
+          changes() {
+            git -c core.quotepath=off diff --no-renames --name-only HEAD^1 HEAD
+          }
+          renamed="$RUNNER_TEMP/renamed"
+          git -c init.defaultBranch=main init -q "$renamed"
+          mkdir -p "$renamed/src" "$renamed/documents"
+          echo 'export {};' > "$renamed/src/notes.ts"
+          git -C "$renamed" add src/notes.ts
+          git -C "$renamed" -c user.name=check -c user.email=check@localhost commit -qm before
+          git -C "$renamed" mv src/notes.ts documents/notes.md
+          git -C "$renamed" -c user.name=check -c user.email=check@localhost commit -qm after
+          expect_code true "$(cd "$renamed" && changes)"
+          changed=$(changes)
+          echo "$changed"
+          if has_code "$changed"; then
+            echo code=true >> "$GITHUB_OUTPUT"
+          else
+            echo code=false >> "$GITHUB_OUTPUT"
+          fi
+
+  end-to-end:
+    name: End-to-end specs
+    needs: [versions, code-changes]
+    if: needs.code-changes.outputs.code == 'true'
+    uses: ./.github/workflows/end-to-end-specs.yml
+    with:
+      targets: ${{ format('[{0}"target":"Linux x64","system":"linux","runner":{1}{2}]', '{', toJSON(needs.versions.outputs.runs-on-linux-x64), '}') }}
+
+  all-targets:
+    name: ${{ github.event_name == 'workflow_dispatch' && 'All targets (by hand)' || 'All targets' }}
+    needs: [versions, build-and-test, package, code-changes, end-to-end]
+    if: always()
+    runs-on: ${{ fromJSON(needs.versions.outputs.runs-on-linux-x64) }}
+    timeout-minutes: 5
+    steps:
+      - name: Require every target, the package and a pull request's end-to-end specs to pass
+        env:
+          RESULT: ${{ needs.build-and-test.result }}
+          PACKAGE_RESULT: ${{ needs.package.result }}
+          EVENT: ${{ github.event_name }}
+          CHANGES_RESULT: ${{ needs.code-changes.result }}
+          CODE: ${{ needs.code-changes.outputs.code }}
+          END_TO_END_RESULT: ${{ needs.end-to-end.result }}
+        run: |
+          echo "The targets' result: $RESULT; the package's result: $PACKAGE_RESULT"
+          test "$RESULT" = success
+          test "$PACKAGE_RESULT" = success
+          if [ "$EVENT" = pull_request ]; then
+            echo "The code changes' result: $CHANGES_RESULT, code changed: $CODE; the end-to-end specs' result: $END_TO_END_RESULT"
+            test "$CHANGES_RESULT" = success
+            if [ "$CODE" = true ]; then
+              test "$END_TO_END_RESULT" = success
+            else
+              test "$END_TO_END_RESULT" = skipped
+            fi
+          fi
