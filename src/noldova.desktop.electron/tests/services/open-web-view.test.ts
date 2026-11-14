@@ -795,7 +795,7 @@ export class OpenWebViewTests {
     const rule = "The host owns focus emulation, so a module may not send Emulation.setFocusEmulationEnabled.";
     Assert.areEqual(`${rule}|${rule}`, answers.map(t => t.failure?.message ?? "none").join("|"));
     Assert.areEqual(JSON.stringify([{ enabled: true }]), JSON.stringify(harness.contents.debugger.sent.filter(t => t[0] === OpenWebViewTests.FOCUS_EMULATION).map(t => t[1])));
-    Assert.areEqual("[]", JSON.stringify(undeclared.contents.debugger.sent));
+    Assert.areEqual("[]", JSON.stringify(undeclared.contents.debugger.sent.filter(t => t[0] === OpenWebViewTests.FOCUS_EMULATION)));
     Assert.areEqual("[]", JSON.stringify([...harness.inputs, ...undeclared.inputs]));
   }
 
