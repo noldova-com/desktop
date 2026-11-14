@@ -11,6 +11,7 @@ import { mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
+import { mock } from "node:test";
 
 import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
@@ -883,16 +884,101 @@ export class PackageSmokeTests {
     keeping.keepsStartLog = true;
 
     const ended = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, ending, processes, false);
-    const kept = await PausedClockFixture.withoutPausesAsync(() => PackageSmokeTests.smokeAppImageAsync(app, parent.path, keeping, processes, false),
-      Resources.smokePollInterval);
+    const [kept, wasWaitingBeforeTheLimit] = await PackageSmokeTests.smokeUntilTheLaunchLimitAsync(app, parent.path, keeping, processes);
 
     const tail = (folder: string): string => Resources.formatSmokeLogTail(path.join(folder, "main.log"), "main started");
     Assert.areEqual(1, ended.exitCode);
     Assert.isTrue(ended.output.endsWith(Resources.formatOutputLine(Resources.formatSmokeMainEndedBeforeLauncher("exited with code 1", tail(ended.folder)))), ended.output);
+    Assert.isTrue(wasWaitingBeforeTheLimit);
     Assert.areEqual(1, kept.exitCode);
     Assert.isTrue(kept.output.endsWith(Resources.formatOutputLine(Resources.formatSmokeLauncherKeptStartLog(path.join(kept.data, "logs"), tail(kept.folder)))),
       kept.output);
     Assert.areEqual("SIGKILL", keeping.main?.signals.join("|"));
+  }
+
+  @TestMethod
+  public async waitsForALauncherThatRemovesItsStartLogOnlyOnceTheWaitBeganAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new AppImageCopyRunnerFixture();
+    runner.removesStartLog = true;
+
+    const result = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, runner, processes, true);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(PackageSmokeTests.withoutTimes(result.output).includes(Resources.formatSmokeExtraction(path.join(result.folder, "extraction"),
+      AppImageCopyRunnerFixture.EXTRACTED_BYTES)), result.output);
+    Assert.isFalse(existsSync(path.join(result.data, "logs", "start-00000000-0000-0000-0000-000000000000.log")));
+  }
+
+  @TestMethod
+  public async goesOnWhenTheLauncherRemovesItsStartLogJustBeforeTheMainProcessExitsAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new AppImageCopyRunnerFixture();
+    runner.removesStartLog = true;
+    runner.exitsAfterRemovingStartLog = true;
+
+    const result = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, runner, processes, true);
+
+    const output = PackageSmokeTests.withoutTimes(result.output);
+    Assert.isTrue(output.includes(Resources.formatSmokeExtraction(path.join(result.folder, "extraction"), AppImageCopyRunnerFixture.EXTRACTED_BYTES)), result.output);
+    Assert.isFalse(output.includes(Resources.formatSmokeMainEndedBeforeLauncher("exited with code 0", Resources.formatSmokeLogTail(path.join(result.folder, "main.log"),
+      "main started"))), result.output);
+  }
+
+  @TestMethod
+  public async reportsALogsFolderItCannotWatchAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new AppImageCopyRunnerFixture();
+    runner.makesLogs = false;
+    runner.records = [];
+
+    const result = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, runner, processes, false);
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.includes(Resources.formatSmokeLogsUnwatchable(path.join(result.data, "logs"))), result.output);
+    Assert.areEqual("SIGKILL", runner.main?.signals.join("|"));
+  }
+
+  private static async smokeUntilTheLaunchLimitAsync(app: InstalledAppFixture, parent: string, runner: AppImageCopyRunnerFixture, processes: string):
+    Promise<readonly [Awaited<ReturnType<typeof PackageSmokeTests.smokeAppImageAsync>>, boolean]> {
+    mock.timers.enable({ apis: ["setTimeout", "Date"] });
+    try {
+      let isWaiting = false;
+      let isDone = false;
+      void runner.launchWait.promise.then(() => {
+        isWaiting = true;
+      });
+      const running = PackageSmokeTests.smokeAppImageAsync(app, parent, runner, processes, false);
+      void running.then(() => {
+        isDone = true;
+      }, () => {
+        isDone = true;
+      });
+      await PackageSmokeTests.tickUntilAsync(() => isWaiting);
+      mock.timers.tick(Resources.smokeStartLimit - Resources.smokePollInterval);
+      await new Promise<void>(resolve => setImmediate(resolve));
+      const wasWaiting = !isDone;
+      await PackageSmokeTests.tickUntilAsync(() => isDone);
+      return [await running, wasWaiting];
+    }
+    finally {
+      mock.timers.reset();
+    }
+  }
+
+  private static async tickUntilAsync(condition: () => boolean): Promise<void> {
+    for (;;) {
+      await new Promise<void>(resolve => setImmediate(resolve));
+      if (condition())
+        return;
+      mock.timers.tick(Resources.smokePollInterval);
+    }
   }
 
   private static async createProcessesAsync(folder: string, program: Buffer): Promise<string> {

@@ -16,16 +16,20 @@ import { StartedProcess } from "../../src/services/processes/started-process.js"
 export class SmokeProcessFixture extends StartedProcess {
   private readonly processId: number;
   private readonly onEnd: () => void;
+  private readonly ended: PromiseWithResolvers<void> = Promise.withResolvers<void>();
   private code: number | null;
   private signalName: NodeJS.Signals | null = null;
 
   public readonly signals: NodeJS.Signals[] = [];
+  public onWaitForExitAsync: () => Promise<void> = () => Promise.resolve();
 
   public constructor(processId: number, code: number | null, onEnd: () => void) {
     super(new ChildProcess());
     this.processId = processId;
     this.code = code;
     this.onEnd = onEnd;
+    if (!Object.isNull(code))
+      this.ended.resolve();
   }
 
   public override get id(): number {
@@ -48,6 +52,11 @@ export class SmokeProcessFixture extends StartedProcess {
     return Object.isNull(this.signalName) ? Resources.formatProcessExited(this.code) : Resources.formatProcessSignalled(this.signalName);
   }
 
+  public override async waitForExitAsync(): Promise<void> {
+    await this.onWaitForExitAsync();
+    await this.ended.promise;
+  }
+
   public override waitAsync(): Promise<boolean> {
     return Promise.resolve(this.hasExited);
   }
@@ -55,11 +64,13 @@ export class SmokeProcessFixture extends StartedProcess {
   public override signal(name: NodeJS.Signals): void {
     this.signals.push(name);
     this.signalName = name;
+    this.ended.resolve();
     this.onEnd();
   }
 
   public exit(code: number): void {
     this.code = code;
+    this.ended.resolve();
     this.onEnd();
   }
 }
