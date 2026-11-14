@@ -65,13 +65,13 @@ const runAsync = async (source: string): Promise<ISerialTestRunOutcome> => {
     await mkdir(temporary);
     await writeFile(path.join(tests, "hanging.test.js"), source);
     const environment: NodeJS.ProcessEnv = {
-      PATH: process.env.PATH,
+      PATH: process.env["PATH"],
       [Resources.serialTestFiltersVariable]: "[]",
       [Resources.serialTestTimeoutVariable]: "200",
       [Resources.serialTestTemporaryRootVariable]: temporary
     };
-    if (!Object.isUndefined(process.env.SystemRoot))
-      environment.SystemRoot = process.env.SystemRoot;
+    if (!Object.isUndefined(process.env["SystemRoot"]))
+      environment["SystemRoot"] = process.env["SystemRoot"];
     const run = spawn(process.execPath, [path.join(ROOT, "scripts", "checks", "serial-test-run.ts"), "Hanging", tests], { cwd: ROOT, env: environment });
     const closed = once(run, "close");
     try {
