@@ -8,6 +8,6 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-export interface IViteMiddlewares {
-  use(handler: (request: IncomingMessage, response: ServerResponse, next: () => void) => void): unknown;
+export interface IViteHttpServer {
+  on(event: "request", listener: (request: IncomingMessage, response: ServerResponse) => void): unknown;
 }

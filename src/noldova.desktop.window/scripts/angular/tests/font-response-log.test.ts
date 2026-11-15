@@ -15,17 +15,11 @@ import "@noldova/context.core";
 
 import { FontResponseLog } from "../font-response-log.ts";
 
-type Handler = (request: IncomingMessage, response: ServerResponse, next: () => void) => void;
-
 const servers: Server[] = [];
 
 const startAsync = async (answer: (request: IncomingMessage, response: ServerResponse) => void, warnings: string[], onWarning: () => void, log: FontResponseLog = new FontResponseLog()): Promise<number> => {
-  let middleware: Handler = (_request, _response, next) => next();
-  log.configureServer({
-    middlewares: { use: handler => { middleware = handler; } },
-    config: { logger: { warn: message => { warnings.push(message); onWarning(); } } }
-  });
-  const server = createServer((incoming, response) => middleware(incoming, response, () => answer(incoming, response)));
+  const server = createServer(answer);
+  log.configureServer({ httpServer: server, config: { logger: { warn: message => { warnings.push(message); onWarning(); } } } });
   servers.push(server);
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -50,11 +44,14 @@ describe("FontResponseLog", () => {
     }
   });
 
-  it("returns nothing from configureServer, so Vite runs no post hook though the server's use returns its app", () => {
-    const app = (): void => undefined;
-    const returned: unknown = new FontResponseLog().configureServer({ middlewares: { use: () => app }, config: { logger: { warn: () => undefined } } });
+  it("returns nothing from configureServer, so Vite runs no post hook though the server's on returns a function, and watches nothing without an HTTP server", () => {
+    const log = new FontResponseLog();
+    const listen = (): void => undefined;
+    const returned: unknown = log.configureServer({ httpServer: { on: () => listen }, config: { logger: { warn: () => undefined } } });
+    const withoutServer: unknown = log.configureServer({ httpServer: null, config: { logger: { warn: () => undefined } } });
 
-    assert.equal(returned, undefined);
+    assert.deepEqual([returned, withoutServer], [undefined, undefined]);
+    assert.match(log.summary, /^The font log watched 0 font requests/u);
   });
 
   it("reports at the run's close how many font requests it watched, 0 before any, counting fonts only", async () => {

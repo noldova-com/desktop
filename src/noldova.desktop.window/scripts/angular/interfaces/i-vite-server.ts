@@ -6,10 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { IViteMiddlewares } from "./i-vite-middlewares.ts";
+import type { IViteHttpServer } from "./i-vite-http-server.ts";
 import type { IViteServerConfig } from "./i-vite-server-config.ts";
 
 export interface IViteServer {
-  readonly middlewares: IViteMiddlewares;
+  readonly httpServer: IViteHttpServer | null;
   readonly config: IViteServerConfig;
 }

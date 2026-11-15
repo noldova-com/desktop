@@ -19,15 +19,13 @@ export class FontResponseLog {
   private static readonly NAME: string = "noldova-font-response-log";
   private static readonly FONT: RegExp = /\.(?:woff2?|ttf|otf)(?:[?#]|$)/u;
   private static readonly FAILED_STATUS: number = 400;
+  private static readonly REQUEST: "request" = "request";
 
   private watched: number = 0;
 
   public readonly name: string = FontResponseLog.NAME;
   public readonly configureServer: (server: IViteServer) => void = server => {
-    server.middlewares.use((request, response, next) => {
-      this.watch(server.config.logger, request, response);
-      next();
-    });
+    server.httpServer?.on(FontResponseLog.REQUEST, (request, response) => this.watch(server.config.logger, request, response));
   };
   public readonly configureVitest: (context: IVitestPluginContext) => void = context => context.vitest.onClose(() => context.vitest.logger.log(this.summary));
 
