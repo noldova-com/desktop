@@ -26,6 +26,7 @@ export class TestHangGuard {
   private readonly finished: Map<string, string> = new Map();
   private readonly hooks: Map<string, string> = new Map();
   private run: NodeJS.Timeout | undefined = undefined;
+  private unfinished: number = 0;
   private isStopped: boolean = false;
   private report: (message: string) => void = () => undefined;
 
@@ -34,7 +35,10 @@ export class TestHangGuard {
     this.report = message => context.vitest.logger.error(message);
     context.vitest.config.reporters.push(this);
   };
-  public readonly onTestRunStart: () => void = () => this.watchRun();
+  public readonly onTestRunStart: (specifications: readonly unknown[]) => void = specifications => {
+    this.unfinished = specifications.length;
+    this.watchRun();
+  };
   public readonly onTestModuleQueued: (module: IReportedModule) => void = module => this.watch(module.relativeModuleId);
   public readonly onTestModuleCollected: (module: IReportedModule) => void = module => this.watch(module.relativeModuleId);
   public readonly onTestModuleStart: (module: IReportedModule) => void = module => this.watch(module.relativeModuleId);
@@ -59,13 +63,16 @@ export class TestHangGuard {
   };
   public readonly onTestModuleEnd: (module: IReportedModule) => void = module => {
     this.forget(module.relativeModuleId);
-    this.touchRun();
+    this.unfinished -= 1;
+    if (this.unfinished > 0)
+      this.touchRun();
+    else
+      this.endRun();
   };
   public readonly onTestRunEnd: () => void = () => {
     for (const file of [...this.watches.keys()])
       this.forget(file);
-    clearTimeout(this.run);
-    this.run = undefined;
+    this.endRun();
   };
 
   public constructor(limit: number = TestHangGuard.LIMIT_MILLISECONDS, end: () => void = TestHangGuard.exit) {
@@ -87,6 +94,11 @@ export class TestHangGuard {
   private touchRun(): void {
     if (!Object.isUndefined(this.run))
       this.watchRun();
+  }
+
+  private endRun(): void {
+    clearTimeout(this.run);
+    this.run = undefined;
   }
 
   private forget(file: string): void {

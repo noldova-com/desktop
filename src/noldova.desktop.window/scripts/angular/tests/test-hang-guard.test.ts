@@ -21,13 +21,13 @@ const file = (relativeModuleId: string): IReportedModule => ({ relativeModuleId 
 
 const test = (name: string, fullName: string): IReportedTest => ({ module: file(name), fullName });
 
-const watch = (): { guard: TestHangGuard; reporters: unknown[]; errors: string[]; ends: () => number } => {
+const watch = (files: number = 2): { guard: TestHangGuard; reporters: unknown[]; errors: string[]; ends: () => number } => {
   const reporters: unknown[] = [];
   const errors: string[] = [];
   let ended = 0;
   const guard = new TestHangGuard(LIMIT, () => ended++);
   guard.configureVitest({ vitest: { config: { reporters }, logger: { error: message => errors.push(message) } } });
-  guard.onTestRunStart();
+  guard.onTestRunStart(Array.from({ length: files }, (_, i) => `tests/${i}.spec.ts`));
   return { guard, reporters, errors, ends: () => ended };
 };
 
@@ -137,6 +137,22 @@ describe("TestHangGuard", () => {
     assert.deepEqual(early, []);
     assert.deepEqual(errors, ["The Angular tests stopped: Vitest reported nothing for 60 s between files, with every file that started ended."]);
     assert.equal(ends(), 1);
+  });
+
+  it("stops watching the run once its last file ends, so the coverage that follows without reports never ends it", () => {
+    const { guard, errors, ends } = watch();
+
+    for (const name of ["tests/a.spec.ts", "tests/b.spec.ts"]) {
+      guard.onTestModuleQueued(file(name));
+      guard.onTestModuleStart(file(name));
+      guard.onTestCaseReady(test(name, "A > opens"));
+      guard.onTestCaseResult(test(name, "A > opens"));
+      guard.onTestModuleEnd(file(name));
+    }
+    mock.timers.tick(LIMIT * 2);
+
+    assert.deepEqual(errors, []);
+    assert.equal(ends(), 0);
   });
 
   it("watches nothing once the run ends", () => {

@@ -161,7 +161,7 @@ The font log, `src/noldova.desktop.window/scripts/angular/font-response-log.ts`,
 A font request the server never received, such as one sent after it stopped or refused the connection, logs nothing.
 When the run closes, the log writes "The font log watched N font requests to the test server": a run that loads the kit's fonts and shows 0 has the log detached from the server that serves them, so a missing warning then says nothing.
 The hang guard, `src/noldova.desktop.window/scripts/angular/test-hang-guard.ts`, is a plugin of the same config that adds itself to Vitest's reporters, which run in Node.js outside the browser.
-It watches each spec file from the time Vitest queues it until it ends, through its loading and collection, each test and each hook, and the whole run from its start to its end, including the time between files.
+It watches each spec file from the time Vitest queues it until it ends, through its loading and collection, each test and each hook, and the whole run from its start until the last of its files ends, including the time between files; the coverage report that follows reports nothing to watch, so it runs unwatched.
 When a file reports nothing for 60 s, it names that file and the test or hook it was in, or the last test it finished, while another file's reports never reset its watch.
 When the run reports nothing for 60 s, it names every file that started and hasn't ended, or says the run stopped between files.
 Either way, it ends the run with exit code 1.
