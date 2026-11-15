@@ -140,6 +140,36 @@ export class FolderWatchTests {
   }
 
   @TestMethod
+  public async keepsWaitingWhileAnEntryCannotBeReadAndWakesAtTheNextChange(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const pending = path.join(folder.path, "runtime.json.partial");
+    await writeFile(pending, "{}");
+    using _watches = WatchPatchFixture.quiet();
+    const statSync = fs.statSync;
+    const reading = mock.method(fs, "statSync", (target: fs.PathLike, options: fs.StatSyncOptions & { throwIfNoEntry: false }) => {
+      if (String(target) === pending)
+        throw Object.assign(new Error(`EPERM: operation not permitted, stat '${pending}'`), { code: "EPERM" });
+      return statSync(target, options);
+    });
+    syncBuiltinESMExports();
+    try {
+      using watch = FolderWatch.open(folder.path, FolderWatchTests.LOG, 1);
+      let ticks = 0;
+
+      await watch.waitAsync(FolderWatchTests.LIMIT, () => ++ticks === FolderWatchTests.TICKS);
+      await writeFile(path.join(folder.path, "runtime.json"), "{}");
+      const isWoken = await watch.waitAsync(FolderWatchTests.LIMIT, () => false);
+
+      Assert.areEqual(FolderWatchTests.TICKS, ticks, "the unreadable entry neither fails nor wakes the wait");
+      Assert.isTrue(isWoken, "a check tick finds the next change, not the wait's timeout");
+    }
+    finally {
+      reading.mock.restore();
+      syncBuiltinESMExports();
+    }
+  }
+
+  @TestMethod
   public async wakesAtTheNextTickOnceTheMissingFolderIsCreatedThoughItsWatchMissedIt(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
     using _watches = WatchPatchFixture.quiet();

@@ -53,10 +53,17 @@ export class FolderWatch implements Disposable {
   private static readStamp(folder: string): string | null {
     if (!existsSync(folder))
       return null;
-    return readdirSync(folder).sort().map(t => {
-      const entry = statSync(path.join(folder, t), { throwIfNoEntry: false });
-      return `${t} ${String(entry?.ino ?? 0)} ${String(entry?.mtimeMs ?? 0)}`;
-    }).join("\n");
+    return readdirSync(folder).sort().map(t => FolderWatch.readEntry(folder, t)).join("\n");
+  }
+
+  private static readEntry(folder: string, name: string): string {
+    try {
+      const entry = statSync(path.join(folder, name), { throwIfNoEntry: false });
+      return `${name} ${String(entry?.ino ?? 0)} ${String(entry?.mtimeMs ?? 0)}`;
+    }
+    catch (error) {
+      return `${name} ${String(error)}`;
+    }
   }
 
   public async waitAsync(timeout: number, isDone: () => boolean): Promise<boolean> {
