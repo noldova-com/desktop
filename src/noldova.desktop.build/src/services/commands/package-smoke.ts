@@ -497,13 +497,15 @@ export class PackageSmoke {
     const removed = Promise.withResolvers<boolean>();
     const limit = new AbortController();
     const fail = (error: unknown): void => removed.reject(new BuildException(Resources.formatSmokeLogsUnwatchable(logs), new ExceptionOptions(error)));
-    let watcher: FSWatcher | undefined;
+    const check = (): void => void PackageSmoke.hasStartLogAsync(logs).then(t => {
+      if (!t)
+        removed.resolve(true);
+    }, removed.reject);
+    const watchers: FSWatcher[] = [];
     try {
       try {
-        watcher = watch(logs, () => void PackageSmoke.hasStartLogAsync(logs).then(t => {
-          if (!t)
-            removed.resolve(true);
-        }, removed.reject)).once(Resources.errorEvent, fail);
+        for (const name of (await readdir(logs)).filter(t => Resources.smokeStartLogPattern.test(t)))
+          PackageSmoke.watchStartLog(path.join(logs, name), check, fail, watchers);
       }
       catch (error) {
         fail(error);
@@ -514,7 +516,18 @@ export class PackageSmoke {
     }
     finally {
       limit.abort();
-      watcher?.close();
+      for (const watcher of watchers)
+        watcher.close();
+    }
+  }
+
+  private static watchStartLog(file: string, check: () => void, fail: (error: unknown) => void, watchers: FSWatcher[]): void {
+    try {
+      watchers.push(watch(file, check).once(Resources.errorEvent, fail));
+    }
+    catch (error) {
+      if (existsSync(file))
+        throw error;
     }
   }
 
