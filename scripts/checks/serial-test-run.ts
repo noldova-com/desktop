@@ -90,6 +90,16 @@ export class SerialTestRun {
     return Resources.formatSerialTestSlowest(suite, limit, TestTimeRecord.formatSlowest(TestTimeRecord.fromResult(new TestRunResult(results)), Resources.serialTestSlowestCount));
   }
 
+  private static tryRemove(folder: string): boolean {
+    try {
+      rmSync(folder, { recursive: true, force: true, maxRetries: Resources.serialTestRemovalRetries });
+      return true;
+    }
+    catch {
+      return false;
+    }
+  }
+
   public async runAsync(projectArguments: readonly string[]): Promise<void> {
     const summary = new TestRunSummary(this.environment[Resources.summaryVariable], this.environment[Resources.serialTestGroupVariable]);
     const coverage = this.environment[Resources.serialTestNodeCoverageVariable];
@@ -160,15 +170,16 @@ export class SerialTestRun {
       process.exitCode = Resources.failedExitCode;
     }
 
-    const leftovers = readdirSync(temporary).sort();
-    rmSync(temporary, { recursive: true, force: true, maxRetries: Resources.serialTestRemovalRetries });
     const message = interruption.message;
     if (!Object.isNull(message)) {
       writeSync(Resources.serialTestStandardErrorDescriptor, message);
       summary.writeFailure(message);
-      process.exit(Resources.failedExitCode);
     }
-    if (leftovers.length > 0) {
+    const leftovers = readdirSync(temporary).sort();
+    const isRemoved = SerialTestRun.tryRemove(temporary);
+    if (!Object.isNull(message))
+      process.exit(Resources.failedExitCode);
+    if (leftovers.length > 0 || !isRemoved) {
       writeSync(Resources.serialTestStandardErrorDescriptor, Resources.formatSerialTestLeftovers(leftovers));
       summary.writeFailure(Resources.formatSerialTestLeftovers(leftovers));
       process.exitCode = Resources.failedExitCode;

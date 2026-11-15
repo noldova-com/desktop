@@ -86,6 +86,27 @@ const PASSING_SUITES = [
   "TestClass(OtherTests);"
 ].join("\n");
 
+const LOCKING = (hangs: boolean): string => [
+  "import \"@noldova/context.core\";",
+  "import fs from \"node:fs\";",
+  "import { syncBuiltinESMExports } from \"node:module\";",
+  "import os from \"node:os\";",
+  "import path from \"node:path\";",
+  "import { TestClass, TestMethod } from \"@noldova/context.testing\";",
+  "export class LockingTests {",
+  "  holdsItsFolder() {",
+  "    fs.writeFileSync(path.join(os.tmpdir(), \"builder.lock\"), \"\");",
+  "    fs.rmSync = () => {",
+  "      throw Object.assign(new Error(\"EBUSY: resource busy or locked\"), { code: \"EBUSY\" });",
+  "    };",
+  "    syncBuiltinESMExports();",
+  hangs ? "    return new Promise(resolve => setTimeout(resolve, 600_000));" : String.empty,
+  "  }",
+  "}",
+  "TestMethod(LockingTests.prototype.holdsItsFolder);",
+  "TestClass(LockingTests);"
+].join("\n");
+
 interface ISerialTestRunOutcome {
   readonly code: unknown;
   readonly output: string;
@@ -163,6 +184,22 @@ describe("SerialTestRun", () => {
     assert.match(errors, /The test Hanging\/hanging\.test\.js › PackagingTests\.waitsForATimerThatNeverFires exceeded its time limit of 300 ms while waiting on [^;]*\bTimeout\b[^;]*;/u);
     assert.match(output, /General suite, limit 200 ms:\nSlowest tests:\n {2}\d+ ms {2}Hanging\/hanging\.test\.js — OtherTests\.passes\n/u);
     assert.match(output, /Packaging suite, limit 300 ms:\nSlowest tests:\n {2}\d+ ms {2}Hanging\/hanging\.test\.js — PackagingTests\.waitsForATimerThatNeverFires\n/u);
+  });
+
+  it("names the test that reaches its time limit though the run's temporary folder can't be removed while it holds it", async () => {
+    const { code, errors } = await runAsync(LOCKING(true));
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(errors, /The test Hanging\/hanging\.test\.js › LockingTests\.holdsItsFolder exceeded its time limit of 200 ms while waiting on [^;]*\bTimeout\b[^;]*;/u);
+    assert.doesNotMatch(errors, /EBUSY/u);
+  });
+
+  it("fails the run, naming what is left, when the run's temporary folder can't be removed", async () => {
+    const { code, errors } = await runAsync(LOCKING(false));
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(errors, /Tests finished but left builder\.lock in the run's temporary folder;/u);
+    assert.doesNotMatch(errors, /EBUSY/u);
   });
 
   it("prints each suite's slowest tests under its limit after the summary", async () => {
