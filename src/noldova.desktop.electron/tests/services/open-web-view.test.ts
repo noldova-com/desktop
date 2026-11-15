@@ -707,7 +707,7 @@ export class OpenWebViewTests {
     for (const committed of [String.empty, "https://example.com/a"]) {
       const harness = await OpenWebViewTests.showAsync();
       const fresh = OpenWebViewTests.rendererless();
-      fresh.restoreFailure = new Error("The page failed to load.");
+      fresh.restoreAnswer = () => Promise.reject(new Error("The page failed to load."));
       fresh.url = committed;
       harness.open.keep();
       OpenWebViewTests.destroy(harness);
@@ -719,6 +719,40 @@ export class OpenWebViewTests {
     }
 
     Assert.areEqual("restore load load|restore load", calls.join("|"));
+  }
+
+  @TestMethod
+  public async restoresNothingAndLoadsNothingOnceAHistoryActionStartedWhileItCheckedTheKeptAddress(): Promise<void> {
+    const harness = await OpenWebViewTests.showAsync();
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    fresh.loading = true;
+    harness.open.keep();
+    OpenWebViewTests.destroy(harness);
+
+    const binding = harness.open.bindAsync(fresh, true);
+    const stopped = await harness.open.actAsync(WebViewAction.Stop);
+    const isBound = await binding;
+
+    Assert.areEqual(JSON.stringify([true, { kind: "Started" }, "stop"]), JSON.stringify([isBound, stopped, fresh.calls.join(",")]));
+  }
+
+  @TestMethod
+  public async loadsNotItsAddressWhenItsRestoreFailsAfterANavigationStarted(): Promise<void> {
+    const harness = await OpenWebViewTests.showAsync();
+    const fresh = OpenWebViewTests.rendererless();
+    let fail: (error: Error) => void = () => undefined;
+    fresh.restoreAnswer = () => new Promise((_, reject) => {
+      fail = reject;
+    });
+    harness.open.keep();
+    OpenWebViewTests.destroy(harness);
+    await harness.open.bindAsync(fresh, true);
+    await harness.open.navigateAsync("https://example.com/c");
+
+    fail(new Error("The restore was cut short."));
+    await harness.open.navigateAsync("https://example.com/d");
+
+    Assert.areEqual("restore 0,load https://example.com/c,load https://example.com/d", fresh.calls.map(t => t.split(" ").slice(0, 2).join(" ")).join(","));
   }
 
   @TestMethod

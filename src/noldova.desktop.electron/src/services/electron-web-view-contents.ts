@@ -12,9 +12,9 @@ import type { KeyboardInputEvent, NavigationHistory, WebContents, WindowOpenHand
 
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewDebugger } from "../interfaces/i-web-view-debugger.js";
-import type { IWebViewHistory } from "../interfaces/i-web-view-history.js";
 import type { IWebViewKeyEvent } from "../interfaces/i-web-view-key-event.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
+import { WebViewHistory } from "../models/web-view-history.js";
 
 export class ElectronWebViewContents implements IWebViewContents {
   private readonly page: WebContents;
@@ -65,11 +65,11 @@ export class ElectronWebViewContents implements IWebViewContents {
     return index >= 0 && index < this.history.length() ? this.history.getEntryAtIndex(index).url : null;
   }
 
-  public readHistory(): IWebViewHistory {
-    return { entries: this.history.getAllEntries(), index: this.history.getActiveIndex() };
+  public readHistory(): WebViewHistory {
+    return new WebViewHistory(this.history.getAllEntries(), this.history.getActiveIndex());
   }
 
-  public restoreHistoryAsync(history: IWebViewHistory): Promise<void> {
+  public restoreHistoryAsync(history: WebViewHistory): Promise<void> {
     return this.history.restore({ entries: [...history.entries], index: history.index });
   }
 

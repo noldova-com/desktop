@@ -3073,16 +3073,34 @@ export interface IWebViewKeyEvent {
 /**
  * A page's history, as a `<webview>` page restores it on a page that hasn't loaded yet: each entry's address, title and Chromium page state, with its form values and scroll position.
  */
-export interface IWebViewHistory {
+export declare class WebViewHistory {
   /**
-   * The entries, oldest first.
+   * The entries, oldest first, copied from those the history was given.
    */
-  readonly entries: readonly NavigationEntry[];
-
+  public readonly entries: readonly NavigationEntry[];
   /**
    * The current entry's index.
    */
-  readonly index: number;
+  public readonly index: number;
+
+  /**
+   * Creates the history.
+   *
+   * @param entries The entries, oldest first; the history keeps its own copy.
+   * @param index The current entry's index.
+   * @example
+   * ```ts
+   * import { WebViewHistory } from "@noldova/desktop.electron";
+   *
+   * export const history: WebViewHistory = new WebViewHistory([{ url: "https://example.com/", title: "Example" }], 0);
+   * ```
+   */
+  public constructor(entries: readonly NavigationEntry[], index: number);
+
+  /**
+   * The current entry's address, or `null` when the index is outside the entries.
+   */
+  public get currentUrl(): string | null;
 }
 
 /**
@@ -3207,14 +3225,14 @@ export interface IWebViewContents {
    * @returns The entries and the current one's index.
    * @example
    * ```ts
-   * import type { IWebViewContents, IWebViewHistory } from "@noldova/desktop.electron";
+   * import type { IWebViewContents, WebViewHistory } from "@noldova/desktop.electron";
    *
-   * export function keep(contents: IWebViewContents): IWebViewHistory {
+   * export function keep(contents: IWebViewContents): WebViewHistory {
    *   return contents.readHistory();
    * }
    * ```
    */
-  readHistory(): IWebViewHistory;
+  readHistory(): WebViewHistory;
 
   /**
    * Restores a history another page read and loads its current entry, with the entry's form values and scroll position; the page must not have loaded any page before.
@@ -3223,14 +3241,14 @@ export interface IWebViewContents {
    * @returns A promise that settles once the entry has loaded, and rejects when it fails to load.
    * @example
    * ```ts
-   * import type { IWebViewContents, IWebViewHistory } from "@noldova/desktop.electron";
+   * import type { IWebViewContents, WebViewHistory } from "@noldova/desktop.electron";
    *
-   * export async function resume(contents: IWebViewContents, history: IWebViewHistory): Promise<void> {
+   * export async function resume(contents: IWebViewContents, history: WebViewHistory): Promise<void> {
    *   await contents.restoreHistoryAsync(history);
    * }
    * ```
    */
-  restoreHistoryAsync(history: IWebViewHistory): Promise<void>;
+  restoreHistoryAsync(history: WebViewHistory): Promise<void>;
 
   /**
    * Moves back one entry in the history.

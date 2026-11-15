@@ -24,13 +24,13 @@ import {
 } from "@noldova/desktop.protocol";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
-import type { IWebViewHistory } from "../interfaces/i-web-view-history.js";
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 import { CaughtFailure } from "../models/caught-failure.js";
+import type { WebViewHistory } from "../models/web-view-history.js";
 import { Resources } from "../resources.js";
 import { OpenWebViewResources } from "./open-web-view.resources.js";
 import { WebViewEventCut } from "./web-view-event-cut.js";
@@ -61,7 +61,8 @@ export class OpenWebView {
   private guest: IWebViewContents | null = null;
   private pendingUrl: string | undefined;
   private committedUrl: string | undefined;
-  private kept: IWebViewHistory | null = null;
+  private kept: WebViewHistory | null = null;
+  private navigationCount: number = 0;
   private isCrashed: boolean = false;
   private isAttached: boolean = false;
   private isClosed: boolean = false;
@@ -173,6 +174,7 @@ export class OpenWebView {
     if (this.isClosed || Object.isNull(guest))
       return this.navigateAsync(url);
     this.isCrashed = false;
+    this.navigationCount += 1;
     void guest.loadURL(url).catch(() => undefined);
     const failure = this.isAttached ? null : await this.attachAsync(guest);
     if (!Object.isNull(failure) && this.guest === guest)
@@ -195,12 +197,14 @@ export class OpenWebView {
           return OpenWebView.noHistory();
         if (!(await this.allowsAsync(url)))
           return OpenWebView.refused(url);
+        this.navigationCount += 1;
         contents.reload();
         return OpenWebView.started();
       }
       default:
         if (!contents.isLoading())
           return OpenWebView.noHistory();
+        this.navigationCount += 1;
         contents.stop();
         return OpenWebView.started();
     }
@@ -512,13 +516,17 @@ export class OpenWebView {
       settle(answer);
   }
 
-  private async restoreAsync(guest: IWebViewContents, kept: IWebViewHistory): Promise<JsonObject | null> {
-    const url = kept.entries[kept.index]?.url;
-    if (Object.isUndefined(url) || url !== this.committedUrl || !(await this.allowsAsync(url)) || this.isClosed || this.guest !== guest)
+  private async restoreAsync(guest: IWebViewContents, kept: WebViewHistory): Promise<JsonObject | null> {
+    const count = this.navigationCount;
+    const url = kept.currentUrl;
+    const isRestorable = !Object.isNull(url) && url === this.committedUrl && await this.allowsAsync(url) && !this.isClosed && this.guest === guest;
+    if (this.navigationCount !== count)
+      return null;
+    if (!isRestorable)
       return this.goToAsync(this.committedUrl);
     this.isCrashed = false;
     void guest.restoreHistoryAsync(kept).catch(() => {
-      if (this.guest === guest && !this.isClosed && guest.getURL() === String.empty)
+      if (this.navigationCount === count && this.guest === guest && !this.isClosed && guest.getURL() === String.empty)
         void this.goToAsync(this.committedUrl);
     });
     return OpenWebView.started();
@@ -531,6 +539,7 @@ export class OpenWebView {
     if (!(await this.allowsAsync(url)))
       return OpenWebView.refused(url);
     this.isCrashed = false;
+    this.navigationCount += 1;
     move();
     return OpenWebView.started();
   }

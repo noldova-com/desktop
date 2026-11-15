@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { WindowOpenHandlerResponse } from "electron";
-import type { IWebViewContents, IWebViewHistory, IWebViewKeyEvent, IWindowOpenDetails } from "@noldova/desktop.electron";
+import { type IWebViewContents, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
 
 import { FakePreventableEvent } from "./fake-preventable-event.fixture.js";
 import { FakeWebViewDebugger } from "./fake-web-view-debugger.fixture.js";
@@ -32,7 +32,7 @@ export class FakeWebViewContents implements IWebViewContents {
   public index: number = -1;
   public rtcPolicy: string | null = null;
   public loadFailure: Error | null = null;
-  public restoreFailure: Error | null = null;
+  public restoreAnswer: () => Promise<void> = () => Promise.resolve();
   public findRequest: number = 0;
   public zoomFactor: number = 1;
   public readonly inputs: IWebViewKeyEvent[] = [];
@@ -78,14 +78,14 @@ export class FakeWebViewContents implements IWebViewContents {
     return this.history[this.index + offset] ?? null;
   }
 
-  public readHistory(): IWebViewHistory {
-    return { entries: this.history.map(t => ({ url: t, title: String.empty, pageState: `state of ${t}` })), index: this.index };
+  public readHistory(): WebViewHistory {
+    return new WebViewHistory(this.history.map(t => ({ url: t, title: String.empty, pageState: `state of ${t}` })), this.index);
   }
 
-  public restoreHistoryAsync(history: IWebViewHistory): Promise<void> {
+  public restoreHistoryAsync(history: WebViewHistory): Promise<void> {
     this.calls.push(`restore ${history.index} ${history.entries.map(t => `${t.url} ${t.pageState ?? String.empty}`).join(" ")}`);
     this.begin();
-    return Object.isNull(this.restoreFailure) ? Promise.resolve() : Promise.reject(this.restoreFailure);
+    return this.restoreAnswer();
   }
 
   public goBack(): void {
