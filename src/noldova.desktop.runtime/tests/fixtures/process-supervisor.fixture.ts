@@ -69,6 +69,22 @@ export class ProcessSupervisorFixture {
     }
   }
 
+  public static async outputAsync(terminal: PseudoTerminal, isPrinted: () => boolean): Promise<void> {
+    const printed = Promise.withResolvers<void>();
+    const registration = terminal.onOutput(() => {
+      if (isPrinted())
+        printed.resolve();
+    });
+    if (isPrinted())
+      printed.resolve();
+    try {
+      await printed.promise;
+    }
+    finally {
+      registration[Symbol.dispose]();
+    }
+  }
+
   public static async printedAsync(terminal: PseudoTerminal, output: () => string, expected: string | RegExp): Promise<void> {
     const isPrinted = (): boolean => Object.isString(expected) ? output().includes(expected) : expected.test(output());
     const printed = Promise.withResolvers<void>();
