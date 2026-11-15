@@ -16,6 +16,7 @@ import { AppShortcut, AppShortcutList, type EditAction, FailureCode, FileGrantsD
 import { FileSaveOutcome } from "../enums/file-save-outcome.js";
 import type { QuitChoice } from "../enums/quit-choice.js";
 import type { UpdateAction } from "../enums/update-action.js";
+import { WebViewInputKind } from "../enums/web-view-input-kind.js";
 import { PreloadBridgeException } from "../exceptions/preload-bridge.exception.js";
 import { RuntimeDisconnectedException } from "../exceptions/runtime-disconnected.exception.js";
 import { RuntimeRequestException } from "../exceptions/runtime-request.exception.js";
@@ -25,6 +26,7 @@ import type { IFileGrantOptions } from "../interfaces/i-file-grant-options.js";
 import type { IOpenedWebView } from "../interfaces/i-opened-web-view.js";
 import type { IPreloadBridge } from "../interfaces/i-preload-bridge.js";
 import type { IWebViewFound } from "../interfaces/i-web-view-found.js";
+import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import { BuildInfo } from "../models/build-info.js";
 import { ClipboardImage } from "../models/clipboard-image.js";
 import { FieldMenuRequest } from "../models/field-menu-request.js";
@@ -397,6 +399,18 @@ export class PreloadBridgeService extends ClipboardWriter {
     });
   }
 
+  public onWebViewInput(listener: (input: IWebViewInput) => void): () => void {
+    return this.bridge.onWebViewInput(t => {
+      const input = PreloadBridgeService.readWebViewInput(t);
+      if (!Object.isNull(input))
+        listener(input);
+    });
+  }
+
+  public releaseWebViewFocus(moduleId: string, view: string): void {
+    this.bridge.releaseWebViewFocus(moduleId, view);
+  }
+
   public logModule(moduleId: string, message: string): void {
     this.bridge.logModule(moduleId, message);
   }
@@ -450,6 +464,20 @@ export class PreloadBridgeService extends ClipboardWriter {
         metaKey: json.readBoolean(nameof<IKeyStroke>(t => t.metaKey)),
         cancelable: true
       });
+    }
+    catch {
+      return null;
+    }
+  }
+
+  private static readWebViewInput(value: unknown): IWebViewInput | null {
+    try {
+      const json = JsonReader.fromValue(value);
+      return {
+        module: json.readString(nameof<IWebViewInput>(t => t.module)),
+        view: json.readString(nameof<IWebViewInput>(t => t.view)),
+        kind: json.readOneOf(nameof<IWebViewInput>(t => t.kind), Object.values(WebViewInputKind))
+      };
     }
     catch {
       return null;
@@ -547,6 +575,8 @@ export class PreloadBridgeService extends ClipboardWriter {
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.setAppShortcuts))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewEvent))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewShortcut))) &&
+      Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewInput))) &&
+      Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.releaseWebViewFocus))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.logModule))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.logError)));
   }

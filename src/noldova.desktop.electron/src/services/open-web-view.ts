@@ -48,6 +48,7 @@ export class OpenWebView {
   private readonly waitAsync: (milliseconds: number, signal: AbortSignal) => Promise<void>;
   private readonly now: () => number;
   private readonly lost: () => void;
+  private readonly input: (kind: string) => void;
   private readonly endings: Set<(kind: WebViewFailureKind) => void> = new Set();
   private readonly redirects: Set<number> = new Set();
   private readonly refusedRequests: Set<number> = new Set();
@@ -57,6 +58,10 @@ export class OpenWebView {
   private windowRequests: readonly number[] = [];
   private lastInput: number | undefined;
   private relayedInputs: number = 0;
+  private relayedPresses: readonly symbol[] = [];
+  private touchPoints: readonly unknown[] = [];
+  private uncountedInputs: number = 0;
+  private openPageCalls: number = 0;
   private allowed: readonly string[] = [];
   private guest: IWebViewContents | null = null;
   private pendingUrl: string | undefined;
@@ -65,6 +70,7 @@ export class OpenWebView {
   private navigationCount: number = 0;
   private isCrashed: boolean = false;
   private isAttached: boolean = false;
+  private isFocusHeld: boolean = false;
   private isClosed: boolean = false;
   private state: string = String.empty;
   private zoomFactor: number = 1;
@@ -88,7 +94,8 @@ export class OpenWebView {
     platform: string,
     waitAsync: (milliseconds: number, signal: AbortSignal) => Promise<void>,
     now: () => number,
-    lost: () => void) {
+    lost: () => void,
+    input: (kind: string) => void) {
     this.info = info;
     this.windowId = windowId;
     this.partition = partition;
@@ -102,6 +109,7 @@ export class OpenWebView {
     this.waitAsync = waitAsync;
     this.now = now;
     this.lost = lost;
+    this.input = input;
     this.lastInput = undefined;
     this.pendingUrl = undefined;
     this.committedUrl = undefined;
@@ -138,6 +146,7 @@ export class OpenWebView {
     }
     this.guest = guest;
     this.isAttached = false;
+    this.isFocusHeld = false;
     this.isCrashed = false;
     if (!Object.isNull(previous) && !previous.isDestroyed() && previous.debugger.isAttached())
       previous.debugger.detach();
@@ -214,6 +223,8 @@ export class OpenWebView {
     const guest = this.guest;
     if (this.isCrashed || !this.isAttached || Object.isNull(guest))
       return OpenWebView.fail(call, this.isCrashed ? WebViewFailureKind.Crashed : WebViewFailureKind.Unavailable);
+    if (method === Resources.focusEmulationMethod)
+      return OpenWebView.fail(call, WebViewFailureKind.NotAllowed, Resources.focusEmulationRefused);
     if (!this.declaration.allows(method, params))
       return OpenWebView.fail(call, WebViewFailureKind.NotAllowed);
     const stroke = method === Resources.dispatchKeyEventMethod ? OpenWebView.readStroke(params) : null;
@@ -224,6 +235,10 @@ export class OpenWebView {
       this.relayKeys.push(relayKey);
     const abort = new AbortController();
     const isInput = method.startsWith(Resources.inputDomainPrefix);
+    const isPageCall = method !== Resources.insertTextMethod && method !== Resources.dispatchKeyEventMethod;
+    const presses = this.countPresses(method, params);
+    const press = presses > 0 ? Symbol(method) : null;
+    const isUncounted = isInput && !Resources.pressFreeInputMethods.includes(method);
     return new Promise<WebViewAnswered>(resolve => {
       const finish = (answer: WebViewAnswered): void => {
         this.endings.delete(end);
@@ -236,14 +251,31 @@ export class OpenWebView {
       this.waitAsync(timeoutMilliseconds, abort.signal).then(() => end(WebViewFailureKind.TimedOut), () => undefined);
       if (isInput)
         this.relayedInputs += 1;
-      const sent = OpenWebView.relayAsync(guest, method, params);
+      if (!Object.isNull(press))
+        this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
+      if (isUncounted)
+        this.uncountedInputs += 1;
+      if (isPageCall)
+        this.startPageCall();
+      const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
       if (isInput)
-        void sent.then(() => this.settleInput(), () => this.settleInput());
-      sent.then(
+        void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
+      const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
+      if (isPageCall)
+        void handled.then(() => this.endPageCall(), () => this.endPageCall());
+      handled.then(
         reply => finish(OpenWebView.answer(call, reply)),
         (error: unknown) => finish(new WebViewAnswered(call, null,
           new WebViewFailure(WebViewFailureKind.Protocol, Resources.webViewServerErrorCode, error instanceof Error ? error.message : String(error)))));
     });
+  }
+
+  public releaseFocus(): void {
+    const guest = this.guest;
+    if (!this.isFocusHeld || Object.isNull(guest))
+      return;
+    this.isFocusHeld = false;
+    void guest.debugger.sendCommand(Resources.focusEmulationMethod, { [Resources.enabledParameter]: false }).catch(() => undefined);
   }
 
   public allowsRequest(request: IWebViewRequest): boolean {
@@ -330,6 +362,7 @@ export class OpenWebView {
       guest.stop();
     }
     this.isAttached = false;
+    this.isFocusHeld = false;
   }
 
   private listen(guest: IWebViewContents): void {
@@ -413,6 +446,7 @@ export class OpenWebView {
       return;
     this.guest = null;
     this.isAttached = false;
+    this.isFocusHeld = false;
     this.endFind();
     this.end(WebViewFailureKind.Unavailable);
   }
@@ -578,13 +612,42 @@ export class OpenWebView {
     });
   }
 
-  private settleInput(): void {
+  private settleInput(press: symbol | null, isUncounted: boolean): void {
     this.relayedInputs -= 1;
+    this.relayedPresses = this.relayedPresses.filter(t => t !== press);
+    if (isUncounted)
+      this.uncountedInputs -= 1;
+  }
+
+  private async holdFocusAsync(guest: IWebViewContents): Promise<void> {
+    if (this.isFocusHeld)
+      return;
+    this.isFocusHeld = true;
+    const isHeld = await guest.debugger.sendCommand(Resources.focusEmulationMethod, { [Resources.enabledParameter]: true }).then(() => true, () => false);
+    if (!isHeld && this.guest === guest)
+      this.isFocusHeld = false;
+  }
+
+  private startPageCall(): void {
+    this.openPageCalls += 1;
+    this.input(Resources.inputStartKind);
+  }
+
+  private endPageCall(): void {
+    this.openPageCalls -= 1;
+    this.input(Resources.inputEndKind);
   }
 
   private noteInput(type: string): void {
+    const isPress = Resources.personPressTypes.includes(type);
+    if (isPress && this.relayedPresses.length > 0) {
+      this.relayedPresses = this.relayedPresses.slice(1);
+      return;
+    }
     if (this.relayedInputs === 0 && Resources.personInputTypes.includes(type))
       this.lastInput = this.now();
+    if (this.openPageCalls > 0 && isPress && this.uncountedInputs === 0)
+      this.input(Resources.inputPressKind);
   }
 
   private prevent(guest: IWebViewContents, event: IPreventableEvent, request: string): void {
@@ -624,6 +687,7 @@ export class OpenWebView {
 
   private detach(guest: IWebViewContents): void {
     this.isAttached = false;
+    this.isFocusHeld = false;
     this.end(WebViewFailureKind.Unavailable);
     if (this.isCrashed || guest.isDestroyed())
       return;
@@ -690,6 +754,10 @@ export class OpenWebView {
       this.report(new WebViewEvent(this.info.module, this.info.id, kind, details));
   }
 
+  private static afterRendererAsync(guest: IWebViewContents, sent: Promise<unknown>): Promise<unknown> {
+    return sent.finally(() => guest.executeJavaScriptInIsolatedWorld(Resources.focusBarrierWorld, [{ code: Resources.focusBarrierScript }]).catch(() => undefined));
+  }
+
   private static async relayAsync(guest: IWebViewContents, method: string, params: JsonObject): Promise<unknown> {
     if (method === Resources.insertTextMethod) {
       const text = params[Resources.textField];
@@ -713,6 +781,17 @@ export class OpenWebView {
       && relayed.ctrlKey === pressed.ctrlKey && relayed.altKey === pressed.altKey && relayed.shiftKey === pressed.shiftKey && relayed.metaKey === pressed.metaKey;
   }
 
+  private countPresses(method: string, params: JsonObject): number {
+    const points = params[Resources.touchPointsField];
+    const held = this.touchPoints;
+    const ids = Array.isArray(points) ? points.map(t => OpenWebView.readTouchPointId(t, method)) : [];
+    if (method === Resources.dispatchTouchEventMethod)
+      this.touchPoints = ids;
+    if (!Resources.relayedPressTypes.has(method) || Resources.relayedPressTypes.get(method) !== params[Resources.typeField])
+      return 0;
+    return ids.length === 0 ? 1 : ids.filter(t => !held.includes(t)).length;
+  }
+
   private static readStroke(params: JsonObject): IKeyStroke {
     const modifiers = Number.isSafeInteger(params[Resources.modifiersField]) ? Number(params[Resources.modifiersField]) : 0;
     return {
@@ -732,6 +811,11 @@ export class OpenWebView {
     return Buffer.byteLength(JSON.stringify(value)) > Resources.webViewReplyLimit ? OpenWebView.fail(call, WebViewFailureKind.TooLarge) : new WebViewAnswered(call, value);
   }
 
+  private static readTouchPointId(point: unknown, method: string): unknown {
+    const id = OpenWebView.readObject(point)?.[Resources.touchPointIdField];
+    return Number.isSafeInteger(id) ? id : Symbol(method);
+  }
+
   private static readObject(value: unknown): JsonObject | null {
     try {
       return JsonReader.fromValue(value).toJson();
@@ -742,8 +826,8 @@ export class OpenWebView {
     }
   }
 
-  private static fail(call: number, kind: WebViewFailureKind): WebViewAnswered {
-    return new WebViewAnswered(call, null, new WebViewFailure(kind));
+  private static fail(call: number, kind: WebViewFailureKind, message: string | null = null): WebViewAnswered {
+    return new WebViewAnswered(call, null, new WebViewFailure(kind, null, message));
   }
 
   private static found(matches: number, active: number): JsonObject {

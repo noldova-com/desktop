@@ -6,9 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdirSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import fs, { mkdirSync, rmSync } from "node:fs";
+import { mkdir, rename, stat, utimes, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
+import { mock } from "node:test";
 
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
@@ -21,6 +23,8 @@ import { WatchPatchFixture } from "../../fixtures/watch-patch.fixture.js";
 @TestClass
 export class FolderWatchTests {
   private static readonly LIMIT: number = 30_000;
+  private static readonly TICKS: number = 5;
+  private static readonly PAST: Date = new Date("2026-01-01T00:00:00Z");
   private static readonly LOG: (text: string) => void = () => undefined;
 
   @TestMethod
@@ -75,6 +79,106 @@ export class FolderWatchTests {
     Assert.isTrue(await WaitFixture.isPendingAsync(next), "the change wakes one wait");
     watches.change();
     await next;
+  }
+
+  @TestMethod
+  public async wakesAtTheNextTickForAChangeInTheFolderItsWatchMissedAndOnlyOnce(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    await utimes(folder.path, FolderWatchTests.PAST, FolderWatchTests.PAST);
+    using _watches = WatchPatchFixture.quiet();
+    using watch = FolderWatch.open(folder.path, FolderWatchTests.LOG, 1);
+    let ticks = 0;
+
+    await writeFile(path.join(folder.path, "runtime.json"), "{}");
+    const isWoken = await watch.waitAsync(FolderWatchTests.LIMIT, () => false);
+    await watch.waitAsync(FolderWatchTests.LIMIT, () => ++ticks === FolderWatchTests.TICKS);
+
+    Assert.isTrue(isWoken, "a check tick finds the change the watch never reported, not the wait's timeout");
+    Assert.areEqual(FolderWatchTests.TICKS, ticks, "the change seen at one wake doesn't wake the next wait");
+  }
+
+  @TestMethod
+  public async wakesAtTheNextTickForAFileRenamedIntoTheFolderThoughTheFoldersTimeStaysTheSame(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    using _watches = WatchPatchFixture.quiet();
+    using watch = FolderWatch.open(folder.path, FolderWatchTests.LOG, 1);
+    const temporary = path.join(folder.path, "runtime.json.partial");
+
+    await writeFile(temporary, "{}");
+    const isTemporarySeen = await watch.waitAsync(FolderWatchTests.LIMIT, () => false);
+    const before = await stat(folder.path);
+    await rename(temporary, path.join(folder.path, "runtime.json"));
+    await utimes(folder.path, before.atime, before.mtime);
+    const isRenameSeen = await watch.waitAsync(FolderWatchTests.LIMIT, () => false);
+
+    Assert.isTrue(isTemporarySeen, "a check tick finds the temporary file, not the wait's timeout");
+    Assert.isTrue(isRenameSeen, "a check tick finds the rename though the folder's time is put back, not the wait's timeout");
+  }
+
+  @TestMethod
+  public async wakesAtTheNextTickForAFileRemovedWhileTheFolderIsRead(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const file = path.join(folder.path, "runtime.json.partial");
+    await writeFile(file, "{}");
+    using _watches = WatchPatchFixture.quiet();
+    const statSync = fs.statSync;
+    const reading = mock.method(fs, "statSync", (target: fs.PathLike, options: fs.StatSyncOptions & { throwIfNoEntry: false }) => {
+      if (String(target) === file)
+        rmSync(file);
+      return statSync(target, options);
+    });
+    syncBuiltinESMExports();
+    try {
+      using watch = FolderWatch.open(folder.path, FolderWatchTests.LOG, 1);
+
+      Assert.isTrue(await watch.waitAsync(FolderWatchTests.LIMIT, () => false), "a check tick finds the file gone, not the wait's timeout");
+    }
+    finally {
+      reading.mock.restore();
+      syncBuiltinESMExports();
+    }
+  }
+
+  @TestMethod
+  public async keepsWaitingWhileAnEntryCannotBeReadAndWakesAtTheNextChange(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const pending = path.join(folder.path, "runtime.json.partial");
+    await writeFile(pending, "{}");
+    using _watches = WatchPatchFixture.quiet();
+    const statSync = fs.statSync;
+    const reading = mock.method(fs, "statSync", (target: fs.PathLike, options: fs.StatSyncOptions & { throwIfNoEntry: false }) => {
+      if (String(target) === pending)
+        throw Object.assign(new Error(`EPERM: operation not permitted, stat '${pending}'`), { code: "EPERM" });
+      return statSync(target, options);
+    });
+    syncBuiltinESMExports();
+    try {
+      using watch = FolderWatch.open(folder.path, FolderWatchTests.LOG, 1);
+      let ticks = 0;
+
+      await watch.waitAsync(FolderWatchTests.LIMIT, () => ++ticks === FolderWatchTests.TICKS);
+      await writeFile(path.join(folder.path, "runtime.json"), "{}");
+      const isWoken = await watch.waitAsync(FolderWatchTests.LIMIT, () => false);
+
+      Assert.areEqual(FolderWatchTests.TICKS, ticks, "the unreadable entry neither fails nor wakes the wait");
+      Assert.isTrue(isWoken, "a check tick finds the next change, not the wait's timeout");
+    }
+    finally {
+      reading.mock.restore();
+      syncBuiltinESMExports();
+    }
+  }
+
+  @TestMethod
+  public async wakesAtTheNextTickOnceTheMissingFolderIsCreatedThoughItsWatchMissedIt(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    using _watches = WatchPatchFixture.quiet();
+    const target = path.join(folder.path, "discovery");
+    using watch = FolderWatch.open(target, FolderWatchTests.LOG, 1);
+
+    await mkdir(target);
+
+    Assert.isTrue(await watch.waitAsync(FolderWatchTests.LIMIT, () => false), "a check tick finds the new folder, not the wait's timeout");
   }
 
   @TestMethod

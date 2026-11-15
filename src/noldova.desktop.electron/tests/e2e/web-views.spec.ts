@@ -27,6 +27,7 @@ const keysPage = "<!doctype html><title>Loading</title><p>Keys</p><script>const 
 const typePage = "<!doctype html><title>Loading</title><p>Type</p><input><script>const field = document.querySelector(\"input\"); const keys = []; let painted = false; let typed = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Type\", field.value, ...keys, blurs].join(\" \").trim(); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); field.addEventListener(\"input\", () => { typed = true; show(); }); field.addEventListener(\"blur\", () => { blurs += typed ? 1 : 0; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); }); field.focus();</script>";
 const formPage = "<!doctype html><title>Form</title><body style=\"margin:0\"><input style=\"position:fixed;top:0\"><div style=\"height:5000px\"></div><script>const field = document.querySelector(\"input\"); field.focus();</script></body>";
 const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
+const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
@@ -214,6 +215,10 @@ async function startServerAsync(): Promise<Server> {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(formPage);
       return;
     }
+    if (request.url === "/focus") {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(focusPage);
+      return;
+    }
     if (request.url === "/loading") {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).write("<!doctype html><title>Loading page</title><p>Loading page</p>");
       return;
@@ -359,6 +364,83 @@ test.describe("web views", () => {
 
       await expect(view(window, 0)).toHaveText("Type héllo q w 0");
       await expect(tab).toBeFocused();
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a focus and a click the runtime part sends through the relay reach a field of its web view's page, while the person's focus and keys stay on their tab and the page sees no blur", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const tab = window.locator("nol-tab[data-tab-key=\"document/pages.page/1\"]");
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/focus` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Focus - - - 0");
+      await tab.focus();
+
+      await requestAsync(window, "pages.focus", { view: 0, id: "second" });
+      await requestAsync(window, "pages.type", { view: 0, text: "abc" });
+      await expect(view(window, 0)).toHaveText("Focus - abc second 0");
+      await expect(tab).toBeFocused();
+      await window.keyboard.press("x");
+      await requestAsync(window, "pages.click", { view: 0, x: 60, y: 25 });
+      await requestAsync(window, "pages.type", { view: 0, text: "hello" });
+      await expect(view(window, 0)).toHaveText("Focus hello abc first 0");
+      await expect(tab).toBeFocused();
+      await window.keyboard.press("y");
+      await requestAsync(window, "pages.type", { view: 0, text: "!" });
+
+      await expect(view(window, 0)).toHaveText("Focus hello! abc first 0");
+      await expect(tab).toBeFocused();
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a focus and a click the runtime part sends through the relay to a web view behind another document of its group reach its page, while the person's focus and keys stay on the document in front", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const noteKey = "document/notes.note/1";
+    const note = window.locator(`nol-tab[data-tab-key="${noteKey}"]`);
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/focus` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Focus - - - 0");
+      await TabDragFixture.tab(window, noteKey).click();
+      await expect(window.locator("[data-fixture-content=notes-note-1]")).toBeVisible();
+      await expect.poll(() => readPlacesAsync(window)).toEqual([[false, expect.anything()], [false, expect.anything()]]);
+      await note.focus();
+
+      await requestAsync(window, "pages.focus", { view: 0, id: "second" });
+      await requestAsync(window, "pages.type", { view: 0, text: "abc" });
+      expect(await readFirstViewAsync(mainProcess, "document.title")).toBe("Focus - abc second 0");
+      await expect(note).toBeFocused();
+      await window.keyboard.press("x");
+      await requestAsync(window, "pages.click", { view: 0, x: 60, y: 25 });
+      await requestAsync(window, "pages.type", { view: 0, text: "hello" });
+      expect(await readFirstViewAsync(mainProcess, "document.title")).toBe("Focus hello abc first 0");
+      await expect(note).toBeFocused();
+      await window.keyboard.press("y");
+      await requestAsync(window, "pages.type", { view: 0, text: "!" });
+
+      expect(await readFirstViewAsync(mainProcess, "document.title")).toBe("Focus hello! abc first 0");
+      await expect(note).toBeFocused();
+      await expect.poll(() => readPlacesAsync(window)).toEqual([[false, expect.anything()], [false, expect.anything()]]);
     }
     finally {
       await stopServerAsync(server);

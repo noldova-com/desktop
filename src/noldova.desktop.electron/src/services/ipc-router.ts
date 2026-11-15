@@ -91,6 +91,7 @@ export class IpcRouter {
     ipc.on(Resources.webViewExpectChannel, (event, module, view) => {
       event.returnValue = this.onWebView(event, false, t => views.expect(t, module, view));
     });
+    ipc.on(Resources.webViewFocusReleaseChannel, (event, module, view) => this.onWebView(event, false, t => views.releaseFocus(t, module, view)));
     ipc.on(Resources.webViewShortcutsChannel, (event, keys) => this.onWebView(event, false, t => views.setShortcuts(t, keys)));
   }
 

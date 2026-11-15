@@ -94,6 +94,8 @@ describe("PreloadBridgeService", () => {
     setAppShortcuts: (): void => undefined,
     onWebViewEvent: (): (() => void) => () => undefined,
     onWebViewShortcut: (): (() => void) => () => undefined,
+    onWebViewInput: (): (() => void) => () => undefined,
+    releaseWebViewFocus: (): void => undefined,
     logModule: (): void => undefined,
     logError: (): void => undefined
   };
@@ -161,6 +163,8 @@ describe("PreloadBridgeService", () => {
     ["no setAppShortcuts", { ...complete, setAppShortcuts: null }],
     ["no onWebViewEvent", { ...complete, onWebViewEvent: null }],
     ["no onWebViewShortcut", { ...complete, onWebViewShortcut: null }],
+    ["no onWebViewInput", { ...complete, onWebViewInput: null }],
+    ["no releaseWebViewFocus", { ...complete, releaseWebViewFocus: null }],
     ["no logModule", { ...complete, logModule: null }],
     ["no logError", { ...complete, logError: null }],
     ["no logError member at all", Object.fromEntries(Object.entries(complete).filter(([t]) => t !== "logError"))]
@@ -714,6 +718,25 @@ describe("PreloadBridgeService", () => {
     bridge.publishWebViewShortcut(stroke);
 
     expect(presses).toEqual(["keydown k KeyK true false true false true"]);
+  });
+
+  it("passes on each notice of a web view's agent input, skipping one that isn't whole or names no kind it knows, and releases a view's focus through the bridge", () => {
+    const bridge = PreloadBridgeFixture.install();
+    const service = TestBed.inject(PreloadBridgeService);
+    const inputs: string[] = [];
+    const input = { module: "browser", view: "3", kind: "Start" };
+
+    const stop = service.onWebViewInput(t => inputs.push(`${t.module} ${t.view} ${t.kind}`));
+    bridge.publishWebViewInput(input);
+    bridge.publishWebViewInput({ ...input, kind: "Press" });
+    for (const value of [null, "3", { ...input, module: 1 }, { ...input, view: null }, { ...input, kind: "start" }, { ...input, kind: true }])
+      bridge.publishWebViewInput(value);
+    stop();
+    bridge.publishWebViewInput(input);
+    service.releaseWebViewFocus("browser", "3");
+
+    expect(inputs).toEqual(["browser 3 Start", "browser 3 Press"]);
+    expect(bridge.webViewCalls).toEqual(["release browser 3"]);
   });
 
   it("reads whether the window is in full screen, counting anything but a yes as no, and passes on each yes or no it reports", async () => {

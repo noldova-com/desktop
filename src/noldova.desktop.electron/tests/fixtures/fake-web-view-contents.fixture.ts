@@ -37,8 +37,10 @@ export class FakeWebViewContents implements IWebViewContents {
   public zoomFactor: number = 1;
   public readonly inputs: IWebViewKeyEvent[] = [];
   public readonly texts: string[] = [];
+  public readonly isolated: string[] = [];
   public onInput: (event: IWebViewKeyEvent) => void = () => undefined;
   public onText: (text: string) => Promise<void> = () => Promise.resolve();
+  public onIsolated: () => Promise<unknown> = () => Promise.resolve(0);
 
   public constructor(id: number) {
     this.id = id;
@@ -139,6 +141,11 @@ export class FakeWebViewContents implements IWebViewContents {
   public insertText(text: string): Promise<void> {
     this.texts.push(text);
     return this.onText(text);
+  }
+
+  public executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown> {
+    this.isolated.push(`${worldId} ${scripts.map(t => t.code).join(";")}`);
+    return this.onIsolated();
   }
 
   public on(event: string, listener: (...values: never[]) => void): this {

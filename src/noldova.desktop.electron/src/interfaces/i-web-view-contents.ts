@@ -42,6 +42,7 @@ export interface IWebViewContents {
   stopFindInPage(action: "clearSelection"): void;
   sendInputEvent(event: IWebViewKeyEvent): void;
   insertText(text: string): Promise<void>;
+  executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown>;
   on(event: "will-frame-navigate", listener: (event: IPreventableEvent, url: string, isMainFrame: boolean) => void): unknown;
   on(event: "will-attach-webview", listener: (event: IPreventableEvent) => void): unknown;
   on(event: "before-input-event", listener: (event: IPreventableEvent, input: IWebViewInput) => void): unknown;

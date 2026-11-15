@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import "@noldova/context.core";
-import { Assert, Category, TestClass, TestMethod, Timeout } from "@noldova/context.testing";
+import { Assert, Category, TestClass, TestMethod } from "@noldova/context.testing";
 import { PackagedPath } from "@noldova/desktop.runtime";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
@@ -39,7 +39,6 @@ export class AsarArchiveTests {
   private static readonly SCRIPT: string = "console.log(\"named\");\n";
   private static readonly OTHER: string = "console.log(\"packed\");\n";
   private static readonly PACKAGE_SEGMENTS: readonly string[] = ["node_modules", "@sample", "runtime"];
-  private static readonly BUILDER_LIMIT: number = 240_000;
   private static readonly BUILDER_VARIABLES: readonly string[] = [
     "PATH", "PATHEXT", "COMSPEC", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "PROCESSOR_ARCHITECTURE", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA"
   ];
@@ -65,7 +64,6 @@ export class AsarArchiveTests {
   ];
 
   @TestMethod
-  @Timeout(300_000)
   public async packsAFileAPackageNamesOutsideTheArchiveWhereAPlainReadOfItsUnpackedPathFindsIt(): Promise<void> {
     await using folder = await AsarArchiveTests.createFolderAsync();
     const stage = path.join(folder.path, "stage");
@@ -91,7 +89,6 @@ export class AsarArchiveTests {
   }
 
   @TestMethod
-  @Timeout(300_000)
   public async packsAndUnpacksEachNativeFileOfAnotherPlatformThatThePackageShipsSoTheSmokeFindsEveryListedFile(): Promise<void> {
     await using folder = await AsarArchiveTests.createFolderAsync();
     const stage = path.join(folder.path, "stage");
@@ -117,7 +114,6 @@ export class AsarArchiveTests {
   }
 
   @TestMethod
-  @Timeout(300_000)
   public async unpacksANestedPackagesFilesWhereElectronBuilderHoistsThePackageSoTheSmokeFindsEachThere(): Promise<void> {
     await using folder = await AsarArchiveTests.createFolderAsync();
     const stage = path.join(folder.path, "stage");
@@ -140,7 +136,6 @@ export class AsarArchiveTests {
   }
 
   @TestMethod
-  @Timeout(300_000)
   public async shipsExactlyTheKindsOfFilesThatTheUnpackedListKeeps(): Promise<void> {
     await using folder = await AsarArchiveTests.createFolderAsync();
     const stage = path.join(folder.path, "stage");
@@ -304,15 +299,15 @@ export class AsarArchiveTests {
     const output: string[] = [];
     child.stdout.on("data", (t: Buffer) => output.push(t.toString()));
     child.stderr.on("data", (t: Buffer) => output.push(t.toString()));
-    let hasTimedOut = false;
-    const timer = setTimeout(() => {
-      hasTimedOut = true;
-      AsarArchiveTests.endTree(child.pid);
-    }, AsarArchiveTests.BUILDER_LIMIT);
-    const [code]: unknown[] = await once(child, "close");
-    clearTimeout(timer);
-    Assert.isFalse(hasTimedOut, `electron-builder did not finish within ${AsarArchiveTests.BUILDER_LIMIT} ms:\n${output.join(String.empty)}`);
-    Assert.areEqual(0, code, output.join(String.empty));
+    const endTree = (): void => AsarArchiveTests.endTree(child.pid);
+    process.once("exit", endTree);
+    try {
+      const [code]: unknown[] = await once(child, "close");
+      Assert.areEqual(0, code, output.join(String.empty));
+    }
+    finally {
+      process.off("exit", endTree);
+    }
   }
 
   private static endTree(processId: number | undefined): void {

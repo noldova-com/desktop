@@ -3740,8 +3740,9 @@ export declare class MethodFailureException extends RuntimeException {
  */
 export declare class WebViewFailureException extends RuntimeException {
   /**
-   * The failure: its kind, and the engine's code and message for a
-   * `Protocol` failure.
+   * The failure: its kind, the engine's code and message for a `Protocol`
+   * failure, and the host's message naming the rule for a refusal that has
+   * one.
    */
   public readonly failure: WebViewFailure;
 

@@ -13,10 +13,12 @@ import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
 import { type WebViewAction, type WebViewEvent, WebViewEventKind, type WebViewNavigation, type WebViewPane } from "@noldova/desktop.protocol";
 
+import { WebViewInputKind } from "../enums/web-view-input-kind.js";
 import { WebViewClosedException } from "../exceptions/web-view-closed.exception.js";
 import { WebViewNotOpenedException } from "../exceptions/web-view-not-opened.exception.js";
 import type { IWebViewFound } from "../interfaces/i-web-view-found.js";
 import type { IWebViewGuest } from "../interfaces/i-web-view-guest.js";
+import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewLayer } from "../interfaces/i-web-view-layer.js";
 import type { Layout } from "../models/layout/layout.js";
 import type { Tab } from "../models/layout/tab.js";
@@ -52,6 +54,7 @@ export class WebViewService {
     destroyRef.onDestroy(this.layout.onChange((from, to) => this.keep(t => WebViewService.moves(t.tab, from, to))));
     destroyRef.onDestroy(this.liveViews.onLeave(tab => this.keep(t => t.tab.key === tab.key)));
     destroyRef.onDestroy(this.liveViews.onEnter((tab, element) => this.expect(tab, element)));
+    destroyRef.onDestroy(this.bridge.onWebViewInput(t => this.receiveInput(t)));
     effect(() => {
       const keys = commands.shortcuts().viewKeys;
       untracked(() => this.bridge.setWebViewShortcuts(keys));
@@ -80,6 +83,7 @@ export class WebViewService {
     const handle = new WebViewHandle(opened.view, tab, injector, this, this.createFrame(), this.createGuest(opened.partition));
     handle.frame.append(handle.guest);
     handle.guest.addEventListener(Resources.webViewAttachEvent, () => this.attach(handle));
+    handle.guest.addEventListener(Resources.focusInEvent, () => this.noteFocus(handle));
     this.handles.set(handle.id, handle);
     this.applyVisibility(handle);
     this.applyPointerEvents(handle);
@@ -207,6 +211,64 @@ export class WebViewService {
     }
     if (event.kind === WebViewEventKind.Closed)
       this.forget(handle);
+  }
+
+  private receiveInput(input: IWebViewInput): void {
+    const handle = this.handles.get(input.view);
+    if (Object.isUndefined(handle) || handle.moduleId !== input.module)
+      return;
+    if (input.kind === WebViewInputKind.Start) {
+      if (handle.agentInputs === 0)
+        handle.keptFocus = this.readPersonFocus(handle);
+      handle.agentInputs += 1;
+      handle.isFocusHeld = true;
+      return;
+    }
+    if (handle.agentInputs === 0)
+      return;
+    if (input.kind === WebViewInputKind.Press) {
+      handle.keptFocus = null;
+      return;
+    }
+    handle.agentInputs -= 1;
+    if (handle.agentInputs > 0)
+      return;
+    if (Object.isNull(handle.keptFocus))
+      this.releaseFocus(handle);
+    else if (this.document.activeElement === handle.guest)
+      this.giveFocusBack(handle);
+    handle.keptFocus = null;
+  }
+
+  private readPersonFocus(handle: WebViewHandle): HTMLElement | null {
+    const active = this.document.activeElement;
+    if (active === handle.guest)
+      return null;
+    return active instanceof HTMLElement ? active : this.document.body;
+  }
+
+  private noteFocus(handle: WebViewHandle): void {
+    if (handle.agentInputs === 0)
+      this.releaseFocus(handle);
+    else
+      this.giveFocusBack(handle);
+  }
+
+  private giveFocusBack(handle: WebViewHandle): void {
+    const kept = handle.keptFocus;
+    if (Object.isNull(kept))
+      return;
+    if (kept !== this.document.body && kept.isConnected)
+      kept.focus({ preventScroll: true });
+    else
+      handle.guest.blur();
+  }
+
+  private releaseFocus(handle: WebViewHandle): void {
+    if (!handle.isFocusHeld)
+      return;
+    handle.isFocusHeld = false;
+    this.bridge.releaseWebViewFocus(handle.moduleId, handle.id);
   }
 
   private follow(layout: Layout, shownTabs: ReadonlySet<string>): void {

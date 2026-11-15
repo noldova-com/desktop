@@ -34,7 +34,8 @@ export class WebViewBridge {
     this.log = options.log;
     this.declarations = undefined;
     this.host = new WebViewHost(options.electron.webViews, new WebViewOriginCheck(), () => this.readDeclarationsAsync(), options.settings.platform,
-      (windowId, event) => this.sendEvent(windowId, event), (windowId, stroke) => this.sendShortcut(windowId, stroke), isReady,
+      (windowId, event) => this.sendEvent(windowId, event), (windowId, stroke) => this.sendShortcut(windowId, stroke),
+      (windowId, input) => this.windows.sendTo(windowId, Resources.webViewInputChannel, input), isReady,
       t => void runtime.callAsync(ShellMethods.webViewEvents, t.toJson()), t => options.log.write(t));
   }
 

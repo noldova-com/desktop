@@ -63,6 +63,8 @@ export class Resources {
   public static readonly appShortcutsChannel: string = "desktop:appShortcuts";
   public static readonly webViewEventChannel: string = "desktop:webViewEvent";
   public static readonly webViewShortcutChannel: string = "desktop:webViewShortcut";
+  public static readonly webViewInputChannel: string = "desktop:webViewInput";
+  public static readonly webViewFocusReleaseChannel: string = "desktop:webViewFocusRelease";
   public static readonly webViewZoomChannel: string = "desktop:webViewZoom";
   public static readonly webViewFindChannel: string = "desktop:webViewFind";
   public static readonly webViewZoomMode: string = "isolated";
@@ -206,6 +208,7 @@ export class Resources {
   public static readonly interceptFileChooserMethod: string = "Page.setInterceptFileChooserDialog";
   public static readonly fileChooserOpenedEvent: string = "Page.fileChooserOpened";
   public static readonly dispatchKeyEventMethod: string = "Input.dispatchKeyEvent";
+  public static readonly dispatchTouchEventMethod: string = "Input.dispatchTouchEvent";
   public static readonly inputDomainPrefix: string = "Input.";
   public static readonly beforeInputEvent: "before-input-event" = "before-input-event";
   public static readonly keyDownInputs: readonly string[] = ["keyDown", "rawKeyDown"];
@@ -217,6 +220,10 @@ export class Resources {
   public static readonly metaModifier: number = 4;
   public static readonly shiftModifier: number = 8;
   public static readonly insertTextMethod: string = "Input.insertText";
+  public static readonly focusEmulationMethod: string = "Emulation.setFocusEmulationEnabled";
+  public static readonly enabledParameter: string = "enabled";
+  public static readonly focusBarrierWorld: number = 1999;
+  public static readonly focusBarrierScript: string = "0";
   public static readonly autoRepeatField: string = "autoRepeat";
   public static readonly keyDownType: string = "keyDown";
   public static readonly rawKeyDownType: string = "rawKeyDown";
@@ -246,6 +253,7 @@ export class Resources {
   public static readonly willDownloadEvent: "will-download" = "will-download";
   public static readonly detachEvent: "detach" = "detach";
   public static readonly webViewReplyNotObject: string = "The engine's reply is not an object.";
+  public static readonly focusEmulationRefused: string = "The host owns focus emulation, so a module may not send Emulation.setFocusEmulationEnabled.";
   public static readonly webViewLost: string = "A web view lost its defaults, so it was closed.";
   public static readonly webViewBatchLimit: number = 64;
   public static readonly addressField: string = "address";
@@ -263,12 +271,21 @@ export class Resources {
   public static readonly paneField: string = "pane";
   public static readonly profileKeyField: string = "profileKey";
   public static readonly viewField: string = "view";
+  public static readonly moduleField: string = "module";
   public static readonly partitionField: string = "partition";
   public static readonly isAttachedField: string = "isAttached";
   public static readonly timeoutField: string = "timeoutMilliseconds";
   public static readonly downloadRequest: string = "download";
   public static readonly newWindowRequest: string = "newWindow";
   public static readonly personInputTypes: readonly string[] = ["rawKeyDown", "keyDown", "mouseDown", "touchStart"];
+  public static readonly personPressTypes: readonly string[] = ["mouseDown", "touchStart"];
+  public static readonly relayedPressTypes: ReadonlyMap<string, string> = new Map([["Input.dispatchMouseEvent", "mousePressed"], [Resources.dispatchTouchEventMethod, "touchStart"]]);
+  public static readonly touchPointsField: string = "touchPoints";
+  public static readonly touchPointIdField: string = "id";
+  public static readonly pressFreeInputMethods: readonly string[] = ["Input.dispatchMouseEvent", "Input.dispatchTouchEvent", "Input.dispatchKeyEvent", "Input.insertText"];
+  public static readonly inputStartKind: string = "Start";
+  public static readonly inputEndKind: string = "End";
+  public static readonly inputPressKind: string = "Press";
   public static readonly recentInputMilliseconds: number = 5000;
   public static readonly newWindowRequestLimit: number = 5;
   public static readonly newWindowRequestMilliseconds: number = 1000;
@@ -635,6 +652,8 @@ export class Resources {
     webViewExpect: Resources.webViewExpectChannel,
     webViewEvent: Resources.webViewEventChannel,
     webViewFind: Resources.webViewFindChannel,
+    webViewFocusRelease: Resources.webViewFocusReleaseChannel,
+    webViewInput: Resources.webViewInputChannel,
     webViewNavigate: Resources.webViewNavigateChannel,
     webViewOpen: Resources.webViewOpenChannel,
     webViewShortcut: Resources.webViewShortcutChannel,

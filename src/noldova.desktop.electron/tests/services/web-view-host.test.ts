@@ -124,7 +124,7 @@ export class WebViewHostTests {
   public async refusesAnAttachFromAWindowThatDidntOpenTheView(): Promise<void> {
     const engine = new FakeWebViewEngine();
     const host = new WebViewHost(engine, new WebViewOriginCheck(), () => Promise.resolve(new Map([["browser", WebViewHostTests.DECLARATION]])), "linux",
-      () => undefined, () => undefined, () => false, () => undefined, () => undefined);
+      () => undefined, () => undefined, () => undefined, () => false, () => undefined, () => undefined);
     await host.openAsync(1, "browser", WebViewHostTests.PANE, "workspace-1");
     const inOther = engine.createGuest(2, WebViewHostTests.PARTITION);
     const inOwn = engine.createGuest(1, WebViewHostTests.PARTITION);
@@ -778,8 +778,29 @@ export class WebViewHostTests {
 
     Assert.areEqual(JSON.stringify([{ data: "AAAA" }, { kind: "NotAllowed" }, { kind: "NotAllowed" }, { kind: "ShortcutRefused" }, {}, { kind: "ShortcutRefused" }, {}, { kind: "NotOwned" },
       { kind: "ViewClosed" }]), JSON.stringify(answers));
-    Assert.areEqual("Page.enable,Page.setInterceptFileChooserDialog,Page.captureScreenshot", debuggee.methods().join(","));
+    Assert.areEqual("Page.enable,Page.setInterceptFileChooserDialog,Emulation.setFocusEmulationEnabled,Page.captureScreenshot", debuggee.methods().join(","));
     Assert.areEqual("keyDown k,keyDown k", WebViewHostTests.view(electron, 0).contents.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
+  public async tellsItsWindowWhenACallToThePageStartsAndEndsHoldsThePagesFocusBeforeItAndReleasesItForThatWindowOnly(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const debuggee = WebViewHostTests.view(electron, 0).contents.debugger;
+    const trusted = MainProcessStartFixture.trustedEvent("linux", window.id);
+
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Input.dispatchKeyEvent", params: { type: "keyDown", key: "k", code: "KeyK", modifiers: 0 }, timeoutMilliseconds: 1000 });
+    electron.ipcMain.send("desktop:webViewFocusRelease", trusted, "notes", "1");
+    electron.ipcMain.send("desktop:webViewFocusRelease", MainProcessStartFixture.trustedEvent("linux", window.id + 1), "browser", "1");
+    electron.ipcMain.send("desktop:webViewFocusRelease", trusted, "browser", "1");
+    electron.ipcMain.send("desktop:webViewFocusRelease", trusted, "browser", "1");
+
+    Assert.areEqual(JSON.stringify([{ module: "browser", view: "1", kind: "Start" }, { module: "browser", view: "1", kind: "End" }]),
+      JSON.stringify(window.webContents.sent.filter(t => t[0] === "desktop:webViewInput").map(t => t[1])));
+    Assert.areEqual(JSON.stringify(["Emulation.setFocusEmulationEnabled true", "Page.captureScreenshot", "Emulation.setFocusEmulationEnabled false"]),
+      JSON.stringify(debuggee.sent.filter(t => t[0] === "Emulation.setFocusEmulationEnabled" || t[0] === "Page.captureScreenshot").map(t => t[0] === "Page.captureScreenshot" ? t[0] : `${t[0]} ${JSON.stringify(t[1]).includes("true")}`)));
   }
 
   @TestMethod
