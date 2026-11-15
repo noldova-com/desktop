@@ -114,14 +114,15 @@ export class WebViewHost {
     return isBound && this.views.get(open.info.id) === open ? { [Resources.isAttachedField]: true } : null;
   }
 
-  public async keepAsync(windowId: number, module: unknown, view: unknown): Promise<boolean> {
-    const open = this.find(windowId, module, view);
-    if (Object.isNull(open))
-      return false;
-    this.forget(open);
-    this.kept.push(open);
-    await open.keepAsync();
-    return true;
+  public async keepAsync(windowId: number, views: unknown): Promise<boolean[]> {
+    const listed: readonly unknown[] = Array.isArray(views) ? views : [];
+    const opens = listed.map(t => this.findListed(windowId, t));
+    for (const open of opens.filter(t => !Object.isNull(t))) {
+      this.forget(open);
+      this.kept.push(open);
+    }
+    await Promise.all(opens.map(t => t?.keepAsync()));
+    return opens.map(t => !Object.isNull(t));
   }
 
   public expect(windowId: number, module: unknown, view: unknown): boolean {
@@ -284,6 +285,11 @@ export class WebViewHost {
     });
     this.sessions.set(partition, session);
     return session;
+  }
+
+  private findListed(windowId: number, listed: unknown): OpenWebView | null {
+    const pair: readonly unknown[] = Array.isArray(listed) ? listed : [];
+    return this.find(windowId, pair[0], pair[1]);
   }
 
   private find(windowId: number, module: unknown, view: unknown): OpenWebView | null {

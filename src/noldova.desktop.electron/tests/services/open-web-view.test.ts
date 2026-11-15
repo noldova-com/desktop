@@ -889,9 +889,9 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async scrollsNoRestoredPageBackOnceAPersonsInputOrANavigationCameWhileItLoadedButDoesAfterAPointerMove(): Promise<void> {
+  public async scrollsNoRestoredPageBackOnceAnInputANavigationOrARedirectCameWhileItLoadedOrItsPageIsGoneOrUnreadButDoesAfterAPointerMove(): Promise<void> {
     const results: string[] = [];
-    for (const step of ["mouseMove", "keyDown", "navigate"]) {
+    for (const step of ["mouseMove", "keyDown", "navigate", "redirect", "unread", "gone", "close"]) {
       const harness = await OpenWebViewTests.showAsync();
       const fresh = OpenWebViewTests.rendererless();
       let finish: () => void = () => undefined;
@@ -906,6 +906,14 @@ export class OpenWebViewTests {
 
       if (step === "navigate")
         await harness.open.navigateAsync("https://example.com/c");
+      else if (step === "redirect")
+        fresh.restoredUrl = "https://example.com/elsewhere";
+      else if (step === "unread")
+        fresh.debugger.replies.set("Page.getLayoutMetrics", () => Promise.reject(new Error("The page went away.")));
+      else if (step === "gone")
+        fresh.emit("destroyed");
+      else if (step === "close")
+        harness.open.close();
       else
         fresh.emit("input-event", {}, { type: step });
       finish();
@@ -913,7 +921,7 @@ export class OpenWebViewTests {
       results.push(fresh.isolated.join(","));
     }
 
-    Assert.areEqual("1998 scrollTo(0, 1200)||", results.join("|"));
+    Assert.areEqual("1998 scrollTo(0, 1200)||||||", results.join("|"));
   }
 
   @TestMethod

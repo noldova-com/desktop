@@ -419,7 +419,7 @@ describe("WebViewService", () => {
     liveViews.prepareLeave(plan);
     const left = keeps();
 
-    expect([inGroup, otherLeft, moved, left, unmounted.isClosed]).toEqual([[], [], ["keep notes 2", "keep notes 1"], ["keep notes 2", "keep notes 1"], false]);
+    expect([inGroup, otherLeft, moved, left, unmounted.isClosed]).toEqual([[], [], ["keep notes 2, notes 1"], ["keep notes 2, notes 1"], false]);
   });
 
   it("asks the main process to keep a tab's views as its content leaves a slot, and to expect them, in their order there, just before it enters another", async () => {
@@ -442,7 +442,7 @@ describe("WebViewService", () => {
     TestBed.tick();
     other.remove();
 
-    expect(bridge.webViewCalls.filter(t => /^(keep|expect)/.test(t))).toEqual(["keep notes 2", "keep notes 1", "keep notes 3", "expect notes 2", "expect notes 1"]);
+    expect(bridge.webViewCalls.filter(t => /^(keep|expect)/.test(t))).toEqual(["keep notes 2, notes 1, notes 3", "expect notes 2", "expect notes 1"]);
     expect(entered).toEqual([false, false]);
   });
 

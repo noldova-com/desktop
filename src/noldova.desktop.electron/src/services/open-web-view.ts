@@ -570,18 +570,18 @@ export class OpenWebView {
     if (!isRestorable)
       return this.goToAsync(this.committedUrl);
     this.isCrashed = false;
-    void guest.restoreHistoryAsync(kept).then(() => this.scrollBackAsync(guest, count, inputs, scroll), () => {
+    void guest.restoreHistoryAsync(kept).then(() => this.scrollBackAsync(guest, kept, count, inputs, scroll), () => {
       if (this.navigationCount === count && this.guest === guest && !this.isClosed && guest.getURL() === String.empty)
         void this.goToAsync(this.committedUrl);
     });
     return OpenWebView.started();
   }
 
-  private async scrollBackAsync(guest: IWebViewContents, count: number, inputs: number, scroll: readonly [number, number] | null): Promise<void> {
+  private async scrollBackAsync(guest: IWebViewContents, kept: WebViewHistory, count: number, inputs: number, scroll: readonly [number, number] | null): Promise<void> {
     if (Object.isNull(scroll) || (scroll[0] === 0 && scroll[1] === 0))
       return;
     const shown = await this.readScrollAsync(guest);
-    if (Object.isNull(shown) || shown[0] !== 0 || shown[1] !== 0 || this.navigationCount !== count || this.inputCount !== inputs || this.guest !== guest || this.isClosed)
+    if (Object.isNull(shown) || shown[0] !== 0 || shown[1] !== 0 || this.navigationCount !== count || this.inputCount !== inputs || this.guest !== guest || guest.getURL() !== kept.currentUrl)
       return;
     await guest.executeJavaScriptInIsolatedWorld(Resources.scrollBackWorld, [{ code: Resources.formatScrollBackScript(scroll[0], scroll[1]) }]).catch(() => undefined);
   }

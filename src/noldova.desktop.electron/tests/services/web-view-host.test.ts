@@ -361,9 +361,7 @@ export class WebViewHostTests {
       await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, view, ["https://example.com"]);
     first.contents.show("https://example.com/a");
     second.contents.show("https://example.com/b");
-    const answers: unknown[] = [];
-    for (const view of ["1", "2", "3"])
-      answers.push(await WebViewHostTests.keepAsync(electron, view));
+    const answers = await WebViewHostTests.keepAsync(electron, [["browser", "1"], ["browser", "2"], ["browser", "3"]]);
     for (const view of [first, second]) {
       view.contents.destroyed = true;
       view.contents.emit("destroyed");
@@ -381,7 +379,7 @@ export class WebViewHostTests {
     await Condition.waitAsync(() => guests.every(t => t.contents.calls.some(u => u.startsWith("restore"))));
     const attached = await WebViewHostTests.attachAsync(electron, "2", guests[0]?.contents.id);
 
-    Assert.areEqual("true,true,false", answers.join(","));
+    Assert.areEqual("[true,true,false]", JSON.stringify(answers));
     Assert.areEqual("true,true,false,false", expected.join(","));
     Assert.areEqual("false,true,true,false", claims.join(","));
     Assert.areEqual("restore 0 https://example.com/b state of https://example.com/b|restore 0 https://example.com/a state of https://example.com/a",
@@ -400,8 +398,9 @@ export class WebViewHostTests {
     live.contents.show("https://example.com/a");
     closing.contents.show("https://example.com/b");
     const untrusted = { ...MainProcessStartFixture.trustedEvent("linux"), senderFrame: null };
-    electron.ipcMain.send("desktop:webViewKeep", untrusted, "browser", "1");
-    const answers = [untrusted.returnValue, await WebViewHostTests.keepAsync(electron, "1"), await WebViewHostTests.keepAsync(electron, "2")];
+    electron.ipcMain.send("desktop:webViewKeep", untrusted, [["browser", "1"]]);
+    const malformed = [await WebViewHostTests.keepAsync(electron, "browser"), await WebViewHostTests.keepAsync(electron, ["1", ["browser"]])];
+    const answers = [untrusted.returnValue, await WebViewHostTests.keepAsync(electron, [["browser", "1"], ["browser", "2"]])];
     electron.ipcMain.send("desktop:webViewExpect", untrusted, "browser", "1");
     answers.push(untrusted.returnValue, WebViewHostTests.expect(electron, "1"), WebViewHostTests.expect(electron, "2"));
     closing.contents.destroyed = true;
@@ -416,6 +415,7 @@ export class WebViewHostTests {
     claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
     electron.webViews.attached(window.webContents.id + 1, stray.contents);
 
+    Assert.areEqual("[[],[false,false]]", JSON.stringify(malformed));
     Assert.areEqual("false,true,true,false,true,true", answers.join(","));
     Assert.areEqual("false,false,true", claims.join(","));
     Assert.areEqual(String.empty, stray.contents.calls.join(","));
@@ -1475,9 +1475,9 @@ export class WebViewHostTests {
     return state;
   }
 
-  private static async keepAsync(electron: FakeElectron, view: string): Promise<unknown> {
+  private static async keepAsync(electron: FakeElectron, views: unknown): Promise<unknown> {
     const event = MainProcessStartFixture.trustedEvent("linux");
-    electron.ipcMain.send("desktop:webViewKeep", event, "browser", view);
+    electron.ipcMain.send("desktop:webViewKeep", event, views);
     await Condition.waitAsync(() => !Object.isUndefined(event.returnValue));
     return event.returnValue;
   }

@@ -26,6 +26,7 @@ const titles = new Map([["/first", "First page"], ["/second", "Second page"]]);
 const keysPage = "<!doctype html><title>Loading</title><p>Keys</p><script>const keys = []; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Keys\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"keydown\", event => { keys.push(event.key); document.title = [\"Keys\", ...keys].join(\" \"); });</script>";
 const typePage = "<!doctype html><title>Loading</title><p>Type</p><input><script>const field = document.querySelector(\"input\"); const keys = []; let painted = false; let typed = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Type\", field.value, ...keys, blurs].join(\" \").trim(); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); field.addEventListener(\"input\", () => { typed = true; show(); }); field.addEventListener(\"blur\", () => { blurs += typed ? 1 : 0; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); }); field.focus();</script>";
 const formPage = "<!doctype html><title>Form</title><body style=\"margin:0\"><input style=\"position:fixed;top:0\"><div style=\"height:5000px\"></div><script>const field = document.querySelector(\"input\"); field.focus();</script></body>";
+const manualFormPage = formPage.replace("<script>", "<script>history.scrollRestoration = \"manual\"; ");
 const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
@@ -212,7 +213,7 @@ async function startServerAsync(): Promise<Server> {
       return;
     }
     if ((request.url ?? String.empty).startsWith("/form?")) {
-      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(formPage);
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(request.url?.endsWith("&manual") === true ? manualFormPage : formPage);
       return;
     }
     if (request.url === "/focus") {
@@ -513,7 +514,7 @@ test.describe("web views", () => {
     const server = await startServerAsync();
     try {
       const origin = `http://${host}:${portOf(server)}`;
-      const [pageUrl, sideUrl] = [`${origin}/form?page`, `${origin}/form?side`];
+      const [pageUrl, sideUrl] = [`${origin}/form?page&manual`, `${origin}/form?side`];
       await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
       await runAsync("Open the page");
       await expect(view(window, 1)).toHaveAttribute("data-view", /./);

@@ -450,8 +450,8 @@ export class PreloadBridgeFixture implements IPreloadBridge {
     this.webViewCalls.push(`close ${moduleId} ${view}`);
   }
 
-  public keepWebView(moduleId: string, view: string): unknown {
-    this.webViewCalls.push(`keep ${moduleId} ${view}`);
+  public keepWebViews(views: readonly (readonly [string, string])[]): unknown {
+    this.webViewCalls.push(`keep ${views.map(([moduleId, view]) => `${moduleId} ${view}`).join(", ")}`);
     return true;
   }
 

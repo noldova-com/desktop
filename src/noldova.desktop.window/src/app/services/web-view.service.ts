@@ -173,8 +173,9 @@ export class WebViewService {
   }
 
   private keep(test: (handle: WebViewHandle) => boolean): void {
-    for (const handle of this.inOrder(this.document, test))
-      this.bridge.keepWebView(handle.moduleId, handle.id);
+    const handles = this.inOrder(this.document, test);
+    if (handles.length > 0)
+      this.bridge.keepWebViews(handles.map((t): readonly [string, string] => [t.moduleId, t.id]));
   }
 
   private expect(tab: Tab, element: HTMLElement): void {

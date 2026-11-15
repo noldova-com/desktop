@@ -69,7 +69,7 @@ export interface IPreloadBridge {
   zoomWebView(moduleId: string, view: string, change: string | number | null): Promise<unknown>;
   findInWebView(moduleId: string, view: string, request: string | JsonObject): Promise<unknown>;
   closeWebView(moduleId: string, view: string): void;
-  keepWebView(moduleId: string, view: string): unknown;
+  keepWebViews(views: readonly (readonly [string, string])[]): unknown;
   expectWebView(moduleId: string, view: string): unknown;
   setWebViewShortcuts(keys: readonly string[]): void;
   setAppShortcuts(shortcuts: JsonObject): void;

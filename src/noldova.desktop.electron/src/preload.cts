@@ -102,7 +102,7 @@ class Preload {
       zoomWebView: (moduleId: string, view: string, change: unknown): Promise<unknown> => this.invokeAsync("webViewZoom", moduleId, view, change),
       findInWebView: (moduleId: string, view: string, request: unknown): Promise<unknown> => this.invokeAsync("webViewFind", moduleId, view, request),
       closeWebView: (moduleId: string, view: string): void => this.send("webViewClose", moduleId, view),
-      keepWebView: (moduleId: string, view: string): unknown => this.sendSync("webViewKeep", moduleId, view),
+      keepWebViews: (views: readonly (readonly [string, string])[]): unknown => this.sendSync("webViewKeep", views),
       expectWebView: (moduleId: string, view: string): unknown => this.sendSync("webViewExpect", moduleId, view),
       setWebViewShortcuts: (keys: readonly string[]): void => this.send("webViewShortcuts", keys),
       setAppShortcuts: (shortcuts: unknown): void => this.send("appShortcuts", shortcuts),
