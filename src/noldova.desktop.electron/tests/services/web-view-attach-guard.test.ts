@@ -9,6 +9,7 @@
 import "@noldova/context.core";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 
+import type { IWebViewAttachParams } from "../../src/interfaces/i-web-view-attach-params.js";
 import type { IWebViewAttachPreferences } from "../../src/interfaces/i-web-view-attach-preferences.js";
 import { WebViewAttachGuard } from "../../src/services/web-view-attach-guard.js";
 import { FakePreventableEvent } from "../fixtures/fake-preventable-event.fixture.js";
@@ -56,10 +57,9 @@ export class WebViewAttachGuardTests {
 
   @TestMethod
   @TestData("persist:other.workspace-1", "about:blank")
-  @TestData("persist:browser.workspace-1", "https://example.com/")
-  @TestData("persist:browser.workspace-1", String.empty)
   @TestData(null, "about:blank")
-  public refusesAndLogsAnIntruderWebviewWithAnotherPartitionOrAFirstPageThatIsNotBlank(partition: string | null, src: string): void {
+  @TestData(null, "https://example.com/")
+  public refusesAndLogsAnIntruderWebviewWithAnotherPartition(partition: string | null, src: string): void {
     const [guard, , logs] = WebViewAttachGuardTests.create();
     const event = new FakePreventableEvent();
     const preferences: IWebViewAttachPreferences = { preload: "file:///forbidden.js" };
@@ -68,8 +68,24 @@ export class WebViewAttachGuardTests {
 
     Assert.isTrue(event.isPrevented);
     Assert.areEqual("file:///forbidden.js", preferences.preload);
-    Assert.areEqual(`A <webview> in window 3 was refused, because its partition "${partition ?? String.empty}" belongs to no web view the window opened or its first page is not about:blank.`,
+    Assert.areEqual(`A <webview> in window 3 was refused, because its partition "${partition ?? String.empty}" belongs to no web view the window opened.`,
       logs.join("|"));
+  }
+
+  @TestMethod
+  @TestData("https://example.com/form")
+  @TestData(String.empty)
+  @TestData(null)
+  public startsTheWindowsWebviewInItsViewsPartitionOnABlankPageWhateverAddressItCarries(src: string | null): void {
+    const [guard, , logs] = WebViewAttachGuardTests.create();
+    const event = new FakePreventableEvent();
+    const params: IWebViewAttachParams = Object.isNull(src) ? { partition: WebViewAttachGuardTests.PARTITION } : { src, partition: WebViewAttachGuardTests.PARTITION };
+
+    guard.judge(WebViewAttachGuardTests.WINDOW, false, event, {}, params);
+
+    Assert.isFalse(event.isPrevented);
+    Assert.areEqual("about:blank", params.src);
+    Assert.areEqual(0, logs.length);
   }
 
   @TestMethod

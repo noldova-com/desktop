@@ -2968,7 +2968,7 @@ export interface IWebViewEngine {
   findGuest(contentsId: number): IWebViewGuest | null;
 
   /**
-   * Judges every `<webview>` before it attaches: a page's own is refused, and a window's only when its partition is one the window may use and its first page is `about:blank`; an allowed one runs sandboxed and context-isolated, without a preload, Node.js or nested views.
+   * Judges every `<webview>` before it attaches: a page's own is refused, and a window's only when its partition is one the window may use; an allowed one starts at `about:blank`, whatever address the element carries, such as the page's own once the element moves in the window, and runs sandboxed and context-isolated, without a preload, Node.js or nested views.
    *
    * @param isAllowed Says whether a window may use a partition.
    * @param log Writes a line to the main process's log for each refused `<webview>`.

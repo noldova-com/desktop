@@ -1048,7 +1048,7 @@ export class Resources {
   }
 
   public static formatWebViewAttachRefused(windowId: number, partition: string): string {
-    return `A <webview> in window ${windowId} was refused, because its partition "${partition}" belongs to no web view the window opened or its first page is not ${Resources.blankPage}.`;
+    return `A <webview> in window ${windowId} was refused, because its partition "${partition}" belongs to no web view the window opened.`;
   }
 
   public static formatWebViewPartition(module: string, profileKey: string): string {
