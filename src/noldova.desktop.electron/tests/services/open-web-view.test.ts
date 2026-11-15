@@ -710,7 +710,7 @@ export class OpenWebViewTests {
     const harness = await OpenWebViewTests.showAsync();
     const fresh = OpenWebViewTests.rendererless();
 
-    harness.open.keep();
+    await harness.open.keepAsync();
     OpenWebViewTests.destroy(harness);
     const before = harness.open.isRestorable;
     const navigation = harness.open.bindAsync(fresh, true);
@@ -729,7 +729,7 @@ export class OpenWebViewTests {
       const fresh = OpenWebViewTests.rendererless();
       fresh.restoreAnswer = () => Promise.reject(new Error("The page failed to load."));
       fresh.url = committed;
-      harness.open.keep();
+      await harness.open.keepAsync();
       OpenWebViewTests.destroy(harness);
 
       await harness.open.bindAsync(fresh, true);
@@ -746,7 +746,7 @@ export class OpenWebViewTests {
     const harness = await OpenWebViewTests.showAsync();
     const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
     fresh.loading = true;
-    harness.open.keep();
+    await harness.open.keepAsync();
     OpenWebViewTests.destroy(harness);
 
     const binding = harness.open.bindAsync(fresh, true);
@@ -764,7 +764,7 @@ export class OpenWebViewTests {
     fresh.restoreAnswer = () => new Promise((_, reject) => {
       fail = reject;
     });
-    harness.open.keep();
+    await harness.open.keepAsync();
     OpenWebViewTests.destroy(harness);
     await harness.open.bindAsync(fresh, true);
     await harness.open.navigateAsync("https://example.com/c");
@@ -780,7 +780,7 @@ export class OpenWebViewTests {
     const harness = await OpenWebViewTests.showAsync();
     const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
 
-    harness.open.keep();
+    await harness.open.keepAsync();
     harness.contents.show("https://example.com/b");
     OpenWebViewTests.destroy(harness);
     const isRestorable = harness.open.isRestorable;
@@ -795,7 +795,7 @@ export class OpenWebViewTests {
     const harness = await OpenWebViewTests.showAsync();
     const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
 
-    harness.open.keep();
+    await harness.open.keepAsync();
     OpenWebViewTests.destroy(harness);
     await harness.open.bindAsync(fresh);
 
@@ -808,7 +808,7 @@ export class OpenWebViewTests {
     const harness = await OpenWebViewTests.showAsync();
     const fresh = OpenWebViewTests.rendererless();
 
-    harness.open.keep();
+    await harness.open.keepAsync();
     OpenWebViewTests.destroy(harness);
     const navigation = harness.open.navigateAsync("https://example.com/c");
     await harness.open.bindAsync(fresh, true);
@@ -822,7 +822,7 @@ export class OpenWebViewTests {
     const harness = await OpenWebViewTests.showAsync();
     const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
 
-    harness.open.keep();
+    await harness.open.keepAsync();
     OpenWebViewTests.destroy(harness);
     harness.open.setAllowedOrigins([]);
     await harness.open.bindAsync(fresh, true);
@@ -836,14 +836,14 @@ export class OpenWebViewTests {
     const elsewhere = await OpenWebViewTests.showAsync();
     const closed = await OpenWebViewTests.showAsync();
 
-    unbound.open.keep();
+    await unbound.open.keepAsync();
     elsewhere.contents.history = ["https://example.com/a", "https://example.com/b"];
     elsewhere.contents.index = 1;
-    elsewhere.open.keep();
+    await elsewhere.open.keepAsync();
     OpenWebViewTests.destroy(elsewhere);
     const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
     await elsewhere.open.bindAsync(fresh, true);
-    closed.open.keep();
+    await closed.open.keepAsync();
     OpenWebViewTests.destroy(closed);
     closed.open.close();
 
@@ -858,14 +858,114 @@ export class OpenWebViewTests {
     const going = await OpenWebViewTests.showAsync();
 
     elsewhere.contents.url = "https://example.com/elsewhere";
-    elsewhere.open.keep();
+    await elsewhere.open.keepAsync();
     OpenWebViewTests.destroy(elsewhere);
     going.contents.destroyed = true;
-    going.open.keep();
+    await going.open.keepAsync();
     OpenWebViewTests.destroy(going);
 
     Assert.isFalse(elsewhere.open.isRestorable);
     Assert.isFalse(going.open.isRestorable);
+  }
+
+  @TestMethod
+  public async scrollsARestoredPageThatCameBackAtTheTopOnceToWhereItWasButNotOneThatCameBackElsewhereOrWasKeptAtTheTop(): Promise<void> {
+    const results: string[] = [];
+    for (const [kept, shown] of [[1200, 0], [1200, 300], [0, 0]] as const) {
+      const harness = await OpenWebViewTests.showAsync();
+      const fresh = OpenWebViewTests.rendererless();
+      OpenWebViewTests.scrolled(harness.contents, kept === 0 ? 0 : 40, kept);
+      OpenWebViewTests.scrolled(fresh, 0, shown);
+      fresh.onIsolated = () => Promise.reject(new Error("The page went away."));
+      await harness.open.keepAsync();
+      OpenWebViewTests.destroy(harness);
+
+      await harness.open.bindAsync(fresh, true);
+      await OpenWebViewTests.drainAsync();
+      results.push(`${fresh.debugger.methods().filter(t => t === "Page.getLayoutMetrics").length} ${fresh.isolated.join(",")}`);
+    }
+
+    Assert.areEqual("1 1998 scrollTo(40, 1200)|1 |0 ", results.join("|"));
+  }
+
+  @TestMethod
+  public async scrollsNoRestoredPageBackOnceAPersonsInputOrANavigationCameWhileItLoadedButDoesAfterAPointerMove(): Promise<void> {
+    const results: string[] = [];
+    for (const step of ["mouseMove", "keyDown", "navigate"]) {
+      const harness = await OpenWebViewTests.showAsync();
+      const fresh = OpenWebViewTests.rendererless();
+      let finish: () => void = () => undefined;
+      fresh.restoreAnswer = () => new Promise(resolve => {
+        finish = resolve;
+      });
+      OpenWebViewTests.scrolled(harness.contents, 0, 1200);
+      OpenWebViewTests.scrolled(fresh, 0, 0);
+      await harness.open.keepAsync();
+      OpenWebViewTests.destroy(harness);
+      await harness.open.bindAsync(fresh, true);
+
+      if (step === "navigate")
+        await harness.open.navigateAsync("https://example.com/c");
+      else
+        fresh.emit("input-event", {}, { type: step });
+      finish();
+      await OpenWebViewTests.drainAsync();
+      results.push(fresh.isolated.join(","));
+    }
+
+    Assert.areEqual("1998 scrollTo(0, 1200)||", results.join("|"));
+  }
+
+  @TestMethod
+  public async keepsNoScrollItCouldNotReadInTimeOrReadAsAPositionAndSoScrollsNothingBack(): Promise<void> {
+    const results: string[] = [];
+    const replies: (() => Promise<unknown>)[] = [
+      () => new Promise(() => undefined),
+      () => Promise.reject(new Error("The page went away.")),
+      () => Promise.resolve({ cssLayoutViewport: { pageX: "0", pageY: 1200 } })
+    ];
+    for (const reply of replies) {
+      const harness = await OpenWebViewTests.showAsync();
+      const fresh = OpenWebViewTests.rendererless();
+      harness.contents.debugger.replies.set("Page.getLayoutMetrics", reply);
+      OpenWebViewTests.scrolled(fresh, 0, 0);
+
+      const keeping = harness.open.keepAsync();
+      const waits = harness.waits.count(500);
+      harness.waits.elapse(500);
+      await keeping;
+      OpenWebViewTests.destroy(harness);
+      await harness.open.bindAsync(fresh, true);
+      await OpenWebViewTests.drainAsync();
+      results.push(`${waits} ${harness.waits.count(500)} ${fresh.isolated.join(",")}`);
+    }
+
+    Assert.areEqual("1 0 |1 0 |1 0 ", results.join("|"));
+  }
+
+  @TestMethod
+  public async scrollsBackToWhereItsLastKeepFoundThePageEvenWhenAnEarlierKeepsReadAnswersLater(): Promise<void> {
+    const harness = await OpenWebViewTests.showAsync();
+    const fresh = OpenWebViewTests.rendererless();
+    let answer: (value: unknown) => void = () => undefined;
+    const answers: (() => Promise<unknown>)[] = [
+      () => new Promise(resolve => {
+        answer = resolve;
+      }),
+      () => Promise.resolve({ cssLayoutViewport: { pageX: 0, pageY: 1200 } })
+    ];
+    harness.contents.debugger.replies.set("Page.getLayoutMetrics", () => answers.shift()?.() ?? Promise.resolve({}));
+    OpenWebViewTests.scrolled(fresh, 0, 0);
+
+    const first = harness.open.keepAsync();
+    await harness.open.keepAsync();
+    answer({ cssLayoutViewport: { pageX: 0, pageY: 300 } });
+    await first;
+    OpenWebViewTests.destroy(harness);
+    await harness.open.bindAsync(fresh, true);
+    await OpenWebViewTests.drainAsync();
+
+    Assert.areEqual("1998 scrollTo(0, 1200)", fresh.isolated.join(","));
   }
 
   @TestMethod
@@ -1154,6 +1254,14 @@ export class OpenWebViewTests {
     const contents = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
     contents.debugger.replies.set("Page.enable", () => contents.started.then(() => ({})));
     return contents;
+  }
+
+  private static scrolled(contents: FakeWebViewContents, x: number, y: number): void {
+    contents.debugger.replies.set("Page.getLayoutMetrics", () => Promise.resolve({ cssLayoutViewport: { pageX: x, pageY: y } }));
+  }
+
+  private static drainAsync(): Promise<void> {
+    return new Promise(resolve => setImmediate(resolve));
   }
 
   private static destroy(harness: OpenWebViewHarness): void {

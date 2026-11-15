@@ -114,13 +114,13 @@ export class WebViewHost {
     return isBound && this.views.get(open.info.id) === open ? { [Resources.isAttachedField]: true } : null;
   }
 
-  public keep(windowId: number, module: unknown, view: unknown): boolean {
+  public async keepAsync(windowId: number, module: unknown, view: unknown): Promise<boolean> {
     const open = this.find(windowId, module, view);
     if (Object.isNull(open))
       return false;
-    open.keep();
     this.forget(open);
     this.kept.push(open);
+    await open.keepAsync();
     return true;
   }
 

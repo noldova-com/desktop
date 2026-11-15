@@ -224,6 +224,13 @@ export class Resources {
   public static readonly enabledParameter: string = "enabled";
   public static readonly focusBarrierWorld: number = 1999;
   public static readonly focusBarrierScript: string = "0";
+  public static readonly layoutMetricsMethod: string = "Page.getLayoutMetrics";
+  public static readonly layoutViewportField: string = "cssLayoutViewport";
+  public static readonly pageXField: string = "pageX";
+  public static readonly pageYField: string = "pageY";
+  public static readonly scrollBackWorld: number = 1998;
+  public static readonly webViewScrollReadTimeout: number = 500;
+  public static readonly pointerMoveTypes: readonly string[] = ["mouseMove", "mouseEnter", "mouseLeave"];
   public static readonly autoRepeatField: string = "autoRepeat";
   public static readonly keyDownType: string = "keyDown";
   public static readonly rawKeyDownType: string = "rawKeyDown";
@@ -979,6 +986,10 @@ export class Resources {
 
   public static get updateBarrierNotClearedDetail(): string {
     return `Open ${Resources.applicationName} again in a moment. If this keeps happening, its log has the reason.`;
+  }
+
+  public static formatScrollBackScript(x: number, y: number): string {
+    return `scrollTo(${x}, ${y})`;
   }
 
   public static formatBarrierNotCleared(message: string): string {
