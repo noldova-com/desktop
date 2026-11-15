@@ -18,6 +18,7 @@ import { NotesOptionsFixture } from "./fixtures/notes-options.fixture.ts";
 import { PageBridgeFixture } from "./fixtures/page-bridge.fixture.ts";
 import type { IKeptRecord, IReconnectRecord, IStartupRecord } from "./fixtures/page-globals.d.ts";
 import { SettingsFixture } from "./fixtures/settings.fixture.ts";
+import { TabContentFixture } from "./fixtures/tab-content.fixture.ts";
 import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 
 interface IReconnectResult {
@@ -92,8 +93,8 @@ function readStartupsAsync(window: Page): Promise<string[]> {
 }
 
 async function openDialogAsync(window: Page, text: string): Promise<Locator> {
-  await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
-  await window.locator("[data-fixture-content=notes-dialog-1]:visible").click();
+  const note = await TabContentFixture.openAsync(window, "document/notes.note/1");
+  await note.locator("[data-fixture-content=notes-dialog-1]").click();
   const name = window.locator("[data-fixture-content=notes-dialog-name]");
   await expect(name).toBeFocused();
   await name.fill(text);
