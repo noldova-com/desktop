@@ -17,6 +17,7 @@ import {
 
 import { ProcessClockFixture } from "./process-clock.fixture.js";
 import { ProgramFixture } from "./program.fixture.js";
+import type { PseudoTerminalLibraryFixture } from "./pseudo-terminal-library.fixture.js";
 import type { SettingsFixture } from "./settings.fixture.js";
 import { WaitFixture } from "./wait.fixture.js";
 
@@ -73,6 +74,12 @@ export class ProcessSupervisorFixture {
 
   public static async exitedAsync(terminal: PseudoTerminal, describe: () => string = () => String.empty): Promise<PseudoTerminalExit> {
     return ProcessSupervisorFixture.boundAsync(terminal.exited, () => `The terminal of process ${terminal.processId} did not exit.${ProcessSupervisorFixture.after(describe)}`);
+  }
+
+  public static async programsExitedAsync(library: PseudoTerminalLibraryFixture, describe: () => string = () => String.empty): Promise<void> {
+    Assert.areEqual(1, library.terminals.length);
+    await ProcessSupervisorFixture.boundAsync(Promise.all(library.terminals.map(t => t.exited)),
+      () => `The program the library started did not exit.${ProcessSupervisorFixture.after(describe)}`);
   }
 
   public static async outputAsync(terminal: PseudoTerminal, output: () => string, isPrinted: () => boolean): Promise<void> {

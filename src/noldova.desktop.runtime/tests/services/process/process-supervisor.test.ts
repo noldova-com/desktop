@@ -908,6 +908,7 @@ export class ProcessSupervisorTerminalsTests {
     const failure = await Assert.throwsAsync(
       () => processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, ProcessSupervisorTerminalsTests.request(library, folder.path, [ProgramFixture.WAIT])),
       Error);
+    await ProcessSupervisorFixture.programsExitedAsync(library);
     await ProcessSupervisorFixture.waitForAsync(() => library.calls.includes("terminate"));
 
     Assert.isFalse(failure instanceof ProcessStartException);
@@ -1271,6 +1272,7 @@ export class ProcessSupervisorTerminalsTests {
     const failure = await Assert.throwsAsync(
       () => processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, ProcessSupervisorTerminalsTests.request(library, folder.path, [ProgramFixture.WAIT])),
       Error);
+    await ProcessSupervisorFixture.programsExitedAsync(library, () => `The diagnostics said ${JSON.stringify(diagnostics.text)}.`);
     await ProcessSupervisorFixture.waitForAsync(() => library.calls.includes("terminate"), () => diagnostics.text);
     library.terminals[0]?.releaseExit();
 
