@@ -11,6 +11,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import "@noldova/context.core";
 import { app, session, webContents, type Session } from "electron";
 
+import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewEngine } from "../interfaces/i-web-view-engine.js";
 import type { IWebViewGuest } from "../interfaces/i-web-view-guest.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
@@ -35,11 +36,13 @@ export class ElectronWebViewEngine implements IWebViewEngine {
     return { contents: new ElectronWebViewContents(guest), hostId: guest.hostWebContents?.id ?? null, partition: this.partitions.get(guest.session) ?? null };
   }
 
-  public watchAttach(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void): void {
-    const guard = new WebViewAttachGuard(isAllowed, log);
+  public watchAttach(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void,
+    claim: (windowId: number, partition: string) => boolean = () => false, attached: (windowId: number, contents: IWebViewContents) => void = () => undefined): void {
+    const guard = new WebViewAttachGuard(isAllowed, claim, log);
     app.on(Resources.webContentsCreatedEvent, (_event, contents) => {
       contents.on(Resources.willAttachWebviewEvent, (event, preferences, params) =>
         guard.judge(contents.id, contents.getType() === Resources.webViewContentsType, event, preferences, params));
+      contents.on(Resources.didAttachWebviewEvent, (_event, guest) => attached(contents.id, new ElectronWebViewContents(guest)));
     });
   }
 

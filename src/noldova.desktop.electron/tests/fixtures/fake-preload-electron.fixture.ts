@@ -23,6 +23,7 @@ export class FakePreloadElectron {
   public readonly failures: Map<object, Error> = new Map();
   public readonly sent: unknown[][] = [];
   public readonly invoked: unknown[][] = [];
+  public readonly waited: unknown[][] = [];
   public answer: (values: readonly unknown[]) => unknown = values => values.length % 2 === 0;
   public readonly contextBridge: object = {
     exposeInMainWorld: (name: string, api: Record<string, unknown>): void => {
@@ -33,6 +34,10 @@ export class FakePreloadElectron {
   public readonly ipcRenderer: object = {
     send: (...values: unknown[]): void => {
       this.sent.push(values);
+    },
+    sendSync: (...values: unknown[]): unknown => {
+      this.waited.push(values);
+      return this.answer(values);
     },
     invoke: (...values: unknown[]): Promise<unknown> => {
       this.invoked.push(values);

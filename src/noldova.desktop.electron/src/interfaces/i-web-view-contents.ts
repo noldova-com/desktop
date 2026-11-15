@@ -10,6 +10,7 @@ import type { RenderProcessGoneDetails, WindowOpenHandlerResponse } from "electr
 
 import type { IPreventableEvent } from "./i-preventable-event.js";
 import type { IWebViewDebugger } from "./i-web-view-debugger.js";
+import type { IWebViewHistory } from "./i-web-view-history.js";
 import type { IWebViewInput } from "./i-web-view-input.js";
 import type { IWebViewInputEvent } from "./i-web-view-input-event.js";
 import type { IWebViewKeyEvent } from "./i-web-view-key-event.js";
@@ -27,6 +28,8 @@ export interface IWebViewContents {
   canGoBack(): boolean;
   canGoForward(): boolean;
   readHistoryEntry(offset: number): string | null;
+  readHistory(): IWebViewHistory;
+  restoreHistoryAsync(history: IWebViewHistory): Promise<void>;
   goBack(): void;
   goForward(): void;
   reload(): void;

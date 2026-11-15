@@ -10,7 +10,7 @@ import type { Stats } from "node:fs";
 import type { Writable } from "node:stream";
 
 import type {
-  AppDetailsOptions, BrowserWindowConstructorOptions, CustomScheme, MenuItemConstructorOptions, MessageBoxOptions, MessageBoxReturnValue, NotificationConstructorOptions, OpenDialogOptions,
+  AppDetailsOptions, BrowserWindowConstructorOptions, CustomScheme, MenuItemConstructorOptions, MessageBoxOptions, MessageBoxReturnValue, NavigationEntry, NotificationConstructorOptions, OpenDialogOptions,
   OpenDialogReturnValue, Rectangle, RenderProcessGoneDetails, SaveDialogOptions, SaveDialogReturnValue, TitleBarOverlayOptions, WindowOpenHandlerResponse
 } from "electron";
 import { type CancellationToken, type Logger, type ProgressInfo, Provider, type ResolvedUpdateFileInfo, type UpdateInfo } from "electron-updater";
@@ -2134,6 +2134,11 @@ export interface IIpcEvent {
    * The sending frame; `null` when it is gone.
    */
   readonly senderFrame: ISenderFrame | null;
+
+  /**
+   * The answer to a synchronous message, which the sender waits for.
+   */
+  returnValue?: unknown;
 }
 
 /**
@@ -2968,10 +2973,13 @@ export interface IWebViewEngine {
   findGuest(contentsId: number): IWebViewGuest | null;
 
   /**
-   * Judges every `<webview>` before it attaches: a page's own is refused, and a window's only when its partition is one the window may use; an allowed one starts at `about:blank`, whatever address the element carries, such as the page's own once the element moves in the window, and runs sandboxed and context-isolated, without a preload, Node.js or nested views.
+   * Judges every `<webview>` before it attaches: a page's own is refused, and a window's only when its partition is one the window may use; an allowed one starts at `about:blank`, whatever address the element carries, such as the page's own once the element moves in the window, unless `claim` takes it, and runs sandboxed and context-isolated, without a preload, Node.js or nested views.
+   * A claimed one loads no page, so the view it replaces can restore its history in it, and `attached` gets its page once it attaches.
    *
    * @param isAllowed Says whether a window may use a partition.
    * @param log Writes a line to the main process's log for each refused `<webview>`.
+   * @param claim Says whether a view of the window with that partition takes the allowed `<webview>` to restore its page in; none does when omitted.
+   * @param attached Gets the page of each allowed `<webview>` of a window as it attaches, right after `claim` judged it.
    * @example
    * ```ts
    * import type { IWebViewEngine } from "@noldova/desktop.electron";
@@ -2981,7 +2989,8 @@ export interface IWebViewEngine {
    * }
    * ```
    */
-  watchAttach(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void): void;
+  watchAttach(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void,
+    claim?: (windowId: number, partition: string) => boolean, attached?: (windowId: number, contents: IWebViewContents) => void): void;
 
   /**
    * Reads a clock that only moves forward, for how long ago a view last had the person's input.
@@ -3059,6 +3068,21 @@ export interface IWebViewKeyEvent {
    * The keys held with it and its flags, such as `shift`, `control` or `isautorepeat`.
    */
   readonly modifiers: readonly string[];
+}
+
+/**
+ * A page's history, as a `<webview>` page restores it on a page that hasn't loaded yet: each entry's address, title and Chromium page state, with its form values and scroll position.
+ */
+export interface IWebViewHistory {
+  /**
+   * The entries, oldest first.
+   */
+  readonly entries: readonly NavigationEntry[];
+
+  /**
+   * The current entry's index.
+   */
+  readonly index: number;
 }
 
 /**
@@ -3176,6 +3200,37 @@ export interface IWebViewContents {
    * ```
    */
   readHistoryEntry(offset: number): string | null;
+
+  /**
+   * Reads the page's history with each entry's page state, as Chromium last stored it, for a page that replaces this one to restore.
+   *
+   * @returns The entries and the current one's index.
+   * @example
+   * ```ts
+   * import type { IWebViewContents, IWebViewHistory } from "@noldova/desktop.electron";
+   *
+   * export function keep(contents: IWebViewContents): IWebViewHistory {
+   *   return contents.readHistory();
+   * }
+   * ```
+   */
+  readHistory(): IWebViewHistory;
+
+  /**
+   * Restores a history another page read and loads its current entry, with the entry's form values and scroll position; the page must not have loaded any page before.
+   *
+   * @param history The history to restore.
+   * @returns A promise that settles once the entry has loaded, and rejects when it fails to load.
+   * @example
+   * ```ts
+   * import type { IWebViewContents, IWebViewHistory } from "@noldova/desktop.electron";
+   *
+   * export async function resume(contents: IWebViewContents, history: IWebViewHistory): Promise<void> {
+   *   await contents.restoreHistoryAsync(history);
+   * }
+   * ```
+   */
+  restoreHistoryAsync(history: IWebViewHistory): Promise<void>;
 
   /**
    * Moves back one entry in the history.

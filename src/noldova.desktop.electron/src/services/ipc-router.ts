@@ -85,6 +85,9 @@ export class IpcRouter {
     ipc.handle(Resources.webViewZoomChannel, (event, module, view, change) => this.onWebView(event, null, t => views.zoom(t, module, view, change)));
     ipc.handle(Resources.webViewFindChannel, (event, module, view, request) => this.onWebView(event, null, t => views.findAsync(t, module, view, request)));
     ipc.on(Resources.webViewCloseChannel, (event, module, view) => this.onWebView(event, false, t => views.close(t, module, view)));
+    ipc.on(Resources.webViewKeepChannel, (event, module, view) => {
+      event.returnValue = this.onWebView(event, false, t => views.keep(t, module, view));
+    });
     ipc.on(Resources.webViewShortcutsChannel, (event, keys) => this.onWebView(event, false, t => views.setShortcuts(t, keys)));
   }
 

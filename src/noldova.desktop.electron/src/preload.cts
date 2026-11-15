@@ -102,6 +102,7 @@ class Preload {
       zoomWebView: (moduleId: string, view: string, change: unknown): Promise<unknown> => this.invokeAsync("webViewZoom", moduleId, view, change),
       findInWebView: (moduleId: string, view: string, request: unknown): Promise<unknown> => this.invokeAsync("webViewFind", moduleId, view, request),
       closeWebView: (moduleId: string, view: string): void => this.send("webViewClose", moduleId, view),
+      keepWebView: (moduleId: string, view: string): unknown => this.sendSync("webViewKeep", moduleId, view),
       setWebViewShortcuts: (keys: readonly string[]): void => this.send("webViewShortcuts", keys),
       setAppShortcuts: (shortcuts: unknown): void => this.send("appShortcuts", shortcuts),
       onWebViewEvent: (listener: (event: unknown) => void): (() => void) => this.listen("webViewEvent", listener),
@@ -145,6 +146,10 @@ class Preload {
 
   private send(name: keyof IPreloadChannels, ...values: unknown[]): void {
     electron.ipcRenderer.send(this.channel(name), ...values);
+  }
+
+  private sendSync(name: keyof IPreloadChannels, ...values: unknown[]): unknown {
+    return electron.ipcRenderer.sendSync(this.channel(name), ...values);
   }
 
   private invokeAsync(name: keyof IPreloadChannels, ...values: unknown[]): Promise<unknown> {

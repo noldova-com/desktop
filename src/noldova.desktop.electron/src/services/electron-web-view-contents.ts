@@ -12,6 +12,7 @@ import type { KeyboardInputEvent, NavigationHistory, WebContents, WindowOpenHand
 
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewDebugger } from "../interfaces/i-web-view-debugger.js";
+import type { IWebViewHistory } from "../interfaces/i-web-view-history.js";
 import type { IWebViewKeyEvent } from "../interfaces/i-web-view-key-event.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 
@@ -62,6 +63,14 @@ export class ElectronWebViewContents implements IWebViewContents {
   public readHistoryEntry(offset: number): string | null {
     const index = this.history.getActiveIndex() + offset;
     return index >= 0 && index < this.history.length() ? this.history.getEntryAtIndex(index).url : null;
+  }
+
+  public readHistory(): IWebViewHistory {
+    return { entries: this.history.getAllEntries(), index: this.history.getActiveIndex() };
+  }
+
+  public restoreHistoryAsync(history: IWebViewHistory): Promise<void> {
+    return this.history.restore({ entries: [...history.entries], index: history.index });
   }
 
   public goBack(): void {

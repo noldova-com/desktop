@@ -49,6 +49,8 @@ export class WebViewService {
     const destroyRef = inject(DestroyRef);
     destroyRef.onDestroy(this.bridge.onWebViewEvent(t => this.receive(t)));
     destroyRef.onDestroy(this.bridge.onWebViewShortcut(t => commands.dispatch(t)));
+    destroyRef.onDestroy(this.layout.onChange((from, to) => this.keep(t => WebViewService.moves(t.tab, from, to))));
+    destroyRef.onDestroy(this.liveViews.onLeave(tab => this.keep(t => t.tab.key === tab.key)));
     effect(() => {
       const keys = commands.shortcuts().viewKeys;
       untracked(() => this.bridge.setWebViewShortcuts(keys));
@@ -165,6 +167,15 @@ export class WebViewService {
     return guest;
   }
 
+  private keep(test: (handle: WebViewHandle) => boolean): void {
+    const wanted = [...this.handles.values()].filter(t => !t.isClosed && test(t));
+    if (wanted.length === 0)
+      return;
+    const guests: readonly Element[] = [...this.document.getElementsByClassName(Resources.webViewGuestClass)];
+    for (const handle of wanted.filter(t => guests.includes(t.guest)).sort((first, second) => guests.indexOf(first.guest) - guests.indexOf(second.guest)))
+      this.bridge.keepWebView(handle.moduleId, handle.id);
+  }
+
   private attach(handle: WebViewHandle): void {
     if (handle.isClosed)
       return;
@@ -235,6 +246,12 @@ export class WebViewService {
     this.handles.delete(handle.id);
     handle.layer?.close();
     handle.frame.remove();
+  }
+
+  private static moves(tab: Tab, from: Layout, to: Layout): boolean {
+    const before = from.groupOf(tab);
+    const after = to.groupOf(tab);
+    return !Object.isNull(before) && !Object.isNull(after) && before.id !== after.id;
   }
 
   private static style(element: HTMLElement, properties: Readonly<Record<string, string>>): void {

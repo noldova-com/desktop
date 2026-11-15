@@ -65,6 +65,7 @@ export type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 export type { IWebViewDebugger } from "../interfaces/i-web-view-debugger.js";
 export type { IWebViewEngine } from "../interfaces/i-web-view-engine.js";
 export type { IWebViewGuest } from "../interfaces/i-web-view-guest.js";
+export type { IWebViewHistory } from "../interfaces/i-web-view-history.js";
 export type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 export type { IWebViewInputEvent } from "../interfaces/i-web-view-input-event.js";
 export type { IWebViewKeyEvent } from "../interfaces/i-web-view-key-event.js";

@@ -23,6 +23,7 @@ export class LiveViewService {
   private readonly environment: EnvironmentInjector = inject(EnvironmentInjector);
   private readonly layout: LayoutService = inject(LayoutService);
   private readonly views: Map<string, LiveView> = new Map();
+  private readonly leaveListeners: Set<(tab: Tab) => void> = new Set();
   private readonly destroyedValue: WritableSignal<number> = signal(0);
   private readonly shownValue: WritableSignal<ReadonlySet<string>> = signal(new Set());
 
@@ -41,6 +42,16 @@ export class LiveViewService {
     inject(DestroyRef).onDestroy(() => this.removeWhere(() => true));
   }
 
+  public onLeave(listener: (tab: Tab) => void): () => void {
+    this.leaveListeners.add(listener);
+    return () => this.leaveListeners.delete(listener);
+  }
+
+  public prepareLeave(tab: Tab): void {
+    for (const listener of [...this.leaveListeners])
+      listener(tab);
+  }
+
   public show(tab: Tab, slot: HTMLElement, isDocked: boolean): TabContentComponent {
     const view = this.views.get(tab.key) ?? this.create(tab);
     view.ref.setInput(Resources.tabInput, tab);
@@ -52,8 +63,10 @@ export class LiveViewService {
     if (view.slot === slot)
       view.reveal();
     else {
-      if (!Object.isNull(view.slot))
+      if (!Object.isNull(view.slot)) {
+        this.prepareLeave(tab);
         view.leave();
+      }
       view.enter(slot);
     }
     view.ref.setInput(Resources.shownInput, true);

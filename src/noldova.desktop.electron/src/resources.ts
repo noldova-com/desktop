@@ -57,6 +57,7 @@ export class Resources {
   public static readonly webViewNavigateChannel: string = "desktop:webViewNavigate";
   public static readonly webViewActChannel: string = "desktop:webViewAct";
   public static readonly webViewCloseChannel: string = "desktop:webViewClose";
+  public static readonly webViewKeepChannel: string = "desktop:webViewKeep";
   public static readonly webViewShortcutsChannel: string = "desktop:webViewShortcuts";
   public static readonly appShortcutsChannel: string = "desktop:appShortcuts";
   public static readonly webViewEventChannel: string = "desktop:webViewEvent";
@@ -629,6 +630,7 @@ export class Resources {
     webViewAct: Resources.webViewActChannel,
     webViewAttach: Resources.webViewAttachChannel,
     webViewClose: Resources.webViewCloseChannel,
+    webViewKeep: Resources.webViewKeepChannel,
     webViewEvent: Resources.webViewEventChannel,
     webViewFind: Resources.webViewFindChannel,
     webViewNavigate: Resources.webViewNavigateChannel,
@@ -652,6 +654,7 @@ export class Resources {
   public static readonly willNavigateEvent: "will-navigate" = "will-navigate";
   public static readonly willRedirectEvent: "will-redirect" = "will-redirect";
   public static readonly willAttachWebviewEvent: "will-attach-webview" = "will-attach-webview";
+  public static readonly didAttachWebviewEvent: "did-attach-webview" = "did-attach-webview";
   public static readonly webContentsCreatedEvent: "web-contents-created" = "web-contents-created";
   public static readonly webViewContentsType: "webview" = "webview";
   public static readonly destroyedEvent: "destroyed" = "destroyed";

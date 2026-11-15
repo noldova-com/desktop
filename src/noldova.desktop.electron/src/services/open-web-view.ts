@@ -24,6 +24,7 @@ import {
 } from "@noldova/desktop.protocol";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
+import type { IWebViewHistory } from "../interfaces/i-web-view-history.js";
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
@@ -60,6 +61,7 @@ export class OpenWebView {
   private guest: IWebViewContents | null = null;
   private pendingUrl: string | undefined;
   private committedUrl: string | undefined;
+  private kept: IWebViewHistory | null = null;
   private isCrashed: boolean = false;
   private isAttached: boolean = false;
   private isClosed: boolean = false;
@@ -109,11 +111,21 @@ export class OpenWebView {
     return this.guest;
   }
 
+  public get isRestorable(): boolean {
+    return !Object.isNull(this.kept) && Object.isNull(this.guest) && !this.isClosed;
+  }
+
   public get zoom(): number {
     return this.zoomFactor;
   }
 
-  public async bindAsync(guest: IWebViewContents): Promise<boolean> {
+  public keep(): void {
+    const guest = this.guest;
+    if (!Object.isNull(guest) && this.isAttached && !guest.isDestroyed() && guest.getURL() === this.committedUrl)
+      this.kept = guest.readHistory();
+  }
+
+  public async bindAsync(guest: IWebViewContents, isPristine: boolean = false): Promise<boolean> {
     const previous = this.guest;
     if (this.isClosed)
       return false;
@@ -139,10 +151,12 @@ export class OpenWebView {
     }
     if (this.guest !== guest)
       return false;
-    const url = this.pendingUrl ?? this.committedUrl;
+    const pending = this.pendingUrl;
+    const kept = isPristine && Object.isUndefined(pending) ? this.kept : null;
     this.pendingUrl = undefined;
+    this.kept = null;
     const navigations = this.navigations.splice(0);
-    const answer = Object.isUndefined(url) ? null : await this.navigateAsync(url);
+    const answer = Object.isNull(kept) ? await this.goToAsync(pending ?? this.committedUrl) : await this.restoreAsync(guest, kept);
     for (const settle of navigations)
       settle(answer);
     return true;
@@ -406,6 +420,7 @@ export class OpenWebView {
   }
 
   private noteCommitted(guest: IWebViewContents): void {
+    this.kept = null;
     const url = guest.getURL();
     if (url.length > 0 && url !== Resources.blankPage)
       this.committedUrl = url;
@@ -486,6 +501,19 @@ export class OpenWebView {
       this.setZoom(1);
     else
       this.stepZoom(step);
+  }
+
+  private goToAsync(url: string | undefined): Promise<JsonObject | null> {
+    return Object.isUndefined(url) ? Promise.resolve(null) : this.navigateAsync(url);
+  }
+
+  private async restoreAsync(guest: IWebViewContents, kept: IWebViewHistory): Promise<JsonObject | null> {
+    const url = kept.entries[kept.index]?.url;
+    if (Object.isUndefined(url) || url !== this.committedUrl || !(await this.allowsAsync(url)) || this.isClosed || this.guest !== guest)
+      return this.goToAsync(this.committedUrl);
+    this.isCrashed = false;
+    void guest.restoreHistoryAsync(kept).catch(() => undefined);
+    return OpenWebView.started();
   }
 
   private async moveAsync(guest: IWebViewContents, offset: number, move: () => void): Promise<JsonObject> {
