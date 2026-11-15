@@ -124,7 +124,9 @@ export class OpenWebViewTests {
       { name: "DOM.focus", parameters: { backendNodeId: {} } },
       { name: "Emulation.setFocusEmulationEnabled", parameters: { enabled: { required: true } } },
       { name: "Input.dispatchKeyEvent", parameters: { type: { required: true }, key: {}, code: {}, modifiers: {} } },
-      { name: "Input.insertText", parameters: { text: { required: true } } }
+      { name: "Input.insertText", parameters: { text: { required: true } } },
+      { name: "Input.dispatchTouchEvent", parameters: { type: { required: true }, touchPoints: {} } },
+      { name: "Input.synthesizeTapGesture", parameters: { x: { required: true }, y: { required: true } } }
     ]
   });
 
@@ -898,6 +900,34 @@ export class OpenWebViewTests {
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
 
     Assert.areEqual(JSON.stringify(["Start", "Press", "Press", "End"]), JSON.stringify(harness.inputs));
+  }
+
+  @TestMethod
+  public async tellsTheWindowOfThePersonsPressThatLandsDuringARelayedPressOrMoveButNotOfThePressesTheRelaySent(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    const emit = (types: readonly string[]): void => {
+      for (const type of types)
+        harness.contents.emit("input-event", {}, { type });
+    };
+    const sendAsync = async (call: number, method: string, params: JsonObject, during: readonly string[], afterward: readonly string[] = []): Promise<void> => {
+      harness.contents.debugger.replies.set(method, () => {
+        emit(during);
+        return Promise.resolve({});
+      });
+      harness.contents.onIsolated = () => {
+        emit(afterward);
+        return Promise.resolve(0);
+      };
+      await harness.open.sendAsync(call, method, params, 1000);
+    };
+
+    await sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, ["mouseDown", "mouseDown"]);
+    await sendAsync(2, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, [], ["mouseDown"]);
+    await sendAsync(3, OpenWebViewTests.MOUSE, { type: "mouseMoved", x: 1, y: 1 }, ["mouseDown"]);
+    await sendAsync(4, "Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [] }, ["touchStart"]);
+    await sendAsync(5, "Input.synthesizeTapGesture", { x: 1, y: 1 }, ["mouseDown"]);
+
+    Assert.areEqual(JSON.stringify(["Start", "Press", "End", "Start", "Press", "End", "Start", "Press", "End", "Start", "End", "Start", "End"]), JSON.stringify(harness.inputs));
   }
 
   private static describe(answer: WebViewAnswered): string {

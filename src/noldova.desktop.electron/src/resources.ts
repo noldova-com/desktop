@@ -276,6 +276,8 @@ export class Resources {
   public static readonly newWindowRequest: string = "newWindow";
   public static readonly personInputTypes: readonly string[] = ["rawKeyDown", "keyDown", "mouseDown", "touchStart"];
   public static readonly personPressTypes: readonly string[] = ["mouseDown", "touchStart"];
+  public static readonly relayedPressTypes: ReadonlyMap<string, string> = new Map([["Input.dispatchMouseEvent", "mousePressed"], ["Input.dispatchTouchEvent", "touchStart"]]);
+  public static readonly pressFreeInputMethods: readonly string[] = ["Input.dispatchMouseEvent", "Input.dispatchTouchEvent", "Input.dispatchKeyEvent", "Input.insertText"];
   public static readonly inputStartKind: string = "Start";
   public static readonly inputEndKind: string = "End";
   public static readonly inputPressKind: string = "Press";
