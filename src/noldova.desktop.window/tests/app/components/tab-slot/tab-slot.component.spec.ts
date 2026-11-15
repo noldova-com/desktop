@@ -11,7 +11,7 @@ import { Component, type Signal, type WritableSignal, computed, inject, signal, 
 import { type ComponentFixture, TestBed } from "@angular/core/testing";
 
 import { ModuleState, ModuleStatus } from "@noldova/desktop.protocol";
-import { DefaultTheme } from "@noldova/ui.components.angular";
+import { CheckboxComponent, DefaultTheme } from "@noldova/ui.components.angular";
 import { AppearanceFixture } from "@noldova/ui.components.angular/testing";
 
 import { TabSlotComponent } from "../../../../src/app/components/tab-slot/tab-slot.component";
@@ -32,7 +32,8 @@ import { DomFixture } from "../../../fixtures/dom.fixture";
 
 @Component({
   selector: "nol-test-page",
-  template: "<textarea></textarea><div class=\"list\" style=\"height: 20px; overflow: auto\"><div style=\"height: 200px\"></div></div>"
+  imports: [CheckboxComponent],
+  template: "<nol-checkbox [checked]=\"true\">Done</nol-checkbox><textarea></textarea><div class=\"list\" style=\"height: 20px; overflow: auto\"><div style=\"height: 200px\"></div></div>"
 })
 class TestPageComponent {
 }
@@ -123,7 +124,7 @@ describe("TabSlotComponent", () => {
     expect([planned?.element.inert, other?.element.inert, other?.element.parentElement, field.value, document.activeElement]).toEqual([false, true, slotElement(), "draft", field]);
   });
 
-  it("lays the hidden view over the shown one in the same box, out of sight, taking no pointer and no focus", async () => {
+  it("lays the hidden view over the shown one in the same box, out of sight with its checked marks too, taking no pointer and no focus", async () => {
     const root = DomFixture.host(fixture);
     root.style.cssText = "display: flex; flex-direction: column; height: 300px";
     await fixture.whenStable();
@@ -132,6 +133,8 @@ describe("TabSlotComponent", () => {
       const bounds = element.getBoundingClientRect();
       return [bounds.top, bounds.bottom, bounds.left, bounds.right];
     };
+    const seen = (element: Element): readonly Element[] =>
+      [...element.querySelectorAll("*")].filter(t => t.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
 
     fixture.componentInstance.tab.set(todo);
     await fixture.whenStable();
@@ -144,6 +147,7 @@ describe("TabSlotComponent", () => {
     expect([box(planned), box(other)]).toEqual([box(DomFixture.present(slotElement())), box(DomFixture.present(slotElement()))]);
     expect(area.height).toBe(300);
     expect([getComputedStyle(planned).visibility, getComputedStyle(other).visibility]).toEqual(["hidden", "visible"]);
+    expect([seen(planned), seen(other).includes(DomFixture.oneOf(other, ".nol-checkbox-mark", Element))]).toEqual([[], true]);
     expect([other.contains(hit), planned.contains(hit)]).toEqual([true, false]);
     expect(document.activeElement).not.toBe(field);
   });

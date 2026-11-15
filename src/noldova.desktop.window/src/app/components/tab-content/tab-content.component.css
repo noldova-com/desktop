@@ -18,6 +18,7 @@
 
 :host(.nol-tab-content-concealed) {
   visibility: hidden;
+  opacity: 0;
 }
 
 :host(.nol-tab-content-padded) {
