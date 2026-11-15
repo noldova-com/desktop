@@ -24,6 +24,10 @@ export class PackageNaming {
     return Resources.corePackageParts.some(t => name === `${Resources.modulesPrefix}${t}`);
   }
 
+  public static isSiblingPeer(packageName: string, peer: string): boolean {
+    return PackageNaming.isCore(packageName) && PackageNaming.isCore(peer);
+  }
+
   public static isShared(name: string): boolean {
     return PackageNaming.isCore(name) || PackageNaming.isContext(name) || name === Resources.kitPackage;
   }

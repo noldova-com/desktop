@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
-import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackageManifest } from "../../../src/models/packages/package-manifest.js";
@@ -70,6 +70,19 @@ export class PackageVersionsTests {
       stamped.readObject("peerDependencies").readString("@noldova/desktop.protocol"),
       stamped.readString("gitHead")
     ].join("|"));
+  }
+
+  @TestMethod
+  @TestData("1.2.3", ">=1.2.3 <1.3.0")
+  @TestData("0.9.4", ">=0.9.4 <0.10.0")
+  @TestData("0.0.21-nightly.20261115", ">=0.0.21-nightly.20261115 <0.1.0")
+  public stampsASiblingPeerRangeFromTheVersionToTheNextMinor(version: string, expected: string): void {
+    const manifest = new PackageManifest("src/noldova.desktop.window", "@noldova/desktop.window", ["@noldova/desktop.protocol"]);
+    const text = JSON.stringify({ name: "@noldova/desktop.window", version: "__VERSION__", peerDependencies: { "@noldova/desktop.protocol": ">=__VERSION__ <__NEXT_MINOR__" } });
+
+    const stamped = JsonReader.parse(new PackageVersions(version).stampManifest(manifest, text));
+
+    Assert.areEqual(expected, stamped.readObject("peerDependencies").readString("@noldova/desktop.protocol"));
   }
 
   @TestMethod

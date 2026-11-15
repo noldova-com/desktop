@@ -121,6 +121,8 @@ Noldova Desktop's packages take context's packages and the kit as ranges, as mod
   Context's core package can't load twice, so an exact dependency would give an app at another context version a second copy it can't load.
 - **The app installs them:** an app pins context's packages in its root `package.json`'s `dependencies`, which its packaging ships, and the kit in its window app, each at one exact version inside these ranges.
 - **What stays exact:** Noldova Desktop's own pins, its packages' other dependencies, and the versions between modules.
+- **Between its own packages:** a dependency of one of Noldova Desktop's packages on another is written `__VERSION__`, which the build stamps as the version, and a peer, such as the window package's on the protocol, `>=__VERSION__ <__NEXT_MINOR__`, which the build stamps as the version up to its next minor, such as `>=0.0.21 <0.1.0`, the form the release's archive step requires of a peer on a package of the same release.
+  The build and the Dependency pins check refuse either in another form, naming the package; a fixture module's peer on Noldova Desktop's packages stays `__VERSION__`.
 - **The Dependency pins check** refuses such a peer at an exact version or in another form, or in a range that doesn't hold Noldova Desktop's pin, naming the peer, its range and the pin.
 - **The nightly range check** builds Noldova Desktop and runs its tests with the newest published context and kit inside these ranges, so every package loads the one copy an app would install, and opens or updates an issue when it fails, as a module's range check does.
 
