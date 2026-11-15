@@ -27,6 +27,7 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   private readonly maximizedListeners: Set<(isMaximized: unknown) => void> = new Set();
   private readonly webViewListeners: Set<(event: unknown) => void> = new Set();
   private readonly webViewShortcutListeners: Set<(stroke: unknown) => void> = new Set();
+  private readonly webViewInputListeners: Set<(input: unknown) => void> = new Set();
   private webViewCount: number = 0;
 
   public platform: string;
@@ -475,6 +476,20 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   public publishWebViewShortcut(stroke: unknown): void {
     for (const listener of this.webViewShortcutListeners)
       listener(stroke);
+  }
+
+  public onWebViewInput(listener: (input: unknown) => void): () => void {
+    this.webViewInputListeners.add(listener);
+    return () => this.webViewInputListeners.delete(listener);
+  }
+
+  public publishWebViewInput(input: unknown): void {
+    for (const listener of this.webViewInputListeners)
+      listener(input);
+  }
+
+  public releaseWebViewFocus(moduleId: string, view: string): void {
+    this.webViewCalls.push(`release ${moduleId} ${view}`);
   }
 
   public logModule(moduleId: string, message: string): void {

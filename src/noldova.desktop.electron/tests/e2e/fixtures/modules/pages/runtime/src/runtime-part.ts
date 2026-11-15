@@ -65,10 +65,37 @@ export class RuntimePart implements IRuntimePart {
         return null;
       }
     });
+    RuntimePart.registerFocusMethods(context);
   }
 
   public async deactivateAsync(): Promise<void> {
     this.release();
+  }
+
+  private static registerFocusMethods(context: IRuntimePartContext): void {
+    const views = context.webViews;
+    context.registerMethod(Resources.clickMethod, {
+      handleAsync: async request => {
+        const view = RuntimePart.find(views, Number(RuntimePart.field(request.payload, Resources.viewField)));
+        const x = Number(RuntimePart.field(request.payload, Resources.xField));
+        const y = Number(RuntimePart.field(request.payload, Resources.yField));
+        for (const type of Resources.mouseTypes)
+          await views.relay.sendAsync(view, Resources.dispatchMouseEventMethod, { type, x, y, button: Resources.leftButton, clickCount: 1 }, Resources.captureTimeout);
+        return null;
+      }
+    });
+    context.registerMethod(Resources.focusMethod, {
+      handleAsync: async request => {
+        const view = RuntimePart.find(views, Number(RuntimePart.field(request.payload, Resources.viewField)));
+        const id = String(RuntimePart.field(request.payload, Resources.idField));
+        const found = await views.relay.sendAsync(view, Resources.evaluateMethod, { expression: `document.getElementById(${JSON.stringify(id)})` }, Resources.captureTimeout);
+        const objectId = RuntimePart.field(RuntimePart.field(found, Resources.resultField), Resources.objectIdField);
+        if (!Object.isString(objectId))
+          throw new Error(Resources.noElementMessage);
+        await views.relay.sendAsync(view, Resources.focusNodeMethod, { objectId }, Resources.captureTimeout);
+        return null;
+      }
+    });
   }
 
   private static field(value: unknown, name: string): unknown {

@@ -6,7 +6,7 @@
   "parts": ["runtime", "window"],
   "dependencies": {},
   "contributes": {
-    "methods": ["pages.allow", "pages.navigate", "pages.list", "pages.capture", "pages.events", "pages.press", "pages.type"],
+    "methods": ["pages.allow", "pages.navigate", "pages.list", "pages.capture", "pages.events", "pages.press", "pages.type", "pages.click", "pages.focus"],
     "commands": ["pages.openPage", "pages.showPageInDialog", "pages.openSide"],
     "views": ["pages.side"],
     "documents": ["pages.page"]

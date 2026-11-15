@@ -430,7 +430,7 @@ export class Resources {
   public static readonly webViewIdInvalid: string = "A web view's id must not be blank, and only the calls on one view name it.";
   public static readonly webViewModuleInvalid: string = "A web view belongs to a module, named by its id, whose own view or document is its pane.";
   public static readonly profileKeyInvalid: string = "A profile key is a lowercase letter or digit followed by up to 63 lowercase letters, digits and hyphens.";
-  public static readonly webViewFailureInvalid: string = "A web view's failure carries an engine code, a whole number, and its message only when it is a protocol failure.";
+  public static readonly webViewFailureInvalid: string = "A web view's failure carries an engine code, a whole number, only when it is a protocol failure, and a protocol failure carries its message.";
   public static readonly webViewNavigationInvalid: string = "A web view's answer carries the refused origin exactly when it is a refusal.";
   public static readonly webViewCallInvalid: string = "A web view command's call number must be a positive integer.";
   public static readonly webViewEventsEmpty: string = "A batch of web view events holds at least one event.";
