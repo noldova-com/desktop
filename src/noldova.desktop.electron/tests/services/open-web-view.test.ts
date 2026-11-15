@@ -13,6 +13,7 @@ import { WebViewAction, type WebViewAnswered, WebViewDeclaration, type WebViewEv
 
 import { OpenWebView } from "../../src/services/open-web-view.js";
 import { WebViewOriginCheck } from "../../src/services/web-view-origin-check.js";
+import { Condition } from "../fixtures/condition.fixture.js";
 import type { FakeWebViewContents } from "../fixtures/fake-web-view-contents.fixture.js";
 import { FakeWebView } from "../fixtures/fake-web-view.fixture.js";
 import { FakeWebViewSession } from "../fixtures/fake-web-view-session.fixture.js";
@@ -698,6 +699,26 @@ export class OpenWebViewTests {
     Assert.isTrue(await navigation);
     Assert.areEqual("restore 0 https://example.com/a state of https://example.com/a", fresh.calls.join(","));
     Assert.isFalse(harness.open.isRestorable);
+  }
+
+  @TestMethod
+  public async loadsItsAddressWhenItsRestoreFailsBeforeThePageCommittedAnythingButNotOnceItHas(): Promise<void> {
+    const calls: string[] = [];
+    for (const committed of [String.empty, "https://example.com/a"]) {
+      const harness = await OpenWebViewTests.showAsync();
+      const fresh = OpenWebViewTests.rendererless();
+      fresh.restoreFailure = new Error("The page failed to load.");
+      fresh.url = committed;
+      harness.open.keep();
+      OpenWebViewTests.destroy(harness);
+
+      await harness.open.bindAsync(fresh, true);
+      await Condition.waitAsync(() => fresh.calls.length > 1 || committed !== String.empty);
+      await harness.open.navigateAsync("https://example.com/c");
+      calls.push(fresh.calls.map(t => t.split(" ")[0]).join(" "));
+    }
+
+    Assert.areEqual("restore load load|restore load", calls.join("|"));
   }
 
   @TestMethod

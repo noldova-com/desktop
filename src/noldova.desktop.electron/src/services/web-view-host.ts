@@ -296,9 +296,11 @@ export class WebViewHost {
   }
 
   private claim(windowId: number, partition: string): boolean {
-    const index = this.expected.findIndex(t => t.windowId === windowId && t.partition === partition && t.isRestorable);
-    this.claimed = index < 0 ? null : this.expected.splice(index, 1)[0] ?? null;
-    return !Object.isNull(this.claimed);
+    const claimed = this.expected.find(t => t.windowId === windowId && t.partition === partition && t.isRestorable) ?? null;
+    if (!Object.isNull(claimed))
+      this.forget(claimed);
+    this.claimed = claimed;
+    return !Object.isNull(claimed);
   }
 
   private restore(windowId: number, contents: IWebViewContents): void {

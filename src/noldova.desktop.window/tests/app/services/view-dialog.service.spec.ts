@@ -103,7 +103,7 @@ describe("ViewDialogService", () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(opener));
   });
 
-  it("announces its view's leave while the view is still in the window, before it closes, and none when no view shows", async () => {
+  it("announces its view's leave before it takes the view from its tab and while the view is still in the window before it closes, and none when no view shows", async () => {
     const left: unknown[][] = [];
     TestBed.inject(LiveViewService).onLeave(tab => left.push([tab.key, !Object.isNull(document.querySelector(".nol-test-query"))]));
     dialogs.close();
@@ -114,7 +114,7 @@ describe("ViewDialogService", () => {
     dialogs.close();
     await shown;
 
-    expect([idle, left]).toEqual([[], [[search.key, true]]]);
+    expect([idle, left]).toEqual([[], [[search.key, false], [search.key, true]]]);
   });
 
   it("shows a document under the given title", async () => {

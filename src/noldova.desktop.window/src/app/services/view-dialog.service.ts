@@ -72,6 +72,7 @@ export class ViewDialogService {
     this.wasOpen = this.layout.layout().isOpen(tab);
     this.shownAfter = this.layout.revealed()?.sequence ?? 0;
     this.shownValue.set(tab);
+    this.liveViews.prepareLeave(tab);
     this.layout.hide(tab);
     const dialog = this.dialogs.open(ViewDialogComponent);
     this.dialog = dialog;

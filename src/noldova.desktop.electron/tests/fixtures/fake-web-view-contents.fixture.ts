@@ -32,6 +32,7 @@ export class FakeWebViewContents implements IWebViewContents {
   public index: number = -1;
   public rtcPolicy: string | null = null;
   public loadFailure: Error | null = null;
+  public restoreFailure: Error | null = null;
   public findRequest: number = 0;
   public zoomFactor: number = 1;
   public readonly inputs: IWebViewKeyEvent[] = [];
@@ -84,7 +85,7 @@ export class FakeWebViewContents implements IWebViewContents {
   public restoreHistoryAsync(history: IWebViewHistory): Promise<void> {
     this.calls.push(`restore ${history.index} ${history.entries.map(t => `${t.url} ${t.pageState ?? String.empty}`).join(" ")}`);
     this.begin();
-    return Promise.resolve();
+    return Object.isNull(this.restoreFailure) ? Promise.resolve() : Promise.reject(this.restoreFailure);
   }
 
   public goBack(): void {

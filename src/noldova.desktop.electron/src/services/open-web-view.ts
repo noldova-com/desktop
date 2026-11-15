@@ -517,7 +517,10 @@ export class OpenWebView {
     if (Object.isUndefined(url) || url !== this.committedUrl || !(await this.allowsAsync(url)) || this.isClosed || this.guest !== guest)
       return this.goToAsync(this.committedUrl);
     this.isCrashed = false;
-    void guest.restoreHistoryAsync(kept).catch(() => undefined);
+    void guest.restoreHistoryAsync(kept).catch(() => {
+      if (this.guest === guest && !this.isClosed && guest.getURL() === String.empty)
+        void this.goToAsync(this.committedUrl);
+    });
     return OpenWebView.started();
   }
 
