@@ -58,7 +58,6 @@ export class MainProcessFixture {
   private static readonly DEVICE_FOLDER: string = "device";
   private static readonly RUNTIME_STOP_TIMEOUT: number = 15_000;
   private static readonly OWNERSHIP_INTERVAL: number = 50;
-  private static readonly OWNERSHIP_RELEASE_TIMEOUT: number = 2_000;
   private static readonly NO_SUCH_PROCESS: string = "ESRCH";
   private static readonly NOT_A_DATABASE: number = 26;
   private static readonly LAUNCH_WAIT: number = 20_000;
@@ -177,7 +176,12 @@ export class MainProcessFixture {
       () => isReleased() || !MainProcessFixture.isAlive(asked.processId), MainProcessFixture.RUNTIME_STOP_TIMEOUT, MainProcessFixture.OWNERSHIP_INTERVAL);
     if (!hasEnded && MainProcessFixture.killIfRunning(asked.processId))
       throw new Error(`The runtime ${asked.processId} still ran ${seconds} s after it was asked to stop (${answer}), so the test killed it.`);
-    await WaitFixture.untilAsync(isReleased, `the ended runtime to release ${dataDirectory}`, MainProcessFixture.OWNERSHIP_RELEASE_TIMEOUT, MainProcessFixture.OWNERSHIP_INTERVAL);
+    const isTakenOver = async (): Promise<boolean> => {
+      const current = await DiscoveryReader.readAsync(directory);
+      return !Object.isNull(current) && current.processId !== asked.processId;
+    };
+    await WaitFixture.untilAsync(async () => isReleased() || await isTakenOver(),
+      `the ended runtime to release ${dataDirectory}, or a runtime started again to publish its discovery`, MainProcessFixture.RUNTIME_STOP_TIMEOUT, MainProcessFixture.OWNERSHIP_INTERVAL);
   }
 
   public static isAlive(processId: number): boolean {
