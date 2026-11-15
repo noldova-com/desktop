@@ -51,6 +51,9 @@ export class WebViewService {
     const destroyRef = inject(DestroyRef);
     destroyRef.onDestroy(this.bridge.onWebViewEvent(t => this.receive(t)));
     destroyRef.onDestroy(this.bridge.onWebViewShortcut(t => commands.dispatch(t)));
+    destroyRef.onDestroy(this.layout.onChange((from, to) => this.keep(t => WebViewService.moves(t.tab, from, to))));
+    destroyRef.onDestroy(this.liveViews.onLeave(tab => this.keep(t => t.tab.key === tab.key)));
+    destroyRef.onDestroy(this.liveViews.onEnter((tab, element) => this.expect(tab, element)));
     destroyRef.onDestroy(this.bridge.onWebViewInput(t => this.receiveInput(t)));
     effect(() => {
       const keys = commands.shortcuts().viewKeys;
@@ -167,6 +170,25 @@ export class WebViewService {
     guest.setAttribute(Resources.webViewSourceAttribute, Resources.webViewStartAddress);
     guest.setAttribute(Resources.webViewPopupsAttribute, String.empty);
     return guest;
+  }
+
+  private keep(test: (handle: WebViewHandle) => boolean): void {
+    const handles = this.inOrder(this.document, test);
+    if (handles.length > 0)
+      this.bridge.keepWebViews(handles.map((t): readonly [string, string] => [t.moduleId, t.id]));
+  }
+
+  private expect(tab: Tab, element: HTMLElement): void {
+    for (const handle of this.inOrder(element, t => t.tab.key === tab.key))
+      this.bridge.expectWebView(handle.moduleId, handle.id);
+  }
+
+  private inOrder(root: Document | HTMLElement, test: (handle: WebViewHandle) => boolean): WebViewHandle[] {
+    const wanted = [...this.handles.values()].filter(t => !t.isClosed && test(t));
+    if (wanted.length === 0)
+      return [];
+    const guests: readonly Element[] = [...root.getElementsByClassName(Resources.webViewGuestClass)];
+    return wanted.filter(t => guests.includes(t.guest)).sort((first, second) => guests.indexOf(first.guest) - guests.indexOf(second.guest));
   }
 
   private attach(handle: WebViewHandle): void {
@@ -297,6 +319,12 @@ export class WebViewService {
     this.handles.delete(handle.id);
     handle.layer?.close();
     handle.frame.remove();
+  }
+
+  private static moves(tab: Tab, from: Layout, to: Layout): boolean {
+    const before = from.groupOf(tab);
+    const after = to.groupOf(tab);
+    return !Object.isNull(before) && !Object.isNull(after) && before.id !== after.id;
   }
 
   private static style(element: HTMLElement, properties: Readonly<Record<string, string>>): void {

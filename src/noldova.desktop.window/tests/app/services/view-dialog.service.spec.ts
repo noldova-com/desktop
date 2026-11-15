@@ -25,6 +25,7 @@ import { ViewRegistry } from "../../../src/app/models/layout/view-registry";
 import { ViewTab } from "../../../src/app/models/layout/view-tab";
 import { DocumentOpenerService } from "../../../src/app/services/document-opener.service";
 import { LayoutService } from "../../../src/app/services/layout.service";
+import { LiveViewService } from "../../../src/app/services/live-view.service";
 import { StartupService } from "../../../src/app/services/startup.service";
 import { TabLabelService } from "../../../src/app/services/tab-label.service";
 import { ViewDialogService } from "../../../src/app/services/view-dialog.service";
@@ -100,6 +101,20 @@ describe("ViewDialogService", () => {
 
     expect([container(), title, isLarge, shownTab?.key, dialogs.shown()]).toEqual([null, "Search", true, search.key, null]);
     await vi.waitFor(() => expect(document.activeElement).toBe(opener));
+  });
+
+  it("announces its view's leave before it takes the view from its tab and while the view is still in the window before it closes, and none when no view shows", async () => {
+    const left: unknown[][] = [];
+    TestBed.inject(LiveViewService).onLeave(tab => left.push([tab.key, !Object.isNull(document.querySelector(".nol-test-query"))]));
+    dialogs.close();
+    const idle = [...left];
+    const shown = dialogs.showAsync(search);
+    await vi.waitFor(() => expect(document.querySelector(".nol-test-query")).not.toBeNull());
+
+    dialogs.close();
+    await shown;
+
+    expect([idle, left]).toEqual([[], [[search.key, false], [search.key, true]]]);
   });
 
   it("shows a document under the given title", async () => {

@@ -100,6 +100,27 @@ describe("LiveViewService", () => {
     expect(TestPageComponent.destroyed).toBe(0);
   });
 
+  it("tells its listeners a view leaves its slot while the view is still there and enters one before it is there, but neither when it shows again there or a listener stopped", async () => {
+    const left: unknown[][] = [];
+    const entered: unknown[][] = [];
+    let element: HTMLElement | null = null;
+    const stop = views.onLeave(tab => left.push([tab.key, element?.parentElement === slot(0)]));
+    const stopEntering = views.onEnter((tab, entering) => entered.push([tab.key, entering.isConnected]));
+    const stopped: string[] = [];
+    views.onLeave(tab => stopped.push(tab.key))();
+    views.onEnter(tab => stopped.push(tab.key))();
+    element = (await showAsync(plan, 0)).element;
+    await showAsync(plan, 0);
+    const shownAgain = [[...left], [...entered]];
+
+    await showAsync(plan, 1);
+    stop();
+    stopEntering();
+    await showAsync(plan, 0);
+
+    expect([shownAgain, left, entered, stopped]).toEqual([[[], [[plan.key, false]]], [[plan.key, true]], [[plan.key, false], [plan.key, false]], []]);
+  });
+
   it("keeps a view in its slot when it is shown there again and tells it whether it is docked", async () => {
     const content = await showAsync(plan, 0);
 

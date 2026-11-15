@@ -30,6 +30,7 @@ import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 import { CaughtFailure } from "../models/caught-failure.js";
+import type { WebViewHistory } from "../models/web-view-history.js";
 import { Resources } from "../resources.js";
 import { OpenWebViewResources } from "./open-web-view.resources.js";
 import { WebViewEventCut } from "./web-view-event-cut.js";
@@ -65,6 +66,10 @@ export class OpenWebView {
   private guest: IWebViewContents | null = null;
   private pendingUrl: string | undefined;
   private committedUrl: string | undefined;
+  private kept: WebViewHistory | null = null;
+  private keptScroll: readonly [number, number] | null = null;
+  private navigationCount: number = 0;
+  private inputCount: number = 0;
   private isCrashed: boolean = false;
   private isAttached: boolean = false;
   private isFocusHeld: boolean = false;
@@ -117,11 +122,27 @@ export class OpenWebView {
     return this.guest;
   }
 
+  public get isRestorable(): boolean {
+    return !Object.isNull(this.kept) && Object.isNull(this.guest) && !this.isClosed;
+  }
+
   public get zoom(): number {
     return this.zoomFactor;
   }
 
-  public async bindAsync(guest: IWebViewContents): Promise<boolean> {
+  public async keepAsync(): Promise<void> {
+    const guest = this.guest;
+    if (Object.isNull(guest) || guest.isDestroyed() || guest.getURL() !== this.committedUrl)
+      return;
+    const kept = guest.readHistory();
+    this.kept = kept;
+    this.keptScroll = null;
+    const scroll = await this.readScrollAsync(guest);
+    if (this.kept === kept)
+      this.keptScroll = scroll;
+  }
+
+  public async bindAsync(guest: IWebViewContents, isPristine: boolean = false): Promise<boolean> {
     const previous = this.guest;
     if (this.isClosed)
       return false;
@@ -140,7 +161,7 @@ export class OpenWebView {
     this.listen(guest);
     this.state = JSON.stringify(this.readState(guest));
     this.restoreZoom();
-    const failure = await this.attachAsync(guest);
+    const [failure] = await Promise.all([this.attachAsync(guest), isPristine ? this.startAsync(guest, true) : null]);
     if (!Object.isNull(failure)) {
       if (this.guest === guest)
         this.loseUnlessEnding(guest, failure);
@@ -148,12 +169,8 @@ export class OpenWebView {
     }
     if (this.guest !== guest)
       return false;
-    const url = this.pendingUrl ?? this.committedUrl;
-    this.pendingUrl = undefined;
-    const navigations = this.navigations.splice(0);
-    const answer = Object.isUndefined(url) ? null : await this.navigateAsync(url);
-    for (const settle of navigations)
-      settle(answer);
+    if (!isPristine)
+      await this.startAsync(guest, false);
     return true;
   }
 
@@ -174,6 +191,7 @@ export class OpenWebView {
     if (this.isClosed || Object.isNull(guest))
       return this.navigateAsync(url);
     this.isCrashed = false;
+    this.navigationCount += 1;
     void guest.loadURL(url).catch(() => undefined);
     const failure = this.isAttached ? null : await this.attachAsync(guest);
     if (!Object.isNull(failure) && this.guest === guest)
@@ -196,12 +214,14 @@ export class OpenWebView {
           return OpenWebView.noHistory();
         if (!(await this.allowsAsync(url)))
           return OpenWebView.refused(url);
+        this.navigationCount += 1;
         contents.reload();
         return OpenWebView.started();
       }
       default:
         if (!contents.isLoading())
           return OpenWebView.noHistory();
+        this.navigationCount += 1;
         contents.stop();
         return OpenWebView.started();
     }
@@ -440,6 +460,7 @@ export class OpenWebView {
   }
 
   private noteCommitted(guest: IWebViewContents): void {
+    this.kept = null;
     const url = guest.getURL();
     if (url.length > 0 && url !== Resources.blankPage)
       this.committedUrl = url;
@@ -522,6 +543,64 @@ export class OpenWebView {
       this.stepZoom(step);
   }
 
+  private goToAsync(url: string | undefined): Promise<JsonObject | null> {
+    return Object.isUndefined(url) ? Promise.resolve(null) : this.navigateAsync(url);
+  }
+
+  private async startAsync(guest: IWebViewContents, isPristine: boolean): Promise<void> {
+    const pending = this.pendingUrl;
+    const kept = isPristine && Object.isUndefined(pending) ? this.kept : null;
+    const scroll = this.keptScroll;
+    this.pendingUrl = undefined;
+    this.kept = null;
+    this.keptScroll = null;
+    const navigations = this.navigations.splice(0);
+    const answer = Object.isNull(kept) ? await this.goToAsync(pending ?? this.committedUrl) : await this.restoreAsync(guest, kept, scroll);
+    for (const settle of navigations)
+      settle(answer);
+  }
+
+  private async restoreAsync(guest: IWebViewContents, kept: WebViewHistory, scroll: readonly [number, number] | null): Promise<JsonObject | null> {
+    const count = this.navigationCount;
+    const inputs = this.inputCount;
+    const url = kept.currentUrl;
+    const isRestorable = !Object.isNull(url) && url === this.committedUrl && await this.allowsAsync(url) && !this.isClosed && this.guest === guest;
+    if (this.navigationCount !== count)
+      return null;
+    if (!isRestorable)
+      return this.goToAsync(this.committedUrl);
+    this.isCrashed = false;
+    void guest.restoreHistoryAsync(kept).then(() => this.scrollBackAsync(guest, kept, count, inputs, scroll), () => {
+      if (this.navigationCount === count && this.guest === guest && !this.isClosed && guest.getURL() === String.empty)
+        void this.goToAsync(this.committedUrl);
+    });
+    return OpenWebView.started();
+  }
+
+  private async scrollBackAsync(guest: IWebViewContents, kept: WebViewHistory, count: number, inputs: number, scroll: readonly [number, number] | null): Promise<void> {
+    if (Object.isNull(scroll) || (scroll[0] === 0 && scroll[1] === 0))
+      return;
+    const shown = await this.readScrollAsync(guest);
+    if (Object.isNull(shown) || shown[0] !== 0 || shown[1] !== 0 || this.navigationCount !== count || this.inputCount !== inputs || this.guest !== guest || guest.getURL() !== kept.currentUrl)
+      return;
+    await guest.executeJavaScriptInIsolatedWorld(Resources.scrollBackWorld, [{ code: Resources.formatScrollBackScript(scroll[0], scroll[1]) }]).catch(() => undefined);
+  }
+
+  private async readScrollAsync(guest: IWebViewContents): Promise<readonly [number, number] | null> {
+    const abort = new AbortController();
+    const read = guest.debugger.sendCommand(Resources.layoutMetricsMethod, {}).then(t => OpenWebView.readScroll(t), () => null);
+    const late = this.waitAsync(Resources.webViewScrollReadTimeout, abort.signal).then(() => null, () => null);
+    const scroll = await Promise.race([read, late]);
+    abort.abort();
+    return scroll;
+  }
+
+  private static readScroll(reply: unknown): readonly [number, number] | null {
+    const viewport = OpenWebView.readObject(OpenWebView.readObject(reply)?.[Resources.layoutViewportField]);
+    const [x, y] = [viewport?.[Resources.pageXField], viewport?.[Resources.pageYField]];
+    return Number.isSafeInteger(x) && Number.isSafeInteger(y) ? [Number(x), Number(y)] : null;
+  }
+
   private async moveAsync(guest: IWebViewContents, offset: number, move: () => void): Promise<JsonObject> {
     const url = guest.readHistoryEntry(offset);
     if (Object.isNull(url))
@@ -529,6 +608,7 @@ export class OpenWebView {
     if (!(await this.allowsAsync(url)))
       return OpenWebView.refused(url);
     this.isCrashed = false;
+    this.navigationCount += 1;
     move();
     return OpenWebView.started();
   }
@@ -594,6 +674,8 @@ export class OpenWebView {
   }
 
   private noteInput(type: string): void {
+    if (!Resources.pointerMoveTypes.includes(type))
+      this.inputCount += 1;
     const isPress = Resources.personPressTypes.includes(type);
     if (isPress && this.relayedPresses.length > 0) {
       this.relayedPresses = this.relayedPresses.slice(1);

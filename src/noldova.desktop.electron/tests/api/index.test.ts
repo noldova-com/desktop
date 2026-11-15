@@ -137,6 +137,7 @@ export class MainProcessApiTests {
         "UpdateWorkQuestion",
         "UtilityProcessStarter",
         "WebAddressKind",
+        "WebViewHistory",
         "WebViewOriginCheck",
         "WindowAppearance",
         "WindowBoundsKeeper",

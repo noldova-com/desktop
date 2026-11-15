@@ -60,6 +60,7 @@ export class LayoutService {
   private reopening: readonly EarlyDocument[] = [];
   private writing: Promise<void> = Promise.resolve();
   private readonly kept: WritableSignal<DockSide | null> = signal(null);
+  private readonly changeListeners: Set<(from: Layout, to: Layout) => void> = new Set();
   private readonly titles: Signal<ReadonlyMap<string, string>> = computed(() => new Map(this.layoutState().groups.flatMap(t => t.tabs).flatMap(t => {
     const title = t instanceof DocumentTab ? this.labels.titleOf(t) : null;
     return Object.isNull(title) ? [] : [[t.key, title] as const];
@@ -164,6 +165,11 @@ export class LayoutService {
     const group = current.accepts(tab) ? current : this.layoutState().documents;
     this.place(tab, new TabDropTarget(group.id, group.tabs.length));
     this.activate(tab);
+  }
+
+  public onChange(listener: (from: Layout, to: Layout) => void): () => void {
+    this.changeListeners.add(listener);
+    return () => this.changeListeners.delete(listener);
   }
 
   public hide(tab: Tab | null): void {
@@ -309,8 +315,11 @@ export class LayoutService {
   }
 
   private update(layout: Layout): void {
-    if (layout === this.layoutState())
+    const from = this.layoutState();
+    if (layout === from)
       return;
+    for (const listener of [...this.changeListeners])
+      listener(from, layout);
     this.layoutState.set(layout);
     this.scheduleSave();
   }

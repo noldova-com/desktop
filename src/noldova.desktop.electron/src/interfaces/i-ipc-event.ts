@@ -11,4 +11,5 @@ import type { ISenderFrame } from "./i-sender-frame.js";
 export interface IIpcEvent {
   readonly sender: { readonly id: number };
   readonly senderFrame: ISenderFrame | null;
+  returnValue?: unknown;
 }

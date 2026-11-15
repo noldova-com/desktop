@@ -25,6 +25,9 @@ const host = "127.0.0.1";
 const titles = new Map([["/first", "First page"], ["/second", "Second page"]]);
 const keysPage = "<!doctype html><title>Loading</title><p>Keys</p><script>const keys = []; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Keys\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"keydown\", event => { keys.push(event.key); document.title = [\"Keys\", ...keys].join(\" \"); });</script>";
 const typePage = "<!doctype html><title>Loading</title><p>Type</p><input><script>const field = document.querySelector(\"input\"); const keys = []; let painted = false; let typed = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Type\", field.value, ...keys, blurs].join(\" \").trim(); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); field.addEventListener(\"input\", () => { typed = true; show(); }); field.addEventListener(\"blur\", () => { blurs += typed ? 1 : 0; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); }); field.focus();</script>";
+const formPage = "<!doctype html><title>Form</title><body style=\"margin:0\"><input style=\"position:fixed;top:0\"><div style=\"height:5000px\"></div><script>const field = document.querySelector(\"input\"); field.focus();</script></body>";
+const manualFormPage = formPage.replace("<script>", "<script>history.scrollRestoration = \"manual\"; ");
+const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
@@ -146,6 +149,23 @@ function runInFirstViewAsync(mainProcess: MainProcessFixture, script: string): P
   }, script);
 }
 
+function runInViewAtAsync(mainProcess: MainProcessFixture, url: string, script: string): Promise<unknown> {
+  return mainProcess.application.evaluate(({ webContents }, [address, code]) => {
+    const guest = webContents.getAllWebContents().find(t => t.getType() === "webview" && t.getURL() === address);
+    return guest === undefined ? null : guest.executeJavaScript(code).catch(() => null);
+  }, [url, script] as const);
+}
+
+function holdsPageStateAsync(mainProcess: MainProcessFixture, url: string, text: string): Promise<boolean> {
+  return mainProcess.application.evaluate(({ webContents }, [address, typed]) => {
+    const guest = webContents.getAllWebContents().find(t => t.getType() === "webview" && t.getURL() === address);
+    if (guest === undefined)
+      return false;
+    const state = guest.navigationHistory.getAllEntries()[guest.navigationHistory.getActiveIndex()]?.pageState;
+    return typeof state === "string" && Buffer.from(state, "base64").includes(Buffer.from(typed, "utf16le"));
+  }, [url, text] as const);
+}
+
 function readFirstViewAsync(mainProcess: MainProcessFixture, script: string): Promise<unknown> {
   return mainProcess.application.evaluate(({ webContents }, code) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
@@ -190,6 +210,10 @@ async function startServerAsync(): Promise<Server> {
     }
     if (request.url === "/type") {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(typePage);
+      return;
+    }
+    if ((request.url ?? String.empty).startsWith("/form?")) {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(request.url?.endsWith("&manual") === true ? manualFormPage : formPage);
       return;
     }
     if (request.url === "/focus") {
@@ -467,15 +491,21 @@ test.describe("web views", () => {
     }
   });
 
-  test("a module's web view binds again and answers the runtime part's relayed calls after its tab moves to another group, into a dialog and back, and after its view moves to another dock, each time loading the page it showed", async ({ mainProcess }) => {
+  test("a module's web view binds again and answers the runtime part's relayed calls after its tab moves to another group, into a dialog and back, and after its view moves to another dock, each time restoring the page it showed with what was typed and its scroll, but not its script's state", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const pageKey = "document/pages.page/1";
     const noteKey = "document/notes.note/1";
     const sideKey = "view/pages.side/1";
     const shown = window.getByRole("dialog");
     const side = window.locator(`[data-tab-content="${sideKey}"] [data-fixture-content=pages-view-0]`);
-    const typeAsync = async (index: number, text: string): Promise<void> => {
+    const typeAsync = async (index: number, url: string, text: string): Promise<void> => {
+      await runInViewAtAsync(mainProcess, url, "document.querySelector(\"input\").select(); globalThis.kept = true; scrollTo(0, 1200);");
       expect(await requestAsync(window, "pages.type", { view: index, text })).toBeNull();
+      await expect.poll(() => runInViewAtAsync(mainProcess, url, formScript)).toEqual([text, 1200, true]);
+      await expect.poll(() => holdsPageStateAsync(mainProcess, url, text)).toBe(true);
+    };
+    const restoredAsync = async (url: string, text: string): Promise<void> => {
+      await expect.poll(() => runInViewAtAsync(mainProcess, url, formScript)).toEqual([text, 1200, false]);
     };
     const runAsync = async (title: string): Promise<void> => {
       await CommandSearchFixture.searchAsync(window, title);
@@ -484,49 +514,45 @@ test.describe("web views", () => {
     const server = await startServerAsync();
     try {
       const origin = `http://${host}:${portOf(server)}`;
+      const [pageUrl, sideUrl] = [`${origin}/form?page&manual`, `${origin}/form?side`];
       await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
       await runAsync("Open the page");
       await expect(view(window, 1)).toHaveAttribute("data-view", /./);
       await requestAsync(window, "pages.allow", [origin]);
-      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/type` })).toEqual({ kind: "Started", origin: null });
-      await expect(view(window, 0)).toHaveText("Type 0");
-      await typeAsync(0, "before");
-      await expect(view(window, 0)).toHaveText("Type before 0");
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: pageUrl })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Form");
+      await typeAsync(0, pageUrl, "before");
 
       await TabDragFixture.dragOntoPlateAsync(window, pageKey, noteKey, "Right");
       await window.mouse.up();
       await expect.poll(() => TabDragFixture.tabKeysOf(TabDragFixture.groupOf(window, pageKey))).toEqual([pageKey]);
-      await expect(view(window, 0)).toHaveText("Type 0");
-      await typeAsync(0, "group");
-      await expect(view(window, 0)).toHaveText("Type group 0");
+      await restoredAsync(pageUrl, "before");
+      await typeAsync(0, pageUrl, "group");
 
       await runAsync("Show the page in a dialog");
-      await expect(shown.locator("[data-fixture-content=pages-view-0]")).toHaveText("Type 0");
-      await typeAsync(0, "dialog");
-      await expect(shown.locator("[data-fixture-content=pages-view-0]")).toHaveText("Type dialog 0");
+      await expect(shown.locator("[data-fixture-content=pages-view-0]")).toHaveText("Form");
+      await restoredAsync(pageUrl, "group");
+      await typeAsync(0, pageUrl, "dialog");
       await shown.getByRole("button", { name: "Close" }).click();
       await expect(shown).toHaveCount(0);
-      await expect(view(window, 0)).toHaveText("Type 0");
-      await typeAsync(0, "back");
-      await expect(view(window, 0)).toHaveText("Type back 0");
+      await restoredAsync(pageUrl, "dialog");
+      await typeAsync(0, pageUrl, "back");
 
       await runAsync("Open the side page");
       await expect(side).toHaveAttribute("data-view", /./);
       await expect(window.locator(`nol-tab-group[data-side=Bottom] nol-tab[data-tab-key="${sideKey}"]`)).toHaveCount(0);
       await requestAsync(window, "pages.allow", [origin]);
-      expect(await requestAsync(window, "pages.navigate", { view: 2, url: `${origin}/type` })).toEqual({ kind: "Started", origin: null });
-      await expect(side).toHaveText("Type 0");
-      await typeAsync(2, "docked");
-      await expect(side).toHaveText("Type docked 0");
+      expect(await requestAsync(window, "pages.navigate", { view: 2, url: sideUrl })).toEqual({ kind: "Started", origin: null });
+      await expect(side).toHaveText("Form");
+      await typeAsync(2, sideUrl, "docked");
       await TabDragFixture.tab(window, sideKey).focus();
       await window.keyboard.press("Shift+F10");
       await window.getByRole("menuitem", { name: "Dock", exact: true }).click();
       await window.getByRole("menuitem", { name: "Dock at the bottom" }).click();
       await expect(window.locator(`nol-tab-group[data-side=Bottom] nol-tab[data-tab-key="${sideKey}"]`)).toHaveCount(1);
-      await expect(side).toHaveText("Type 0");
-      await typeAsync(2, "bottom");
+      await restoredAsync(sideUrl, "docked");
+      await typeAsync(2, sideUrl, "bottom");
 
-      await expect(side).toHaveText("Type bottom 0");
       expect(await requestAsync(window, "pages.capture", 2)).toBeGreaterThan(0);
       expect(await requestAsync(window, "pages.capture", 0)).toBeGreaterThan(0);
       expect(mainProcess.failures.filter(t => / was refused, /.test(t))).toEqual([]);
