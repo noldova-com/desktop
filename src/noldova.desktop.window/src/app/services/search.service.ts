@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { Injectable, type Signal, computed, inject } from "@angular/core";
+import { Injectable, type Signal, computed, effect, inject, untracked } from "@angular/core";
 
 import { SearchSession } from "../models/search-session.js";
 import type { SearchSourceContribution } from "../models/search-source-contribution.js";
@@ -23,7 +23,16 @@ export class SearchService {
   public readonly placeholder: Signal<string> = computed(() => Resources.formatSearchPlaceholder(this.sources().map(t => t.placeholderName)));
 
   public createSession(): SearchSession {
-    return new SearchSession(this.sources(), Resources.commandsSearchSource, (source, error) =>
+    const session = new SearchSession(this.sources(), Resources.commandsSearchSource, (source, error) =>
       this.host.log(source.name.slice(0, source.name.indexOf(Resources.contributionSeparator)), Resources.formatSearchSourceFailed(source.name, error)));
+    let commands = this.shell.commandsChanged();
+    effect(() => {
+      const changed = this.shell.commandsChanged();
+      if (changed !== commands) {
+        commands = changed;
+        untracked(() => session.refresh(Resources.commandsSearchSource));
+      }
+    });
+    return session;
   }
 }

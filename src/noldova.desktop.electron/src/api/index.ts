@@ -144,6 +144,7 @@ export { MainProcessSettings } from "../models/main-process-settings.js";
 export { DetachedStartReply } from "../models/detached-start-reply.js";
 export { DetachedStartRequest } from "../models/detached-start-request.js";
 export { FeedSource } from "../models/feed-source.js";
+export { WebViewHistory } from "../models/web-view-history.js";
 export { FileGrantRequest } from "../models/file-grant-request.js";
 export { FilePathChoice } from "../models/file-path-choice.js";
 export { IssuedFiles } from "../models/issued-files.js";

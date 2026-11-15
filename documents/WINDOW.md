@@ -86,7 +86,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
 - A group's tabs keep their width, and its tab row scrolls sideways when they don't all fit, its buttons staying at its end.
   A tab is never wider than the room the row reveals a chosen tab in, which ends where those buttons start, even as buttons come and go, so a longer title ends with an ellipsis and shows whole as its tooltip.
 - Each open tab has one live view, made the first time the tab shows and kept until the tab closes or its window part deactivates, so typed text, a selection or a scroll position stays when the person switches tabs, moves a tab or collapses its dock.
-  A view behind another tab of its group stays in the page, hidden by `visibility` and `opacity` and inert, so it takes no pointer or focus and a module's web view keeps its page; a view whose tab moves to another group, a dock or a dialog, or whose dock collapses, leaves the page until it shows in its new place, where a web view may load its page again.
+  A view behind another tab of its group stays in the page, hidden by `visibility` and `opacity` and inert, so it takes no pointer or focus and a module's web view keeps its page; a view whose tab moves to another group, a dock or a dialog, or whose dock collapses, leaves the page until it shows in its new place, where a web view gets a new page, which after a move restores its form fields and scroll but not its script's state, as [WEB-VIEWS.md](WEB-VIEWS.md#the-window-bridge) says, and after a collapse loads its address again.
   A hidden view tells its part it is hidden; when it shows again, it renders what changed and its focus and scroll positions come back.
 - Choosing a document's or a view's tab with the pointer moves the focus into its content, to the element it last held there, else its first focusable element; until the content shows one, such as while its part activates, the focus stays on the tab and moves in once it does, for up to 10 seconds, unless first the focus moves elsewhere, the person clicks or presses a key outside the tab and its content, or another tab of that group is chosen.
   A module's web view is a page of its own, whose focus and presses the window doesn't see, so they don't end the wait.
@@ -211,6 +211,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
 - The palette asks every source at once and shows each one's group as its answer comes, keeping the selected row while it is listed.
   It aborts a source's `signal` when the query changes or the palette closes, and drops an answer that comes after that.
   A source whose call rejects shows no group and no count, and its failure goes to the window's log; the other sources never wait for a late or failed one.
+  When Noldova Desktop's commands change while the palette is open, such as when the window's start ends, the palette asks Commands again for the open query and its recent items, and shows the newest answer, dropping an older one that comes later; a module's source is asked once per query.
 
 ## Settings and modules
 

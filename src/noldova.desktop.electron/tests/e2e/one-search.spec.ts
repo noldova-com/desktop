@@ -12,6 +12,7 @@ import type { Locator, Page } from "@playwright/test";
 import { CommandSearchFixture } from "./fixtures/command-search.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 import { MediaFixture } from "./fixtures/media.fixture.ts";
+import { PageBridgeFixture } from "./fixtures/page-bridge.fixture.ts";
 import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 
 function tag(window: Page, id: number): Locator {
@@ -402,6 +403,23 @@ test.describe("search", () => {
     expect(new Set(titles.map(t => t.iconWidth)).size).toBe(1);
     await mainProcess.checkpointAsync("search-icon-column");
     await window.keyboard.press("Escape");
+  });
+});
+
+test.describe("search over a held start", () => {
+  test.use({ mainProcessDataFiles: { "conversations.json": "[]" } });
+
+  test("lists the commands that the end of the start brings while it is open, without the person typing again", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const tick = pane(window).locator("[data-item=\"desktop.commands/clock.tick\"]");
+    await expect(window.getByRole("heading", { name: /^Data from an earlier / })).toBeVisible();
+
+    await CommandSearchFixture.searchAsync(window, "tick");
+    await expect(pane(window).locator(".nol-quick-input-empty")).toHaveText("Nothing found.");
+    expect(await PageBridgeFixture.evaluateAsync(window, t => t.actOnStartup("moveAside"))).toBe(true);
+
+    await expect(tick).toBeVisible();
+    await expect(field(window)).toHaveValue(">tick");
   });
 });
 

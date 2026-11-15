@@ -89,6 +89,23 @@ export class WebViewAttachGuardTests {
   }
 
   @TestMethod
+  @TestData("https://example.com/form")
+  @TestData(null)
+  public startsAWebviewAViewClaimsWithNoPageSoTheViewCanRestoreItsOwn(src: string | null): void {
+    const [guard, , logs] = WebViewAttachGuardTests.create([`${WebViewAttachGuardTests.WINDOW} ${WebViewAttachGuardTests.PARTITION}`]);
+    const event = new FakePreventableEvent();
+    const preferences: IWebViewAttachPreferences = { preload: "file:///forbidden.js", sandbox: false };
+    const params: IWebViewAttachParams = Object.isNull(src) ? { partition: WebViewAttachGuardTests.PARTITION } : { src, partition: WebViewAttachGuardTests.PARTITION };
+
+    guard.judge(WebViewAttachGuardTests.WINDOW, false, event, preferences, params);
+
+    Assert.isFalse(event.isPrevented);
+    Assert.areEqual(String.empty, params.src);
+    Assert.areEqual(JSON.stringify([undefined, true]), JSON.stringify([preferences.preload, preferences.sandbox]));
+    Assert.areEqual(0, logs.length);
+  }
+
+  @TestMethod
   public refusesAWebviewInsideAWebViewsPageWithoutAsking(): void {
     const [guard, asked, logs] = WebViewAttachGuardTests.create();
     const event = new FakePreventableEvent();
@@ -99,13 +116,13 @@ export class WebViewAttachGuardTests {
     Assert.areEqual("0,0", [asked.length, logs.length].join(","));
   }
 
-  private static create(): [WebViewAttachGuard, string[], string[]] {
+  private static create(claimed: string[] = []): [WebViewAttachGuard, string[], string[]] {
     const asked: string[] = [];
     const logs: string[] = [];
     const guard = new WebViewAttachGuard((windowId, partition) => {
       asked.push(`${windowId} ${partition}`);
       return windowId === WebViewAttachGuardTests.WINDOW && partition === WebViewAttachGuardTests.PARTITION;
-    }, t => logs.push(t));
+    }, (windowId, partition) => claimed.includes(`${windowId} ${partition}`), t => logs.push(t));
     return [guard, asked, logs];
   }
 }

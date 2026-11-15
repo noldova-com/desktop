@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { type WritableSignal, signal } from "@angular/core";
+import { EnvironmentInjector, type WritableSignal, createEnvironmentInjector, runInInjectionContext, signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 
 import { SearchAnswer } from "../../../src/app/models/search-answer";
@@ -18,18 +18,25 @@ import { WindowPartHostService } from "../../../src/app/services/window-part-hos
 describe("SearchService", () => {
   const source = (name: string, placeholderName: string, search: () => Promise<SearchAnswer> = () => Promise.resolve(new SearchAnswer([]))): SearchSourceContribution =>
     new SearchSourceContribution(name, placeholderName, placeholderName, placeholderName, null, "search", () => Promise.resolve([]), search);
-  const commands = source("desktop.commands", "commands");
+  const commandQueries: string[] = [];
+  const commands = new SearchSourceContribution("desktop.commands", "commands", "commands", "commands", null, "search", () => Promise.resolve([]), query => {
+    commandQueries.push(query);
+    return Promise.resolve(new SearchAnswer([]));
+  });
   const settings = source("desktop.settings", "settings");
   let modules: WritableSignal<readonly SearchSourceContribution[]>;
+  let changed: WritableSignal<readonly unknown[]>;
   let logged: [string, string][];
 
   beforeEach(() => {
     modules = signal([]);
+    changed = signal([]);
     logged = [];
+    commandQueries.length = 0;
     TestBed.configureTestingModule({
       providers: [
         { provide: WindowPartHostService, useValue: { searchSources: modules, log: (moduleId: string, message: string) => logged.push([moduleId, message]) } },
-        { provide: ShellSearchSourcesService, useValue: { commandsSource: commands, settingsSource: settings } }
+        { provide: ShellSearchSourcesService, useValue: { commandsSource: commands, settingsSource: settings, commandsChanged: changed } }
       ]
     });
   });
@@ -47,7 +54,7 @@ describe("SearchService", () => {
 
   it("starts a session over the current sources that logs a failed source under its module", async () => {
     modules.set([source("chat.chats", "chats", () => Promise.reject(new Error("The index is locked."))), source("chat.messages", "messages", () => Promise.reject("gone"))]);
-    const session = TestBed.inject(SearchService).createSession();
+    const session = TestBed.runInInjectionContext(() => TestBed.inject(SearchService).createSession());
 
     session.search("term");
     await vi.waitFor(() => expect(logged).toHaveLength(2));
@@ -57,5 +64,23 @@ describe("SearchService", () => {
       ["chat", "The search source chat.chats failed: The index is locked."],
       ["chat", "The search source chat.messages failed: gone"]
     ]);
+  });
+
+  it("asks the commands again for the open query each time they change, not when it starts, and no more once its owner is gone", () => {
+    const owner = createEnvironmentInjector([], TestBed.inject(EnvironmentInjector));
+    const session = runInInjectionContext(owner, () => TestBed.inject(SearchService).createSession());
+    session.search(">tick");
+    TestBed.tick();
+    const started = [...commandQueries];
+
+    changed.set([1]);
+    TestBed.tick();
+    const refreshed = [...commandQueries];
+    owner.destroy();
+    changed.set([2]);
+    TestBed.tick();
+    session.close();
+
+    expect([started, refreshed, commandQueries]).toEqual([["tick"], ["tick", "tick"], ["tick", "tick"]]);
   });
 });

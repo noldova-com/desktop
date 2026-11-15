@@ -70,6 +70,19 @@ describe("LayoutService", () => {
     await service.loadAsync();
   }
 
+  it("tells its listeners each change before it takes effect, with the layouts before and after, until a listener stops", async () => {
+    await loadAsync(prepared());
+    const changes: unknown[][] = [];
+    const stop = service.onChange((from, to) => changes.push([from === service.layout(), to.groupOf(LayoutFixture.todo)?.id !== from.groupOf(LayoutFixture.todo)?.id]));
+
+    service.place(LayoutFixture.todo, new SplitDropTarget(service.layout().documents.id, PanelEdge.Right));
+    const after = changes.length;
+    stop();
+    service.close(LayoutFixture.plan);
+
+    expect([after, changes]).toEqual([1, [[true, true]]]);
+  });
+
   it("starts empty and computes the geometry from the registry and the viewport", () => {
     expect(service.registry()).toBe(registry);
     expect(service.layout().groups.map(t => t.id)).toEqual([0]);

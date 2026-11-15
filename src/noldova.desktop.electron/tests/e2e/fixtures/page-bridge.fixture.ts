@@ -26,6 +26,7 @@ export interface IPageBridge {
   writeLayout(layout: unknown): Promise<unknown>;
   readStartup(): Promise<IStartupState | null>;
   onStartup(listener: (state: IStartupState) => void): () => void;
+  actOnStartup(action: string): Promise<boolean>;
   readTrayAvailable(): Promise<unknown>;
   readUpdate(): Promise<IUpdateState>;
   actOnUpdate(action: string): Promise<boolean>;

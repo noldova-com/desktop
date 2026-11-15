@@ -15,10 +15,12 @@ import { Resources } from "../resources.js";
 
 export class WebViewAttachGuard {
   private readonly isAllowed: (windowId: number, partition: string) => boolean;
+  private readonly claim: (windowId: number, partition: string) => boolean;
   private readonly log: (text: string) => void;
 
-  public constructor(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void) {
+  public constructor(isAllowed: (windowId: number, partition: string) => boolean, claim: (windowId: number, partition: string) => boolean, log: (text: string) => void) {
     this.isAllowed = isAllowed;
+    this.claim = claim;
     this.log = log;
   }
 
@@ -30,7 +32,7 @@ export class WebViewAttachGuard {
       event.preventDefault();
       return this.log(Resources.formatWebViewAttachRefused(contentsId, partition));
     }
-    params.src = Resources.blankPage;
+    params.src = this.claim(contentsId, partition) ? String.empty : Resources.blankPage;
     delete preferences.preload;
     delete preferences.preloadURL;
     preferences.nodeIntegration = false;

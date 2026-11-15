@@ -22,6 +22,7 @@ import type { Tab } from "../models/layout/tab.js";
 import type { TabReveal } from "../models/layout/tab-reveal.js";
 import { Resources } from "../../resources.js";
 import { LayoutService } from "./layout.service.js";
+import { LiveViewService } from "./live-view.service.js";
 import { StartupService } from "./startup.service.js";
 import { TabFocusService } from "./tab-focus.service.js";
 import { TabLabelService } from "./tab-label.service.js";
@@ -33,6 +34,7 @@ export class ViewDialogService {
   private readonly labels: TabLabelService = inject(TabLabelService);
   private readonly tabFocus: TabFocusService = inject(TabFocusService);
   private readonly startup: StartupService = inject(StartupService);
+  private readonly liveViews: LiveViewService = inject(LiveViewService);
   private readonly shownValue: WritableSignal<Tab | null> = signal(null);
   private dialog: DialogRef<unknown, ViewDialogComponent> | null = null;
   private wasOpen: boolean = false;
@@ -70,6 +72,7 @@ export class ViewDialogService {
     this.wasOpen = this.layout.layout().isOpen(tab);
     this.shownAfter = this.layout.revealed()?.sequence ?? 0;
     this.shownValue.set(tab);
+    this.liveViews.prepareLeave(tab);
     this.layout.hide(tab);
     const dialog = this.dialogs.open(ViewDialogComponent);
     this.dialog = dialog;
@@ -96,6 +99,9 @@ export class ViewDialogService {
   }
 
   public close(): void {
+    const tab = this.shownValue();
+    if (!Object.isNull(tab) && !Object.isNull(this.dialog))
+      this.liveViews.prepareLeave(tab);
     this.dialog?.close();
   }
 
