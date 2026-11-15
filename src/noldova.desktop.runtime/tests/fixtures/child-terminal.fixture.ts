@@ -21,12 +21,14 @@ export class ChildTerminalFixture implements IPseudoTerminalHandle {
   private readonly held: (() => void)[] = [];
 
   public readonly pid: number;
+  public readonly exited: Promise<void>;
 
   public constructor(child: ChildProcessWithoutNullStreams, calls: string[], holdsExit: boolean = false) {
     this.child = child;
     this.calls = calls;
     this.holdsExit = holdsExit;
     this.pid = child.pid ?? 0;
+    this.exited = new Promise<void>(resolve => child.once("exit", () => resolve()));
     child.stdout.setEncoding("utf8");
     child.on("error", () => undefined);
     child.stdin.on("error", () => undefined);
