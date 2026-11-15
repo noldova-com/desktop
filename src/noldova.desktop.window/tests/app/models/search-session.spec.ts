@@ -276,6 +276,50 @@ describe("SearchSession", () => {
     expect([chats.recentSignals[0]?.aborted, commands.searches[0]?.signal.aborted, commands.searches.length, titles(session)]).toEqual([true, true, 1, []]);
   });
 
+  it("asks a refreshed source again for the open query and its recent items, and shows its new answer, searching until it comes", async () => {
+    session.search(">tick");
+    commands.answer(0, []);
+    await settle();
+    const before = [titles(session), session.isSearching()];
+
+    session.refresh("desktop.commands");
+    const searching = session.isSearching();
+    commands.answer(1, ["Tick"]);
+    await settle();
+
+    expect([before, searching, commands.searches[1]?.query, commands.recent.length, titles(session), session.isSearching()])
+      .toEqual([[[], false], true, "tick", 2, [["In Commands", "Tick"]], false]);
+  });
+
+  it("keeps a refreshed source's newest answer when an older one comes later or fails, and stops searching once the newest has answered", async () => {
+    session.search(">tick");
+    session.refresh("desktop.commands");
+    session.refresh("desktop.commands");
+    commands.answer(2, ["Tick"]);
+    await settle();
+    const searching = session.isSearching();
+    commands.answer(0, ["Old tick"]);
+    commands.searches[1]?.answer.reject(new Error("late"));
+    await settle();
+
+    expect([searching, titles(session), failures, session.isSearching()]).toEqual([false, [["In Commands", "Tick"]], [], false]);
+  });
+
+  it("on a refresh asks only for the recent items of a source it doesn't search, nothing of one it doesn't know or with no recent heading, and nothing once closed", () => {
+    session.refresh("chat.unknown");
+    session.refresh("chat.messages");
+    const unknown = [chats.recent.length, messages.searches.length];
+    session.refresh("chat.chats");
+    const idle = [chats.searches.length, chats.recent.length];
+    session.search(">tick");
+    session.refresh("chat.chats");
+    const commandsOnly = [chats.searches.length, chats.recent.length];
+    session.close();
+    session.refresh("desktop.commands");
+
+    expect([unknown, idle, commandsOnly, commands.searches.length, commands.recent.length]).toEqual([[1, 0], [0, 2], [0, 3], 1, 1]);
+  });
+
   it("empties the groups when the query is cleared and shows the recent items again", async () => {
     commands.recent[0]?.resolve([result("New chat")]);
     session.search("term");

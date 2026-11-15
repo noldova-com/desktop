@@ -211,6 +211,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
 - The palette asks every source at once and shows each one's group as its answer comes, keeping the selected row while it is listed.
   It aborts a source's `signal` when the query changes or the palette closes, and drops an answer that comes after that.
   A source whose call rejects shows no group and no count, and its failure goes to the window's log; the other sources never wait for a late or failed one.
+  When Noldova Desktop's commands change while the palette is open, such as when the window's start ends, the palette asks Commands again for the open query and its recent items, and shows the newest answer, dropping an older one that comes later; a module's source is asked once per query.
 
 ## Settings and modules
 
