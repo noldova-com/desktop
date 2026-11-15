@@ -52,6 +52,7 @@ export class ShellSearchSourcesService {
     return this.updates.state().kind === UpdateStateKind.Off ? definitions.filter(t => t.page !== Resources.aboutPage) : definitions;
   });
 
+  public readonly commandsChanged: Signal<readonly unknown[]> = this.entries;
   public readonly commandsSource: SearchSourceContribution = new SearchSourceContribution(Resources.commandsSearchSource, Resources.commandsSearchLabel,
     Resources.commandsPlaceholderName, Resources.commandsSearchLabel, Resources.recentCommandsHeading, Resources.commandsSearchGlyph,
     () => Promise.resolve(this.recentCommands()), query => Promise.resolve(this.searchCommands(query)));

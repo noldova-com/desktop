@@ -30,6 +30,7 @@ export class SearchSession {
   private readonly recentValue: WritableSignal<ReadonlyMap<string, readonly SearchResult[]>> = signal(new Map());
   private readonly answersValue: WritableSignal<ReadonlyMap<string, SearchAnswer>> = signal(new Map());
   private readonly waitingValue: WritableSignal<ReadonlySet<string>> = signal(new Set());
+  private readonly asks: Map<string, number> = new Map();
   private searching: AbortController | null = null;
 
   private readonly searched: Signal<readonly SearchSourceContribution[]> = computed(() =>
@@ -79,8 +80,7 @@ export class SearchSession {
     this.commandsSource = commandsSource;
     this.fail = fail;
     for (const source of sources.filter(t => !Object.isNull(t.recentHeading)))
-      void this.askAsync(source, this.recentController.signal, () => source.recentAsync(this.recentController.signal),
-        results => this.recentValue.update(t => new Map([...t, [source.name, results]])), () => undefined);
+      this.askRecent(source);
   }
 
   public search(typed: string): void {
@@ -96,11 +96,18 @@ export class SearchSession {
       return;
     const controller = new AbortController();
     this.searching = controller;
-    this.waitingValue.set(new Set(this.searched().map(t => t.name)));
     for (const source of this.searched())
-      void this.askAsync(source, controller.signal, () => source.searchAsync(query.text, controller.signal),
-        answer => this.answersValue.update(t => new Map([...t, [source.name, answer]])),
-        () => this.waitingValue.update(t => new Set([...t].filter(u => u !== source.name))));
+      this.askAnswer(source, query, controller);
+  }
+
+  public refresh(name: string): void {
+    const source = this.sources.find(t => t.name === name);
+    if (Object.isUndefined(source) || this.recentController.signal.aborted)
+      return;
+    if (!Object.isNull(source.recentHeading))
+      this.askRecent(source);
+    if (!Object.isNull(this.searching) && this.searched().includes(source))
+      this.askAnswer(source, this.queryValue(), this.searching);
   }
 
   public choose(source: string | null): void {
@@ -120,17 +127,34 @@ export class SearchSession {
     this.waitingValue.set(new Set());
   }
 
-  private async askAsync<T>(source: SearchSourceContribution, signal: AbortSignal, call: () => Promise<T>, take: (value: T) => void, settled: () => void): Promise<void> {
+  private askRecent(source: SearchSourceContribution): void {
+    const signal = this.recentController.signal;
+    void this.askAsync(source, Resources.recentAsk, signal, () => source.recentAsync(signal),
+      results => this.recentValue.update(t => new Map([...t, [source.name, results]])), () => undefined);
+  }
+
+  private askAnswer(source: SearchSourceContribution, query: SearchQuery, controller: AbortController): void {
+    this.waitingValue.update(t => new Set([...t, source.name]));
+    void this.askAsync(source, Resources.answerAsk, controller.signal, () => source.searchAsync(query.text, controller.signal),
+      answer => this.answersValue.update(t => new Map([...t, [source.name, answer]])),
+      () => this.waitingValue.update(t => new Set([...t].filter(u => u !== source.name))));
+  }
+
+  private async askAsync<T>(source: SearchSourceContribution, kind: string, signal: AbortSignal, call: () => Promise<T>, take: (value: T) => void, settled: () => void): Promise<void> {
+    const key = `${kind} ${source.name}`;
+    const ask = (this.asks.get(key) ?? 0) + 1;
+    this.asks.set(key, ask);
+    const isLatest = (): boolean => !signal.aborted && this.asks.get(key) === ask;
     try {
       const value = await call();
-      if (!signal.aborted)
+      if (isLatest())
         take(value);
     }
     catch (error) {
-      if (!signal.aborted)
+      if (isLatest())
         this.fail(source, error);
     }
-    if (!signal.aborted)
+    if (isLatest())
       settled();
   }
 
