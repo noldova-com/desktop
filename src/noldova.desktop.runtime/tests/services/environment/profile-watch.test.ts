@@ -140,12 +140,12 @@ export class ProfileWatchTests {
     });
 
     await profiles.readStampAsync();
-    listeners.get(realpathSync(dotfiles))?.("change", "notes.txt");
-    listeners.get(realpathSync(dotfiles))?.("change", "zshrc");
+    listeners.get(realpathSync.native(dotfiles))?.("change", "notes.txt");
+    listeners.get(realpathSync.native(dotfiles))?.("change", "zshrc");
     listeners.get(zsh)?.("change", ".zshrc");
     await profiles.readStampAsync();
 
-    Assert.areEqual(JSON.stringify([home, realpathSync(dotfiles), zsh]), JSON.stringify([...listeners.keys()]));
+    Assert.areEqual(JSON.stringify([home, realpathSync.native(dotfiles), zsh]), JSON.stringify([...listeners.keys()]));
     Assert.areEqual(2, changes);
   }
 
@@ -174,7 +174,7 @@ export class ProfileWatchTests {
     await symlink(path.join(dotfiles, "profile"), path.join(home, ".profile"));
     listeners.get(home)?.("rename", ".profile");
     await profiles.readStampAsync();
-    listeners.get(realpathSync(dotfiles))?.("change", "profile");
+    listeners.get(realpathSync.native(dotfiles))?.("change", "profile");
     await profiles.readStampAsync();
     const linked = [...started];
     await unlink(path.join(home, ".profile"));
@@ -182,9 +182,9 @@ export class ProfileWatchTests {
     const isClosed = await WaitFixture.untilAsync(() => closed.length > 0, 5_000);
     await profiles.readStampAsync();
 
-    Assert.areEqual(JSON.stringify([home, realpathSync(dotfiles)]), JSON.stringify(linked));
+    Assert.areEqual(JSON.stringify([home, realpathSync.native(dotfiles)]), JSON.stringify(linked));
     Assert.isTrue(isClosed);
-    Assert.areEqual(JSON.stringify([realpathSync(dotfiles)]), JSON.stringify(closed));
+    Assert.areEqual(JSON.stringify([realpathSync.native(dotfiles)]), JSON.stringify(closed));
     Assert.areEqual(3, changes);
   }
 
