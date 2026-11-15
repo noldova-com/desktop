@@ -431,6 +431,7 @@ test.describe("web views", () => {
       await runAsync("Open the side page");
       await expect(side).toHaveAttribute("data-view", /./);
       await expect(window.locator(`nol-tab-group[data-side=Bottom] nol-tab[data-tab-key="${sideKey}"]`)).toHaveCount(0);
+      await requestAsync(window, "pages.allow", [origin]);
       expect(await requestAsync(window, "pages.navigate", { view: 2, url: `${origin}/type` })).toEqual({ kind: "Started", origin: null });
       await expect(side).toHaveText("Type 0");
       await typeAsync(2, "docked");
