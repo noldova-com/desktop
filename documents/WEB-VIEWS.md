@@ -145,7 +145,7 @@ The runtime part sends its views calls of the window's web engine's debugging pr
   A press moves the window's focus to the view with no `focusin`, and the engine finishes moving the keyboard's focus after the window's `blur`, so for a press the window gives the focus back when the call ends.
   When the person's focus was in the view when the call started, or the person presses in the page while it runs, the window leaves the focus there and releases the emulation once the call ends.
   The window also releases the emulation when the person's own focus enters the view with no call open; the page then really has the focus, so it sees no `blur` then either.
-  A new page starts with no emulation.
+  A new page starts with no emulation, and when a view binds a new page, such as a moved tab's view, the host detaches from the old page, which ends its emulation.
 - A stated limit: a key the person presses can reach the page between the view taking the focus and the window giving it back: one task of the window's renderer for `DOM.focus` or a script, and for a press, one round trip to the page's renderer and one message to the window.
   The host doesn't hold back keys to replay them afterwards: a replayed key loses an input method's composition and a dead key's accent.
 - A stated limit: the window counts a call as open from its start notice to its end notice, which the host sends after the round trip to the page's renderer; a `focusin` that reached the window after the call's end notice would count as the person's, and the focus would stay in the view.

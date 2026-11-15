@@ -817,7 +817,7 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async holdsThePagesFocusOnceForCallsToThePageNotForKeysOrTextReleasesItOnceAndHoldsItAgainAfterAReleaseAndForANewPage(): Promise<void> {
+  public async holdsThePagesFocusOnceForCallsToThePageNotForKeysOrTextReleasesItOnceAndHoldsItAgainAfterAReleaseAndForANewPageWhoseBindEndsTheOldPagesHold(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
     const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
     const emulations = (contents: typeof fresh): string => JSON.stringify(contents.debugger.sent.filter(t => t[0] === OpenWebViewTests.FOCUS_EMULATION).map(t => t[1]));
@@ -832,6 +832,7 @@ export class OpenWebViewTests {
     harness.open.releaseFocus();
     await click(5);
     await harness.open.bindAsync(fresh);
+    const detachedOnBind = harness.contents.debugger.detaches;
     harness.open.releaseFocus();
     await click(6);
     harness.open.releaseFocus();
@@ -839,6 +840,7 @@ export class OpenWebViewTests {
     Assert.areEqual("[]", beforePageCalls);
     Assert.areEqual(JSON.stringify([{ enabled: true }, { enabled: false }, { enabled: true }]), emulations(harness.contents));
     Assert.areEqual(JSON.stringify([{ enabled: true }, { enabled: false }]), emulations(fresh));
+    Assert.areEqual(1, detachedOnBind);
   }
 
   @TestMethod
