@@ -766,6 +766,30 @@ export class RuntimeLauncherTests {
   }
 
   @TestMethod
+  public async connectsOnceTheRuntimeItWaitsForPublishesItsDiscoveryThoughTheFoldersWatchNeverReportsIt(): Promise<void> {
+    await using fake = await FakeRuntimeFixture.ownAsync();
+    using _watches = WatchPatchFixture.quiet();
+    using reads = new FileReadsFixture(fake.dataDirectory.discoveryFile);
+    const read = reads.waitForMoreAsync(1);
+    const starter = new ScriptedStarterFixture("setInterval(() => {}, 1000);");
+    const logged: string[] = [];
+    const attaching = UpdateBarrierFixture.createLauncher(fake.createSettings(30_000), RuntimeServerFixture.IDENTITY, starter, t => logged.push(t))
+      .attachAsync("main", new ClientListenerFixture());
+
+    await read;
+    await fake.publishAsync();
+    const client = await attaching;
+    const isConnected = client.isConnected;
+    client.close();
+    const processId = Number(starter.processIds[0]);
+    process.kill(processId);
+
+    Assert.isTrue(isConnected, "a check tick finds the publication the watch missed");
+    Assert.areEqual("[]", JSON.stringify(logged));
+    Assert.isTrue(await RuntimeLaunchFixture.waitForExitAsync(processId));
+  }
+
+  @TestMethod
   public async connectsByCheckingTheDiscoveryWhenItsFolderCannotBeWatched(): Promise<void> {
     await using fake = await FakeRuntimeFixture.ownAsync();
     using _watches = new WatchPatchFixture(0);
