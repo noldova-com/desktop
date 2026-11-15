@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -27,6 +27,7 @@ import { PausedClockFixture } from "../../fixtures/paused-clock.fixture.js";
 import { RecordingTemporaryFolderFixture } from "../../fixtures/recording-temporary-folder.fixture.js";
 import { ScriptedRunnerFixture } from "../../fixtures/scripted-runner.fixture.js";
 import { SmokeRunnerFixture } from "../../fixtures/smoke-runner.fixture.js";
+import { WatchPathsFixture } from "../../fixtures/watch-paths.fixture.js";
 
 class FuseWireRunner extends SmokeRunnerFixture {
   private readonly wire: readonly number[];
@@ -910,6 +911,56 @@ export class PackageSmokeTests {
     Assert.isTrue(PackageSmokeTests.withoutTimes(result.output).includes(Resources.formatSmokeExtraction(path.join(result.folder, "extraction"),
       AppImageCopyRunnerFixture.EXTRACTED_BYTES)), result.output);
     Assert.isFalse(existsSync(path.join(result.data, "logs", "start-00000000-0000-0000-0000-000000000000.log")));
+  }
+
+  @TestMethod
+  public async watchesTheStartLogItselfNotItsFolderWhoseWatchMayMissARemovalAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new AppImageCopyRunnerFixture();
+    runner.removesStartLog = true;
+    using watches = new WatchPathsFixture();
+
+    const result = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, runner, processes, true);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.areEqual(JSON.stringify([path.join(result.data, "logs", "start-00000000-0000-0000-0000-000000000000.log")]), JSON.stringify(watches.paths));
+  }
+
+  @TestMethod
+  public async goesOnWhenTheStartLogIsRemovedJustBeforeItsWatchStartsAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new AppImageCopyRunnerFixture();
+    runner.keepsStartLog = true;
+    using watches = new WatchPathsFixture();
+    watches.onWatch = target => rmSync(target);
+
+    const result = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, runner, processes, true);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.areEqual(1, watches.paths.length);
+  }
+
+  @TestMethod
+  public async reportsAStartLogItCannotWatchAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new AppImageCopyRunnerFixture();
+    runner.keepsStartLog = true;
+    using watches = new WatchPathsFixture();
+    watches.onWatch = () => {
+      throw Object.assign(new Error("EMFILE: too many open files"), { code: "EMFILE" });
+    };
+
+    const result = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, runner, processes, false);
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.includes(Resources.formatSmokeLogsUnwatchable(path.join(result.data, "logs"))), result.output);
+    Assert.areEqual("SIGKILL", runner.main?.signals.join("|"));
   }
 
   @TestMethod
