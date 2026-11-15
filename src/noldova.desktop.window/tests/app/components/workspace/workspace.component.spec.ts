@@ -681,7 +681,7 @@ describe("WorkspaceComponent", () => {
     const documents = (): HTMLElement => DomFixture.one(host, `nol-tab-group[data-group="${saved.documents.id}"]`);
     const strip = (): readonly (string | null)[] => [...documents().querySelectorAll(".nol-tab")].map(t => t.getAttribute("data-tab-key"));
     const selected = (): string | null => documents().querySelector(".nol-tab-selected")?.getAttribute("data-tab-key") ?? null;
-    const shownView = (): Element | null => documents().querySelector("nol-tab-content");
+    const shownView = (): Element | null => documents().querySelector("nol-tab-content:not([inert])");
     const before = [...host.querySelectorAll("nol-tab-content")];
     const planView = shownView();
 
@@ -698,7 +698,8 @@ describe("WorkspaceComponent", () => {
     expect(whileShown).toEqual([[todo.key], todo.key, true]);
     expect([inDialog.length, inDialog[0] === planView, before.some(t => t === nextView)]).toEqual([1, true, false]);
     expect([shownView() === planView, layout.layout() === saved]).toEqual([true, true]);
-    expect(new Set(host.querySelectorAll("nol-tab-content"))).toEqual(new Set(before));
+    expect(new Set(host.querySelectorAll("nol-tab-content"))).toEqual(new Set([...before, nextView]));
+    expect(nextView?.hasAttribute("inert")).toBe(true);
   });
 
   it("renders the docks with their sashes, the groups, the split sashes and the docking guides", async () => {

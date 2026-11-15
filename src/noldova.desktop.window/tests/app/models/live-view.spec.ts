@@ -226,6 +226,44 @@ describe("LiveView", () => {
     expect(document.activeElement).toBe(document.body);
   });
 
+  it("conceals itself in its slot, inert, and shows its scroll and focus again once revealed there", () => {
+    const field = DomFixture.oneOf(element, "textarea", HTMLTextAreaElement);
+    const list = DomFixture.one(element, ".list");
+    view.enter(first);
+    field.focus();
+    scroll(element, 80);
+    scroll(list, 120);
+
+    view.conceal();
+    const concealed = [view.isConcealed, view.slot, element.parentElement, element.inert, element.classList.contains("nol-tab-content-concealed")];
+    field.blur();
+    view.reveal();
+    view.restore();
+
+    expect(concealed).toEqual([true, first, first, true, true]);
+    expect([view.isConcealed, element.parentElement, element.inert, element.classList.contains("nol-tab-content-concealed")]).toEqual([false, first, false, false]);
+    expect([element.scrollTop, list.scrollTop, document.activeElement]).toEqual([80, 120, field]);
+  });
+
+  it("keeps the place it had when it was concealed, not the one it has when it leaves, and comes into its next slot in sight", () => {
+    const field = DomFixture.oneOf(element, "textarea", HTMLTextAreaElement);
+    view.enter(first);
+    field.focus();
+    scroll(element, 80);
+    view.conceal();
+    field.blur();
+    scroll(element, 10);
+    vi.runAllTimers();
+
+    view.leave();
+    const left = [view.slot, view.isConcealed, element.isConnected, element.inert, element.classList.contains("nol-tab-content-concealed")];
+    view.enter(second);
+    view.restore();
+
+    expect(left).toEqual([null, false, false, false, false]);
+    expect([element.parentElement, element.scrollTop, document.activeElement]).toEqual([second, 80, field]);
+  });
+
   it("listens for scrolls passively, on its own element only", () => {
     const root = createElement();
     const listen = vi.spyOn(EventTarget.prototype, "addEventListener");

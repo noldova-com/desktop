@@ -18,6 +18,7 @@ import type { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 import { MediaFixture } from "./fixtures/media.fixture.ts";
 import { PageBridgeFixture } from "./fixtures/page-bridge.fixture.ts";
+import { TabDragFixture } from "./fixtures/tab-drag.fixture.ts";
 import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 
 const host = "127.0.0.1";
@@ -141,6 +142,13 @@ function runInFirstViewAsync(mainProcess: MainProcessFixture, script: string): P
       return false;
     await first.executeJavaScript(code);
     return true;
+  }, script);
+}
+
+function readFirstViewAsync(mainProcess: MainProcessFixture, script: string): Promise<unknown> {
+  return mainProcess.application.evaluate(({ webContents }, code) => {
+    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+    return first === undefined ? null : first.executeJavaScript(code);
   }, script);
 }
 
@@ -328,6 +336,49 @@ test.describe("web views", () => {
 
       await expect(view(window, 0)).toHaveText("Type héllo q w 0");
       await expect(tab).toBeFocused();
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view behind another document of its group keeps its page, takes the runtime part's relayed calls, stays out of sight, and shows the same page with what was typed when its tab comes back, where it takes relayed calls again", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const pageKey = "document/pages.page/1";
+    const noteKey = "document/notes.note/1";
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      expect(await TabDragFixture.tabKeysOf(TabDragFixture.groupOf(window, pageKey))).toContain(noteKey);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/type` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Type 0");
+      await requestAsync(window, "pages.type", { view: 0, text: "héllo" });
+      await expect(view(window, 0)).toHaveText("Type héllo 0");
+      expect(await runInFirstViewAsync(mainProcess, "globalThis.keptPage = true;")).toBe(true);
+      const ids = await readViewIdsAsync(mainProcess);
+
+      await TabDragFixture.tab(window, noteKey).click();
+      await expect(window.locator("[data-fixture-content=notes-note-1]")).toBeVisible();
+      await expect.poll(() => readPlacesAsync(window)).toEqual([[false, expect.anything()], [false, expect.anything()]]);
+      expect(await requestAsync(window, "pages.type", { view: 0, text: " again" })).toBeNull();
+      const behind = await readFirstViewAsync(mainProcess, "[document.querySelector(\"input\").value, globalThis.keptPage === true]");
+      await TabDragFixture.tab(window, pageKey).click();
+
+      expect(behind).toEqual(["héllo again", true]);
+      await expect(view(window, 0)).toHaveText(/^Type héllo again \d+$/);
+      await expect.poll(() => readPlacesAsync(window)).toEqual([[true, expect.anything()], [false, expect.anything()]]);
+      expect(await readFirstViewAsync(mainProcess, "[document.querySelector(\"input\").value, globalThis.keptPage === true]")).toEqual(["héllo again", true]);
+      expect(await readViewIdsAsync(mainProcess)).toEqual(ids);
+      expect(await requestAsync(window, "pages.type", { view: 0, text: "!" })).toBeNull();
+      await expect(view(window, 0)).toHaveText(/^Type héllo again! \d+$/);
+      expect(await requestAsync(window, "pages.capture", 0)).toBeGreaterThan(0);
+      expect(await eventsAsync(window)).not.toEqual(expect.arrayContaining([expect.stringMatching(/ (Closed|Unavailable)$/)]));
     }
     finally {
       await stopServerAsync(server);

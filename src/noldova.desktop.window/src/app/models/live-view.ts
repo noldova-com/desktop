@@ -23,6 +23,7 @@ export class LiveView {
   private focused: HTMLElement | null = null;
   private slotValue: HTMLElement | null = null;
   private isInPlace: boolean = true;
+  private isConcealedValue: boolean = false;
 
   public readonly tab: Tab;
   public readonly ref: ComponentRef<TabContentComponent>;
@@ -41,18 +42,34 @@ export class LiveView {
     return this.slotValue;
   }
 
+  public get isConcealed(): boolean {
+    return this.isConcealedValue;
+  }
+
+  public conceal(): void {
+    this.keepPlace();
+    this.element.inert = true;
+    this.element.classList.add(Resources.concealedTabContentClass);
+    this.isConcealedValue = true;
+  }
+
   public leave(): void {
-    this.readScrollOffsets();
-    const active = this.element.ownerDocument.activeElement;
-    this.focused = active instanceof HTMLElement && this.element.contains(active) ? active : null;
+    if (!this.isConcealedValue)
+      this.keepPlace();
+    this.reveal();
     this.element.remove();
     this.slotValue = null;
-    this.isInPlace = false;
   }
 
   public enter(slot: HTMLElement): void {
     slot.append(this.element);
     this.slotValue = slot;
+  }
+
+  public reveal(): void {
+    this.element.inert = false;
+    this.element.classList.remove(Resources.concealedTabContentClass);
+    this.isConcealedValue = false;
   }
 
   public restore(): void {
@@ -80,6 +97,13 @@ export class LiveView {
   public dispose(): void {
     this.cancelRead();
     this.scrolled.clear();
+  }
+
+  private keepPlace(): void {
+    this.readScrollOffsets();
+    const active = this.element.ownerDocument.activeElement;
+    this.focused = active instanceof HTMLElement && this.element.contains(active) ? active : null;
+    this.isInPlace = false;
   }
 
   private keep(event: Event): void {
