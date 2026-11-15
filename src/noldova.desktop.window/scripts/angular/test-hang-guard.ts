@@ -13,10 +13,10 @@ import type { IReportedTest } from "./interfaces/i-reported-test.ts";
 import type { IVitestReporterContext } from "./interfaces/i-vitest-reporter-context.ts";
 
 export class TestHangGuard {
+  public static readonly LIMIT_MILLISECONDS: number = 60_000;
+
   private static readonly NAME: string = "noldova-test-hang-guard";
   private static readonly FAILED: number = 1;
-
-  public static readonly LIMIT_MILLISECONDS: number = 60_000;
 
   private readonly limit: number;
   private readonly end: () => void;
