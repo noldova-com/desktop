@@ -12,13 +12,14 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 import { ClassMetadataCoverage } from "./scripts/angular/class-metadata-coverage.ts";
+import { FontResponseLog } from "./scripts/angular/font-response-log.ts";
 
 const compilerOptions: { paths: Record<string, string[]> } = JSON.parse(readFileSync(new URL("./tsconfig.spec.json", import.meta.url), "utf8")).compilerOptions;
 
 const cacheDir = fileURLToPath(new URL("../../node_modules/.vite", import.meta.url));
 
 export default defineConfig({
-  plugins: [new ClassMetadataCoverage(), { name: "noldova:cache-dir", config: { order: "pre", handler: () => ({ cacheDir }) } }],
+  plugins: [new ClassMetadataCoverage(), new FontResponseLog(), { name: "noldova:cache-dir", config: { order: "pre", handler: () => ({ cacheDir }) } }],
   optimizeDeps: {
     include: ["@noldova/context.json"]
   },

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ApplicationRef, DestroyRef, EnvironmentInjector, Injectable, type Signal, type WritableSignal, afterNextRender, createComponent, effect, inject, signal,
+import { ApplicationRef, ChangeDetectorRef, DestroyRef, EnvironmentInjector, Injectable, type Signal, type WritableSignal, afterNextRender, createComponent, effect, inject, signal,
   untracked } from "@angular/core";
 
 import "@noldova/context.core";
@@ -35,7 +35,7 @@ export class LiveViewService {
       untracked(() => {
         for (const view of this.views.values())
           view.readScrollOffsets();
-        this.removeWhere(t => Object.isNull(t.slot) && !layout.isOpen(t.tab));
+        this.removeWhere(t => (Object.isNull(t.slot) || t.isConcealed) && !layout.isOpen(t.tab));
       });
     });
     inject(DestroyRef).onDestroy(() => this.removeWhere(() => true));
@@ -45,14 +45,18 @@ export class LiveViewService {
     const view = this.views.get(tab.key) ?? this.create(tab);
     view.ref.setInput(Resources.tabInput, tab);
     view.ref.setInput(Resources.dockedInput, isDocked);
-    if (view.slot === slot)
+    if (view.slot === slot && !view.isConcealed)
       return view.ref.instance;
-    if (Object.isNull(view.slot))
-      this.application.attachView(view.ref.hostView);
-    else
-      view.leave();
+    if (view.isConcealed)
+      LiveViewService.changesOf(view).reattach();
+    if (view.slot === slot)
+      view.reveal();
+    else {
+      if (!Object.isNull(view.slot))
+        view.leave();
+      view.enter(slot);
+    }
     view.ref.setInput(Resources.shownInput, true);
-    view.enter(slot);
     this.mark(tab.key, true);
     view.ref.changeDetectorRef.markForCheck();
     afterNextRender(() => view.restore(), { injector: this.environment });
@@ -61,12 +65,12 @@ export class LiveViewService {
 
   public hide(tab: Tab, slot: HTMLElement): void {
     const view = this.views.get(tab.key);
-    if (Object.isUndefined(view) || view.slot !== slot)
+    if (Object.isUndefined(view) || view.slot !== slot || view.isConcealed)
       return;
-    view.leave();
+    view.conceal();
     this.mark(tab.key, false);
     view.ref.setInput(Resources.shownInput, false);
-    this.application.detachView(view.ref.hostView);
+    LiveViewService.changesOf(view).detach();
     if (!this.layout.layout().isOpen(tab))
       this.remove(view);
   }
@@ -86,7 +90,12 @@ export class LiveViewService {
   private create(tab: Tab): LiveView {
     const view = new LiveView(tab, createComponent(TabContentComponent, { environmentInjector: this.environment }));
     this.views.set(tab.key, view);
+    this.application.attachView(view.ref.hostView);
     return view;
+  }
+
+  private static changesOf(view: LiveView): ChangeDetectorRef {
+    return view.ref.injector.get(ChangeDetectorRef);
   }
 
   private mark(key: string, isShown: boolean): void {

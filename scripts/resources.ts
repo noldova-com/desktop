@@ -246,7 +246,7 @@ export class Resources {
   public static readonly testWaitQuotes: readonly string[] = ["\"", "'", "`"];
   public static readonly testWaitEscape: string = "\\";
   public static readonly testWaitCheckTitle: string = "Test waits";
-  public static readonly scriptTestArguments: readonly string[] = ["--test", "--test-timeout=10000", "scripts/angular/tests/**/*.test.ts", "scripts/checks/tests/**/*.test.ts"];
+  public static readonly scriptTestArguments: readonly string[] = ["--test", "--test-timeout=10000", "scripts/angular/tests/**/*.test.ts", "scripts/checks/tests/**/*.test.ts", "src/noldova.desktop.window/scripts/angular/tests/**/*.test.ts"];
   public static readonly scriptTestCheckTitle: string = "Script tests";
   public static readonly typeCheckProjectArguments: readonly string[] = ["--project", "scripts/tsconfig.json"];
   public static readonly typeCheckTitle: string = "Script types";

@@ -75,7 +75,8 @@ test.describe("live views", () => {
     const kept = await stateAsync(window);
 
     await TabDragFixture.tab(window, secondNote).click();
-    await expect(window.locator("[data-fixture-content=notes-note-1]")).toHaveCount(0);
+    await expect(window.locator("[data-fixture-content=notes-note-1]")).toBeHidden();
+    expect(await isSameAsync(noteContent(window), "liveNote")).toBe(true);
     await TabDragFixture.tab(window, firstNote).click();
     await expect.poll(() => stateAsync(window)).toEqual(kept);
 
