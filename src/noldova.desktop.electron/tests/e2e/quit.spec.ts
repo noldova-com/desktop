@@ -18,6 +18,7 @@ import { ClockWorkFixture } from "./fixtures/clock-work.fixture.ts";
 import { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 import { MediaFixture } from "./fixtures/media.fixture.ts";
+import { TabContentFixture } from "./fixtures/tab-content.fixture.ts";
 
 async function quitAsync(mainProcess: MainProcessFixture): Promise<void> {
   await mainProcess.application.evaluate(({ app }) => app.quit());
@@ -184,8 +185,8 @@ test.describe("saving before quitting", () => {
 
   test("stays open with the error naming the module when a window part's save fails, and quits once it saves @smoke", async ({ mainProcess }) => {
     const window = mainProcess.window;
-    await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
-    await window.locator("[data-fixture-content=notes-save-fails]:visible").click();
+    const note = await TabContentFixture.openAsync(window, "document/notes.note/1");
+    await note.locator("[data-fixture-content=notes-save-fails]").click();
     const toast = window.locator(".nol-toast", { hasText: "Notes couldn't save, so Noldova Desktop Sample stayed open" });
 
     await quitAsync(mainProcess);
@@ -197,7 +198,7 @@ test.describe("saving before quitting", () => {
     expect(await mainProcess.isVisibleAsync()).toBe(true);
     await expect.poll(() => readMainProcessLogAsync(mainProcess)).toMatch(/Window error in notes: WindowPartSaveFailedException: Its window part failed to save while Noldova Desktop Sample was closing\.\n/);
     await mainProcess.checkpointAsync("quit-save-failed");
-    await window.locator("[data-fixture-content=notes-save-saves]:visible").click();
+    await note.locator("[data-fixture-content=notes-save-saves]").click();
     const exited = waitForExitAsync(mainProcess);
     await quitAsync(mainProcess);
 
@@ -207,8 +208,8 @@ test.describe("saving before quitting", () => {
 
   test("quits after 4 seconds without a window part whose save never settles, and logs a warning naming the module", async ({ mainProcess }) => {
     const window = mainProcess.window;
-    await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
-    await window.locator("[data-fixture-content=notes-save-hangs]:visible").click();
+    const note = await TabContentFixture.openAsync(window, "document/notes.note/1");
+    await note.locator("[data-fixture-content=notes-save-hangs]").click();
     const exited = waitForExitAsync(mainProcess);
     const started = Date.now();
 
