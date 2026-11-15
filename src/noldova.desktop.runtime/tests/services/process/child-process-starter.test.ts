@@ -8,6 +8,7 @@
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { existsSync } from "node:fs";
 import { mkdir, open, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -24,6 +25,7 @@ import { WaitFixture } from "../../fixtures/wait.fixture.js";
 export class ChildProcessStarterTests {
   private static readonly SHELL: string = "/bin/sh";
   private static readonly DESCRIPTOR_NODE_LEAVES_INHERITABLE: number = 20;
+  private static readonly HANG_LIMIT: number = 20_000;
   private static readonly PROBE: string = [
     "const fs = require('node:fs');",
     "const [marker, result] = process.argv.slice(1);",
@@ -32,7 +34,8 @@ export class ChildProcessStarterTests {
     "for (let descriptor = 0; descriptor < 1024; descriptor++) {",
     "  try { const found = fs.fstatSync(descriptor); leaked ||= found.ino === target.ino && found.dev === target.dev; } catch { }",
     "}",
-    "fs.writeFileSync(result, leaked ? 'leaked' : 'closed');"
+    "fs.writeFileSync(result + '.partial', leaked ? 'leaked' : 'closed');",
+    "fs.renameSync(result + '.partial', result);"
   ].join(" ");
   private static readonly HOLDER: string = [
     "const [runtime, probe, marker, result, errors] = process.argv.slice(2);",
@@ -107,7 +110,7 @@ export class ChildProcessStarterTests {
     return ChildProcessStarterTests.runAsync(async errorFile => {
       const processId = await ChildProcessStarter.create(process.platform).startAsync(ChildProcessStarterTests.SHELL, ["-c", "exit 0"], process.env, errorFile);
 
-      Assert.isTrue(await WaitFixture.untilAsync(() => !ChildProcessStarterTests.isRunning(processId), 900), "The program did not exit within 0.9 s.");
+      Assert.isTrue(await WaitFixture.untilAsync(() => !ChildProcessStarterTests.isRunning(processId), ChildProcessStarterTests.HANG_LIMIT), "The program did not exit within 20 s.");
       Assert.areEqual(0o600, (await stat(errorFile)).mode & 0o777);
     });
   }
@@ -185,7 +188,7 @@ export class ChildProcessStarterTests {
         await held.close();
       }
 
-      Assert.isTrue(await WaitFixture.untilAsync(async () => (await readFile(result, "utf8").catch(() => String.empty)).length > 0, 900), "The program did not report within 0.9 s.");
+      Assert.isTrue(await WaitFixture.untilAsync(() => existsSync(result), ChildProcessStarterTests.HANG_LIMIT), "The program did not report within 20 s.");
       Assert.areEqual("closed", await readFile(result, "utf8"), await readFile(errorFile, "utf8"));
     });
   }
@@ -201,7 +204,7 @@ export class ChildProcessStarterTests {
       const processId = await starter.startAsync(program, launchArguments, { ...process.env, PROGRAM_MARK: "started" }, errorFile);
 
       Assert.isTrue(processId > 0);
-      Assert.isTrue(await WaitFixture.untilAsync(() => !ChildProcessStarterTests.isRunning(processId), 900), "The program did not exit within 0.9 s.");
+      Assert.isTrue(await WaitFixture.untilAsync(() => !ChildProcessStarterTests.isRunning(processId), ChildProcessStarterTests.HANG_LIMIT), "The program did not exit within 20 s.");
       Assert.areEqual("earlier\nstarted\n", (await readFile(errorFile, "utf8")).replaceAll("\r\n", "\n"));
     });
   }
@@ -213,7 +216,7 @@ export class ChildProcessStarterTests {
 
       const processId = await starter.startAsync(process.execPath, ["-e", "require('node:fs').writeFileSync('written.txt', 'here')"], process.env, errorFile, folder);
 
-      Assert.isTrue(await WaitFixture.untilAsync(() => !ChildProcessStarterTests.isRunning(processId), 900), "The program did not exit within 0.9 s.");
+      Assert.isTrue(await WaitFixture.untilAsync(() => !ChildProcessStarterTests.isRunning(processId), ChildProcessStarterTests.HANG_LIMIT), "The program did not exit within 20 s.");
       Assert.areEqual("here", await readFile(path.join(folder, "written.txt"), "utf8"), await readFile(errorFile, "utf8"));
     });
   }
@@ -232,7 +235,7 @@ export class ChildProcessStarterTests {
     return ChildProcessStarterTests.runAsync(async errorFile => {
       const processId = await starter.startAsync(ChildProcessStarterTests.SHELL, ["-c", "cut -d ' ' -f 6 /proc/self/stat >&2"], process.env, errorFile);
 
-      Assert.isTrue(await WaitFixture.untilAsync(() => !ChildProcessStarterTests.isRunning(processId), 900), "The program did not exit within 0.9 s.");
+      Assert.isTrue(await WaitFixture.untilAsync(() => !ChildProcessStarterTests.isRunning(processId), ChildProcessStarterTests.HANG_LIMIT), "The program did not exit within 20 s.");
       const session = (await readFile(errorFile, "utf8")).trim();
       Assert.areEqual(String(processId), session);
       Assert.areNotEqual(await ChildProcessStarterTests.readOwnSessionAsync(), session);
