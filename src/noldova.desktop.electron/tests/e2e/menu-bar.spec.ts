@@ -11,6 +11,7 @@ import type { Locator, Page } from "@playwright/test";
 import { CommandSearchFixture } from "./fixtures/command-search.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 import { PageBridgeFixture } from "./fixtures/page-bridge.fixture.ts";
+import { TabContentFixture } from "./fixtures/tab-content.fixture.ts";
 
 async function setMenuBarAsync(window: Page, value: string): Promise<void> {
   await PageBridgeFixture.evaluateAsync(window, (t, menuBar) => t.request("desktop.setSetting", { name: "desktop.menuBar", value: menuBar }), value);
@@ -83,8 +84,8 @@ test.describe("the window row's menus on Windows and Linux", () => {
 
   test("F10 or a lone Alt focuses the menus, and Escape returns to the field that had the focus", async ({ mainProcess }) => {
     const window = mainProcess.window;
-    await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
-    const tag = window.getByRole("textbox", { name: "Tag" });
+    const note = await TabContentFixture.openAsync(window, "document/notes.note/1");
+    const tag = note.getByRole("textbox", { name: "Tag" });
     await tag.click();
 
     await window.keyboard.press("F10");
@@ -115,7 +116,7 @@ test.describe("the window row's menus on Windows and Linux", () => {
     await window.keyboard.press("Escape");
     await expect(button(window)).toBeFocused();
     await window.keyboard.press("Escape");
-    await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
+    await TabContentFixture.openAsync(window, "document/notes.note/1");
     await window.keyboard.press("F10");
     await expect(button(window)).toBeFocused();
 
@@ -142,8 +143,8 @@ test.describe("the window row's menus on Windows and Linux", () => {
 
   test("hidden, the row has no menus at all, F10 does nothing and the commands stay in command search", async ({ mainProcess }) => {
     const window = mainProcess.window;
-    await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
-    const tag = window.getByRole("textbox", { name: "Tag" });
+    const note = await TabContentFixture.openAsync(window, "document/notes.note/1");
+    const tag = note.getByRole("textbox", { name: "Tag" });
     await tag.click();
 
     await setMenuBarAsync(window, "Hidden");

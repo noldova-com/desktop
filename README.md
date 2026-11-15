@@ -211,6 +211,8 @@ After a workflow, the harness fails it when the real cursor is back inside the w
 The failure gives the system's idle time from Electron's `powerMonitor`.
 When the system's last input came after the cursor was last outside, it says the input came from outside the test, since the tests send the system no input; otherwise it says the window or a display moved under the still cursor.
 A night can pass with no run and no issue: a newer run in the workflow's concurrency group replaces one still waiting, so the Actions tab is where a missing night shows.
+A spec that clicks a tab and then uses that tab's content finds it inside the content with `TabContentFixture.openAsync`, which returns the tab's `[data-tab-content]` element.
+The window keeps other tabs' content in the page, and two notes hold the same fields, so a locator over the whole window can resolve to the tab shown before the click, which the window then hides.
 
 ### Checking a module against its range
 

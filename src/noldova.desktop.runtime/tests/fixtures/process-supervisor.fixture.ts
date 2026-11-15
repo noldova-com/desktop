@@ -12,11 +12,12 @@ import { once } from "node:events";
 import "@noldova/context.core";
 import { Assert } from "@noldova/context.testing";
 import {
-  type IPosixProcessTableApi, type IWindowsProcessApi, type OwnedProcess, PosixProcessApi, ProcessClock, ProcessSettings, ProcessSupervisor, type PseudoTerminal, WindowsProcessApi
+  type IPosixProcessTableApi, type IWindowsProcessApi, type OwnedProcess, PosixProcessApi, ProcessClock, ProcessSettings, ProcessSupervisor, type PseudoTerminal, type PseudoTerminalExit, WindowsProcessApi
 } from "@noldova/desktop.runtime";
 
 import { ProcessClockFixture } from "./process-clock.fixture.js";
 import { ProgramFixture } from "./program.fixture.js";
+import type { PseudoTerminalLibraryFixture } from "./pseudo-terminal-library.fixture.js";
 import type { SettingsFixture } from "./settings.fixture.js";
 import { WaitFixture } from "./wait.fixture.js";
 
@@ -27,6 +28,7 @@ export class ProcessSupervisorFixture {
     "INSERT INTO owned_processes (module, process_id, program, executable, boot, requested, started, seen, clock_offset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
   public static readonly SEEN: string = "SELECT started, seen FROM owned_processes";
   public static readonly HOUR: number = 3_600_000;
+  public static readonly HANG_MILLISECONDS: number = 20_000;
   public static readonly SYSTEM_ROOT: string = process.env["SystemRoot"] ?? "C:\\Windows";
   public static readonly LINUX: ProcessClock = new ProcessClockFixture(24 * ProcessSupervisorFixture.HOUR, "boot", true);
   public static readonly WINDOWS: ProcessClock = ProcessClock.create("win32");
@@ -53,7 +55,7 @@ export class ProcessSupervisorFixture {
     Assert.isTrue(held, held ? String.empty : `The condition did not hold within ${milliseconds / 1_000} seconds.${describe().length === 0 ? String.empty : ` ${describe()}`}`);
   }
 
-  public static async changedAsync(processes: ProcessSupervisor, condition: () => boolean): Promise<void> {
+  public static async changedAsync(processes: ProcessSupervisor, condition: () => boolean, describe: () => string = () => String.empty): Promise<void> {
     const held = Promise.withResolvers<void>();
     const registration = processes.onChanged(() => {
       if (condition())
@@ -62,7 +64,34 @@ export class ProcessSupervisorFixture {
     if (condition())
       held.resolve();
     try {
-      await held.promise;
+      await ProcessSupervisorFixture.boundAsync(held.promise,
+        () => `The supervisor's change the test waits for did not come; it lists ${JSON.stringify(processes.programs.map(t => `${t.processId} ${t.hasExited}`))}.${ProcessSupervisorFixture.after(describe)}`);
+    }
+    finally {
+      registration[Symbol.dispose]();
+    }
+  }
+
+  public static async exitedAsync(terminal: PseudoTerminal, describe: () => string = () => String.empty): Promise<PseudoTerminalExit> {
+    return ProcessSupervisorFixture.boundAsync(terminal.exited, () => `The terminal of process ${terminal.processId} did not exit.${ProcessSupervisorFixture.after(describe)}`);
+  }
+
+  public static async programsExitedAsync(library: PseudoTerminalLibraryFixture, describe: () => string = () => String.empty): Promise<void> {
+    Assert.areEqual(1, library.terminals.length);
+    await ProcessSupervisorFixture.boundAsync(Promise.all(library.terminals.map(t => t.exited)),
+      () => `The program the library started did not exit.${ProcessSupervisorFixture.after(describe)}`);
+  }
+
+  public static async outputAsync(terminal: PseudoTerminal, output: () => string, isPrinted: () => boolean): Promise<void> {
+    const printed = Promise.withResolvers<void>();
+    const registration = terminal.onOutput(() => {
+      if (isPrinted())
+        printed.resolve();
+    });
+    if (isPrinted())
+      printed.resolve();
+    try {
+      await ProcessSupervisorFixture.boundAsync(printed.promise, () => `The terminal did not print what the test waits for. It printed: ${JSON.stringify(output())}`);
     }
     finally {
       registration[Symbol.dispose]();
@@ -132,5 +161,22 @@ export class ProcessSupervisorFixture {
     windows: IWindowsProcessApi = WindowsProcessApi.create(),
     processSettings: ProcessSettings = new ProcessSettings(300, 500)): ProcessSupervisor {
     return new ProcessSupervisor(settings.database, platform, environment, posix, settings.diagnostics, windows, processSettings, clock);
+  }
+
+  private static after(describe: () => string): string {
+    return describe().length === 0 ? String.empty : ` ${describe()}`;
+  }
+
+  private static async boundAsync<T>(waiting: Promise<T>, failure: () => string): Promise<T> {
+    let limit: NodeJS.Timeout | undefined;
+    const limited = new Promise<never>((_, reject) => {
+      limit = setTimeout(() => reject(new Error(`Waited ${ProcessSupervisorFixture.HANG_MILLISECONDS / 1_000} seconds. ${failure()}`)), ProcessSupervisorFixture.HANG_MILLISECONDS);
+    });
+    try {
+      return await Promise.race([waiting, limited]);
+    }
+    finally {
+      clearTimeout(limit);
+    }
   }
 }
