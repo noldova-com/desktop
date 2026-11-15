@@ -385,6 +385,74 @@ test.describe("web views", () => {
     }
   });
 
+  test("a module's web view binds again and answers the runtime part's relayed calls after its tab moves to another group, into a dialog and back, and after its view moves to another dock, each time loading the page it showed", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const pageKey = "document/pages.page/1";
+    const noteKey = "document/notes.note/1";
+    const sideKey = "view/pages.side/1";
+    const shown = window.getByRole("dialog");
+    const side = window.locator(`[data-tab-content="${sideKey}"] [data-fixture-content=pages-view-0]`);
+    const typeAsync = async (index: number, text: string): Promise<void> => {
+      expect(await requestAsync(window, "pages.type", { view: index, text })).toBeNull();
+    };
+    const runAsync = async (title: string): Promise<void> => {
+      await CommandSearchFixture.searchAsync(window, title);
+      await window.keyboard.press("Enter");
+    };
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await runAsync("Open the page");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/type` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Type 0");
+      await typeAsync(0, "before");
+      await expect(view(window, 0)).toHaveText("Type before 0");
+
+      await TabDragFixture.dragOntoPlateAsync(window, pageKey, noteKey, "Right");
+      await window.mouse.up();
+      await expect.poll(() => TabDragFixture.tabKeysOf(TabDragFixture.groupOf(window, pageKey))).toEqual([pageKey]);
+      await expect(view(window, 0)).toHaveText("Type 0");
+      await typeAsync(0, "group");
+      await expect(view(window, 0)).toHaveText("Type group 0");
+
+      await runAsync("Show the page in a dialog");
+      await expect(shown.locator("[data-fixture-content=pages-view-0]")).toHaveText("Type 0");
+      await typeAsync(0, "dialog");
+      await expect(shown.locator("[data-fixture-content=pages-view-0]")).toHaveText("Type dialog 0");
+      await shown.getByRole("button", { name: "Close" }).click();
+      await expect(shown).toHaveCount(0);
+      await expect(view(window, 0)).toHaveText("Type 0");
+      await typeAsync(0, "back");
+      await expect(view(window, 0)).toHaveText("Type back 0");
+
+      await runAsync("Open the side page");
+      await expect(side).toHaveAttribute("data-view", /./);
+      await expect(window.locator(`nol-tab-group[data-side=Bottom] nol-tab[data-tab-key="${sideKey}"]`)).toHaveCount(0);
+      expect(await requestAsync(window, "pages.navigate", { view: 2, url: `${origin}/type` })).toEqual({ kind: "Started", origin: null });
+      await expect(side).toHaveText("Type 0");
+      await typeAsync(2, "docked");
+      await expect(side).toHaveText("Type docked 0");
+      await TabDragFixture.tab(window, sideKey).focus();
+      await window.keyboard.press("Shift+F10");
+      await window.getByRole("menuitem", { name: "Dock", exact: true }).click();
+      await window.getByRole("menuitem", { name: "Dock at the bottom" }).click();
+      await expect(window.locator(`nol-tab-group[data-side=Bottom] nol-tab[data-tab-key="${sideKey}"]`)).toHaveCount(1);
+      await expect(side).toHaveText("Type 0");
+      await typeAsync(2, "bottom");
+
+      await expect(side).toHaveText("Type bottom 0");
+      expect(await requestAsync(window, "pages.capture", 2)).toBeGreaterThan(0);
+      expect(await requestAsync(window, "pages.capture", 0)).toBeGreaterThan(0);
+      expect(mainProcess.failures.filter(t => / was refused, /.test(t))).toEqual([]);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
   test("a module's web view zooms on the person's keys, alone and across its navigations, reports each zoom to the window part, and finds in its page", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const mod = process.platform === "darwin" ? "meta" : "control";
