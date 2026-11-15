@@ -739,7 +739,7 @@ export class OpenWebView {
   private countPresses(method: string, params: JsonObject): number {
     const points = params[Resources.touchPointsField];
     const held = this.touchPoints;
-    const ids = Array.isArray(points) ? points.map(t => Object.isObject(t) && "id" in t && Number.isSafeInteger(t.id) ? t.id : Symbol(method)) : [];
+    const ids = Array.isArray(points) ? points.map(t => OpenWebView.readTouchPointId(t, method)) : [];
     if (method === Resources.dispatchTouchEventMethod)
       this.touchPoints = ids;
     if (!Resources.relayedPressTypes.has(method) || Resources.relayedPressTypes.get(method) !== params[Resources.typeField])
@@ -764,6 +764,11 @@ export class OpenWebView {
     if (Object.isNull(value))
       return new WebViewAnswered(call, null, new WebViewFailure(WebViewFailureKind.Protocol, Resources.webViewServerErrorCode, Resources.webViewReplyNotObject));
     return Buffer.byteLength(JSON.stringify(value)) > Resources.webViewReplyLimit ? OpenWebView.fail(call, WebViewFailureKind.TooLarge) : new WebViewAnswered(call, value);
+  }
+
+  private static readTouchPointId(point: unknown, method: string): unknown {
+    const id = OpenWebView.readObject(point)?.[Resources.touchPointIdField];
+    return Number.isSafeInteger(id) ? id : Symbol(method);
   }
 
   private static readObject(value: unknown): JsonObject | null {

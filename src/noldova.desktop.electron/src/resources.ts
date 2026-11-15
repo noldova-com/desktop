@@ -279,6 +279,7 @@ export class Resources {
   public static readonly personPressTypes: readonly string[] = ["mouseDown", "touchStart"];
   public static readonly relayedPressTypes: ReadonlyMap<string, string> = new Map([["Input.dispatchMouseEvent", "mousePressed"], [Resources.dispatchTouchEventMethod, "touchStart"]]);
   public static readonly touchPointsField: string = "touchPoints";
+  public static readonly touchPointIdField: string = "id";
   public static readonly pressFreeInputMethods: readonly string[] = ["Input.dispatchMouseEvent", "Input.dispatchTouchEvent", "Input.dispatchKeyEvent", "Input.insertText"];
   public static readonly inputStartKind: string = "Start";
   public static readonly inputEndKind: string = "End";
