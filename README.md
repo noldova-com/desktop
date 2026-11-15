@@ -161,9 +161,13 @@ The font log, `src/noldova.desktop.window/scripts/angular/font-response-log.ts`,
 A font request the server never received, such as one sent after it stopped or refused the connection, logs nothing.
 When the run closes, the log writes "The font log watched N font requests to the test server": a run that loads the kit's fonts and shows 0 has the log detached from the server that serves them, so a missing warning then says nothing.
 The hang guard, `src/noldova.desktop.window/scripts/angular/test-hang-guard.ts`, is a plugin of the same config that adds itself to Vitest's reporters, which run in Node.js outside the browser.
-When a spec file reports nothing for 60 s, it names the file and the test it was running, or the last test it finished, and ends the run with exit code 1.
+It watches each spec file from the time Vitest queues it until it ends, through its loading and collection, each test and each hook, and the whole run from its start to its end, including the time between files.
+When a file reports nothing for 60 s, it names that file and the test or hook it was in, or the last test it finished, while another file's reports never reset its watch.
+When the run reports nothing for 60 s, it names every file that started and hasn't ended, or says the run stopped between files.
+Either way, it ends the run with exit code 1.
 This covers a hang that Vitest's own limits miss, such as a browser that stops answering, since Vitest's per-test limit runs in the browser and the default reporter prints a file only once it ends.
-The guard's 60 s is twice Vitest's 30 s browser hook limit, so it fires only after Vitest's own limits should have, and over fifty times the slowest window test, which took 1.1 s on Windows x64 in three recent runs.
+Every test start and result and every hook start and end resets the watch, so each silent stretch is at most one hook or one test body, within Vitest's 30 s browser hook limit and its 15 s browser test limit.
+The guard's 60 s is twice the longer of those, so it fires only once Vitest's own limits should have, and over fifty times the slowest window test, which took 1.1 s on Windows x64 in three recent runs.
 Each spec has 10 seconds, `--test-timeout=10000`: the slowest took 0.74 seconds, on macOS arm64, and a spec that hangs, such as one waiting on a run of the package tests' runner that never ends, fails by name within that limit instead of holding the job until its own limit ends it.
 API declarations runs after the build and checks that each entry under a package's `src/api/` exports the same members, with the same types, as the `api/*.d.ts` declarations installed with the package.
 The checks that read syntax trees, such as Concept files, parse each file with TypeScript 6.0.3's compiler API, and API declarations reads the types through a program of the same API, `scripts/api/api-program.ts`.

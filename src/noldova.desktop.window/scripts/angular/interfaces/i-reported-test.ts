@@ -6,9 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { IReportedModule } from "./i-reported-module.ts";
+import type { IReportedSuite } from "./i-reported-suite.ts";
 
-export interface IReportedTest {
-  readonly module: IReportedModule;
+export interface IReportedTest extends IReportedSuite {
   readonly fullName: string;
 }
