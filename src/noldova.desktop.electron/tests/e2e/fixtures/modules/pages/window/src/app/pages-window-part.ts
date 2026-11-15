@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { CommandContribution, DocumentContribution, type IWindowPart, type IWindowPartContext } from "@noldova/desktop.window";
+import { CommandContribution, DockSide, DocumentContribution, type IWindowPart, type IWindowPartContext, ViewContribution } from "@noldova/desktop.window";
 
 export class PagesWindowPart implements IWindowPart {
   public readonly moduleId: string = "pages";
@@ -14,8 +14,18 @@ export class PagesWindowPart implements IWindowPart {
   public async activateAsync(context: IWindowPartContext): Promise<void> {
     context.registerDocument(new DocumentContribution("pages.page",
       () => import("./components/page/page.component").then(t => t.PageComponent)));
+    context.registerView(new ViewContribution("pages.side", "Side page", "web", DockSide.Right, false,
+      () => import("./components/side/side.component").then(t => t.SideComponent), undefined, { hasInstances: true }));
     context.registerCommand(new CommandContribution("pages.openPage", "Open the page", null, null, async () => {
       context.openDocument("pages.page", "1", "Page");
+      return null;
+    }));
+    context.registerCommand(new CommandContribution("pages.showPageInDialog", "Show the page in a dialog", null, null, async () => {
+      await context.showInDialogAsync("pages.page", { instance: "1", title: "Page" });
+      return null;
+    }));
+    context.registerCommand(new CommandContribution("pages.openSide", "Open the side page", null, null, async () => {
+      context.openView("pages.side", "1", "Side page");
       return null;
     }));
   }

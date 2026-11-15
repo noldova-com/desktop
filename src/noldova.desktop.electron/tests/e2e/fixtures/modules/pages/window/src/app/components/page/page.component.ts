@@ -36,6 +36,7 @@ export class PageComponent {
   private readonly context: IWindowPartContext = inject(WindowPartTokens.context);
   private readonly content: Signal<ElementRef<HTMLElement>> = viewChild.required<ElementRef<HTMLElement>>("content");
   private readonly handles: IWebViewHandle[] = [];
+  protected readonly paneName: string = "pages.page";
   private isClosed: boolean = false;
 
   public constructor() {
@@ -50,7 +51,7 @@ export class PageComponent {
   }
 
   private async openAsync(): Promise<void> {
-    const pane = new WebViewPane(QualifiedName.parse("pages.page"), this.instance());
+    const pane = new WebViewPane(QualifiedName.parse(this.paneName), this.instance());
     for (let index = 0; index < PageComponent.VIEW_COUNT; index++) {
       const handle = await this.context.webViews.openAsync(pane, PageComponent.PROFILE_KEY);
       if (this.isClosed) {

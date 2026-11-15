@@ -7,6 +7,6 @@
  */
 
 export interface IWebViewAttachParams {
-  readonly src?: string;
+  src?: string;
   readonly partition?: string;
 }

@@ -26,10 +26,11 @@ export class WebViewAttachGuard {
     if (isGuest)
       return event.preventDefault();
     const partition = params.partition ?? String.empty;
-    if (params.src !== Resources.blankPage || !this.isAllowed(contentsId, partition)) {
+    if (!this.isAllowed(contentsId, partition)) {
       event.preventDefault();
       return this.log(Resources.formatWebViewAttachRefused(contentsId, partition));
     }
+    params.src = Resources.blankPage;
     delete preferences.preload;
     delete preferences.preloadURL;
     preferences.nodeIntegration = false;
