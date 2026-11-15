@@ -14,6 +14,12 @@ export class Resources {
   public static readonly eventsMethod: string = "pages.events";
   public static readonly pressMethod: string = "pages.press";
   public static readonly typeMethod: string = "pages.type";
+  public static readonly clickMethod: string = "pages.click";
+  public static readonly focusMethod: string = "pages.focus";
+  public static readonly dispatchMouseEventMethod: string = "Input.dispatchMouseEvent";
+  public static readonly mouseTypes: readonly string[] = ["mousePressed", "mouseReleased"];
+  public static readonly evaluateMethod: string = "Runtime.evaluate";
+  public static readonly focusNodeMethod: string = "DOM.focus";
   public static readonly dispatchKeyEventMethod: string = "Input.dispatchKeyEvent";
   public static readonly insertTextMethod: string = "Input.insertText";
   public static readonly keyTypes: readonly string[] = ["rawKeyDown", "keyUp"];
@@ -25,6 +31,13 @@ export class Resources {
   public static readonly keyField: string = "key";
   public static readonly codeField: string = "code";
   public static readonly textField: string = "text";
+  public static readonly xField: string = "x";
+  public static readonly yField: string = "y";
+  public static readonly idField: string = "id";
+  public static readonly resultField: string = "result";
+  public static readonly objectIdField: string = "objectId";
+  public static readonly leftButton: string = "left";
+  public static readonly noElementMessage: string = "The page has no element with that id.";
   public static readonly nativeKeyCodeField: string = "nativeKeyCode";
   public static readonly dataField: string = "data";
   public static readonly noViewMessage: string = "The pages fixture has no web view at that place in its list.";

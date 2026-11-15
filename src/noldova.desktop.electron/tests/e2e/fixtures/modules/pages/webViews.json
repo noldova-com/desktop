@@ -2,7 +2,10 @@
   "methods": [
     { "name": "Page.captureScreenshot", "parameters": { "format": { "values": ["png"] } } },
     { "name": "Input.dispatchKeyEvent", "parameters": { "type": { "values": ["rawKeyDown", "keyUp"] }, "key": {}, "code": {}, "modifiers": {}, "nativeVirtualKeyCode": {} } },
-    { "name": "Input.insertText", "parameters": { "text": {} } }
+    { "name": "Input.insertText", "parameters": { "text": {} } },
+    { "name": "Input.dispatchMouseEvent", "parameters": { "type": { "values": ["mousePressed", "mouseReleased"] }, "x": {}, "y": {}, "button": { "values": ["left"] }, "clickCount": {} } },
+    { "name": "Runtime.evaluate", "parameters": { "expression": {} } },
+    { "name": "DOM.focus", "parameters": { "objectId": {} } }
   ],
   "keys": [
     { "name": "find", "keys": ["F7"] },

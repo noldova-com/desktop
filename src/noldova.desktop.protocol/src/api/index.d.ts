@@ -3165,7 +3165,7 @@ export declare class WebViewEvent {
 }
 
 /**
- * Why a call on a web view failed; a protocol failure carries the engine's code and message, and no other does.
+ * Why a call on a web view failed; a protocol failure carries the engine's code and message, and another kind may carry the host's message naming the rule it broke, never a code.
  */
 export declare class WebViewFailure {
   /**
@@ -3179,7 +3179,7 @@ export declare class WebViewFailure {
   public readonly code: number | null;
 
   /**
-   * The engine's message, or `null`.
+   * The engine's message for a protocol failure, the host's message naming the rule for another kind that has one, or `null`.
    */
   public readonly message: string | null;
 
@@ -3188,8 +3188,8 @@ export declare class WebViewFailure {
    *
    * @param kind The kind.
    * @param code The engine's code, a whole number, for a protocol failure only; `null` by default.
-   * @param message The engine's message, for a protocol failure only; `null` by default.
-   * @throws ArgumentException synchronously when a protocol failure lacks its code or message, or another kind has one.
+   * @param message The engine's message for a protocol failure, or the host's message naming the rule for another kind; `null` by default.
+   * @throws ArgumentException synchronously when a protocol failure lacks its code or message, or another kind has a code.
    *
    * @example
    * ```ts

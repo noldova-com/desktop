@@ -22,10 +22,12 @@ export class WebViewFailureTests {
   }
 
   @TestMethod
-  public carriesACodeAndAMessageOnlyForAProtocolFailure(): void {
+  public carriesACodeOnlyForAProtocolFailureWhichNeedsItsMessageAndAnotherKindMayCarryTheHostsMessage(): void {
     Assert.throws(() => new WebViewFailure(WebViewFailureKind.Protocol), ArgumentException);
     Assert.throws(() => new WebViewFailure(WebViewFailureKind.Protocol, 1), ArgumentException);
     Assert.throws(() => new WebViewFailure(WebViewFailureKind.TimedOut, 1, "late"), ArgumentException);
+    Assert.throws(() => new WebViewFailure(WebViewFailureKind.TimedOut, 1), ArgumentException);
+    Assert.areEqual("{\"kind\":\"NotAllowed\",\"message\":\"The rule.\"}", JSON.stringify(WebViewFailure.fromJson(new WebViewFailure(WebViewFailureKind.NotAllowed, null, "The rule.").toJson()).toJson()));
     Assert.areEqual("$.code", Assert.throws(() => WebViewFailure.fromJson({ kind: "Protocol", code: 1.5, message: "m" }), JsonException).path);
   }
 }
