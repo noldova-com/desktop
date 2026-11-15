@@ -146,7 +146,7 @@ test.describe("a note's fields", () => {
     await window.clock.resume();
     await selecting;
 
-    await expect(noteView(window, "2")).toHaveCount(0);
+    await expect(noteView(window, "2")).toBeHidden();
     expect(await tag.evaluate(t => t instanceof HTMLInputElement ? [t.selectionStart, t.selectionEnd] : [])).toEqual([0, 5]);
   });
 });

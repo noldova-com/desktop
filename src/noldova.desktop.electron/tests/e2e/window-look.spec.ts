@@ -111,10 +111,10 @@ test.describe("the window's look", () => {
     const expectPaddingAsync = async (tab: string, page: string, padding: readonly number[], isOnIcon: boolean): Promise<void> => {
       await window.locator(`nol-tab[data-tab-key='${tab}']`).click();
       const group = window.locator(`nol-tab-group:has(nol-tab[data-tab-key='${tab}'])`);
-      const content = group.locator("nol-tab-content");
+      const content = group.locator("nol-tab-content:not([inert])");
       await expect(content.locator(page)).toBeVisible();
       await expect.poll(() => group.evaluate(t => {
-        const host = t.querySelector<HTMLElement>("nol-tab-content");
+        const host = t.querySelector<HTMLElement>("nol-tab-content:not([inert])");
         if (host === null)
           throw new Error("Nothing matches nol-tab-content.");
         const style = getComputedStyle(host);
