@@ -23,7 +23,7 @@ export class PreloadTests {
       "readLayout", "writeLayout", "request", "onEvent", "readBuild", "copyText", "copyImage", "openLogFolder", "copyDetails", "openLink", "showInFolder", "openFile", "chooseFolder", "chooseFilePath", "saveFile", "chooseFiles", "grantFiles", "installCommand", "readUpdate", "onUpdate", "actOnUpdate",
       "keepAppearance", "readSpelling", "keepSpelling", "onFieldMenu", "replaceMisspelling", "addToDictionary", "edit", "setMenuBar", "onMenuCommand", "onNotificationOpened", "onQuitQuestion",
       "answerQuit", "readTrayAvailable", "onTrayAvailable", "readFullScreen", "onFullScreen", "readMaximized", "onMaximized", "actOnWindow", "openWebView", "attachWebView",
-      "navigateWebView", "actOnWebView", "zoomWebView", "findInWebView", "closeWebView", "setWebViewShortcuts", "setAppShortcuts", "onWebViewEvent", "onWebViewShortcut", "onWebViewInput",
+      "navigateWebView", "actOnWebView", "zoomWebView", "findInWebView", "closeWebView", "keepWebViews", "expectWebView", "setWebViewShortcuts", "setAppShortcuts", "onWebViewEvent", "onWebViewShortcut", "onWebViewInput",
       "releaseWebViewFocus", "logModule", "logError"
     ].join(","), Object.keys(api).join(","));
     Assert.areEqual(process.platform, api["platform"]);
@@ -98,6 +98,18 @@ export class PreloadTests {
       ["desktop:moduleLog", "clock", "line"],
       ["desktop:windowError", null, "error"]
     ]), JSON.stringify(electron.sent.slice(1)));
+  }
+
+  @TestMethod
+  public waitsForTheMainProcessToKeepAWebViewsPageBeforeItMovesAndToExpectItBeforeItComesBack(): void {
+    const electron = FakePreloadElectron.load();
+    electron.answer = (): unknown => true;
+
+    const answers = [PreloadTests.invoke(electron.api("desktop")["keepWebViews"], [["browser", "1"], ["browser", "2"]]), PreloadTests.invoke(electron.api("desktop")["expectWebView"], "browser", "1")];
+
+    Assert.areEqual(JSON.stringify([["desktop:webViewKeep", [["browser", "1"], ["browser", "2"]]], ["desktop:webViewExpect", "browser", "1"]]), JSON.stringify(electron.waited));
+    Assert.areEqual(JSON.stringify([]), JSON.stringify(electron.sent.slice(1)));
+    Assert.areEqual("true,true", answers.join(","));
   }
 
   @TestMethod

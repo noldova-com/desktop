@@ -6,13 +6,15 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { IWebViewContents } from "./i-web-view-contents.js";
 import type { IWebViewGuest } from "./i-web-view-guest.js";
 import type { IWebViewSession } from "./i-web-view-session.js";
 
 export interface IWebViewEngine {
   readSession(partition: string): IWebViewSession;
   findGuest(contentsId: number): IWebViewGuest | null;
-  watchAttach(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void): void;
+  watchAttach(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void,
+    claim?: (windowId: number, partition: string) => boolean, attached?: (windowId: number, contents: IWebViewContents) => void): void;
   now(): number;
   waitAsync(milliseconds: number, signal: AbortSignal): Promise<void>;
 }

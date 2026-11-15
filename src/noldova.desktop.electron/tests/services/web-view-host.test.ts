@@ -350,6 +350,100 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async restoresEachKeptViewTheWindowExpectsInTheNextWebviewOfItsProfileInTheOrderTheWindowExpectsThem(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    await WebViewHostTests.openAsync(electron);
+    const [first, second] = [WebViewHostTests.view(electron, 0), WebViewHostTests.view(electron, 1)];
+    electron.webViews.session(WebViewHostTests.PARTITION).addresses.set("example.com", ["93.184.215.14"]);
+    for (const view of ["1", "2"])
+      await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, view, ["https://example.com"]);
+    first.contents.show("https://example.com/a");
+    second.contents.show("https://example.com/b");
+    const answers = await WebViewHostTests.keepAsync(electron, [["browser", "1"], ["browser", "2"], ["browser", "3"]]);
+    for (const view of [first, second]) {
+      view.contents.destroyed = true;
+      view.contents.emit("destroyed");
+    }
+    const unexpected = electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION);
+    const expected = ["2", "1", "3", "2"].map(t => WebViewHostTests.expect(electron, t));
+
+    const claims: boolean[] = [unexpected];
+    const guests = [0, 1].map(() => electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION));
+    for (const guest of guests) {
+      claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
+      electron.webViews.attached(window.webContents.id, guest.contents);
+    }
+    claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
+    await Condition.waitAsync(() => guests.every(t => t.contents.calls.some(u => u.startsWith("restore"))));
+    const attached = await WebViewHostTests.attachAsync(electron, "2", guests[0]?.contents.id);
+
+    Assert.areEqual("[true,true,false]", JSON.stringify(answers));
+    Assert.areEqual("true,true,false,false", expected.join(","));
+    Assert.areEqual("false,true,true,false", claims.join(","));
+    Assert.areEqual("restore 0 https://example.com/b state of https://example.com/b|restore 0 https://example.com/a state of https://example.com/a",
+      guests.map(t => t.contents.calls.join(",")).join("|"));
+    Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(attached));
+    Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
+  }
+
+  @TestMethod
+  public async readsTheScrollOfEveryViewOfAMoveAtOnceSoTheWindowWaitsForOneBoundWhenNoPageAnswers(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    await WebViewHostTests.openAsync(electron);
+    const clock = electron.webViews.clock;
+    for (const [index, url] of [[0, "https://example.com/a"], [1, "https://example.com/b"]] as const) {
+      const view = WebViewHostTests.view(electron, index);
+      view.contents.show(url);
+      view.contents.debugger.replies.set("Page.getLayoutMetrics", () => new Promise(() => undefined));
+    }
+    const event = MainProcessStartFixture.trustedEvent("linux");
+
+    electron.ipcMain.send("desktop:webViewKeep", event, [["browser", "1"], ["browser", "2"]]);
+    await Condition.waitAsync(() => clock.waits.filter(t => t === 500).length === 2);
+    const before = event.returnValue;
+    clock.advance(500);
+    await Condition.waitAsync(() => !Object.isUndefined(event.returnValue));
+
+    Assert.areEqual(JSON.stringify([null, 2, [true, true], 500]), JSON.stringify([before ?? null, clock.waits.filter(t => t === 500).length, event.returnValue, clock.now()]));
+  }
+
+  @TestMethod
+  public async claimsNoWebviewForAViewThatStillHasItsPageIsClosedOrIsInAnotherWindowAndBindsNoUnclaimedOneOrOneOfAnotherWindow(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    await WebViewHostTests.openAsync(electron);
+    const [live, closing] = [WebViewHostTests.view(electron, 0), WebViewHostTests.view(electron, 1)];
+    live.contents.show("https://example.com/a");
+    closing.contents.show("https://example.com/b");
+    const untrusted = { ...MainProcessStartFixture.trustedEvent("linux"), senderFrame: null };
+    electron.ipcMain.send("desktop:webViewKeep", untrusted, [["browser", "1"]]);
+    const malformed = [await WebViewHostTests.keepAsync(electron, "browser"), await WebViewHostTests.keepAsync(electron, ["1", ["browser"]])];
+    const answers = [untrusted.returnValue, await WebViewHostTests.keepAsync(electron, [["browser", "1"], ["browser", "2"]])];
+    electron.ipcMain.send("desktop:webViewExpect", untrusted, "browser", "1");
+    answers.push(untrusted.returnValue, WebViewHostTests.expect(electron, "1"), WebViewHostTests.expect(electron, "2"));
+    closing.contents.destroyed = true;
+    closing.contents.emit("destroyed");
+    electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "2");
+
+    const claims = [electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION), electron.webViews.claim(window.webContents.id + 1, WebViewHostTests.PARTITION)];
+    const stray = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
+    electron.webViews.attached(window.webContents.id, stray.contents);
+    live.contents.destroyed = true;
+    live.contents.emit("destroyed");
+    claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
+    electron.webViews.attached(window.webContents.id + 1, stray.contents);
+
+    Assert.areEqual("[[],[false,false]]", JSON.stringify(malformed));
+    Assert.areEqual("false,true,true,false,true,true", answers.join(","));
+    Assert.areEqual("false,false,true", claims.join(","));
+    Assert.areEqual(String.empty, stray.contents.calls.join(","));
+  }
+
+  @TestMethod
   public async letsGoOfADestroyedPageWithoutClosingTheViewAndTakesTheNextOne(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
@@ -1401,6 +1495,19 @@ export class WebViewHostTests {
       state.isSettled = true;
     });
     return state;
+  }
+
+  private static async keepAsync(electron: FakeElectron, views: unknown): Promise<unknown> {
+    const event = MainProcessStartFixture.trustedEvent("linux");
+    electron.ipcMain.send("desktop:webViewKeep", event, views);
+    await Condition.waitAsync(() => !Object.isUndefined(event.returnValue));
+    return event.returnValue;
+  }
+
+  private static expect(electron: FakeElectron, view: string): unknown {
+    const event = MainProcessStartFixture.trustedEvent("linux");
+    electron.ipcMain.send("desktop:webViewExpect", event, "browser", view);
+    return event.returnValue;
   }
 
   private static view(electron: FakeElectron, index: number): FakeWebView {

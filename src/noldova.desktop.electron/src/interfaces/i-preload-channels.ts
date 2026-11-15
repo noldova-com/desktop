@@ -62,6 +62,8 @@ export interface IPreloadChannels {
   readonly webViewClose: string;
   readonly webViewEvent: string;
   readonly webViewFind: string;
+  readonly webViewKeep: string;
+  readonly webViewExpect: string;
   readonly webViewFocusRelease: string;
   readonly webViewInput: string;
   readonly webViewNavigate: string;

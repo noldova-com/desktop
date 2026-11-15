@@ -7,7 +7,7 @@
  */
 
 import "@noldova/context.core";
-import type { IWebViewEngine } from "@noldova/desktop.electron";
+import type { IWebViewContents, IWebViewEngine } from "@noldova/desktop.electron";
 
 import { FakeClock } from "./fake-clock.fixture.js";
 import { FakeWebView } from "./fake-web-view.fixture.js";
@@ -19,6 +19,8 @@ export class FakeWebViewEngine implements IWebViewEngine {
   public prepare: (view: FakeWebView) => void = () => undefined;
   public isAllowed: (windowId: number, partition: string) => boolean = () => false;
   public logRefusal: (text: string) => void = () => undefined;
+  public claim: (windowId: number, partition: string) => boolean = () => false;
+  public attached: (windowId: number, contents: IWebViewContents) => void = () => undefined;
   public time: number = 1000;
   public readonly clock: FakeClock = new FakeClock();
 
@@ -40,9 +42,12 @@ export class FakeWebViewEngine implements IWebViewEngine {
     return Object.isUndefined(view) || view.contents.destroyed ? null : view;
   }
 
-  public watchAttach(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void): void {
+  public watchAttach(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void,
+    claim: (windowId: number, partition: string) => boolean = () => false, attached: (windowId: number, contents: IWebViewContents) => void = () => undefined): void {
     this.isAllowed = isAllowed;
     this.logRefusal = log;
+    this.claim = claim;
+    this.attached = attached;
   }
 
   public now(): number {

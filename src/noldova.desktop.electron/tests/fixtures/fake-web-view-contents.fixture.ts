@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { WindowOpenHandlerResponse } from "electron";
-import type { IWebViewContents, IWebViewKeyEvent, IWindowOpenDetails } from "@noldova/desktop.electron";
+import { type IWebViewContents, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
 
 import { FakePreventableEvent } from "./fake-preventable-event.fixture.js";
 import { FakeWebViewDebugger } from "./fake-web-view-debugger.fixture.js";
@@ -17,9 +17,13 @@ import { ListenerRegistry } from "./listener-registry.fixture.js";
 export class FakeWebViewContents implements IWebViewContents {
   private readonly listeners: ListenerRegistry = new ListenerRegistry();
   private openHandler: ((details: IWindowOpenDetails) => WindowOpenHandlerResponse) | null = null;
+  private begin: () => void = () => undefined;
   public readonly id: number;
   public readonly debugger: FakeWebViewDebugger = new FakeWebViewDebugger();
   public readonly calls: string[] = [];
+  public readonly started: Promise<void> = new Promise(resolve => {
+    this.begin = resolve;
+  });
   public url: string = String.empty;
   public title: string = String.empty;
   public loading: boolean = false;
@@ -28,6 +32,8 @@ export class FakeWebViewContents implements IWebViewContents {
   public index: number = -1;
   public rtcPolicy: string | null = null;
   public loadFailure: Error | null = null;
+  public restoreAnswer: () => Promise<void> = () => Promise.resolve();
+  public restoredUrl: string | null = null;
   public findRequest: number = 0;
   public zoomFactor: number = 1;
   public readonly inputs: IWebViewKeyEvent[] = [];
@@ -43,6 +49,7 @@ export class FakeWebViewContents implements IWebViewContents {
 
   public loadURL(url: string): Promise<void> {
     this.calls.push(`load ${url}`);
+    this.begin();
     return Object.isNull(this.loadFailure) ? Promise.resolve() : Promise.reject(this.loadFailure);
   }
 
@@ -72,6 +79,18 @@ export class FakeWebViewContents implements IWebViewContents {
 
   public readHistoryEntry(offset: number): string | null {
     return this.history[this.index + offset] ?? null;
+  }
+
+  public readHistory(): WebViewHistory {
+    return new WebViewHistory(this.history.map(t => ({ url: t, title: String.empty, pageState: `state of ${t}` })), this.index);
+  }
+
+  public restoreHistoryAsync(history: WebViewHistory): Promise<void> {
+    this.calls.push(`restore ${history.index} ${history.entries.map(t => `${t.url} ${t.pageState ?? String.empty}`).join(" ")}`);
+    this.begin();
+    return this.restoreAnswer().then(() => {
+      this.url = this.restoredUrl ?? history.currentUrl ?? String.empty;
+    });
   }
 
   public goBack(): void {

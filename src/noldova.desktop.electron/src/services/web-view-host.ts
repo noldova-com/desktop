@@ -46,12 +46,15 @@ export class WebViewHost {
   private readonly deliver: (events: WebViewEvents) => void;
   private readonly log: (text: string) => void;
   private readonly views: Map<string, OpenWebView> = new Map();
+  private readonly kept: OpenWebView[] = [];
+  private readonly expected: OpenWebView[] = [];
   private readonly closedContents: Set<number> = new Set();
   private readonly sessions: Map<string, IWebViewSession> = new Map();
   private readonly shortcuts: Map<number, readonly KeyChord[]> = new Map();
   private readonly backlog: WebViewEventBacklog = new WebViewEventBacklog(Resources.webViewBacklogLimit);
   private nextId: number = 0;
   private isFlushing: boolean = false;
+  private claimed: OpenWebView | null = null;
 
   public constructor(
     engine: IWebViewEngine,
@@ -74,7 +77,8 @@ export class WebViewHost {
     this.isConnected = isConnected;
     this.deliver = deliver;
     this.log = log;
-    engine.watchAttach((windowId, partition) => this.isAttachable(windowId, partition), log);
+    engine.watchAttach((windowId, partition) => this.isAttachable(windowId, partition), log,
+      (windowId, partition) => this.claim(windowId, partition), (windowId, contents) => this.restore(windowId, contents));
   }
 
   public async openAsync(windowId: number, module: unknown, pane: unknown, profileKey: unknown): Promise<JsonObject | null> {
@@ -108,6 +112,26 @@ export class WebViewHost {
       this.remember(previous);
     const isBound = await open.bindAsync(guest.contents);
     return isBound && this.views.get(open.info.id) === open ? { [Resources.isAttachedField]: true } : null;
+  }
+
+  public async keepAsync(windowId: number, views: unknown): Promise<boolean[]> {
+    const listed: readonly unknown[] = Array.isArray(views) ? views : [];
+    const opens = listed.map(t => this.findListed(windowId, t));
+    for (const open of opens.filter(t => !Object.isNull(t))) {
+      this.forget(open);
+      this.kept.push(open);
+    }
+    await Promise.all(opens.map(t => t?.keepAsync()));
+    return opens.map(t => !Object.isNull(t));
+  }
+
+  public expect(windowId: number, module: unknown, view: unknown): boolean {
+    const open = this.find(windowId, module, view);
+    if (Object.isNull(open) || !this.kept.includes(open))
+      return false;
+    this.forget(open);
+    this.expected.push(open);
+    return true;
   }
 
   public async navigateAsync(windowId: number, module: unknown, view: unknown, url: unknown): Promise<JsonObject | null> {
@@ -263,6 +287,11 @@ export class WebViewHost {
     return session;
   }
 
+  private findListed(windowId: number, listed: unknown): OpenWebView | null {
+    const pair: readonly unknown[] = Array.isArray(listed) ? listed : [];
+    return this.find(windowId, pair[0], pair[1]);
+  }
+
   private find(windowId: number, module: unknown, view: unknown): OpenWebView | null {
     const open = Object.isString(view) ? this.views.get(view) : undefined;
     return !Object.isUndefined(open) && open.windowId === windowId && open.info.module === module ? open : null;
@@ -280,6 +309,29 @@ export class WebViewHost {
 
   private isAttachable(windowId: number, partition: string): boolean {
     return [...this.views.values()].some(t => t.windowId === windowId && t.partition === partition);
+  }
+
+  private claim(windowId: number, partition: string): boolean {
+    const claimed = this.expected.find(t => t.windowId === windowId && t.partition === partition && t.isRestorable) ?? null;
+    if (!Object.isNull(claimed))
+      this.forget(claimed);
+    this.claimed = claimed;
+    return !Object.isNull(claimed);
+  }
+
+  private restore(windowId: number, contents: IWebViewContents): void {
+    const open = this.claimed;
+    this.claimed = null;
+    if (!Object.isNull(open) && open.windowId === windowId)
+      void open.bindAsync(contents, true);
+  }
+
+  private forget(open: OpenWebView): void {
+    for (const list of [this.kept, this.expected]) {
+      const index = list.indexOf(open);
+      if (index >= 0)
+        list.splice(index, 1);
+    }
   }
 
   private inPane(windowId: number, info: WebViewInfo): readonly OpenWebView[] {
@@ -315,6 +367,7 @@ export class WebViewHost {
 
   private end(open: OpenWebView): void {
     this.views.delete(open.info.id);
+    this.forget(open);
     const contents = open.contents;
     if (!Object.isNull(contents))
       this.remember(contents);

@@ -57,6 +57,8 @@ export class Resources {
   public static readonly webViewNavigateChannel: string = "desktop:webViewNavigate";
   public static readonly webViewActChannel: string = "desktop:webViewAct";
   public static readonly webViewCloseChannel: string = "desktop:webViewClose";
+  public static readonly webViewKeepChannel: string = "desktop:webViewKeep";
+  public static readonly webViewExpectChannel: string = "desktop:webViewExpect";
   public static readonly webViewShortcutsChannel: string = "desktop:webViewShortcuts";
   public static readonly appShortcutsChannel: string = "desktop:appShortcuts";
   public static readonly webViewEventChannel: string = "desktop:webViewEvent";
@@ -222,6 +224,13 @@ export class Resources {
   public static readonly enabledParameter: string = "enabled";
   public static readonly focusBarrierWorld: number = 1999;
   public static readonly focusBarrierScript: string = "0";
+  public static readonly layoutMetricsMethod: string = "Page.getLayoutMetrics";
+  public static readonly layoutViewportField: string = "cssLayoutViewport";
+  public static readonly pageXField: string = "pageX";
+  public static readonly pageYField: string = "pageY";
+  public static readonly scrollBackWorld: number = 1998;
+  public static readonly webViewScrollReadTimeout: number = 500;
+  public static readonly pointerMoveTypes: readonly string[] = ["mouseMove", "mouseEnter", "mouseLeave"];
   public static readonly autoRepeatField: string = "autoRepeat";
   public static readonly keyDownType: string = "keyDown";
   public static readonly rawKeyDownType: string = "rawKeyDown";
@@ -646,6 +655,8 @@ export class Resources {
     webViewAct: Resources.webViewActChannel,
     webViewAttach: Resources.webViewAttachChannel,
     webViewClose: Resources.webViewCloseChannel,
+    webViewKeep: Resources.webViewKeepChannel,
+    webViewExpect: Resources.webViewExpectChannel,
     webViewEvent: Resources.webViewEventChannel,
     webViewFind: Resources.webViewFindChannel,
     webViewFocusRelease: Resources.webViewFocusReleaseChannel,
@@ -671,6 +682,7 @@ export class Resources {
   public static readonly willNavigateEvent: "will-navigate" = "will-navigate";
   public static readonly willRedirectEvent: "will-redirect" = "will-redirect";
   public static readonly willAttachWebviewEvent: "will-attach-webview" = "will-attach-webview";
+  public static readonly didAttachWebviewEvent: "did-attach-webview" = "did-attach-webview";
   public static readonly webContentsCreatedEvent: "web-contents-created" = "web-contents-created";
   public static readonly webViewContentsType: "webview" = "webview";
   public static readonly destroyedEvent: "destroyed" = "destroyed";
@@ -974,6 +986,10 @@ export class Resources {
 
   public static get updateBarrierNotClearedDetail(): string {
     return `Open ${Resources.applicationName} again in a moment. If this keeps happening, its log has the reason.`;
+  }
+
+  public static formatScrollBackScript(x: number, y: number): string {
+    return `scrollTo(${x}, ${y})`;
   }
 
   public static formatBarrierNotCleared(message: string): string {
