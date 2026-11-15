@@ -753,7 +753,6 @@ export class ProcessSupervisorTerminalsTests {
     const library = new PseudoTerminalLibraryFixture();
 
     const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, ProcessSupervisorTerminalsTests.request(library, folder.path, [ProgramFixture.ARGUMENTS, "printed", "at", "once"]));
-    await ProcessSupervisorFixture.waitForAsync(() => terminal.hasExited);
     const exit = await terminal.exited;
     const output = ProcessSupervisorTerminalsTests.collect(terminal);
     await ProcessSupervisorFixture.waitForAsync(() => output().includes("\n"));
@@ -1291,8 +1290,8 @@ export class ProcessSupervisorTerminalsTests {
 
     const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, ProcessSupervisorTerminalsTests.request(library, folder.path, [ProgramFixture.EXIT, "0"]));
     terminal.pause();
-    await ProcessSupervisorFixture.waitForAsync(() => terminal.hasExited && processes.programs.length === 0, () => settings.diagnostics.text);
     const exit = await terminal.exited;
+    await ProcessSupervisorFixture.changedAsync(processes, () => processes.programs.length === 0);
 
     Assert.areEqual("null null", `${exit.code} ${exit.signal}`);
     Assert.areEqual("pause,destroy,terminate", library.calls.join(","));
