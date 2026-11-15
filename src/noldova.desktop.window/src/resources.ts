@@ -433,6 +433,8 @@ export class Resources {
   public static readonly wordCharacterPattern: RegExp = /[\p{L}\p{N}]/u;
   public static readonly allFilterLabel: string = "All";
   public static readonly searchGroupRows: number = 2;
+  public static readonly recentAsk: string = "recent";
+  public static readonly answerAsk: string = "answer";
   public static readonly bestMatchGroup: string = "desktop.bestMatch";
   public static readonly bestMatchHeading: string = "Best match";
   public static readonly commandsSearchSource: string = "desktop.commands";
