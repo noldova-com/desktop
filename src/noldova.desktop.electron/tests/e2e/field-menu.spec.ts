@@ -11,6 +11,7 @@ import type { Locator } from "@playwright/test";
 
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 import { SettingsFixture } from "./fixtures/settings.fixture.ts";
+import { TabContentFixture } from "./fixtures/tab-content.fixture.ts";
 
 test.describe("text field menu", () => {
   test("a right click on a field opens Cut, Copy, Paste and Select all with only what applies enabled, Shift+F10 opens it by keyboard, and its rows edit the field through the system clipboard", async ({ mainProcess }) => {
@@ -52,8 +53,8 @@ test.describe("text field menu", () => {
     const firstCheck = process.platform === "win32" ? 60000 : 20000;
     test.setTimeout(firstCheck + 60000);
     const window = mainProcess.window;
-    await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
-    const summary = window.locator("nol-notes-note", { has: window.locator("[data-fixture-content=\"notes-note-1\"]") }).getByRole("textbox", { name: "Summary" });
+    const note = await TabContentFixture.openAsync(window, "document/notes.note/1");
+    const summary = note.getByRole("textbox", { name: "Summary" });
     const menu = window.locator(".cdk-overlay-container nol-menu[data-place=\"desktop.field\"]");
     const rows = menu.getByRole("menuitem");
     const add = menu.getByRole("menuitem", { name: "Add to dictionary" });

@@ -7,6 +7,7 @@
  */
 
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
+import { TabContentFixture } from "./fixtures/tab-content.fixture.ts";
 
 test.describe("links", () => {
   test("a link clicked or middle-clicked in a note and a link a window part opens reach the system's opener, and the window stays on its page", async ({ mainProcess }) => {
@@ -20,8 +21,8 @@ test.describe("links", () => {
     });
     const window = mainProcess.window;
     const page = window.url();
-    await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
-    const link = window.locator("[data-fixture-content=notes-link-1]:visible");
+    const note = await TabContentFixture.openAsync(window, "document/notes.note/1");
+    const link = note.locator("[data-fixture-content=notes-link-1]");
 
     await link.click();
     await link.click({ button: "middle" });

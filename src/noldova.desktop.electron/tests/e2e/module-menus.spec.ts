@@ -10,6 +10,7 @@ import "@noldova/context.core";
 import type { Locator, Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
+import { TabContentFixture } from "./fixtures/tab-content.fixture.ts";
 
 function noteView(window: Page, instance: string): Locator {
   return window.locator("nol-notes-note", { has: window.locator(`[data-fixture-content="notes-note-${instance}"]`) });
@@ -88,9 +89,9 @@ test.describe("the inline menu bar on Windows and Linux", () => {
 
   test("the Edit menu copies from one field and pastes into another, acting on the field that had focus and its selection", async ({ mainProcess }) => {
     const window = mainProcess.window;
-    await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
-    const tag = noteView(window, "1").getByRole("textbox", { name: "Tag" });
-    const summary = noteView(window, "1").getByRole("textbox", { name: "Summary" });
+    const note = await TabContentFixture.openAsync(window, "document/notes.note/1");
+    const tag = note.getByRole("textbox", { name: "Tag" });
+    const summary = note.getByRole("textbox", { name: "Summary" });
     await tag.selectText();
 
     await (await openBarMenuAsync(window, "Edit")).getByRole("menuitem", { name: "Copy" }).click();
@@ -139,7 +140,7 @@ test.describe("a note's fields", () => {
     await installClockAsync(window);
     await window.clock.pauseAt(Date.now() + 1000);
 
-    await window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
+    await TabContentFixture.openAsync(window, "document/notes.note/1");
     await expect(noteView(window, "2").getByRole("textbox", { name: "Tag" })).toBeAttached();
     await expect(tag).toHaveCount(0);
     const selecting = tag.selectText();

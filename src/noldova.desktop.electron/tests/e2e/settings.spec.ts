@@ -19,6 +19,7 @@ import { MediaFixture } from "./fixtures/media.fixture.ts";
 import { NotesOptionsFixture } from "./fixtures/notes-options.fixture.ts";
 import { ScrollAreaFixture } from "./fixtures/scroll-area.fixture.ts";
 import { SettingsFixture } from "./fixtures/settings.fixture.ts";
+import { TabContentFixture } from "./fixtures/tab-content.fixture.ts";
 import { TabDragFixture } from "./fixtures/tab-drag.fixture.ts";
 import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 
@@ -198,8 +199,8 @@ test.describe("settings", () => {
     await expect(wrapping(1)).toHaveText("Wraps lines: yes, not set for this note");
     await mainProcess.checkpointAsync("settings-scoped-read");
     await mainProcess.restartAsync();
-    await mainProcess.window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]").click();
-    await expect(mainProcess.window.locator("[data-fixture-content=notes-wrapping-1]")).toHaveText("Wraps lines: yes, not set for this note");
+    const reopened = await TabContentFixture.openAsync(mainProcess.window, "document/notes.note/1");
+    await expect(reopened.locator("[data-fixture-content=notes-wrapping-1]")).toHaveText("Wraps lines: yes, not set for this note");
   });
 
   test("the page list reveals its scrollbar's thumb colour while hovered, a long page shows its thumb while hovered, and dragging that thumb scrolls the page", async ({ mainProcess }) => {
