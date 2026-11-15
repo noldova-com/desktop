@@ -184,13 +184,18 @@ export class Resources {
   public static readonly testResultsIdentityField: string = "identity";
   public static readonly testResultsFailureField: string = "failure";
   public static readonly packageTestCheckTitle: string = "Package tests and coverage";
-  public static readonly serialTestDefaultTimeout: number = 30_000;
+  public static readonly serialTestDefaultTimeout: number = 40_000;
+  public static readonly serialTestPackagingTimeout: number = 90_000;
+  public static readonly serialTestPackagingCategory: string = "Packaging";
+  public static readonly serialTestGeneralSuite: string = "General";
+  public static readonly serialTestSlowestCount: number = 10;
   public static readonly serialTestShutdownGrace: number = 1000;
   public static readonly serialTestStandardErrorDescriptor: number = 2;
   public static readonly serialTestRemovalRetries: number = 5;
   public static readonly serialTestMethodWithoutClass: string = "A test method completed before its class started.";
   public static readonly serialTestSkipDetailsVariable: string = "NOLDOVA_TEST_SKIP_TEST_DETAILS";
   public static readonly serialTestTimeoutVariable: string = "NOLDOVA_TEST_TIMEOUT_MILLISECONDS";
+  public static readonly serialTestPackagingTimeoutVariable: string = "NOLDOVA_TEST_PACKAGING_TIMEOUT_MILLISECONDS";
   public static readonly serialTestTemporaryRootVariable: string = "NOLDOVA_TEST_TEMPORARY_ROOT";
   public static readonly serialTestCoverageDirectoryVariable: string = "NOLDOVA_TEST_COVERAGE_DIRECTORY";
   public static readonly serialTestTemporaryVariables: readonly string[] = ["TMPDIR", "TEMP", "TMP"];
@@ -604,8 +609,16 @@ export class Resources {
     return `The test ${identity} exceeded its time limit of ${limit} ms while waiting on ${resources}; the run ended after reporting it, and the tests not yet started did not run.\n`;
   }
 
+  public static formatSerialTestSlowest(suite: string, limit: number, lines: readonly string[]): string {
+    return lines.length === 0 ? String.empty : `${suite} suite, limit ${limit} ms:\n${lines.join(Resources.lineEnd)}\n`;
+  }
+
   public static formatSerialTestLeftovers(leftovers: readonly string[]): string {
     return `Tests finished but left ${leftovers.join(Resources.listSeparator)} in the run's temporary folder; a test must remove what it creates. Failing the run.\n`;
+  }
+
+  public static formatSerialTestUnremoved(error: string): string {
+    return `Tests finished but the run's temporary folder could not be removed: ${error}. Failing the run.\n`;
   }
 
   public static formatSerialTestUnclosed(resources: readonly string[]): string {
