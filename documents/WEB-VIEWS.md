@@ -39,7 +39,7 @@ The window part reaches its views through `context.webViews`.
   The main process refuses any `<webview>` whose profile isn't one of the views it opened for that window, and starts every other one at `about:blank`, whatever address the element carries, such as its page's own once it moves; it removes any preload, turns Node off and sandboxes the page, and a page can't open a `<webview>` of its own.
   The element allows its page's new windows, so each request reaches the host, which [judges it](#new-windows) and opens none itself.
 - Since the view is an element of the window's page, the module's own menus, and Noldova Desktop's own menus, dialogs, cards and notifications, lie over it like over any other element, and the page under them stays live.
-- A view behind another tab of its group keeps its place, its page and its size, takes no clicks or focus, and still takes `navigateAsync`, `actAsync` and finding; it is hidden by `visibility`, never removed, so a tab switch shows the next view with no blank frame, and its page keeps running.
+- A view behind another tab of its group keeps its place, its page and its size, takes no clicks or focus, and still takes `navigateAsync`, `actAsync` and finding; it is hidden by `visibility` and `opacity`, never removed, so a tab switch shows the next view with no blank frame, and its page keeps running.
 - While the person drags a tab or a toolbar item, the views take no pointer, so the drag passes over them.
 
 ### Layers over a view

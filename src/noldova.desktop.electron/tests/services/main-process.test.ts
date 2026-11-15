@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { mock } from "node:test";
 import { setImmediate } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
@@ -1319,23 +1320,29 @@ export class MainProcessTests {
     const connection = new FakeRuntimeConnection();
     connection.states.set(`writeWindowBounds:${FakeDeviceIdentity.ID}:main`, { x: 200, y: 100, width: 1000, height: 700, maximized: false });
     let arrive: (connection: FakeRuntimeConnection) => void = () => undefined;
-    const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(new Promise(resolve => {
-      arrive = resolve;
-    })));
-    const window = MainProcessStartFixture.firstWindow(electron);
-    const started = Date.now();
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(new Promise(resolve => {
+        arrive = resolve;
+      })));
+      const window = MainProcessStartFixture.firstWindow(electron);
 
-    electron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), MainProcessStartFixture.APPEARANCE);
-    await setImmediate();
-    const isShownEarly = window.isShown;
-    await Condition.waitAsync(() => window.isShown);
-    const waited = Date.now() - started;
-    arrive(connection);
-    await Condition.waitAsync(() => window.calls.length > 1);
+      electron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), MainProcessStartFixture.APPEARANCE);
+      await setImmediate();
+      mock.timers.tick(1_999);
+      await setImmediate();
+      const isShownBeforeTheWait = window.isShown;
+      mock.timers.tick(1);
+      await Condition.waitAsync(() => window.isShown);
+      arrive(connection);
+      await Condition.waitAsync(() => window.calls.length > 1);
 
-    Assert.isFalse(isShownEarly);
-    Assert.isTrue(waited >= 1_900, `shown after ${waited} ms`);
-    Assert.areEqual(JSON.stringify(["show", "setBounds {\"x\":200,\"y\":100,\"width\":1000,\"height\":700}"]), JSON.stringify(window.calls));
+      Assert.isFalse(isShownBeforeTheWait);
+      Assert.areEqual(JSON.stringify(["show", "setBounds {\"x\":200,\"y\":100,\"width\":1000,\"height\":700}"]), JSON.stringify(window.calls));
+    }
+    finally {
+      mock.timers.reset();
+    }
   }
 
   @TestMethod
