@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { existsSync, type FSWatcher, statSync, watch } from "node:fs";
+import { existsSync, type FSWatcher, readdirSync, statSync, watch } from "node:fs";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -19,7 +19,7 @@ export class FolderWatch implements Disposable {
   private readonly log: (text: string) => void;
   private watched: string;
   private watcher: FSWatcher | null = null;
-  private stamp: number | null = null;
+  private stamp: string | null = null;
   private isChanged: boolean = false;
   private isChecking: boolean = false;
   private wake: (() => void) | null = null;
@@ -50,8 +50,13 @@ export class FolderWatch implements Disposable {
     }
   }
 
-  private static readStamp(folder: string): number | null {
-    return statSync(folder, { throwIfNoEntry: false })?.mtimeMs ?? null;
+  private static readStamp(folder: string): string | null {
+    if (!existsSync(folder))
+      return null;
+    return readdirSync(folder).sort().map(t => {
+      const entry = statSync(path.join(folder, t), { throwIfNoEntry: false });
+      return `${t} ${String(entry?.ino ?? 0)} ${String(entry?.mtimeMs ?? 0)}`;
+    }).join("\n");
   }
 
   public async waitAsync(timeout: number, isDone: () => boolean): Promise<boolean> {
