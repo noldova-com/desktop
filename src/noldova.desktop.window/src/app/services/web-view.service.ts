@@ -51,6 +51,7 @@ export class WebViewService {
     destroyRef.onDestroy(this.bridge.onWebViewShortcut(t => commands.dispatch(t)));
     destroyRef.onDestroy(this.layout.onChange((from, to) => this.keep(t => WebViewService.moves(t.tab, from, to))));
     destroyRef.onDestroy(this.liveViews.onLeave(tab => this.keep(t => t.tab.key === tab.key)));
+    destroyRef.onDestroy(this.liveViews.onEnter((tab, element) => this.expect(tab, element)));
     effect(() => {
       const keys = commands.shortcuts().viewKeys;
       untracked(() => this.bridge.setWebViewShortcuts(keys));
@@ -168,12 +169,21 @@ export class WebViewService {
   }
 
   private keep(test: (handle: WebViewHandle) => boolean): void {
+    for (const handle of this.inOrder(this.document, test))
+      this.bridge.keepWebView(handle.moduleId, handle.id);
+  }
+
+  private expect(tab: Tab, element: HTMLElement): void {
+    for (const handle of this.inOrder(element, t => t.tab.key === tab.key))
+      this.bridge.expectWebView(handle.moduleId, handle.id);
+  }
+
+  private inOrder(root: Document | HTMLElement, test: (handle: WebViewHandle) => boolean): WebViewHandle[] {
     const wanted = [...this.handles.values()].filter(t => !t.isClosed && test(t));
     if (wanted.length === 0)
-      return;
-    const guests: readonly Element[] = [...this.document.getElementsByClassName(Resources.webViewGuestClass)];
-    for (const handle of wanted.filter(t => guests.includes(t.guest)).sort((first, second) => guests.indexOf(first.guest) - guests.indexOf(second.guest)))
-      this.bridge.keepWebView(handle.moduleId, handle.id);
+      return [];
+    const guests: readonly Element[] = [...root.getElementsByClassName(Resources.webViewGuestClass)];
+    return wanted.filter(t => guests.includes(t.guest)).sort((first, second) => guests.indexOf(first.guest) - guests.indexOf(second.guest));
   }
 
   private attach(handle: WebViewHandle): void {

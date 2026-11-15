@@ -369,6 +369,10 @@ export class PreloadBridgeService extends ClipboardWriter {
     this.bridge.keepWebView(moduleId, view);
   }
 
+  public expectWebView(moduleId: string, view: string): void {
+    this.bridge.expectWebView(moduleId, view);
+  }
+
   public setWebViewShortcuts(keys: readonly KeyChord[]): void {
     this.bridge.setWebViewShortcuts(keys.map(t => t.text));
   }
@@ -538,6 +542,7 @@ export class PreloadBridgeService extends ClipboardWriter {
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.findInWebView))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.closeWebView))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.keepWebView))) &&
+      Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.expectWebView))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.setWebViewShortcuts))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.setAppShortcuts))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewEvent))) &&

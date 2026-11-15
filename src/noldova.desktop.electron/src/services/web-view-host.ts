@@ -46,6 +46,7 @@ export class WebViewHost {
   private readonly log: (text: string) => void;
   private readonly views: Map<string, OpenWebView> = new Map();
   private readonly kept: OpenWebView[] = [];
+  private readonly expected: OpenWebView[] = [];
   private readonly closedContents: Set<number> = new Set();
   private readonly sessions: Map<string, IWebViewSession> = new Map();
   private readonly shortcuts: Map<number, readonly KeyChord[]> = new Map();
@@ -116,6 +117,15 @@ export class WebViewHost {
     open.keep();
     this.forget(open);
     this.kept.push(open);
+    return true;
+  }
+
+  public expect(windowId: number, module: unknown, view: unknown): boolean {
+    const open = this.find(windowId, module, view);
+    if (Object.isNull(open) || !this.kept.includes(open))
+      return false;
+    this.forget(open);
+    this.expected.push(open);
     return true;
   }
 
@@ -286,8 +296,8 @@ export class WebViewHost {
   }
 
   private claim(windowId: number, partition: string): boolean {
-    const index = this.kept.findIndex(t => t.windowId === windowId && t.partition === partition && t.isRestorable);
-    this.claimed = index < 0 ? null : this.kept.splice(index, 1)[0] ?? null;
+    const index = this.expected.findIndex(t => t.windowId === windowId && t.partition === partition && t.isRestorable);
+    this.claimed = index < 0 ? null : this.expected.splice(index, 1)[0] ?? null;
     return !Object.isNull(this.claimed);
   }
 
@@ -299,9 +309,11 @@ export class WebViewHost {
   }
 
   private forget(open: OpenWebView): void {
-    const index = this.kept.indexOf(open);
-    if (index >= 0)
-      this.kept.splice(index, 1);
+    for (const list of [this.kept, this.expected]) {
+      const index = list.indexOf(open);
+      if (index >= 0)
+        list.splice(index, 1);
+    }
   }
 
   private inPane(windowId: number, info: WebViewInfo): readonly OpenWebView[] {

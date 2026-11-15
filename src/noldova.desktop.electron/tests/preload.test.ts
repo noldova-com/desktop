@@ -98,15 +98,15 @@ export class PreloadTests {
   }
 
   @TestMethod
-  public waitsForTheMainProcessToKeepAWebViewsPageBeforeItMoves(): void {
+  public waitsForTheMainProcessToKeepAWebViewsPageBeforeItMovesAndToExpectItBeforeItComesBack(): void {
     const electron = FakePreloadElectron.load();
     electron.answer = (): unknown => true;
 
-    const answer = PreloadTests.invoke(electron.api("desktop")["keepWebView"], "browser", "1");
+    const answers = [PreloadTests.invoke(electron.api("desktop")["keepWebView"], "browser", "1"), PreloadTests.invoke(electron.api("desktop")["expectWebView"], "browser", "1")];
 
-    Assert.areEqual(JSON.stringify([["desktop:webViewKeep", "browser", "1"]]), JSON.stringify(electron.waited));
+    Assert.areEqual(JSON.stringify([["desktop:webViewKeep", "browser", "1"], ["desktop:webViewExpect", "browser", "1"]]), JSON.stringify(electron.waited));
     Assert.areEqual(JSON.stringify([]), JSON.stringify(electron.sent.slice(1)));
-    Assert.areEqual(true, answer);
+    Assert.areEqual("true,true", answers.join(","));
   }
 
   @TestMethod

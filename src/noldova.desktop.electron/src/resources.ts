@@ -58,6 +58,7 @@ export class Resources {
   public static readonly webViewActChannel: string = "desktop:webViewAct";
   public static readonly webViewCloseChannel: string = "desktop:webViewClose";
   public static readonly webViewKeepChannel: string = "desktop:webViewKeep";
+  public static readonly webViewExpectChannel: string = "desktop:webViewExpect";
   public static readonly webViewShortcutsChannel: string = "desktop:webViewShortcuts";
   public static readonly appShortcutsChannel: string = "desktop:appShortcuts";
   public static readonly webViewEventChannel: string = "desktop:webViewEvent";
@@ -631,6 +632,7 @@ export class Resources {
     webViewAttach: Resources.webViewAttachChannel,
     webViewClose: Resources.webViewCloseChannel,
     webViewKeep: Resources.webViewKeepChannel,
+    webViewExpect: Resources.webViewExpectChannel,
     webViewEvent: Resources.webViewEventChannel,
     webViewFind: Resources.webViewFindChannel,
     webViewNavigate: Resources.webViewNavigateChannel,

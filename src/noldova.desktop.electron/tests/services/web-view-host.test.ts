@@ -350,7 +350,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async restoresEachKeptViewInTheNextWebviewOfItsProfileInTheOrderTheWindowKeptThem(): Promise<void> {
+  public async restoresEachKeptViewTheWindowExpectsInTheNextWebviewOfItsProfileInTheOrderTheWindowExpectsThem(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     await WebViewHostTests.openAsync(electron);
@@ -361,13 +361,15 @@ export class WebViewHostTests {
       await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, view, ["https://example.com"]);
     first.contents.show("https://example.com/a");
     second.contents.show("https://example.com/b");
-    const answers = ["2", "1", "3"].map(t => WebViewHostTests.keep(electron, t));
+    const answers = ["1", "2", "3"].map(t => WebViewHostTests.keep(electron, t));
     for (const view of [first, second]) {
       view.contents.destroyed = true;
       view.contents.emit("destroyed");
     }
+    const unexpected = electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION);
+    const expected = ["2", "1", "3", "2"].map(t => WebViewHostTests.expect(electron, t));
 
-    const claims: boolean[] = [];
+    const claims: boolean[] = [unexpected];
     const guests = [0, 1].map(() => electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION));
     for (const guest of guests) {
       claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
@@ -378,7 +380,8 @@ export class WebViewHostTests {
     const attached = await WebViewHostTests.attachAsync(electron, "2", guests[0]?.contents.id);
 
     Assert.areEqual("true,true,false", answers.join(","));
-    Assert.areEqual("true,true,false", claims.join(","));
+    Assert.areEqual("true,true,false,false", expected.join(","));
+    Assert.areEqual("false,true,true,false", claims.join(","));
     Assert.areEqual("restore 0 https://example.com/b state of https://example.com/b|restore 0 https://example.com/a state of https://example.com/a",
       guests.map(t => t.contents.calls.join(",")).join("|"));
     Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(attached));
@@ -397,6 +400,8 @@ export class WebViewHostTests {
     const untrusted = { ...MainProcessStartFixture.trustedEvent("linux"), senderFrame: null };
     electron.ipcMain.send("desktop:webViewKeep", untrusted, "browser", "1");
     const answers = [untrusted.returnValue, WebViewHostTests.keep(electron, "1"), WebViewHostTests.keep(electron, "2")];
+    electron.ipcMain.send("desktop:webViewExpect", untrusted, "browser", "1");
+    answers.push(untrusted.returnValue, WebViewHostTests.expect(electron, "1"), WebViewHostTests.expect(electron, "2"));
     closing.contents.destroyed = true;
     closing.contents.emit("destroyed");
     electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "2");
@@ -409,7 +414,7 @@ export class WebViewHostTests {
     claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
     electron.webViews.attached(window.webContents.id + 1, stray.contents);
 
-    Assert.areEqual("false,true,true", answers.join(","));
+    Assert.areEqual("false,true,true,false,true,true", answers.join(","));
     Assert.areEqual("false,false,true", claims.join(","));
     Assert.areEqual(String.empty, stray.contents.calls.join(","));
   }
@@ -1450,6 +1455,12 @@ export class WebViewHostTests {
   private static keep(electron: FakeElectron, view: string): unknown {
     const event = MainProcessStartFixture.trustedEvent("linux");
     electron.ipcMain.send("desktop:webViewKeep", event, "browser", view);
+    return event.returnValue;
+  }
+
+  private static expect(electron: FakeElectron, view: string): unknown {
+    const event = MainProcessStartFixture.trustedEvent("linux");
+    electron.ipcMain.send("desktop:webViewExpect", event, "browser", view);
     return event.returnValue;
   }
 

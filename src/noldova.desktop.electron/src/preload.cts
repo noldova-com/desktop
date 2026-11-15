@@ -103,6 +103,7 @@ class Preload {
       findInWebView: (moduleId: string, view: string, request: unknown): Promise<unknown> => this.invokeAsync("webViewFind", moduleId, view, request),
       closeWebView: (moduleId: string, view: string): void => this.send("webViewClose", moduleId, view),
       keepWebView: (moduleId: string, view: string): unknown => this.sendSync("webViewKeep", moduleId, view),
+      expectWebView: (moduleId: string, view: string): unknown => this.sendSync("webViewExpect", moduleId, view),
       setWebViewShortcuts: (keys: readonly string[]): void => this.send("webViewShortcuts", keys),
       setAppShortcuts: (shortcuts: unknown): void => this.send("appShortcuts", shortcuts),
       onWebViewEvent: (listener: (event: unknown) => void): (() => void) => this.listen("webViewEvent", listener),

@@ -70,6 +70,7 @@ export interface IPreloadBridge {
   findInWebView(moduleId: string, view: string, request: string | JsonObject): Promise<unknown>;
   closeWebView(moduleId: string, view: string): void;
   keepWebView(moduleId: string, view: string): unknown;
+  expectWebView(moduleId: string, view: string): unknown;
   setWebViewShortcuts(keys: readonly string[]): void;
   setAppShortcuts(shortcuts: JsonObject): void;
   onWebViewEvent(listener: (event: unknown) => void): () => void;

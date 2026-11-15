@@ -421,6 +421,30 @@ describe("WebViewService", () => {
     expect([inGroup, otherLeft, moved, left, unmounted.isClosed]).toEqual([[], [], ["keep notes 2", "keep notes 1"], ["keep notes 2", "keep notes 1"], false]);
   });
 
+  it("asks the main process to keep a tab's views as its content leaves a slot, and to expect them, in their order there, just before it enters another", async () => {
+    const [first, second, outside] = [await openAsync(), await openAsync(), await openAsync()];
+    const content = liveViews.show(plan, slot, false).element;
+    const place = content.appendChild(document.createElement("div"));
+    Object.assign(place.style, { position: "relative", width: "10rem", height: "6rem" });
+    second.mount(place);
+    first.mount(place);
+    outside.mount(host);
+    const other = document.body.appendChild(document.createElement("div"));
+    const entered: boolean[] = [];
+    vi.spyOn(bridge, "expectWebView").mockImplementation((moduleId, view) => {
+      entered.push(content.isConnected && content.parentElement === other);
+      bridge.webViewCalls.push(`expect ${moduleId} ${view}`);
+      return true;
+    });
+
+    liveViews.show(plan, other, false);
+    TestBed.tick();
+    other.remove();
+
+    expect(bridge.webViewCalls.filter(t => /^(keep|expect)/.test(t))).toEqual(["keep notes 2", "keep notes 1", "keep notes 3", "expect notes 2", "expect notes 1"]);
+    expect(entered).toEqual([false, false]);
+  });
+
   it("tells the main process a view closes while its element is still in the window, then takes the element out", async () => {
     const handle = await openAsync();
     handle.mount(host);

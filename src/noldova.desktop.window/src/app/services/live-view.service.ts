@@ -24,6 +24,7 @@ export class LiveViewService {
   private readonly layout: LayoutService = inject(LayoutService);
   private readonly views: Map<string, LiveView> = new Map();
   private readonly leaveListeners: Set<(tab: Tab) => void> = new Set();
+  private readonly enterListeners: Set<(tab: Tab, element: HTMLElement) => void> = new Set();
   private readonly destroyedValue: WritableSignal<number> = signal(0);
   private readonly shownValue: WritableSignal<ReadonlySet<string>> = signal(new Set());
 
@@ -47,6 +48,11 @@ export class LiveViewService {
     return () => this.leaveListeners.delete(listener);
   }
 
+  public onEnter(listener: (tab: Tab, element: HTMLElement) => void): () => void {
+    this.enterListeners.add(listener);
+    return () => this.enterListeners.delete(listener);
+  }
+
   public prepareLeave(tab: Tab): void {
     for (const listener of [...this.leaveListeners])
       listener(tab);
@@ -67,6 +73,8 @@ export class LiveViewService {
         this.prepareLeave(tab);
         view.leave();
       }
+      for (const listener of [...this.enterListeners])
+        listener(tab, view.element);
       view.enter(slot);
     }
     view.ref.setInput(Resources.shownInput, true);

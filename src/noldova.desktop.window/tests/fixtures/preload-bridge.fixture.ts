@@ -454,6 +454,11 @@ export class PreloadBridgeFixture implements IPreloadBridge {
     return true;
   }
 
+  public expectWebView(moduleId: string, view: string): unknown {
+    this.webViewCalls.push(`expect ${moduleId} ${view}`);
+    return true;
+  }
+
   public setWebViewShortcuts(keys: readonly string[]): void {
     this.webViewKeys.push(keys);
   }
