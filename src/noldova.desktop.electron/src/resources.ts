@@ -206,6 +206,7 @@ export class Resources {
   public static readonly interceptFileChooserMethod: string = "Page.setInterceptFileChooserDialog";
   public static readonly fileChooserOpenedEvent: string = "Page.fileChooserOpened";
   public static readonly dispatchKeyEventMethod: string = "Input.dispatchKeyEvent";
+  public static readonly dispatchTouchEventMethod: string = "Input.dispatchTouchEvent";
   public static readonly inputDomainPrefix: string = "Input.";
   public static readonly beforeInputEvent: "before-input-event" = "before-input-event";
   public static readonly keyDownInputs: readonly string[] = ["keyDown", "rawKeyDown"];
@@ -276,7 +277,7 @@ export class Resources {
   public static readonly newWindowRequest: string = "newWindow";
   public static readonly personInputTypes: readonly string[] = ["rawKeyDown", "keyDown", "mouseDown", "touchStart"];
   public static readonly personPressTypes: readonly string[] = ["mouseDown", "touchStart"];
-  public static readonly relayedPressTypes: ReadonlyMap<string, string> = new Map([["Input.dispatchMouseEvent", "mousePressed"], ["Input.dispatchTouchEvent", "touchStart"]]);
+  public static readonly relayedPressTypes: ReadonlyMap<string, string> = new Map([["Input.dispatchMouseEvent", "mousePressed"], [Resources.dispatchTouchEventMethod, "touchStart"]]);
   public static readonly touchPointsField: string = "touchPoints";
   public static readonly pressFreeInputMethods: readonly string[] = ["Input.dispatchMouseEvent", "Input.dispatchTouchEvent", "Input.dispatchKeyEvent", "Input.insertText"];
   public static readonly inputStartKind: string = "Start";

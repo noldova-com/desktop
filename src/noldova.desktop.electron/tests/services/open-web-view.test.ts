@@ -953,6 +953,26 @@ export class OpenWebViewTests {
     Assert.isTrue(harness.describe().includes("\"hadRecentInput\":false"), harness.describe());
   }
 
+  @TestMethod
+  public async takesOnlyTheNewPointsOfARelayedTouchForTheRelaysSoThePersonsPressWhileAFingerIsAddedToAHeldOneIsTold(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    const sendAsync = async (call: number, type: string, touchPoints: readonly JsonObject[], during: readonly string[]): Promise<void> => {
+      harness.contents.debugger.replies.set("Input.dispatchTouchEvent", () => {
+        for (const event of during)
+          harness.contents.emit("input-event", {}, { type: event });
+        return Promise.resolve({});
+      });
+      await harness.open.sendAsync(call, "Input.dispatchTouchEvent", { type, touchPoints: [...touchPoints] }, 1000);
+    };
+
+    await sendAsync(1, "touchStart", [{ id: 1, x: 1, y: 1 }], ["touchStart"]);
+    await sendAsync(2, "touchStart", [{ id: 1, x: 1, y: 1 }, { id: 2, x: 2, y: 2 }], ["touchStart", "touchStart"]);
+    await sendAsync(3, "touchEnd", [], []);
+    await sendAsync(4, "touchStart", [{ id: 1, x: 1, y: 1 }], ["touchStart", "touchStart"]);
+
+    Assert.areEqual(JSON.stringify(["Start", "End", "Start", "Press", "End", "Start", "End", "Start", "Press", "End"]), JSON.stringify(harness.inputs));
+  }
+
   private static describe(answer: WebViewAnswered): string {
     return `${answer.call} ${JSON.stringify(answer.value)} ${answer.failure?.kind ?? "none"}`;
   }

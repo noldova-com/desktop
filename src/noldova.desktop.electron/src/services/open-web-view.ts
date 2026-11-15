@@ -58,6 +58,7 @@ export class OpenWebView {
   private lastInput: number | undefined;
   private relayedInputs: number = 0;
   private relayedPresses: readonly symbol[] = [];
+  private touchPoints: readonly unknown[] = [];
   private uncountedInputs: number = 0;
   private openPageCalls: number = 0;
   private allowed: readonly string[] = [];
@@ -223,7 +224,7 @@ export class OpenWebView {
     const abort = new AbortController();
     const isInput = method.startsWith(Resources.inputDomainPrefix);
     const isPageCall = method !== Resources.insertTextMethod && method !== Resources.dispatchKeyEventMethod;
-    const presses = OpenWebView.countPresses(method, params);
+    const presses = this.countPresses(method, params);
     const press = presses > 0 ? Symbol(method) : null;
     const isUncounted = isInput && !Resources.pressFreeInputMethods.includes(method);
     return new Promise<WebViewAnswered>(resolve => {
@@ -735,11 +736,15 @@ export class OpenWebView {
       && relayed.ctrlKey === pressed.ctrlKey && relayed.altKey === pressed.altKey && relayed.shiftKey === pressed.shiftKey && relayed.metaKey === pressed.metaKey;
   }
 
-  private static countPresses(method: string, params: JsonObject): number {
+  private countPresses(method: string, params: JsonObject): number {
+    const points = params[Resources.touchPointsField];
+    const held = this.touchPoints;
+    const ids = Array.isArray(points) ? points.map(t => Object.isObject(t) && Number.isSafeInteger(t.id) ? t.id : Symbol(method)) : [];
+    if (method === Resources.dispatchTouchEventMethod)
+      this.touchPoints = ids;
     if (!Resources.relayedPressTypes.has(method) || Resources.relayedPressTypes.get(method) !== params[Resources.typeField])
       return 0;
-    const points = params[Resources.touchPointsField];
-    return Array.isArray(points) ? Math.max(points.length, 1) : 1;
+    return ids.length === 0 ? 1 : ids.filter(t => !held.includes(t)).length;
   }
 
   private static readStroke(params: JsonObject): IKeyStroke {
