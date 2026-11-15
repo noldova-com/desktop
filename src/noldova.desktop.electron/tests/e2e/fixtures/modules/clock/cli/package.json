@@ -7,7 +7,7 @@
   "types": "api/index.d.ts",
   "license": "MIT",
   "dependencies": {
-    "@noldova/context.json": "0.0.7",
+    "@noldova/context.json": "0.0.8",
     "@noldova/desktop.cli": "__VERSION__"
   }
 }
