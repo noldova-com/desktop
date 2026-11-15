@@ -7,13 +7,14 @@
  */
 
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
+import { TabContentFixture } from "./fixtures/tab-content.fixture.ts";
 
 test.describe("working tabs", () => {
   test("a document a window part marks as working shows a busy tab with a spinner before its title, keeps Close on hover, and returns to normal once cleared", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const tab = window.locator("nol-tab[data-tab-key=\"document/notes.note/1\"]");
-    const work = window.locator("[data-fixture-content=notes-work-1]:visible");
-    await tab.click();
+    const note = await TabContentFixture.openAsync(window, "document/notes.note/1");
+    const work = note.locator("[data-fixture-content=notes-work-1]");
 
     await work.click();
     await expect(tab).toHaveAttribute("aria-busy", "true");

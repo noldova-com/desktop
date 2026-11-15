@@ -275,10 +275,8 @@ test.describe("settings", () => {
       }, { message: `${where}: the scrollbar's width to 0.375rem` }).toBeLessThan(0.5);
     };
     for (const [key, page] of [["view/notes.list", "nol-notes-list"], ["document/notes.note/1", "nol-notes-note"]] as const) {
-      const tab = window.locator(`nol-tab[data-tab-key='${key}']`);
-      await tab.click();
-      const area = window.locator(`nol-tab-group:has(nol-tab[data-tab-key='${key}']) nol-tab-content:not([inert])`);
-      await expect(tab).toHaveAttribute("aria-selected", "true");
+      const area = await TabContentFixture.openAsync(window, key);
+      await expect(window.locator(`nol-tab[data-tab-key='${key}']`)).toHaveAttribute("aria-selected", "true");
       await expect(area.locator(page)).toBeVisible();
       await expectAtEdgeAsync(area, key);
     }

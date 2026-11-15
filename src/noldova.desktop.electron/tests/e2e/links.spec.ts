@@ -26,7 +26,7 @@ test.describe("links", () => {
 
     await link.click();
     await link.click({ button: "middle" });
-    await window.locator("[data-fixture-content=notes-help-1]:visible").click();
+    await note.locator("[data-fixture-content=notes-help-1]").click();
 
     await expect.poll(() => mainProcess.application.evaluate(() => globalThis.openedLinks))
       .toEqual(["https://example.com/notes", "https://example.com/notes", "https://example.com/help"]);

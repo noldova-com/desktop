@@ -198,7 +198,7 @@ test.describe("saving before quitting", () => {
     expect(await mainProcess.isVisibleAsync()).toBe(true);
     await expect.poll(() => readMainProcessLogAsync(mainProcess)).toMatch(/Window error in notes: WindowPartSaveFailedException: Its window part failed to save while Noldova Desktop Sample was closing\.\n/);
     await mainProcess.checkpointAsync("quit-save-failed");
-    await window.locator("[data-fixture-content=notes-save-saves]:visible").click();
+    await note.locator("[data-fixture-content=notes-save-saves]").click();
     const exited = waitForExitAsync(mainProcess);
     await quitAsync(mainProcess);
 
