@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { existsSync, type FSWatcher, watch } from "node:fs";
+import { existsSync, type FSWatcher, statSync, watch } from "node:fs";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -19,6 +19,7 @@ export class FolderWatch implements Disposable {
   private readonly log: (text: string) => void;
   private watched: string;
   private watcher: FSWatcher | null = null;
+  private stamp: number | null = null;
   private isChanged: boolean = false;
   private isChecking: boolean = false;
   private wake: (() => void) | null = null;
@@ -29,6 +30,7 @@ export class FolderWatch implements Disposable {
     this.checkInterval = checkInterval;
     this.watched = FolderWatch.findWatched(target);
     try {
+      this.stamp = FolderWatch.readStamp(target);
       this.watcher = this.start(this.watched);
       this.isChanged = this.follow();
     }
@@ -48,6 +50,10 @@ export class FolderWatch implements Disposable {
     }
   }
 
+  private static readStamp(folder: string): number | null {
+    return statSync(folder, { throwIfNoEntry: false })?.mtimeMs ?? null;
+  }
+
   public async waitAsync(timeout: number, isDone: () => boolean): Promise<boolean> {
     let deadline: NodeJS.Timeout | undefined;
     let check: NodeJS.Timeout | undefined;
@@ -62,7 +68,7 @@ export class FolderWatch implements Disposable {
         deadline = setTimeout(() => resolve(false), Math.max(timeout, 0));
         check = setInterval(() => {
           try {
-            if (isDone() || this.isChecking)
+            if (isDone() || this.isChecking || FolderWatch.readStamp(this.target) !== this.stamp)
               resolve(true);
           }
           catch (error) {
@@ -77,6 +83,7 @@ export class FolderWatch implements Disposable {
       this.wake = null;
     }
     this.isChanged = false;
+    this.stamp = FolderWatch.readStamp(this.target);
     return isWoken;
   }
 

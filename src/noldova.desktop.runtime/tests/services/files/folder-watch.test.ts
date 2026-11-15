@@ -21,6 +21,7 @@ import { WatchPatchFixture } from "../../fixtures/watch-patch.fixture.js";
 @TestClass
 export class FolderWatchTests {
   private static readonly LIMIT: number = 30_000;
+  private static readonly TICKS: number = 5;
   private static readonly LOG: (text: string) => void = () => undefined;
 
   @TestMethod
@@ -75,6 +76,33 @@ export class FolderWatchTests {
     Assert.isTrue(await WaitFixture.isPendingAsync(next), "the change wakes one wait");
     watches.change();
     await next;
+  }
+
+  @TestMethod
+  public async wakesAtTheNextTickForAChangeInTheFolderItsWatchMissedAndOnlyOnce(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    using _watches = WatchPatchFixture.quiet();
+    using watch = FolderWatch.open(folder.path, FolderWatchTests.LOG, 1);
+    let ticks = 0;
+
+    await writeFile(path.join(folder.path, "runtime.json"), "{}");
+    const isWoken = await watch.waitAsync(FolderWatchTests.LIMIT, () => false);
+    await watch.waitAsync(FolderWatchTests.LIMIT, () => ++ticks === FolderWatchTests.TICKS);
+
+    Assert.isTrue(isWoken, "a check tick finds the change the watch never reported, not the wait's timeout");
+    Assert.areEqual(FolderWatchTests.TICKS, ticks, "the change seen at one wake doesn't wake the next wait");
+  }
+
+  @TestMethod
+  public async wakesAtTheNextTickOnceTheMissingFolderIsCreatedThoughItsWatchMissedIt(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    using _watches = WatchPatchFixture.quiet();
+    const target = path.join(folder.path, "discovery");
+    using watch = FolderWatch.open(target, FolderWatchTests.LOG, 1);
+
+    await mkdir(target);
+
+    Assert.isTrue(await watch.waitAsync(FolderWatchTests.LIMIT, () => false), "a check tick finds the new folder, not the wait's timeout");
   }
 
   @TestMethod
