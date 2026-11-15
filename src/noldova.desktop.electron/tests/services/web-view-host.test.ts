@@ -350,6 +350,71 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async restoresEachKeptViewInTheNextWebviewOfItsProfileInTheOrderTheWindowKeptThem(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    await WebViewHostTests.openAsync(electron);
+    const [first, second] = [WebViewHostTests.view(electron, 0), WebViewHostTests.view(electron, 1)];
+    electron.webViews.session(WebViewHostTests.PARTITION).addresses.set("example.com", ["93.184.215.14"]);
+    for (const view of ["1", "2"])
+      await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, view, ["https://example.com"]);
+    first.contents.show("https://example.com/a");
+    second.contents.show("https://example.com/b");
+    const answers = ["2", "1", "3"].map(t => WebViewHostTests.keep(electron, t));
+    for (const view of [first, second]) {
+      view.contents.destroyed = true;
+      view.contents.emit("destroyed");
+    }
+
+    const claims: boolean[] = [];
+    const guests = [0, 1].map(() => electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION));
+    for (const guest of guests) {
+      claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
+      electron.webViews.attached(window.webContents.id, guest.contents);
+    }
+    claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
+    await Condition.waitAsync(() => guests.every(t => t.contents.calls.some(u => u.startsWith("restore"))));
+    const attached = await WebViewHostTests.attachAsync(electron, "2", guests[0]?.contents.id);
+
+    Assert.areEqual("true,true,false", answers.join(","));
+    Assert.areEqual("true,true,false", claims.join(","));
+    Assert.areEqual("restore 0 https://example.com/b state of https://example.com/b|restore 0 https://example.com/a state of https://example.com/a",
+      guests.map(t => t.contents.calls.join(",")).join("|"));
+    Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(attached));
+    Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
+  }
+
+  @TestMethod
+  public async claimsNoWebviewForAViewThatStillHasItsPageIsClosedOrIsInAnotherWindowAndBindsNoUnclaimedOneOrOneOfAnotherWindow(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    await WebViewHostTests.openAsync(electron);
+    const [live, closing] = [WebViewHostTests.view(electron, 0), WebViewHostTests.view(electron, 1)];
+    live.contents.show("https://example.com/a");
+    closing.contents.show("https://example.com/b");
+    const untrusted = { ...MainProcessStartFixture.trustedEvent("linux"), senderFrame: null };
+    electron.ipcMain.send("desktop:webViewKeep", untrusted, "browser", "1");
+    const answers = [untrusted.returnValue, WebViewHostTests.keep(electron, "1"), WebViewHostTests.keep(electron, "2")];
+    closing.contents.destroyed = true;
+    closing.contents.emit("destroyed");
+    electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "2");
+
+    const claims = [electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION), electron.webViews.claim(window.webContents.id + 1, WebViewHostTests.PARTITION)];
+    const stray = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
+    electron.webViews.attached(window.webContents.id, stray.contents);
+    live.contents.destroyed = true;
+    live.contents.emit("destroyed");
+    claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
+    electron.webViews.attached(window.webContents.id + 1, stray.contents);
+
+    Assert.areEqual("false,true,true", answers.join(","));
+    Assert.areEqual("false,false,true", claims.join(","));
+    Assert.areEqual(String.empty, stray.contents.calls.join(","));
+  }
+
+  @TestMethod
   public async letsGoOfADestroyedPageWithoutClosingTheViewAndTakesTheNextOne(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
@@ -1380,6 +1445,12 @@ export class WebViewHostTests {
       state.isSettled = true;
     });
     return state;
+  }
+
+  private static keep(electron: FakeElectron, view: string): unknown {
+    const event = MainProcessStartFixture.trustedEvent("linux");
+    electron.ipcMain.send("desktop:webViewKeep", event, "browser", view);
+    return event.returnValue;
   }
 
   private static view(electron: FakeElectron, index: number): FakeWebView {

@@ -121,7 +121,7 @@ export class OpenWebView {
 
   public keep(): void {
     const guest = this.guest;
-    if (!Object.isNull(guest) && this.isAttached && !guest.isDestroyed() && guest.getURL() === this.committedUrl)
+    if (!Object.isNull(guest) && !guest.isDestroyed() && guest.getURL() === this.committedUrl)
       this.kept = guest.readHistory();
   }
 

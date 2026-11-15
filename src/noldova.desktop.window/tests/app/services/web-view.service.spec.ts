@@ -14,10 +14,12 @@ import { ArgumentException } from "@noldova/context.exceptions";
 import { QualifiedName, type WebViewEvent, WebViewEventKind, WebViewNavigationKind, WebViewPane } from "@noldova/desktop.protocol";
 
 import { ContentPadding } from "../../../src/app/enums/content-padding";
+import { PanelEdge } from "../../../src/app/enums/panel-edge";
 import { WebViewClosedException } from "../../../src/app/exceptions/web-view-closed.exception";
 import { WebViewNotOpenedException } from "../../../src/app/exceptions/web-view-not-opened.exception";
 import { ContributionMatch } from "../../../src/app/models/contribution-match";
 import { Layout } from "../../../src/app/models/layout/layout";
+import { SplitDropTarget } from "../../../src/app/models/layout/split-drop-target";
 import type { WebViewHandle } from "../../../src/app/models/web-view-handle";
 import { CommandService } from "../../../src/app/services/command.service";
 import { LayoutService } from "../../../src/app/services/layout.service";
@@ -394,6 +396,29 @@ describe("WebViewService", () => {
 
     expect(bridge.webViewCalls.filter(t => !t.startsWith("open"))).toEqual(["close notes 1"]);
     expect([handle.isClosed, host.childElementCount]).toEqual([true, 0]);
+  });
+
+  it("asks the main process to keep the page of each open view in the window, in its order there, before its tab moves to another group or its content leaves", async () => {
+    const [first, second, unmounted, closed] = [await openAsync(), await openAsync(), await openAsync(), await openAsync()];
+    second.mount(host);
+    first.mount(host);
+    closed.mount(host);
+    closed.close();
+    const layout = TestBed.inject(LayoutService);
+    const keeps = (): string[] => bridge.webViewCalls.filter(t => t.startsWith("keep"));
+
+    layout.activate(todo);
+    layout.activate(plan);
+    const inGroup = keeps();
+    liveViews.prepareLeave(todo);
+    const otherLeft = keeps();
+    layout.place(plan, new SplitDropTarget(layout.layout().documents.id, PanelEdge.Right));
+    const moved = keeps();
+    bridge.webViewCalls.length = 0;
+    liveViews.prepareLeave(plan);
+    const left = keeps();
+
+    expect([inGroup, otherLeft, moved, left, unmounted.isClosed]).toEqual([[], [], ["keep notes 2", "keep notes 1"], ["keep notes 2", "keep notes 1"], false]);
   });
 
   it("tells the main process a view closes while its element is still in the window, then takes the element out", async () => {

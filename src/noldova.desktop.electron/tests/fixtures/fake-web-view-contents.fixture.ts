@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { WindowOpenHandlerResponse } from "electron";
-import type { IWebViewContents, IWebViewKeyEvent, IWindowOpenDetails } from "@noldova/desktop.electron";
+import type { IWebViewContents, IWebViewHistory, IWebViewKeyEvent, IWindowOpenDetails } from "@noldova/desktop.electron";
 
 import { FakePreventableEvent } from "./fake-preventable-event.fixture.js";
 import { FakeWebViewDebugger } from "./fake-web-view-debugger.fixture.js";
@@ -70,6 +70,15 @@ export class FakeWebViewContents implements IWebViewContents {
 
   public readHistoryEntry(offset: number): string | null {
     return this.history[this.index + offset] ?? null;
+  }
+
+  public readHistory(): IWebViewHistory {
+    return { entries: this.history.map(t => ({ url: t, title: String.empty, pageState: `state of ${t}` })), index: this.index };
+  }
+
+  public restoreHistoryAsync(history: IWebViewHistory): Promise<void> {
+    this.calls.push(`restore ${history.index} ${history.entries.map(t => `${t.url} ${t.pageState ?? String.empty}`).join(" ")}`);
+    return Promise.resolve();
   }
 
   public goBack(): void {

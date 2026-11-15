@@ -294,7 +294,7 @@ export class WebViewHost {
   private restore(windowId: number, contents: IWebViewContents): void {
     const open = this.claimed;
     this.claimed = null;
-    if (!Object.isNull(open) && open.windowId === windowId && this.views.get(open.info.id) === open)
+    if (!Object.isNull(open) && open.windowId === windowId)
       void open.bindAsync(contents, true);
   }
 
