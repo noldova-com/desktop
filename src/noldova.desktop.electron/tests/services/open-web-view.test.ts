@@ -130,6 +130,8 @@ export class OpenWebViewTests {
     ]
   });
 
+  private static readonly PAGE_CALLS_AND_WINDOWS: WebViewDeclaration = new WebViewDeclaration(OpenWebViewTests.PAGE_CALLS.methods, OpenWebViewTests.PAGE_CALLS.events, [], true);
+
   @TestMethod
   public async bindsItsPageWithoutLoadingItAndAttachesToTheProtocolWithItsDefaults(): Promise<void> {
     const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
@@ -928,6 +930,27 @@ export class OpenWebViewTests {
     await sendAsync(5, "Input.synthesizeTapGesture", { x: 1, y: 1 }, ["mouseDown"]);
 
     Assert.areEqual(JSON.stringify(["Start", "Press", "End", "Start", "Press", "End", "Start", "Press", "End", "Start", "End", "Start", "End"]), JSON.stringify(harness.inputs));
+  }
+
+  @TestMethod
+  public async takesEachTouchPointOfARelayedTouchForTheRelaysAndCountsNoPressOfThePersonsAsRecentWhileARelayedKeyIsUnanswered(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS_AND_WINDOWS).startAsync();
+    const reply = (method: string, types: readonly string[]): void => {
+      harness.contents.debugger.replies.set(method, () => {
+        for (const type of types)
+          harness.contents.emit("input-event", {}, { type });
+        return Promise.resolve({});
+      });
+    };
+    reply("Input.dispatchTouchEvent", ["touchStart", "touchStart"]);
+    reply("Input.dispatchKeyEvent", ["mouseDown"]);
+
+    await harness.open.sendAsync(1, "Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 1, y: 1 }, { x: 2, y: 2 }] }, 1000);
+    await harness.open.sendAsync(2, "Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: 0 }, 1000);
+    harness.contents.openWindow("https://example.com/new");
+
+    Assert.areEqual(JSON.stringify(["Start", "End"]), JSON.stringify(harness.inputs));
+    Assert.isTrue(harness.describe().includes("\"hadRecentInput\":false"), harness.describe());
   }
 
   private static describe(answer: WebViewAnswered): string {

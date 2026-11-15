@@ -223,7 +223,8 @@ export class OpenWebView {
     const abort = new AbortController();
     const isInput = method.startsWith(Resources.inputDomainPrefix);
     const isPageCall = method !== Resources.insertTextMethod && method !== Resources.dispatchKeyEventMethod;
-    const press = Resources.relayedPressTypes.has(method) && Resources.relayedPressTypes.get(method) === params[Resources.typeField] ? Symbol(method) : null;
+    const presses = OpenWebView.countPresses(method, params);
+    const press = presses > 0 ? Symbol(method) : null;
     const isUncounted = isInput && !Resources.pressFreeInputMethods.includes(method);
     return new Promise<WebViewAnswered>(resolve => {
       const finish = (answer: WebViewAnswered): void => {
@@ -238,7 +239,7 @@ export class OpenWebView {
       if (isInput)
         this.relayedInputs += 1;
       if (!Object.isNull(press))
-        this.relayedPresses = [...this.relayedPresses, press];
+        this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
       if (isUncounted)
         this.uncountedInputs += 1;
       if (isPageCall)
@@ -597,11 +598,9 @@ export class OpenWebView {
       this.relayedPresses = this.relayedPresses.slice(1);
       return;
     }
-    if (isPress ? this.uncountedInputs > 0 : this.relayedInputs > 0)
-      return;
-    if (Resources.personInputTypes.includes(type))
+    if (this.relayedInputs === 0 && Resources.personInputTypes.includes(type))
       this.lastInput = this.now();
-    if (this.openPageCalls > 0 && isPress)
+    if (this.openPageCalls > 0 && isPress && this.uncountedInputs === 0)
       this.input(Resources.inputPressKind);
   }
 
@@ -734,6 +733,13 @@ export class OpenWebView {
   private static isSameStroke(relayed: IKeyStroke, pressed: IKeyStroke): boolean {
     return relayed.key === pressed.key && (relayed.code === String.empty || relayed.code === pressed.code)
       && relayed.ctrlKey === pressed.ctrlKey && relayed.altKey === pressed.altKey && relayed.shiftKey === pressed.shiftKey && relayed.metaKey === pressed.metaKey;
+  }
+
+  private static countPresses(method: string, params: JsonObject): number {
+    if (!Resources.relayedPressTypes.has(method) || Resources.relayedPressTypes.get(method) !== params[Resources.typeField])
+      return 0;
+    const points = params[Resources.touchPointsField];
+    return Array.isArray(points) ? Math.max(points.length, 1) : 1;
   }
 
   private static readStroke(params: JsonObject): IKeyStroke {
