@@ -739,7 +739,7 @@ export class OpenWebView {
   private countPresses(method: string, params: JsonObject): number {
     const points = params[Resources.touchPointsField];
     const held = this.touchPoints;
-    const ids = Array.isArray(points) ? points.map(t => Object.isObject(t) && Number.isSafeInteger(t.id) ? t.id : Symbol(method)) : [];
+    const ids = Array.isArray(points) ? points.map(t => Object.isObject(t) && "id" in t && Number.isSafeInteger(t.id) ? t.id : Symbol(method)) : [];
     if (method === Resources.dispatchTouchEventMethod)
       this.touchPoints = ids;
     if (!Resources.relayedPressTypes.has(method) || Resources.relayedPressTypes.get(method) !== params[Resources.typeField])
