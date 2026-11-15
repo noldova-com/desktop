@@ -143,7 +143,7 @@ export class OpenWebView {
     this.listen(guest);
     this.state = JSON.stringify(this.readState(guest));
     this.restoreZoom();
-    const failure = await this.attachAsync(guest);
+    const [failure] = await Promise.all([this.attachAsync(guest), isPristine ? this.startAsync(guest, true) : null]);
     if (!Object.isNull(failure)) {
       if (this.guest === guest)
         this.loseUnlessEnding(guest, failure);
@@ -151,14 +151,8 @@ export class OpenWebView {
     }
     if (this.guest !== guest)
       return false;
-    const pending = this.pendingUrl;
-    const kept = isPristine && Object.isUndefined(pending) ? this.kept : null;
-    this.pendingUrl = undefined;
-    this.kept = null;
-    const navigations = this.navigations.splice(0);
-    const answer = Object.isNull(kept) ? await this.goToAsync(pending ?? this.committedUrl) : await this.restoreAsync(guest, kept);
-    for (const settle of navigations)
-      settle(answer);
+    if (!isPristine)
+      await this.startAsync(guest, false);
     return true;
   }
 
@@ -505,6 +499,17 @@ export class OpenWebView {
 
   private goToAsync(url: string | undefined): Promise<JsonObject | null> {
     return Object.isUndefined(url) ? Promise.resolve(null) : this.navigateAsync(url);
+  }
+
+  private async startAsync(guest: IWebViewContents, isPristine: boolean): Promise<void> {
+    const pending = this.pendingUrl;
+    const kept = isPristine && Object.isUndefined(pending) ? this.kept : null;
+    this.pendingUrl = undefined;
+    this.kept = null;
+    const navigations = this.navigations.splice(0);
+    const answer = Object.isNull(kept) ? await this.goToAsync(pending ?? this.committedUrl) : await this.restoreAsync(guest, kept);
+    for (const settle of navigations)
+      settle(answer);
   }
 
   private async restoreAsync(guest: IWebViewContents, kept: IWebViewHistory): Promise<JsonObject | null> {

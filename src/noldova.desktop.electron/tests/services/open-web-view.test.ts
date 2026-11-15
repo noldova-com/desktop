@@ -13,6 +13,7 @@ import { WebViewAction, type WebViewAnswered, WebViewDeclaration, type WebViewEv
 
 import { OpenWebView } from "../../src/services/open-web-view.js";
 import { WebViewOriginCheck } from "../../src/services/web-view-origin-check.js";
+import type { FakeWebViewContents } from "../fixtures/fake-web-view-contents.fixture.js";
 import { FakeWebView } from "../fixtures/fake-web-view.fixture.js";
 import { FakeWebViewSession } from "../fixtures/fake-web-view-session.fixture.js";
 
@@ -684,9 +685,9 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async restoresTheHistoryItKeptInANewPageThatLoadedNothingInsteadOfLoadingItsAddress(): Promise<void> {
+  public async restoresTheHistoryItKeptInANewPageThatLoadedNothingInsteadOfLoadingItsAddressWhileItsDebuggerWaitsForThatPage(): Promise<void> {
     const harness = await OpenWebViewTests.showAsync();
-    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const fresh = OpenWebViewTests.rendererless();
 
     harness.open.keep();
     OpenWebViewTests.destroy(harness);
@@ -730,7 +731,7 @@ export class OpenWebViewTests {
   @TestMethod
   public async loadsANavigationAskedForWhileItHadNoPageRatherThanTheKeptHistory(): Promise<void> {
     const harness = await OpenWebViewTests.showAsync();
-    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const fresh = OpenWebViewTests.rendererless();
 
     harness.open.keep();
     OpenWebViewTests.destroy(harness);
@@ -802,6 +803,12 @@ export class OpenWebViewTests {
     harness.session.addresses.set("example.com", ["93.184.216.34"]);
     harness.contents.show("https://example.com/a");
     return harness;
+  }
+
+  private static rendererless(): FakeWebViewContents {
+    const contents = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    contents.debugger.replies.set("Page.enable", () => contents.started.then(() => ({})));
+    return contents;
   }
 
   private static destroy(harness: OpenWebViewHarness): void {

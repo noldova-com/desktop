@@ -17,9 +17,13 @@ import { ListenerRegistry } from "./listener-registry.fixture.js";
 export class FakeWebViewContents implements IWebViewContents {
   private readonly listeners: ListenerRegistry = new ListenerRegistry();
   private openHandler: ((details: IWindowOpenDetails) => WindowOpenHandlerResponse) | null = null;
+  private begin: () => void = () => undefined;
   public readonly id: number;
   public readonly debugger: FakeWebViewDebugger = new FakeWebViewDebugger();
   public readonly calls: string[] = [];
+  public readonly started: Promise<void> = new Promise(resolve => {
+    this.begin = resolve;
+  });
   public url: string = String.empty;
   public title: string = String.empty;
   public loading: boolean = false;
@@ -41,6 +45,7 @@ export class FakeWebViewContents implements IWebViewContents {
 
   public loadURL(url: string): Promise<void> {
     this.calls.push(`load ${url}`);
+    this.begin();
     return Object.isNull(this.loadFailure) ? Promise.resolve() : Promise.reject(this.loadFailure);
   }
 
@@ -78,6 +83,7 @@ export class FakeWebViewContents implements IWebViewContents {
 
   public restoreHistoryAsync(history: IWebViewHistory): Promise<void> {
     this.calls.push(`restore ${history.index} ${history.entries.map(t => `${t.url} ${t.pageState ?? String.empty}`).join(" ")}`);
+    this.begin();
     return Promise.resolve();
   }
 
