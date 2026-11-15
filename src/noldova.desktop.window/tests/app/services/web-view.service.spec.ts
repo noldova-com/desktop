@@ -203,6 +203,31 @@ describe("WebViewService", () => {
     expect([first.isClosed, second.isClosed, host.childElementCount]).toEqual([true, true, 0]);
   });
 
+  it("keeps a view's element and its page in the window while another tab of its slot shows, out of sight and inert, and shows it again with no new page", async () => {
+    const handle = await openAsync();
+    const content = liveViews.show(plan, slot, false).element;
+    const pane = document.createElement("div");
+    Object.assign(pane.style, { position: "relative", width: "20rem", height: "12.5rem" });
+    content.append(pane);
+    handle.mount(pane);
+    attach(handle, 7);
+    handle.show();
+    await vi.waitFor(() => expect(bridge.webViewCalls.filter(t => !t.startsWith("open"))).toEqual(["attach notes 1 7"]));
+
+    liveViews.hide(plan, slot);
+    liveViews.show(todo, slot, false);
+    TestBed.tick();
+    const behind = [handle.frame.isConnected, handle.guest.isConnected, getComputedStyle(handle.guest).visibility, Object.isNull(handle.guest.closest("[inert]"))];
+    liveViews.hide(todo, slot);
+    liveViews.show(plan, slot, false);
+    TestBed.tick();
+
+    expect(behind).toEqual([true, true, "hidden", false]);
+    expect([handle.frame.parentElement, getComputedStyle(handle.guest).visibility, Object.isNull(handle.guest.closest("[inert]"))]).toEqual([pane, "visible", true]);
+    expect(boxOf(handle.guest).slice(2)).toEqual([20, 12.5]);
+    expect(bridge.webViewCalls.filter(t => !t.startsWith("open"))).toEqual(["attach notes 1 7"]);
+  });
+
   it("binds the view's page each time its element attaches, and closes a view the main process won't bind", async () => {
     const handle = await openAsync();
     const failure = new Error("attach");

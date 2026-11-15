@@ -13,7 +13,6 @@ import "@noldova/context.core";
 
 import { ProcessResult } from "../../src/models/processes/process-result.js";
 import { ProcessRunner } from "../../src/services/processes/process-runner.js";
-import type { StartedProcess } from "../../src/services/processes/started-process.js";
 import { SmokeProcessFixture } from "./smoke-process.fixture.js";
 
 export class SmokeRunnerFixture extends ProcessRunner {
@@ -107,7 +106,7 @@ export class SmokeRunnerFixture extends ProcessRunner {
     return SmokeRunnerFixture.succeed(String.empty);
   }
 
-  public override async startAsync(command: string, commandArguments: readonly string[], _directory: string, log: string): Promise<StartedProcess> {
+  public override async startAsync(command: string, commandArguments: readonly string[], _directory: string, log: string): Promise<SmokeProcessFixture> {
     this.started.push([path.basename(command), ...commandArguments].join(" "));
     await writeFile(log, "main started\n");
     const option = "--data-dir=";

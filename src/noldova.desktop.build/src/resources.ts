@@ -3519,6 +3519,10 @@ export class Resources {
     return `The main process ${ending} before its launcher connected to the runtime:\n${tail}`;
   }
 
+  public static formatSmokeLogsUnwatchable(logs: string): string {
+    return `The launcher's logs folder ${logs} can't be watched for its start log.`;
+  }
+
   public static formatSmokeLauncherKeptStartLog(logs: string, tail: string): string {
     return `The main process's launcher still kept its start log in ${logs} ${Resources.smokeStartLimit} ms after the runtime answered, so it never connected:\n${tail}`;
   }

@@ -851,6 +851,7 @@ export class Resources {
   public static readonly tabInput: string = "tab";
   public static readonly dockedInput: string = "isDocked";
   public static readonly shownInput: string = "isShown";
+  public static readonly concealedTabContentClass: string = "nol-tab-content-concealed";
   public static readonly invalidContributionName: string = "A contribution name has the form <module id>.<name>.";
   public static readonly renamableViewWithoutInstances: string = "Only a view with instances can be renamable.";
   public static readonly invalidModuleId: string = "A module id is lowercase kebab-case.";

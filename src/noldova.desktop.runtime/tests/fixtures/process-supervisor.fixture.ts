@@ -53,6 +53,22 @@ export class ProcessSupervisorFixture {
     Assert.isTrue(held, held ? String.empty : `The condition did not hold within ${milliseconds / 1_000} seconds.${describe().length === 0 ? String.empty : ` ${describe()}`}`);
   }
 
+  public static async changedAsync(processes: ProcessSupervisor, condition: () => boolean): Promise<void> {
+    const held = Promise.withResolvers<void>();
+    const registration = processes.onChanged(() => {
+      if (condition())
+        held.resolve();
+    });
+    if (condition())
+      held.resolve();
+    try {
+      await held.promise;
+    }
+    finally {
+      registration[Symbol.dispose]();
+    }
+  }
+
   public static async printedAsync(terminal: PseudoTerminal, output: () => string, expected: string | RegExp): Promise<void> {
     const isPrinted = (): boolean => Object.isString(expected) ? output().includes(expected) : expected.test(output());
     const printed = Promise.withResolvers<void>();
@@ -96,6 +112,11 @@ export class ProcessSupervisorFixture {
     posix: IPosixProcessTableApi = PosixProcessApi.create("win32"),
     processSettings: ProcessSettings = new ProcessSettings(300, 500)): ProcessSupervisor {
     return ProcessSupervisorFixture.create(settings, "win32", { SystemRoot: ProcessSupervisorFixture.SYSTEM_ROOT }, posix, ProcessSupervisorFixture.WINDOWS, windows, processSettings);
+  }
+
+  public static createWith(settings: SettingsFixture, processSettings: ProcessSettings): ProcessSupervisor {
+    return ProcessSupervisorFixture.create(settings, process.platform, process.env, PosixProcessApi.create(process.platform), ProcessClock.create(process.platform),
+      WindowsProcessApi.create(), processSettings);
   }
 
   public static createSeeing(settings: SettingsFixture): ProcessSupervisor {
