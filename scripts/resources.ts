@@ -617,6 +617,10 @@ export class Resources {
     return `Tests finished but left ${leftovers.join(Resources.listSeparator)} in the run's temporary folder; a test must remove what it creates. Failing the run.\n`;
   }
 
+  public static formatSerialTestUnremoved(error: string): string {
+    return `Tests finished but the run's temporary folder could not be removed: ${error}. Failing the run.\n`;
+  }
+
   public static formatSerialTestUnclosed(resources: readonly string[]): string {
     return resources.length === 0
       ? `Tests finished but the process did not exit within ${Resources.serialTestShutdownGrace} ms and Node names no open resource; a worker thread or a native handle keeps it alive. Failing the run.\n`

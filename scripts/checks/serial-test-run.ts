@@ -90,13 +90,13 @@ export class SerialTestRun {
     return Resources.formatSerialTestSlowest(suite, limit, TestTimeRecord.formatSlowest(TestTimeRecord.fromResult(new TestRunResult(results)), Resources.serialTestSlowestCount));
   }
 
-  private static tryRemove(folder: string): boolean {
+  private static tryRemove(folder: string): string | null {
     try {
       rmSync(folder, { recursive: true, force: true, maxRetries: Resources.serialTestRemovalRetries });
-      return true;
+      return null;
     }
-    catch {
-      return false;
+    catch (error) {
+      return String(error);
     }
   }
 
@@ -176,12 +176,13 @@ export class SerialTestRun {
       summary.writeFailure(message);
     }
     const leftovers = readdirSync(temporary).sort();
-    const isRemoved = SerialTestRun.tryRemove(temporary);
+    const removal = SerialTestRun.tryRemove(temporary);
     if (!Object.isNull(message))
       process.exit(Resources.failedExitCode);
-    if (leftovers.length > 0 || !isRemoved) {
-      writeSync(Resources.serialTestStandardErrorDescriptor, Resources.formatSerialTestLeftovers(leftovers));
-      summary.writeFailure(Resources.formatSerialTestLeftovers(leftovers));
+    const unclean = leftovers.length > 0 ? Resources.formatSerialTestLeftovers(leftovers) : Object.isNull(removal) ? null : Resources.formatSerialTestUnremoved(removal);
+    if (!Object.isNull(unclean)) {
+      writeSync(Resources.serialTestStandardErrorDescriptor, unclean);
+      summary.writeFailure(unclean);
       process.exitCode = Resources.failedExitCode;
     }
     setTimeout(() => {

@@ -86,7 +86,7 @@ const PASSING_SUITES = [
   "TestClass(OtherTests);"
 ].join("\n");
 
-const LOCKING = (hangs: boolean): string => [
+const LOCKING = (hangs: boolean, leaves: boolean = true): string => [
   "import \"@noldova/context.core\";",
   "import fs from \"node:fs\";",
   "import { syncBuiltinESMExports } from \"node:module\";",
@@ -95,7 +95,7 @@ const LOCKING = (hangs: boolean): string => [
   "import { TestClass, TestMethod } from \"@noldova/context.testing\";",
   "export class LockingTests {",
   "  holdsItsFolder() {",
-  "    fs.writeFileSync(path.join(os.tmpdir(), \"builder.lock\"), \"\");",
+  leaves ? "    fs.writeFileSync(path.join(os.tmpdir(), \"builder.lock\"), \"\");" : String.empty,
   "    fs.rmSync = () => {",
   "      throw Object.assign(new Error(\"EBUSY: resource busy or locked\"), { code: \"EBUSY\" });",
   "    };",
@@ -200,6 +200,14 @@ describe("SerialTestRun", () => {
     assert.equal(code, Resources.failedExitCode, errors);
     assert.match(errors, /Tests finished but left builder\.lock in the run's temporary folder;/u);
     assert.doesNotMatch(errors, /EBUSY/u);
+  });
+
+  it("fails the run, naming the folder and the error, when the run's temporary folder is empty but can't be removed", async () => {
+    const { code, errors } = await runAsync(LOCKING(false, false));
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(errors, /Tests finished but the run's temporary folder could not be removed: Error: EBUSY: resource busy or locked\. Failing the run\.\n/u);
+    assert.doesNotMatch(errors, /Tests finished but left /u);
   });
 
   it("prints each suite's slowest tests under its limit after the summary", async () => {
