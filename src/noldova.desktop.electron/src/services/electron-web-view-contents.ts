@@ -112,6 +112,10 @@ export class ElectronWebViewContents implements IWebViewContents {
     return this.page.insertText(text);
   }
 
+  public executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown> {
+    return this.page.executeJavaScriptInIsolatedWorld(worldId, scripts);
+  }
+
   public on<TValues extends unknown[]>(event: string, listener: (...values: TValues) => void): unknown {
     return this.events.on(event, listener);
   }

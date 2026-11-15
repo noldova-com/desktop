@@ -11,7 +11,7 @@ import type { SettingChange, WebViewEvent } from "@noldova/desktop.protocol";
 import { Fake, type UnansweredCallException } from "@noldova/desktop.protocol/testing";
 import type { ClientClosure, IAppShortcuts, IAppWindows, IModuleDatabase, IModuleLog, IModuleSecrets, IModuleSettings, IPermissionsContext, IRuntimeFiles,
   IRuntimePartContext, IRuntimeWebViews, IToolsContext, IWebViewRelay, PermissionRevocation, Registration, RegistrationException,
-  WebViewProtocolEvent } from "@noldova/desktop.runtime";
+  WebViewFailureException, WebViewProtocolEvent } from "@noldova/desktop.runtime";
 
 /**
  * A fake of the {@link IRuntimePartContext} that the runtime hands a module's
@@ -1774,11 +1774,15 @@ export declare class FakeWebViewRelay extends Fake<IWebViewRelay> implements IWe
    * Stands in for {@link IWebViewRelay.sendAsync}. Records each call, which
    * {@link Fake.callsOf} reads, and returns what the answer that
    * {@link Fake.answer} gives returns; while unanswered, the promise it returns
-   * rejects rather than the call throwing.
+   * rejects rather than the call throwing. It refuses
+   * `Emulation.setFocusEmulationEnabled` whatever the answer, as the host does,
+   * since the host owns focus emulation.
    *
    * @throws {UnansweredCallException} As the rejection of the promise it
    * returns, naming the member, while the test has given it no answer, as the
    * real member fails.
+   * @throws {WebViewFailureException} As the rejection of the promise it
+   * returns, of kind `NotAllowed`, for `Emulation.setFocusEmulationEnabled`.
    *
    * @example
    * ```ts

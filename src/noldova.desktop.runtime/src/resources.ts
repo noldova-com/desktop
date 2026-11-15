@@ -55,6 +55,8 @@ export class Resources {
   public static readonly webViewParamsField: string = "params";
   public static readonly webViewTimeoutField: string = "timeoutMilliseconds";
   public static readonly webViewIsCutField: string = "isCut";
+  public static readonly focusEmulationMethod: string = "Emulation.setFocusEmulationEnabled";
+  public static readonly focusEmulationRefused: string = "The host owns focus emulation, so a module may not send Emulation.setFocusEmulationEnabled.";
   public static readonly webViewActionParameter: string = "action";
   public static readonly webViewMoveInvalid: string = "A web view moves back, forward, reloads or stops; the other calls have their own methods.";
   public static readonly rootNotAbsolute: string = "The data directory must be an absolute path.";

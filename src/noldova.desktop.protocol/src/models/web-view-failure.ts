@@ -24,7 +24,7 @@ export class WebViewFailure {
 
   public constructor(kind: WebViewFailureKind, code: number | null = null, message: string | null = null) {
     const isProtocol = kind === WebViewFailureKind.Protocol;
-    if (isProtocol !== !Object.isNull(code) || isProtocol !== !Object.isNull(message) || (!Object.isNull(code) && !Number.isSafeInteger(code)))
+    if (isProtocol !== !Object.isNull(code) || (isProtocol && Object.isNull(message)) || (!Object.isNull(code) && !Number.isSafeInteger(code)))
       throw new ArgumentException(Resources.webViewFailureInvalid, Resources.codeField);
 
     this.kind = kind;
