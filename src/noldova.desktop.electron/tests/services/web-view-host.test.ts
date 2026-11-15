@@ -389,6 +389,28 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async readsTheScrollOfEveryViewOfAMoveAtOnceSoTheWindowWaitsForOneBoundWhenNoPageAnswers(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    await WebViewHostTests.openAsync(electron);
+    const clock = electron.webViews.clock;
+    for (const [index, url] of [[0, "https://example.com/a"], [1, "https://example.com/b"]] as const) {
+      const view = WebViewHostTests.view(electron, index);
+      view.contents.show(url);
+      view.contents.debugger.replies.set("Page.getLayoutMetrics", () => new Promise(() => undefined));
+    }
+    const event = MainProcessStartFixture.trustedEvent("linux");
+
+    electron.ipcMain.send("desktop:webViewKeep", event, [["browser", "1"], ["browser", "2"]]);
+    await Condition.waitAsync(() => clock.waits.filter(t => t === 500).length === 2);
+    const before = event.returnValue;
+    clock.advance(500);
+    await Condition.waitAsync(() => !Object.isUndefined(event.returnValue));
+
+    Assert.areEqual(JSON.stringify([null, 2, [true, true], 500]), JSON.stringify([before ?? null, clock.waits.filter(t => t === 500).length, event.returnValue, clock.now()]));
+  }
+
+  @TestMethod
   public async claimsNoWebviewForAViewThatStillHasItsPageIsClosedOrIsInAnotherWindowAndBindsNoUnclaimedOneOrOneOfAnotherWindow(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
