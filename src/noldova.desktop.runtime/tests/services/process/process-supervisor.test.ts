@@ -753,10 +753,9 @@ export class ProcessSupervisorTerminalsTests {
     const library = new PseudoTerminalLibraryFixture();
 
     const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, ProcessSupervisorTerminalsTests.request(library, folder.path, [ProgramFixture.ARGUMENTS, "printed", "at", "once"]));
-    await ProcessSupervisorFixture.waitForAsync(() => terminal.hasExited);
-    const exit = await terminal.exited;
+    const exit = await ProcessSupervisorFixture.exitedAsync(terminal);
     const output = ProcessSupervisorTerminalsTests.collect(terminal);
-    await ProcessSupervisorFixture.waitForAsync(() => output().includes("\n"));
+    await ProcessSupervisorFixture.outputAsync(terminal, output, () => output().includes("\n"));
 
     Assert.isTrue(exit.isClean);
     Assert.areEqual(JSON.stringify(["printed", "at", "once"]), output().trim());
@@ -1291,8 +1290,8 @@ export class ProcessSupervisorTerminalsTests {
 
     const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, ProcessSupervisorTerminalsTests.request(library, folder.path, [ProgramFixture.EXIT, "0"]));
     terminal.pause();
-    await ProcessSupervisorFixture.waitForAsync(() => terminal.hasExited && processes.programs.length === 0, () => settings.diagnostics.text);
-    const exit = await terminal.exited;
+    const exit = await ProcessSupervisorFixture.exitedAsync(terminal, () => `The diagnostics said ${JSON.stringify(settings.diagnostics.text)}; the library was called with ${library.calls.join(",")}.`);
+    await ProcessSupervisorFixture.changedAsync(processes, () => processes.programs.length === 0, () => `The diagnostics said ${JSON.stringify(settings.diagnostics.text)}.`);
 
     Assert.areEqual("null null", `${exit.code} ${exit.signal}`);
     Assert.areEqual("pause,destroy,terminate", library.calls.join(","));
