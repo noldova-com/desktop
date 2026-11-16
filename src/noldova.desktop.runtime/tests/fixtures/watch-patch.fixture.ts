@@ -8,11 +8,12 @@
 
 import fs, { type FSWatcher, type WatchListener } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 import "@noldova/context.core";
 
 export class WatchPatchFixture implements Disposable {
-  private readonly watch: typeof fs.watch = fs.watch;
+  private readonly restore: () => void;
   private readonly listeners: WatchListener<string>[] = [];
 
   public readonly folders: string[] = [];
@@ -20,8 +21,8 @@ export class WatchPatchFixture implements Disposable {
   public onWatch: (folder: string) => void = () => undefined;
 
   public constructor(allowed: number = Number.POSITIVE_INFINITY, isQuiet: boolean = false) {
-    const watch = this.watch;
-    fs.watch = ((folder: fs.PathLike, listener: WatchListener<string>): FSWatcher => {
+    const watch = fs.watch;
+    const watching = mock.method(fs, "watch", (folder: fs.PathLike, listener: WatchListener<string>): FSWatcher => {
       this.onWatch(String(folder));
       this.folders.push(String(folder));
       if (this.folders.length > allowed)
@@ -30,7 +31,8 @@ export class WatchPatchFixture implements Disposable {
       this.watchers.push(watcher);
       this.listeners.push(listener);
       return watcher;
-    }) as typeof fs.watch;
+    });
+    this.restore = () => watching.mock.restore();
     syncBuiltinESMExports();
   }
 
@@ -47,7 +49,7 @@ export class WatchPatchFixture implements Disposable {
   }
 
   public [Symbol.dispose](): void {
-    fs.watch = this.watch;
+    this.restore();
     syncBuiltinESMExports();
   }
 }
