@@ -71,6 +71,27 @@ jobs:
           npm_config_ignore_scripts: 'true'
         run: npm ci --no-audit --no-fund
 
+      - name: Choose the folder and cache key of the browser for the Angular tests
+        id: browser
+        timeout-minutes: 1
+        run: |
+          version=$(node --print 'JSON.parse(require("node:fs").readFileSync("package-lock.json", "utf8")).packages["node_modules/playwright-core"]?.version ?? ""')
+          if [ -z "$version" ]; then
+            echo "::error::package-lock.json locks no playwright-core, so the browser for the Angular tests has no version to cache by."
+            exit 1
+          fi
+          folder="$RUNNER_TEMP/ms-playwright"
+          echo "PLAYWRIGHT_BROWSERS_PATH=$folder" >> "$GITHUB_ENV"
+          echo "folder=$folder" >> "$GITHUB_OUTPUT"
+          echo "key=angular-test-browser-$RUNNER_OS-$RUNNER_ARCH-playwright-$version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the browser for the Angular tests, kept by its Playwright version
+        timeout-minutes: 5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser.outputs.folder }}
+          key: ${{ steps.browser.outputs.key }}
+
       - name: Install the app's packages and the browser for the Angular tests as the build does
         timeout-minutes: 10
         env:
