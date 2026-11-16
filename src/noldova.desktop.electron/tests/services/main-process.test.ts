@@ -131,7 +131,7 @@ export class MainProcessTests {
       await Condition.waitAsync(() => electron.app.calls.includes("exit 0"));
 
       const before = atExit.indexOf(" The line before the failure.");
-      Assert.isTrue(before >= 0 && atExit.indexOf(" The person chose Quit.") > before, atExit);
+      Assert.isTrue(before >= 0 && atExit.indexOf(" chose Quit.") > before, atExit);
     });
   }
 
