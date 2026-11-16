@@ -344,9 +344,12 @@ export class UpdatePreparationTests {
       const [, firstEvents] = await RuntimeHostFixture.readMessagesAsync(mainProcess, 3);
       read.releaseAsMissing();
       const [, late] = await fixture.handshakeAsync("late", RuntimeBuild.identity);
+      mainProcess.sendMessages(new Request("main:2", ShellMethods.updateSaved, new UpdateSaved(process.pid, []).toJson()));
+      const next = await mainProcess.readTextAsync();
 
       Assert.areEqual(`${ShellEvents.updating}|${ShellEvents.updateEnded}`, firstEvents.map(t => String(t.name)).join("|"));
       Assert.isFalse(late.hasFailed);
+      Assert.isTrue(next.startsWith("{\"kind\":\"Response\",\"id\":\"main:2\""), next);
     });
   }
 
