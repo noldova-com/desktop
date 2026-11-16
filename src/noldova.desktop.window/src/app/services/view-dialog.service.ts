@@ -107,8 +107,12 @@ export class ViewDialogService {
 
   public closeShowing(name: string, instance: string | null): void {
     const tab = this.shownValue();
-    if (!Object.isNull(tab) && tab.name === name && (Object.isNull(instance) || tab.instance === instance))
-      this.close();
+    if (Object.isNull(tab) || tab.name !== name || (!Object.isNull(instance) && tab.instance !== instance))
+      return;
+    const reveal = this.layout.revealed();
+    if (!Object.isNull(reveal) && this.isLeftFor(reveal))
+      this.focusedAfter = reveal.tab;
+    this.close();
   }
 
   public openInMainWindow(tab: Tab): void {
@@ -121,11 +125,15 @@ export class ViewDialogService {
   }
 
   private leaveFor(reveal: TabReveal): void {
-    if (Object.isNull(this.dialog) || reveal.sequence <= this.shownAfter || !(reveal.tab instanceof DocumentTab) || reveal.tab.equals(this.shownValue())
-      || !this.layout.layout().isOpen(reveal.tab))
+    if (!this.isLeftFor(reveal))
       return;
     this.focusedAfter = reveal.tab;
     this.close();
+  }
+
+  private isLeftFor(reveal: TabReveal): boolean {
+    return !Object.isNull(this.dialog) && reveal.sequence > this.shownAfter && reveal.tab instanceof DocumentTab && !reveal.tab.equals(this.shownValue())
+      && this.layout.layout().isOpen(reveal.tab);
   }
 
   private isShowable(tab: Tab): boolean {

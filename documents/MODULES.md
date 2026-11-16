@@ -352,7 +352,7 @@ Noldova Desktop registers its own entries, such as the default theme, through th
 - A row whose command doesn't apply to its arguments is left out; a row whose command isn't registered shows disabled.
 - A view with instances, or a document, may show one of the module's plain menu places in the tab row of each group that holds its tabs, with `{ "tabGroup": "<group id>" }` merged into each item's arguments, submenus included, and, for a document's place, `"document"` and `"instance"` while the group's active tab is one of the module's own documents; the place is never a toolbar, so it stays out of the toolbar band and the Toolbars list.
 - A view with instances, or a document, may declare its tabs renamable in place (`isRenamable`); the window part hears each kept title through `onTabRenamed`, an empty one meaning its automatic title, and owns the name it applies.
-- A view or document of the module, with instances or without, closes the view dialog it shows in through its window part's `closeDialog`, with its name and, to close only one instance's, the instance, such as after an action that leads elsewhere; the focus returns as when the person closes the dialog.
+- A view or document of the module, with instances or without, closes the view dialog it shows in through its window part's `closeDialog`, with its name and, to close only one instance's, the instance, such as after an action that leads elsewhere; the focus returns as when the person closes the dialog, or goes to the tab of a document the module opened or activated since the dialog showed.
   The call does nothing while the view shows in a tab, or the dialog shows something else or nothing, so a view never needs to know where it shows.
 
 ### Settings and their scopes

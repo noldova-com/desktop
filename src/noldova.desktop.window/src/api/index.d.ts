@@ -2356,7 +2356,9 @@ export interface IWindowPartContext {
    * documents, with instances or without, such as after an action of the view
    * leads elsewhere: the dialog closes as when the person closes it, its view
    * returns to its tab if it came from one, and the focus returns where the
-   * person's close returns it. Nothing happens while the view or document
+   * person's close returns it, or goes to the tab of a document the module
+   * opened or activated since the dialog showed, as in the example below.
+   * Nothing happens while the view or document
    * shows in a tab, or the dialog shows something else or nothing, so a view
    * never needs to know whether it shows in a dialog: it asks to close the
    * dialog either way.
