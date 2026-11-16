@@ -10,10 +10,10 @@ import { EarlyDocument } from "../../../../src/app/models/layout/early-document"
 import { LayoutFixture } from "../../../fixtures/layout.fixture";
 
 describe("EarlyDocument", () => {
-  it("holds a document the person opened before the layout loaded, whether it opened as a preview and the document it opened after", () => {
-    const early = new EarlyDocument(LayoutFixture.plan, true, LayoutFixture.todo);
+  it("holds a document the person opened before the layout loaded, whether it opened as a preview, the document it opened after and whether it activates", () => {
+    const early = new EarlyDocument(LayoutFixture.plan, true, LayoutFixture.todo, false);
 
-    expect([early.tab, early.isPreview, early.after]).toEqual([LayoutFixture.plan, true, LayoutFixture.todo]);
-    expect(new EarlyDocument(LayoutFixture.plan, false, null).after).toBeNull();
+    expect([early.tab, early.isPreview, early.after, early.activates]).toEqual([LayoutFixture.plan, true, LayoutFixture.todo, false]);
+    expect([new EarlyDocument(LayoutFixture.plan, false, null, true).after, new EarlyDocument(LayoutFixture.plan, false, null, true).activates]).toEqual([null, true]);
   });
 });

@@ -86,6 +86,14 @@ export class TabGroup extends LayoutNode {
     return this.copy([...this.tabs, tab], this.active ?? tab, isPreview && Object.isNull(this.preview) ? tab : this.preview);
   }
 
+  public add(tab: Tab, index: number, isPreview: boolean): TabGroup {
+    if (!this.accepts(tab))
+      throw new ArgumentException(Resources.documentOutsideDocuments, Resources.tabParameterName);
+    const replaces = isPreview && !Object.isNull(this.preview) && !this.preview.equals(this.active);
+    const tabs = replaces ? this.tabs.map(t => t.equals(this.preview) ? tab : t) : [...this.tabs.slice(0, index), tab, ...this.tabs.slice(index)];
+    return this.copy(tabs, this.active ?? tab, isPreview ? tab : this.preview);
+  }
+
   public openPreview(tab: Tab, index: number = this.tabs.length): TabGroup {
     if (this.has(tab))
       return this.activate(tab);

@@ -15,24 +15,26 @@ export class PendingDocument {
   public readonly heading: DocumentHeading;
   public readonly isPreview: boolean;
   public readonly after: string | null;
+  public readonly activates: boolean;
   public readonly isEarly: boolean;
 
-  public constructor(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null, isEarly: boolean) {
+  public constructor(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null, activates: boolean, isEarly: boolean) {
     this.moduleId = moduleId;
     this.name = name;
     this.instance = instance;
     this.heading = heading;
     this.isPreview = isPreview;
     this.after = after;
+    this.activates = activates;
     this.isEarly = isEarly;
   }
 
   public kept(moduleId: string, name: string, instance: string): PendingDocument {
-    return this.isFor(moduleId, name, instance) ? new PendingDocument(this.moduleId, this.name, this.instance, this.heading, false, this.after, this.isEarly) : this;
+    return this.isFor(moduleId, name, instance) ? new PendingDocument(this.moduleId, this.name, this.instance, this.heading, false, this.after, this.activates, this.isEarly) : this;
   }
 
   public updated(moduleId: string, name: string, instance: string, title: string | null, breadcrumb: readonly string[] | null, breadcrumbIcon: string | null = null): PendingDocument {
-    return this.isFor(moduleId, name, instance) ? new PendingDocument(this.moduleId, this.name, this.instance, this.heading.with(title, breadcrumb, breadcrumbIcon), this.isPreview, this.after, this.isEarly) : this;
+    return this.isFor(moduleId, name, instance) ? new PendingDocument(this.moduleId, this.name, this.instance, this.heading.with(title, breadcrumb, breadcrumbIcon), this.isPreview, this.after, this.activates, this.isEarly) : this;
   }
 
   public isFor(moduleId: string, name: string, instance: string): boolean {

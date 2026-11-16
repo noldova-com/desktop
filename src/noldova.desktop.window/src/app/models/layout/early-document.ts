@@ -12,10 +12,12 @@ export class EarlyDocument {
   public readonly tab: DocumentTab;
   public readonly isPreview: boolean;
   public readonly after: DocumentTab | null;
+  public readonly activates: boolean;
 
-  public constructor(tab: DocumentTab, isPreview: boolean, after: DocumentTab | null) {
+  public constructor(tab: DocumentTab, isPreview: boolean, after: DocumentTab | null, activates: boolean) {
     this.tab = tab;
     this.isPreview = isPreview;
     this.after = after;
+    this.activates = activates;
   }
 }

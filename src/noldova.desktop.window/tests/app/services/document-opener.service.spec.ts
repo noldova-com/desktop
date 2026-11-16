@@ -66,6 +66,15 @@ describe("DocumentOpenerService", () => {
     expect([layout.layout().documents.active, labels.of(note("2")).title]).toEqual([note("2"), "Second note"]);
   });
 
+  it("opens a document with its title without activating it when asked", () => {
+    const note = (instance: string): DocumentTab => new DocumentTab("notes.note", instance);
+    opener.open("notes", "notes.note", "1", new DocumentHeading("Note 1"), false);
+
+    opener.open("notes", "notes.note", "2", new DocumentHeading("Note 2"), false, null, false);
+
+    expect([layout.layout().documents.tabs, layout.layout().documents.active, labels.of(note("2")).title]).toEqual([[note("1"), note("2")], note("1"), "Note 2"]);
+  });
+
   it("opens a document as a preview that the next preview replaces, and keeps it on request", () => {
     opener.open("notes", "notes.note", "1", new DocumentHeading("Note 1"), true);
     opener.open("notes", "notes.note", "2", new DocumentHeading("Note 2"), true);
