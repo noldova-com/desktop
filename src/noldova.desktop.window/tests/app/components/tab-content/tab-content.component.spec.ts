@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { Component, type InputSignal, type WritableSignal, inject, input, signal } from "@angular/core";
+import { Component, type InputSignal, type Signal, type WritableSignal, inject, input, signal } from "@angular/core";
 import { type ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 
@@ -15,6 +15,7 @@ import { ModuleState } from "@noldova/desktop.protocol";
 import { AppearanceFixture } from "@noldova/ui.components.angular/testing";
 import { TabContentComponent } from "../../../../src/app/components/tab-content/tab-content.component";
 import { ContentPadding } from "../../../../src/app/enums/content-padding";
+import { PanelEdge } from "../../../../src/app/enums/panel-edge";
 import { FileSaveOutcome } from "../../../../src/app/enums/file-save-outcome";
 import type { IWindowPartContext } from "../../../../src/app/interfaces/i-window-part-context";
 import type { ContentPaddingRef } from "../../../../src/app/models/content-padding-ref";
@@ -22,6 +23,7 @@ import { ContributionMatch } from "../../../../src/app/models/contribution-match
 import { IssuedFileGrants } from "../../../../src/app/models/issued-file-grants";
 import type { Bounds } from "../../../../src/app/models/layout/bounds";
 import { DocumentTab } from "../../../../src/app/models/layout/document-tab";
+import { Layout } from "../../../../src/app/models/layout/layout";
 import type { Tab } from "../../../../src/app/models/layout/tab";
 import { ViewTab } from "../../../../src/app/models/layout/view-tab";
 import { ModuleFailure } from "../../../../src/app/models/module-failure";
@@ -33,6 +35,9 @@ import { DockGrowthService } from "../../../../src/app/services/dock-growth.serv
 import { TabLabelService } from "../../../../src/app/services/tab-label.service";
 import { WindowPartHostService } from "../../../../src/app/services/window-part-host.service";
 import { DomFixture } from "../../../fixtures/dom.fixture";
+import { LayoutFixture } from "../../../fixtures/layout.fixture";
+import { LayoutServiceFixture } from "../../../fixtures/layout-service.fixture";
+import { PreloadBridgeFixture } from "../../../fixtures/preload-bridge.fixture";
 
 @Component({
   selector: "nol-test-view",
@@ -159,10 +164,15 @@ describe("TabContentComponent", () => {
   let host: StubWindowPartHost;
 
   beforeEach(() => {
+    PreloadBridgeFixture.install();
     host = new StubWindowPartHost();
     TestViewComponent.contexts = [];
     TestBed.configureTestingModule({ providers: [{ provide: WindowPartHostService, useValue: host },
       { provide: DockGrowthService, useValue: { minimumOf: () => null, fit: () => undefined } }] });
+  });
+
+  afterEach(() => {
+    PreloadBridgeFixture.remove();
   });
 
   async function renderAsync(tab: Tab): Promise<HTMLElement> {
@@ -258,6 +268,39 @@ describe("TabContentComponent", () => {
     states.push(shown());
 
     expect(states).toEqual([true, false]);
+  });
+
+  it("tells its page whether its tab is the window's active document, from a restored split on, as the active tab or the active document group changes", async () => {
+    const { plan, todo, settings, files } = LayoutFixture;
+    const registry = LayoutFixture.createRegistry();
+    const saved = Layout.createDefault(registry).openDocument(plan).openDocument(todo).splitGroup(todo, 0, PanelEdge.Right);
+    const layout = await LayoutServiceFixture.prepareAsync(registry, saved);
+    host.contributions.set(plan.key, new ContributionMatch(() => Promise.resolve(TestPageComponent), null, ContentPadding.Default));
+    host.contributions.set(todo.key, new ContributionMatch(() => Promise.resolve(TestPageComponent), null, ContentPadding.Default));
+    host.contributions.set(files.key, new ContributionMatch(() => Promise.resolve(TestPageComponent), null, ContentPadding.Default));
+    const activeOf = async (tab: Tab): Promise<Signal<boolean>> => {
+      const fixture = TestBed.createComponent(TabContentComponent);
+      fixture.componentRef.setInput("tab", tab);
+      await fixture.whenStable();
+      return fixture.debugElement.query(By.directive(TestPageComponent)).injector.get(WindowPartTokens.activeDocument);
+    };
+    const active = await activeOf(plan);
+    const besides = await activeOf(todo);
+    const view = await activeOf(files);
+    const groupOf = (tab: Tab): number => layout.layout().documentGroups.find(t => t.has(tab))?.id ?? -1;
+    const restored = [active(), besides()];
+
+    layout.focusGroup(groupOf(plan));
+    const states = [active()];
+    layout.focusGroup(groupOf(todo));
+    states.push(active());
+    layout.activate(plan);
+    states.push(active());
+    layout.openDocument(settings);
+    states.push(active());
+
+    expect([restored, states]).toEqual([[false, true], [true, false, true, false]]);
+    expect(view()).toBe(false);
   });
 
   for (const theme of AppearanceFixture.themes)

@@ -28,6 +28,7 @@ export class Resources {
   public static readonly windowPartContextToken: string = "The window part's context";
   public static readonly contentPaddingToken: string = "The padding of the page a tab shows";
   public static readonly shownToken: string = "Whether the page a tab shows is in view";
+  public static readonly activeDocumentToken: string = "Whether the page a tab shows is the window's active document";
   public static readonly windowPartSourcesToken: string = "The build's window parts";
   public static readonly documentsGroupId: number = 0;
   public static readonly layoutFormatVersion: number = 1;

@@ -2629,8 +2629,8 @@ export interface IWindowPartContext {
   /**
    * Opens a palette just under the window row, centred across the window, as
    * the command search opens: the part's component, created with its
-   * {@link WindowPartTokens}, with `shown` true and a content padding of its
-   * own. The window shows one palette at a time.
+   * {@link WindowPartTokens}, with `shown` true, `activeDocument` false and a
+   * content padding of its own. The window shows one palette at a time.
    *
    * @param load Loads the palette's component.
    * @returns The palette, or null when the window shows no window row,
@@ -4448,6 +4448,20 @@ export declare class WindowPartTokens {
    * such as timers, while it is hidden.
    */
   public static readonly shown: InjectionToken<Signal<boolean>>;
+
+  /**
+   * Whether the page the component is shown on is the window's active
+   * document: the active tab of the document group the person last worked in.
+   * @remarks With documents side by side in several groups, each is shown,
+   * and only the active group's active tab is the active document. The signal
+   * changes as the active document moves between groups, by pointer, by
+   * keyboard or as a saved layout restores, so a module that keeps one current
+   * item for the window, such as a record another view highlights, follows it.
+   * A view's page is the active document only while its tab is the active tab
+   * of that group; a settings page, a placeholder and a palette never are, and
+   * a web view's layer is while the tab its view is in is the active document.
+   */
+  public static readonly activeDocument: InjectionToken<Signal<boolean>>;
 }
 
 /**
