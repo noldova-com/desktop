@@ -8,19 +8,21 @@
 
 import fs, { type FSWatcher } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 export class WatchLimitFixture implements Disposable {
-  private readonly watch: typeof fs.watch = fs.watch;
+  private readonly restore: () => void;
 
   public constructor() {
-    fs.watch = ((folder: fs.PathLike): FSWatcher => {
+    const watching = mock.method(fs, "watch", (folder: fs.PathLike): FSWatcher => {
       throw Object.assign(new Error(`ENOSPC: System limit for number of file watchers reached, watch '${String(folder)}'`), { code: "ENOSPC" });
-    }) as typeof fs.watch;
+    });
+    this.restore = () => watching.mock.restore();
     syncBuiltinESMExports();
   }
 
   public [Symbol.dispose](): void {
-    fs.watch = this.watch;
+    this.restore();
     syncBuiltinESMExports();
   }
 }

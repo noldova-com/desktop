@@ -8,26 +8,28 @@
 
 import childProcess, { type ChildProcess, type SpawnOptions } from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 import { FakeChildProcess } from "./fake-child-process.fixture.js";
 
 export class SpawnPatchFixture implements Disposable {
   public static readonly PROCESS_ID: number = 4321;
 
-  private readonly spawn: typeof childProcess.spawn = childProcess.spawn;
+  private readonly restore: () => void;
 
   public readonly options: SpawnOptions[] = [];
 
   public constructor() {
-    childProcess.spawn = ((_command: string, _arguments: readonly string[], options: SpawnOptions): ChildProcess => {
+    const spawning = mock.method(childProcess, "spawn", (_command: string, _arguments: readonly string[], options: SpawnOptions): ChildProcess => {
       this.options.push(options);
       return new FakeChildProcess(SpawnPatchFixture.PROCESS_ID);
-    }) as typeof childProcess.spawn;
+    });
+    this.restore = () => spawning.mock.restore();
     syncBuiltinESMExports();
   }
 
   public [Symbol.dispose](): void {
-    childProcess.spawn = this.spawn;
+    this.restore();
     syncBuiltinESMExports();
   }
 }

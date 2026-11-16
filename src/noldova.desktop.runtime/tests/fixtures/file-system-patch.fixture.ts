@@ -8,6 +8,7 @@
 
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 import "@noldova/context.core";
 
@@ -16,18 +17,18 @@ export class FileSystemPatchFixture implements Disposable {
 
   private readonly access: typeof fs.promises.access = fs.promises.access;
   private readonly readdir: typeof fs.promises.readdir = fs.promises.readdir;
-  private readonly readFile: typeof fs.promises.readFile = fs.promises.readFile;
+  private readonly restoreReadFile: () => void;
 
   public readonly checked: string[] = [];
 
   public constructor(failingPath: string | null, mountTable: string | null = String.empty) {
-    const readFile = this.readFile;
+    const readFile = fs.promises.readFile;
     fs.promises.access = (target: fs.PathLike): Promise<void> => Promise.try(() => this.check(target, failingPath));
     fs.promises.readdir = (target: fs.PathLike): Promise<never[]> => Promise.try(() => {
       this.check(target, failingPath);
       return [];
     });
-    fs.promises.readFile = ((...values: Parameters<typeof fs.promises.readFile>): Promise<string | Buffer> => {
+    const reading = mock.method(fs.promises, "readFile", (...values: Parameters<typeof fs.promises.readFile>): Promise<string | Buffer> => {
       const [target] = values;
       if (target !== FileSystemPatchFixture.MOUNT_TABLE)
         return readFile(...values);
@@ -37,14 +38,15 @@ export class FileSystemPatchFixture implements Disposable {
           throw Object.assign(new Error(`ENOENT: no such file or directory, open '${FileSystemPatchFixture.MOUNT_TABLE}'`), { code: "ENOENT" });
         return mountTable;
       });
-    }) as typeof fs.promises.readFile;
+    });
+    this.restoreReadFile = () => reading.mock.restore();
     syncBuiltinESMExports();
   }
 
   public [Symbol.dispose](): void {
     fs.promises.access = this.access;
     fs.promises.readdir = this.readdir;
-    fs.promises.readFile = this.readFile;
+    this.restoreReadFile();
     syncBuiltinESMExports();
   }
 
