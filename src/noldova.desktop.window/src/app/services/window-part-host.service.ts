@@ -889,6 +889,7 @@ export class WindowPartHostService implements IWindowPartHost {
       this.activatingModules.delete(status.id);
       this.activations.splice(this.activations.indexOf(activation), 1);
       this.labels.dropLooks(t => WindowPartHostService.owns(activation.context, t));
+      this.history.dropPlaces(t => WindowPartHostService.owns(activation.context, new ViewTab(t)));
       activation.context.withdraw();
       this.dropPending(status.id);
       if (RuntimeDisconnectedException.isIn(error))
@@ -904,6 +905,7 @@ export class WindowPartHostService implements IWindowPartHost {
   private async deactivateAsync(activations: readonly WindowPartActivation[]): Promise<void> {
     for (const activation of [...activations].reverse()) {
       this.liveViews.destroy(t => WindowPartHostService.owns(activation.context, t));
+      this.history.dropPlaces(t => WindowPartHostService.owns(activation.context, new ViewTab(t)));
       this.activations.splice(this.activations.indexOf(activation), 1);
       this.changedModules.add(activation.context.moduleId);
       try {
