@@ -968,6 +968,55 @@ export class Resources {
   public static get notAnAppImage(): string {
     return `This copy of ${Resources.applicationName} doesn't run from an AppImage, so it can't install the update.`;
   }
+  public static readonly isEndedField: string = "isEnded";
+  public static readonly isTimedOutField: string = "isTimedOut";
+  public static readonly targetClosedError: string = "target closed";
+  public static readonly ipv4Version: number = 4;
+  public static readonly ipv6Version: number = 6;
+  public static readonly ipv4Separator: string = ".";
+  public static readonly ipv6Separator: string = ":";
+  public static readonly ipv6ZeroRun: string = "::";
+  public static readonly hextetRadix: number = 16;
+  public static readonly mappedMarkerHextet: number = 5;
+  public static readonly mappedIpv4Marker: number = 0xffff;
+  public static readonly embeddedIpv4Hextet: number = 6;
+  public static readonly nat64PrefixHextets: number = 2;
+  public static readonly byteBits: number = 8;
+  public static readonly byteMask: number = 0xff;
+  public static readonly nat64First: number = 0x64;
+  public static readonly nat64Second: number = 0xff9b;
+  public static readonly uniqueLocalMask: number = 0xfe00;
+  public static readonly uniqueLocalPrefix: number = 0xfc00;
+  public static readonly linkLocalMask: number = 0xffc0;
+  public static readonly linkLocalPrefix: number = 0xfe80;
+  public static readonly loopbackFirst: number = 127;
+  public static readonly privateClassAFirst: number = 10;
+  public static readonly privateClassBFirst: number = 172;
+  public static readonly privateClassBSecondLow: number = 16;
+  public static readonly privateClassBSecondHigh: number = 31;
+  public static readonly privateClassCFirst: number = 192;
+  public static readonly privateClassCSecond: number = 168;
+  public static readonly sharedAddressFirst: number = 100;
+  public static readonly sharedAddressSecondLow: number = 64;
+  public static readonly sharedAddressSecondHigh: number = 127;
+  public static readonly linkLocalFirst: number = 169;
+  public static readonly linkLocalSecond: number = 254;
+  public static readonly faviconDecodeWorld: number = 1997;
+  public static readonly faviconDecodeTimeout: number = 2000;
+  public static readonly faviconFetchTimeout: number = 10_000;
+  public static readonly faviconCandidateLimit: number = 4;
+  public static readonly faviconByteLimit: number = 1_048_576;
+  public static readonly faviconSide: number = 64;
+  public static readonly faviconPngLimit: number = 16_384;
+  public static readonly faviconBase64Limit: number = 21_848;
+  public static readonly faviconHeaderStart: number = 12;
+  public static readonly faviconWidthOffset: number = 16;
+  public static readonly faviconHeightOffset: number = 20;
+  public static readonly faviconHeaderEnd: number = 24;
+  public static readonly faviconHeaderType: string = "IHDR";
+  public static readonly faviconPngPrefix: string = "data:image/png;base64,";
+  public static readonly faviconPngSignature: readonly number[] = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  public static readonly faviconBase64Pattern: RegExp = /^[A-Za-z0-9+/]+={0,2}$/u;
 
   public static formatUpdateRelaunchFailed(reason: string): string {
     return `The update was handed off, but macOS could not be asked to install it and start the new version, so the main process quits instead: ${reason}`;
@@ -1779,5 +1828,28 @@ export class Resources {
 
   public static formatWindowSize(name: string, minimum: number): string {
     return `The window ${name} is a whole number of at least ${minimum} pixels.`;
+  }
+
+  public static formatIpv4(first: number, second: number, third: number, fourth: number): string {
+    return `${first}.${second}.${third}.${fourth}`;
+  }
+
+  public static formatSubdomainSuffix(hostname: string): string {
+    return `.${hostname}`;
+  }
+
+  public static formatFaviconDecodeScript(source: string): string {
+    return `(async () => {
+  const bitmap = await createImageBitmap(new Blob([Uint8Array.from(atob("${source}"), t => t.charCodeAt(0))]));
+  const scale = Math.min(1, ${Resources.faviconSide} / Math.max(bitmap.width, bitmap.height));
+  const canvas = new OffscreenCanvas(Math.max(1, Math.round(bitmap.width * scale)), Math.max(1, Math.round(bitmap.height * scale)));
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const png = new Uint8Array(await (await canvas.convertToBlob({ type: "image/png" })).arrayBuffer());
+  let text = "";
+  for (const value of png)
+    text += String.fromCharCode(value);
+  return btoa(text);
+})().catch(() => null)`;
   }
 }

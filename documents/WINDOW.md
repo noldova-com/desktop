@@ -3,7 +3,7 @@
 **Scope:** The app's window and its main process: the boundary between them, the workspace, keys and menus, Settings and the Modules document, what the window does while the runtime is away, notifications on screen, the tray, and closing.
 The window's look follows the organization's UI standard, `https://github.com/noldova-com/.github/blob/main/standards/UI.md`, and its parts come from `@noldova/ui.components.angular`.
 The window's own layout and look, such as the window row, the docks and the cards it shows, arrive here with the Window package.
-The Window package keeps a class's own strings, those no other class uses, in a `<name>.resources.ts` beside the class, such as `clipboard-image.resources.ts`, so an app's bundle leaves out the strings of a class it doesn't import; every other string is in the package's `src/resources.ts`.
+The Window package keeps its strings and numbers in its `src/resources.ts`, as every package does.
 
 ## The boundary
 

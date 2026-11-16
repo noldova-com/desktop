@@ -13,53 +13,52 @@ import type { JsonObject, JsonValue } from "@noldova/context.json";
 import type { IToolSchemaValidator } from "../../interfaces/i-tool-schema.validator.js";
 import { CaughtFailure } from "../../models/caught-failure.js";
 import { Resources } from "../../resources.js";
-import { ToolSchemaResources } from "./tool-schema.resources.js";
 
 export class ToolSchemaValidator implements IToolSchemaValidator {
   private static readonly TYPES: ReadonlyMap<string, (value: JsonValue) => boolean> = new Map<string, (value: JsonValue) => boolean>([
-    [ToolSchemaResources.nullType, t => Object.isNull(t)],
-    [ToolSchemaResources.booleanType, t => Object.isBoolean(t)],
-    [ToolSchemaResources.objectType, t => ToolSchemaValidator.isObject(t)],
-    [ToolSchemaResources.arrayType, t => ToolSchemaValidator.isArray(t)],
-    [ToolSchemaResources.numberType, t => Object.isNumber(t)],
-    [ToolSchemaResources.integerType, t => Number.isInteger(t)],
-    [ToolSchemaResources.stringType, t => Object.isString(t)]
+    [Resources.nullType, t => Object.isNull(t)],
+    [Resources.booleanType, t => Object.isBoolean(t)],
+    [Resources.objectType, t => ToolSchemaValidator.isObject(t)],
+    [Resources.arrayType, t => ToolSchemaValidator.isArray(t)],
+    [Resources.numberType, t => Object.isNumber(t)],
+    [Resources.integerType, t => Number.isInteger(t)],
+    [Resources.stringType, t => Object.isString(t)]
   ]);
 
   private readonly patterns: Map<string, RegExp | null> = new Map();
   private readonly keywords: ReadonlyMap<string, (value: JsonValue, path: string) => string | null> = new Map<string, (value: JsonValue, path: string) => string | null>([
-    [ToolSchemaResources.schemaKeyword, (value, path) => ToolSchemaValidator.check(value === ToolSchemaResources.dialect, path)],
-    [ToolSchemaResources.commentKeyword, (value, path) => ToolSchemaValidator.check(Object.isString(value), path)],
-    [ToolSchemaResources.titleKeyword, (value, path) => ToolSchemaValidator.check(Object.isString(value), path)],
-    [ToolSchemaResources.descriptionKeyword, (value, path) => ToolSchemaValidator.check(Object.isString(value), path)],
-    [ToolSchemaResources.defaultKeyword, () => null],
-    [ToolSchemaResources.examplesKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isArray(value), path)],
-    [ToolSchemaResources.deprecatedKeyword, (value, path) => ToolSchemaValidator.check(Object.isBoolean(value), path)],
-    [ToolSchemaResources.readOnlyKeyword, (value, path) => ToolSchemaValidator.check(Object.isBoolean(value), path)],
-    [ToolSchemaResources.writeOnlyKeyword, (value, path) => ToolSchemaValidator.check(Object.isBoolean(value), path)],
-    [ToolSchemaResources.typeKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isTypes(value), path)],
-    [ToolSchemaResources.enumKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isArray(value) && value.length > 0, path)],
-    [ToolSchemaResources.constKeyword, () => null],
-    [ToolSchemaResources.minLengthKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isCount(value), path)],
-    [ToolSchemaResources.maxLengthKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isCount(value), path)],
-    [ToolSchemaResources.patternKeyword, (value, path) => ToolSchemaValidator.check(Object.isString(value) && !Object.isNull(this.compile(value)), path)],
-    [ToolSchemaResources.minimumKeyword, (value, path) => ToolSchemaValidator.check(Object.isNumber(value), path)],
-    [ToolSchemaResources.maximumKeyword, (value, path) => ToolSchemaValidator.check(Object.isNumber(value), path)],
-    [ToolSchemaResources.exclusiveMinimumKeyword, (value, path) => ToolSchemaValidator.check(Object.isNumber(value), path)],
-    [ToolSchemaResources.exclusiveMaximumKeyword, (value, path) => ToolSchemaValidator.check(Object.isNumber(value), path)],
-    [ToolSchemaResources.minItemsKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isCount(value), path)],
-    [ToolSchemaResources.maxItemsKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isCount(value), path)],
-    [ToolSchemaResources.itemsKeyword, (value, path) => this.findSchemaProblem(value, path)],
-    [ToolSchemaResources.propertiesKeyword, (value, path) => ToolSchemaValidator.isObject(value) ? this.findSchemasProblem(Object.entries(value), path) : Resources.formatToolSchemaKeywordInvalid(path)],
-    [ToolSchemaResources.requiredKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isNames(value), path)],
-    [ToolSchemaResources.additionalPropertiesKeyword, (value, path) => Object.isBoolean(value) ? null : this.findSchemaProblem(value, path)],
-    [ToolSchemaResources.anyOfKeyword, (value, path) => ToolSchemaValidator.isArray(value) && value.length > 0
+    [Resources.schemaKeyword, (value, path) => ToolSchemaValidator.check(value === Resources.toolSchemaDialect, path)],
+    [Resources.commentKeyword, (value, path) => ToolSchemaValidator.check(Object.isString(value), path)],
+    [Resources.titleKeyword, (value, path) => ToolSchemaValidator.check(Object.isString(value), path)],
+    [Resources.descriptionKeyword, (value, path) => ToolSchemaValidator.check(Object.isString(value), path)],
+    [Resources.defaultKeyword, () => null],
+    [Resources.examplesKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isArray(value), path)],
+    [Resources.deprecatedKeyword, (value, path) => ToolSchemaValidator.check(Object.isBoolean(value), path)],
+    [Resources.readOnlyKeyword, (value, path) => ToolSchemaValidator.check(Object.isBoolean(value), path)],
+    [Resources.writeOnlyKeyword, (value, path) => ToolSchemaValidator.check(Object.isBoolean(value), path)],
+    [Resources.typeKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isTypes(value), path)],
+    [Resources.enumKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isArray(value) && value.length > 0, path)],
+    [Resources.constKeyword, () => null],
+    [Resources.minLengthKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isCount(value), path)],
+    [Resources.maxLengthKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isCount(value), path)],
+    [Resources.patternKeyword, (value, path) => ToolSchemaValidator.check(Object.isString(value) && !Object.isNull(this.compile(value)), path)],
+    [Resources.minimumKeyword, (value, path) => ToolSchemaValidator.check(Object.isNumber(value), path)],
+    [Resources.maximumKeyword, (value, path) => ToolSchemaValidator.check(Object.isNumber(value), path)],
+    [Resources.exclusiveMinimumKeyword, (value, path) => ToolSchemaValidator.check(Object.isNumber(value), path)],
+    [Resources.exclusiveMaximumKeyword, (value, path) => ToolSchemaValidator.check(Object.isNumber(value), path)],
+    [Resources.minItemsKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isCount(value), path)],
+    [Resources.maxItemsKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isCount(value), path)],
+    [Resources.itemsKeyword, (value, path) => this.findSchemaProblem(value, path)],
+    [Resources.propertiesKeyword, (value, path) => ToolSchemaValidator.isObject(value) ? this.findSchemasProblem(Object.entries(value), path) : Resources.formatToolSchemaKeywordInvalid(path)],
+    [Resources.requiredKeyword, (value, path) => ToolSchemaValidator.check(ToolSchemaValidator.isNames(value), path)],
+    [Resources.additionalPropertiesKeyword, (value, path) => Object.isBoolean(value) ? null : this.findSchemaProblem(value, path)],
+    [Resources.anyOfKeyword, (value, path) => ToolSchemaValidator.isArray(value) && value.length > 0
       ? this.findSchemasProblem(value.map((t, index): readonly [string, JsonValue] => [String(index), t]), path)
       : Resources.formatToolSchemaKeywordInvalid(path)]
   ]);
 
   public checkSchema(schema: JsonObject, parameterName: string): void {
-    if (schema[ToolSchemaResources.typeKeyword] !== ToolSchemaResources.objectType)
+    if (schema[Resources.typeKeyword] !== Resources.objectType)
       throw new ArgumentException(Resources.toolSchemaInvalid, parameterName);
     const problem = this.findSchemaProblem(schema, String.empty);
     if (!Object.isNull(problem))
@@ -102,37 +101,37 @@ export class ToolSchemaValidator implements IToolSchemaValidator {
   }
 
   private findFailedKeyword(schema: JsonObject, value: JsonValue): string | null {
-    const type = schema[ToolSchemaResources.typeKeyword];
-    const options = schema[ToolSchemaResources.enumKeyword];
-    const constant = schema[ToolSchemaResources.constKeyword];
-    const anyOf = schema[ToolSchemaResources.anyOfKeyword];
+    const type = schema[Resources.typeKeyword];
+    const options = schema[Resources.enumKeyword];
+    const constant = schema[Resources.constKeyword];
+    const anyOf = schema[Resources.anyOfKeyword];
     if (!Object.isUndefined(type) && !ToolSchemaValidator.hasType(value, type))
-      return ToolSchemaResources.typeKeyword;
+      return Resources.typeKeyword;
     if (ToolSchemaValidator.isArray(options) && !options.some(t => ToolSchemaValidator.isEqual(t, value)))
-      return ToolSchemaResources.enumKeyword;
+      return Resources.enumKeyword;
     if (!Object.isUndefined(constant) && !ToolSchemaValidator.isEqual(constant, value))
-      return ToolSchemaResources.constKeyword;
+      return Resources.constKeyword;
     if (ToolSchemaValidator.isArray(anyOf) && !anyOf.some(t => ToolSchemaValidator.isObject(t) && Object.isNull(this.findValueProblem(t, value, String.empty))))
-      return ToolSchemaResources.anyOfKeyword;
+      return Resources.anyOfKeyword;
     if (Object.isString(value))
       return this.findStringKeyword(schema, value);
     if (Object.isNumber(value))
       return ToolSchemaValidator.findNumberKeyword(schema, value);
     if (ToolSchemaValidator.isArray(value))
-      return ToolSchemaValidator.findCountKeyword(schema, value.length, ToolSchemaResources.minItemsKeyword, ToolSchemaResources.maxItemsKeyword);
+      return ToolSchemaValidator.findCountKeyword(schema, value.length, Resources.minItemsKeyword, Resources.maxItemsKeyword);
     return ToolSchemaValidator.isObject(value) ? ToolSchemaValidator.findObjectKeyword(schema, value) : null;
   }
 
   private findStringKeyword(schema: JsonObject, value: string): string | null {
-    const pattern = schema[ToolSchemaResources.patternKeyword];
-    const count = ToolSchemaValidator.findCountKeyword(schema, [...value].length, ToolSchemaResources.minLengthKeyword, ToolSchemaResources.maxLengthKeyword);
+    const pattern = schema[Resources.patternKeyword];
+    const count = ToolSchemaValidator.findCountKeyword(schema, [...value].length, Resources.minLengthKeyword, Resources.maxLengthKeyword);
     if (!Object.isNull(count))
       return count;
-    return Object.isString(pattern) && !(this.compile(pattern)?.test(value) ?? false) ? ToolSchemaResources.patternKeyword : null;
+    return Object.isString(pattern) && !(this.compile(pattern)?.test(value) ?? false) ? Resources.patternKeyword : null;
   }
 
   private findItemsProblem(schema: JsonObject, value: readonly JsonValue[], path: string): string | null {
-    const items = schema[ToolSchemaResources.itemsKeyword];
+    const items = schema[Resources.itemsKeyword];
     if (!ToolSchemaValidator.isObject(items))
       return null;
     for (const [index, item] of value.entries()) {
@@ -144,8 +143,8 @@ export class ToolSchemaValidator implements IToolSchemaValidator {
   }
 
   private findPropertiesProblem(schema: JsonObject, value: JsonObject, path: string): string | null {
-    const properties = ToolSchemaValidator.toMap(schema[ToolSchemaResources.propertiesKeyword]);
-    const additional = schema[ToolSchemaResources.additionalPropertiesKeyword];
+    const properties = ToolSchemaValidator.toMap(schema[Resources.propertiesKeyword]);
+    const additional = schema[Resources.additionalPropertiesKeyword];
     for (const [name, item] of Object.entries(value)) {
       const child = properties.get(name) ?? additional;
       const problem = ToolSchemaValidator.isObject(child) ? this.findValueProblem(child, item, ToolSchemaValidator.join(path, name)) : null;
@@ -166,7 +165,7 @@ export class ToolSchemaValidator implements IToolSchemaValidator {
 
   private static tryCompile(pattern: string): RegExp | null {
     try {
-      return new RegExp(pattern, ToolSchemaResources.patternFlags);
+      return new RegExp(pattern, Resources.toolSchemaPatternFlags);
     }
     catch (error) {
       CaughtFailure.expect(error, SyntaxError);
@@ -175,17 +174,17 @@ export class ToolSchemaValidator implements IToolSchemaValidator {
   }
 
   private static findNumberKeyword(schema: JsonObject, value: number): string | null {
-    const minimum = schema[ToolSchemaResources.minimumKeyword];
-    const maximum = schema[ToolSchemaResources.maximumKeyword];
-    const exclusiveMinimum = schema[ToolSchemaResources.exclusiveMinimumKeyword];
-    const exclusiveMaximum = schema[ToolSchemaResources.exclusiveMaximumKeyword];
+    const minimum = schema[Resources.minimumKeyword];
+    const maximum = schema[Resources.maximumKeyword];
+    const exclusiveMinimum = schema[Resources.exclusiveMinimumKeyword];
+    const exclusiveMaximum = schema[Resources.exclusiveMaximumKeyword];
     if (Object.isNumber(minimum) && value < minimum)
-      return ToolSchemaResources.minimumKeyword;
+      return Resources.minimumKeyword;
     if (Object.isNumber(maximum) && value > maximum)
-      return ToolSchemaResources.maximumKeyword;
+      return Resources.maximumKeyword;
     if (Object.isNumber(exclusiveMinimum) && value <= exclusiveMinimum)
-      return ToolSchemaResources.exclusiveMinimumKeyword;
-    return Object.isNumber(exclusiveMaximum) && value >= exclusiveMaximum ? ToolSchemaResources.exclusiveMaximumKeyword : null;
+      return Resources.exclusiveMinimumKeyword;
+    return Object.isNumber(exclusiveMaximum) && value >= exclusiveMaximum ? Resources.exclusiveMaximumKeyword : null;
   }
 
   private static findCountKeyword(schema: JsonObject, count: number, minimumKeyword: string, maximumKeyword: string): string | null {
@@ -197,11 +196,11 @@ export class ToolSchemaValidator implements IToolSchemaValidator {
   }
 
   private static findObjectKeyword(schema: JsonObject, value: JsonObject): string | null {
-    const required = schema[ToolSchemaResources.requiredKeyword];
-    const properties = ToolSchemaValidator.toMap(schema[ToolSchemaResources.propertiesKeyword]);
+    const required = schema[Resources.requiredKeyword];
+    const properties = ToolSchemaValidator.toMap(schema[Resources.propertiesKeyword]);
     if (ToolSchemaValidator.isArray(required) && required.some(t => Object.isString(t) && !Object.hasOwn(value, t)))
-      return ToolSchemaResources.requiredKeyword;
-    return schema[ToolSchemaResources.additionalPropertiesKeyword] === false && Object.keys(value).some(t => !properties.has(t)) ? ToolSchemaResources.additionalPropertiesKeyword : null;
+      return Resources.requiredKeyword;
+    return schema[Resources.additionalPropertiesKeyword] === false && Object.keys(value).some(t => !properties.has(t)) ? Resources.additionalPropertiesKeyword : null;
   }
 
   private static hasType(value: JsonValue, type: JsonValue): boolean {

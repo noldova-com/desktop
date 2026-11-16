@@ -34,7 +34,6 @@ import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js"
 import { CaughtFailure } from "../models/caught-failure.js";
 import type { WebViewHistory } from "../models/web-view-history.js";
 import { Resources } from "../resources.js";
-import { OpenWebViewResources } from "./open-web-view.resources.js";
 import { WebViewEventCut } from "./web-view-event-cut.js";
 import { WebViewFavicon } from "./web-view-favicon.js";
 import { WebViewKeyInput } from "./web-view-key-input.js";
@@ -760,7 +759,7 @@ export class OpenWebView {
   }
 
   private loseUnlessEnding(guest: IWebViewContents, failure: string): void {
-    if (failure.includes(OpenWebViewResources.targetClosedError))
+    if (failure.includes(Resources.targetClosedError))
       this.unbind(guest);
     else
       this.lost();
@@ -898,11 +897,11 @@ export class OpenWebView {
   }
 
   private static timedOut(): JsonObject {
-    return { [OpenWebViewResources.isTimedOutField]: true };
+    return { [Resources.isTimedOutField]: true };
   }
 
   private static ended(): JsonObject {
-    return { [OpenWebViewResources.isEndedField]: true };
+    return { [Resources.isEndedField]: true };
   }
 
   private static isSourceDocument(url: string): boolean {

@@ -11,7 +11,6 @@ import { isIP } from "node:net";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
 import { Resources } from "../resources.js";
-import { WebViewFaviconResources } from "./web-view-favicon.resources.js";
 import type { WebViewOriginCheck } from "./web-view-origin-check.js";
 
 export class WebViewFavicon {
@@ -57,7 +56,7 @@ export class WebViewFavicon {
   public async updateAsync(guest: IWebViewContents, candidates: readonly string[]): Promise<void> {
     this.isNamed = true;
     const signal = this.drop();
-    for (const url of candidates.slice(0, WebViewFaviconResources.candidateLimit)) {
+    for (const url of candidates.slice(0, Resources.faviconCandidateLimit)) {
       const image = await this.readAsync(guest, url, signal);
       if (signal.aborted)
         return;
@@ -68,16 +67,16 @@ export class WebViewFavicon {
   }
 
   private static toImage(value: unknown): string | null {
-    if (!Object.isString(value) || value.length > WebViewFaviconResources.base64Limit || !WebViewFaviconResources.base64Pattern.test(value))
+    if (!Object.isString(value) || value.length > Resources.faviconBase64Limit || !Resources.faviconBase64Pattern.test(value))
       return null;
-    return WebViewFavicon.isIcon(Buffer.from(value, Resources.base64Encoding)) ? `${WebViewFaviconResources.pngPrefix}${value}` : null;
+    return WebViewFavicon.isIcon(Buffer.from(value, Resources.base64Encoding)) ? `${Resources.faviconPngPrefix}${value}` : null;
   }
 
   private static isIcon(png: Buffer): boolean {
-    const { pngSignature, pngLimit, headerStart, headerEnd, headerType, widthOffset, heightOffset, side } = WebViewFaviconResources;
-    if (png.length < headerEnd || png.length > pngLimit || !pngSignature.every((t, index) => png[index] === t) || png.toString(Resources.latin1Encoding, headerStart, widthOffset) !== headerType)
+    if (png.length < Resources.faviconHeaderEnd || png.length > Resources.faviconPngLimit || !Resources.faviconPngSignature.every((t, index) => png[index] === t)
+      || png.toString(Resources.latin1Encoding, Resources.faviconHeaderStart, Resources.faviconWidthOffset) !== Resources.faviconHeaderType)
       return false;
-    return [png.readUInt32BE(widthOffset), png.readUInt32BE(heightOffset)].every(t => t >= 1 && t <= side);
+    return [png.readUInt32BE(Resources.faviconWidthOffset), png.readUInt32BE(Resources.faviconHeightOffset)].every(t => t >= 1 && t <= Resources.faviconSide);
   }
 
   private async readAsync(guest: IWebViewContents, url: string, signal: AbortSignal): Promise<string | null> {
@@ -99,10 +98,10 @@ export class WebViewFavicon {
   private async fetchAsync(url: string, signal: AbortSignal): Promise<Uint8Array | null> {
     const late = new AbortController();
     const deadline = new AbortController();
-    void this.waitAsync(WebViewFaviconResources.fetchTimeout, deadline.signal).then(() => late.abort(), () => undefined);
+    void this.waitAsync(Resources.faviconFetchTimeout, deadline.signal).then(() => late.abort(), () => undefined);
     this.fetches.push(url);
     try {
-      return await this.session.readIconAsync(url, WebViewFaviconResources.byteLimit, AbortSignal.any([signal, late.signal])).catch(() => null);
+      return await this.session.readIconAsync(url, Resources.faviconByteLimit, AbortSignal.any([signal, late.signal])).catch(() => null);
     }
     finally {
       deadline.abort();
@@ -112,9 +111,9 @@ export class WebViewFavicon {
 
   private async decodeAsync(guest: IWebViewContents, bytes: Uint8Array): Promise<string | null> {
     const timeout = new AbortController();
-    const script = WebViewFaviconResources.formatDecodeScript(Buffer.from(bytes).toString(Resources.base64Encoding));
-    const decoded = guest.executeJavaScriptInIsolatedWorld(WebViewFaviconResources.decodeWorld, [{ code: script }]).catch(() => null);
-    const expired = this.waitAsync(WebViewFaviconResources.decodeTimeout, timeout.signal).then(() => null, () => null);
+    const script = Resources.formatFaviconDecodeScript(Buffer.from(bytes).toString(Resources.base64Encoding));
+    const decoded = guest.executeJavaScriptInIsolatedWorld(Resources.faviconDecodeWorld, [{ code: script }]).catch(() => null);
+    const expired = this.waitAsync(Resources.faviconDecodeTimeout, timeout.signal).then(() => null, () => null);
     const value = await Promise.race([decoded, expired]);
     timeout.abort();
     return WebViewFavicon.toImage(value);
