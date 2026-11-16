@@ -216,6 +216,44 @@ describe("WorkspaceComponent", () => {
     expect(TestBed.inject(LayoutService).layout().documents.active).toEqual(plan);
   });
 
+  it("leaves the focus in the active document and its tab selected when a part opens another document without activating it", async () => {
+    const registry = LayoutFixture.createRegistry();
+    const { plan, todo } = LayoutFixture;
+    const readme = new DocumentTab("notes.note", "readme");
+    parts.contributions.set(plan.key, new ContributionMatch(() => Promise.resolve(TestFieldsComponent), null, ContentPadding.Default));
+    parts.contributions.set(readme.key, new ContributionMatch(() => Promise.resolve(TestShellComponent), null, ContentPadding.Default));
+    const fixture = await renderAsync(registry, Layout.createDefault(registry).openDocument(todo).openDocument(plan));
+    const host = DomFixture.host(fixture);
+    const selected = (tab: Tab): string | null => DomFixture.one(host, `nol-tab[data-tab-key="${tab.key}"]`).getAttribute("aria-selected");
+    const field = DomFixture.one(host, ".first");
+    field.focus();
+
+    TestBed.inject(LayoutService).openDocument(readme, false, null, false);
+    await settleAsync(fixture);
+
+    expect(document.activeElement).toBe(field);
+    expect([selected(plan), selected(readme)]).toEqual(["true", "false"]);
+  });
+
+  it("leaves the focus in a dock's view when a part opens a document without activating it into an empty group, which shows it as its active tab", async () => {
+    const registry = LayoutFixture.createRegistry();
+    const { plan } = LayoutFixture;
+    const shell = new ViewTab("terminal.shell");
+    parts.contributions.set(shell.key, new ContributionMatch(() => Promise.resolve(TestShellComponent), null, ContentPadding.Default));
+    parts.contributions.set(plan.key, new ContributionMatch(() => Promise.resolve(TestFieldsComponent), null, ContentPadding.Default));
+    const fixture = await renderAsync(registry, Layout.createDefault(registry).openView(shell, registry));
+    const host = DomFixture.host(fixture);
+    const field = DomFixture.one(host, ".shell");
+    field.focus();
+
+    TestBed.inject(LayoutService).openDocument(plan, false, null, false);
+    await settleAsync(fixture);
+
+    expect(document.activeElement).toBe(field);
+    expect(DomFixture.one(host, `nol-tab[data-tab-key="${plan.key}"]`).getAttribute("aria-selected")).toBe("true");
+    expect(host.querySelectorAll(".first")).toHaveLength(1);
+  });
+
   it("keeps a pointer's request for the focus until the document shows a field, once its part activates or its view adds the field later", async () => {
     const registry = LayoutFixture.createRegistry();
     const { plan, todo } = LayoutFixture;
