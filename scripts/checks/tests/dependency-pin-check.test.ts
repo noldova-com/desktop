@@ -26,17 +26,32 @@ const FIXTURE_FILE = "src/noldova.desktop.electron/tests/e2e/fixtures/modules/pa
 const PROTOCOL = "@noldova/desktop.protocol";
 const WINDOW = "@noldova/desktop.window";
 const RANGE = ">=__VERSION__ <__NEXT_MINOR__";
+const RUNTIME_FILE = "src/noldova.desktop.runtime/package.json";
+const NODE_TYPES = "@types/node";
+const NODE_TYPES_PIN = "26.6.6";
+const NODE_TYPES_RANGE = ">=26.6.6 <27.0.0";
+const RANGE_FORM = ">=<lowest version> <first version refused>, such as >=0.0.70 <0.1.0";
 
 async function checkAsync(windowPeer: string, fixturePeer: string): Promise<{ passed: boolean; output: string }> {
+  return await checkManifestsAsync([
+    [WINDOW_FILE, { name: WINDOW, version: "__VERSION__", peerDependencies: { [PROTOCOL]: windowPeer } }],
+    [FIXTURE_FILE, { name: "@noldova/desktop.fixture.packages.beacon.window", version: "__VERSION__", peerDependencies: { [WINDOW]: fixturePeer } }]
+  ]);
+}
+
+async function checkNodeTypesAsync(peer: string): Promise<{ passed: boolean; output: string }> {
+  return await checkManifestsAsync([
+    ["package.json", { name: "noldova-desktop", devDependencies: { [NODE_TYPES]: NODE_TYPES_PIN } }],
+    [RUNTIME_FILE, { name: "@noldova/desktop.runtime", version: "__VERSION__", peerDependencies: { [NODE_TYPES]: peer }, peerDependenciesMeta: { [NODE_TYPES]: { optional: true } } }]
+  ]);
+}
+
+async function checkManifestsAsync(manifests: readonly (readonly [string, Readonly<Record<string, unknown>>])[]): Promise<{ passed: boolean; output: string }> {
   const root = await mkdtemp(path.join(tmpdir(), "dependency-pin-check-"));
   try {
-    const manifests: readonly (readonly [string, string, string, string])[] = [
-      [WINDOW_FILE, WINDOW, PROTOCOL, windowPeer],
-      [FIXTURE_FILE, "@noldova/desktop.fixture.packages.beacon.window", WINDOW, fixturePeer]
-    ];
-    for (const [file, name, peer, version] of manifests) {
+    for (const [file, manifest] of manifests) {
       await mkdir(path.join(root, path.dirname(file)), { recursive: true });
-      await writeFile(path.join(root, file), JSON.stringify({ name, version: "__VERSION__", peerDependencies: { [peer]: version } }));
+      await writeFile(path.join(root, file), JSON.stringify(manifest));
     }
     const git = new Git(root, new ProcessRunner());
     await git.readOutputAsync(["init", "--quiet"]);
@@ -71,5 +86,26 @@ describe("DependencyPinCheck", () => {
 
     assert.equal(result.passed, false);
     assert.ok(result.output.includes(DependencyPinCheckResources.formatOwnVersion(FIXTURE_FILE, DependencyPinCheckResources.peerSection, WINDOW, RANGE)), result.output);
+  });
+
+  it("accepts an optional peer on Node's types up to the next major that holds the version Noldova Desktop installs", async () => {
+    const result = await checkNodeTypesAsync(NODE_TYPES_RANGE);
+
+    assert.equal(result.passed, true, result.output);
+  });
+
+  for (const peer of [NODE_TYPES_PIN, `^${NODE_TYPES_PIN}`, ">=26.6.6 <28.0.0"])
+    it(`refuses a peer on Node's types at "${peer}"`, async () => {
+      const result = await checkNodeTypesAsync(peer);
+
+      assert.equal(result.passed, false);
+      assert.ok(result.output.includes(DependencyPinCheckResources.formatPeerForm(RUNTIME_FILE, NODE_TYPES, peer, RANGE_FORM)), result.output);
+    });
+
+  it("refuses a peer on Node's types whose range doesn't hold the version Noldova Desktop installs", async () => {
+    const result = await checkNodeTypesAsync(">=26.7.0 <27.0.0");
+
+    assert.equal(result.passed, false);
+    assert.ok(result.output.includes(DependencyPinCheckResources.formatPeerPin(RUNTIME_FILE, NODE_TYPES, ">=26.7.0 <27.0.0", NODE_TYPES_PIN)), result.output);
   });
 });

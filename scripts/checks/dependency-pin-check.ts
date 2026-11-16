@@ -79,7 +79,7 @@ export class DependencyPinCheck implements ICheck {
   }
 
   private static validatePeers(file: string, packageName: JsonValue | undefined, entries: JsonObject, pins: ReadonlyMap<string, string>): readonly string[] {
-    const ranged = Object.entries(entries).filter((t): t is [string, string] => DependencyPinCheck.isFoundation(t[0]) && Object.isString(t[1]));
+    const ranged = Object.entries(entries).filter((t): t is [string, string] => DependencyPinCheck.isRanged(t[0]) && Object.isString(t[1]));
     const siblings = Object.entries(entries).filter((t): t is [string, string] => Object.isString(packageName) && PackageNaming.isSiblingPeer(packageName, t[0]) && Object.isString(t[1]));
     const exact = Object.fromEntries(Object.entries(entries).filter(([name]) => !ranged.some(t => t[0] === name) && !siblings.some(t => t[0] === name)));
     return [...DependencyPinCheck.validateEntries(file, DependencyPinCheckResources.peerSection, exact, false, DependencyPinCheckResources.peerSection),
@@ -92,14 +92,14 @@ export class DependencyPinCheck implements ICheck {
     })];
   }
 
-  private static isFoundation(name: string): boolean {
-    return PackageNaming.isShared(name) && !PackageNaming.isCore(name);
+  private static isRanged(name: string): boolean {
+    return (PackageNaming.isShared(name) && !PackageNaming.isCore(name)) || name === DependencyPinCheckResources.nodeTypesPackage;
   }
 
   private static readPins(texts: ReadonlyMap<string, string>): ReadonlyMap<string, string> {
     const folders = [String.empty, DependencyPinCheckResources.windowAppFolder].map(t => path.posix.join(t, Resources.manifestFile));
     return new Map(folders.flatMap(t => DependencyPinCheckResources.pinSections.flatMap(u => Object.entries(DependencyPinCheck.readRecord(DependencyPinCheck.parse(texts.get(t)), u))))
-      .filter((t): t is [string, string] => DependencyPinCheck.isFoundation(t[0]) && Object.isString(t[1])));
+      .filter((t): t is [string, string] => DependencyPinCheck.isRanged(t[0]) && Object.isString(t[1])));
   }
 
   private static validateEntries(file: string, location: string, entries: JsonObject, isOverride: boolean, parent: string): readonly string[] {

@@ -253,6 +253,9 @@ export class Resources {
   public static readonly windowNodeLoadScript: string = "scripts/node-load/load.mts";
   public static readonly windowNodeLoadProjectArguments: readonly string[] = ["--project", "scripts/node-load/tsconfig.json"];
   public static readonly windowNodeLoadCheckTitle: string = "Window in Node.js";
+  public static readonly declarationConsumerProjects: readonly string[] = ["build", "cli", "electron", "runtime"].map(t => `scripts/declarations/tsconfig-${t}.json`);
+  public static readonly projectOption: string = "--project";
+  public static readonly declarationConsumerCheckTitle: string = "Declarations without types";
   public static readonly markupCommentStart: string = "<!--";
   public static readonly markupCommentEnd: string = "-->";
   public static readonly apiDocLicenseTag: string = "license";

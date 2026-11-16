@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+/// <reference types="node" />
+
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { EventEmitter } from "node:events";
 import type { BigIntStats, RmOptions } from "node:fs";
