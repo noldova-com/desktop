@@ -78,6 +78,13 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: |
+          download() {
+            if ! said=$(npm pack "$1" --pack-destination "$RUNNER_TEMP/desktop.build" --loglevel=error 2>&1); then
+              echo "$said"
+              echo "::error::npm couldn't download $1, for the reason it gives above."
+              exit 1
+            fi
+          }
           pin=$(node --print '
             const manifest = JSON.parse(require("node:fs").readFileSync("package.json", "utf8"));
             Object.entries({ ...manifest.dependencies, ...manifest.devDependencies })
@@ -87,7 +94,7 @@ jobs:
             exit 1
           fi
           mkdir -p "$RUNNER_TEMP/desktop.build"
-          npm pack "@noldova/desktop.build@$pin" --pack-destination "$RUNNER_TEMP/desktop.build" --silent
+          download "@noldova/desktop.build@$pin"
           archive="$RUNNER_TEMP/desktop.build/noldova-desktop.build-$pin.tgz"
           integrity=$(npm view "@noldova/desktop.build@$pin" dist.integrity)
           node --print '
@@ -110,7 +117,7 @@ jobs:
               echo "::error::desktop.build $pin has the peer @noldova/$name, which the root package-lock.json locks at no exact version; the run loads each @noldova peer of desktop.build at the version that lockfile holds."
               exit 1
             fi
-            npm pack "@noldova/$name@$version" --pack-destination "$RUNNER_TEMP/desktop.build" --silent
+            download "@noldova/$name@$version"
             archive="$RUNNER_TEMP/desktop.build/noldova-$name-$version.tgz"
             integrity=$(npm view "@noldova/$name@$version" dist.integrity)
             node --print '
