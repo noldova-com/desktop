@@ -169,6 +169,6 @@ export class ListTargetsTests {
     const output = new PassThrough();
     const errors = new PassThrough();
     const exitCode = await new ListTargets(output, errors, environment).runAsync(commandArguments);
-    return { exitCode, output: output.read()?.toString() ?? String.empty, errors: errors.read()?.toString() ?? String.empty };
+    return { exitCode, output: output.read(output.readableLength)?.toString() ?? String.empty, errors: errors.read(errors.readableLength)?.toString() ?? String.empty };
   }
 }

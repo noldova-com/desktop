@@ -116,7 +116,7 @@ export class Package {
     Promise<void> {
     await mkdir(layout.toolCache, { recursive: true });
     await writeFile(path.join(layout.toolCache, Resources.packageManifestFileName), Resources.commonJsScope);
-    const exitCode = await this.runner.runAsync(process.execPath, [path.join(this.root, ...Resources.builderSegments), ...Resources.builderOptions, layout.configuration], this.root,
+    const exitCode = await this.runBuilderAsync(target, [path.join(this.root, ...Resources.builderSegments), ...Resources.builderOptions, layout.configuration],
       { ...this.createBuilderEnvironment(layout, target), ...signing?.builderEnvironment });
     if (exitCode !== 0)
       throw new BuildException(Resources.formatBuilderFailed(exitCode));
@@ -133,6 +133,22 @@ export class Package {
       for (const archive of files.filter(t => path.extname(t) === Resources.zipExtension))
         this.output.write(Resources.formatOutputLine(await new MacUpdateArchiveCheck(this.runner, layout.archiveCheck, this.environment).verifyAsync(archive, layout.output, product.name)));
     await new PackageReport(target.id, !Object.isNull(signing), !Object.isNull(signing)).writeAsync(layout.report);
+  }
+
+  private async runBuilderAsync(target: PackageTarget, builderArguments: readonly string[], environment: NodeJS.ProcessEnv): Promise<number | null> {
+    if (target.platform !== Resources.macosTarget)
+      return await this.runner.runAsync(process.execPath, builderArguments, this.root, environment);
+    const seen = { tail: String.empty, isDetachFailure: false };
+    const exitCode = await this.runner.runAsync(process.execPath, builderArguments, this.root, environment, t => {
+      const recent = `${seen.tail}${t}`;
+      if (recent.includes(Resources.diskImageDetachFailure))
+        seen.isDetachFailure = true;
+      seen.tail = recent.slice(-Resources.diskImageDetachFailure.length);
+    });
+    if (exitCode === 0 || !seen.isDetachFailure)
+      return exitCode;
+    this.output.write(Resources.builderDetachRetry);
+    return await this.runner.runAsync(process.execPath, builderArguments, this.root, environment);
   }
 
   private createBuilderEnvironment(layout: PackageLayout, target: PackageTarget): NodeJS.ProcessEnv {

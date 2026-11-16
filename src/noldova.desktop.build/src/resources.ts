@@ -1150,6 +1150,8 @@ export class Resources {
   public static readonly commonJsScope: string = `${JSON.stringify({ type: "commonjs" })}\n`;
   public static readonly builderSegments: readonly string[] = [Resources.nodeModulesFolder, "electron-builder", "cli.js"];
   public static readonly builderOptions: readonly string[] = ["--publish", "never", "--config"];
+  public static readonly diskImageDetachFailure: string = "Unable to detach device cleanly";
+  public static readonly builderDetachRetry: string = "electron-builder could not detach the disk image it was making while macOS still held its volume; building the packages again, once.\n";
   public static readonly builderVariables: ReadonlySet<string> = new Set([
     "PATH", "PATHEXT", "COMSPEC", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS",
     "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA", "USER", "USERNAME", "LOGNAME",
@@ -3010,6 +3012,10 @@ export class Resources {
     return `${subject} needs ${peer} ${String(needed)}, a range that doesn't end at the next major after ${minimum}; an Angular peer takes ${Resources.angularPeerRangeForm}, since only a new Angular major may break a module.`;
   }
 
+  public static formatCatalogOrganizationPeerRange(subject: string, peer: string, needed: unknown, minimum: string): string {
+    return `${subject} needs ${peer} ${String(needed)}, a range that doesn't end at the first version refused after ${minimum}, the next minor below 1.0.0 and the next major from it; a peer on another of the organization's packages takes ${Resources.versionRangeForm}.`;
+  }
+
   public static formatCatalogCoreRangeUnnamed(subject: string, peer: string, needed: unknown, file: string): string {
     return `${subject} needs ${peer} ${String(needed)}, a range, but ${file} names no ${Resources.noldovaDesktopField}; a module that accepts a range of Noldova Desktop versions names it there, and each of Noldova Desktop's packages it peers on takes that same range.`;
   }
@@ -3019,7 +3025,7 @@ export class Resources {
   }
 
   public static formatCatalogPeerMismatch(subject: string, peer: string, needed: unknown, holder: string, version: string | null): string {
-    return `${subject} needs ${peer} ${String(needed)}, but ${holder} ${version ?? "none"}; a peer names one exact version, such as 1.2.3, or, for Noldova Desktop's, context's and the kit's packages, a range of the form ${Resources.versionRangeForm}, and, for Angular's packages in a window part, ${Resources.angularPeerRangeForm}.`;
+    return `${subject} needs ${peer} ${String(needed)}, but ${holder} ${version ?? "none"}; a peer names one exact version, such as 1.2.3, or, for the organization's packages, a range of the form ${Resources.versionRangeForm}, and, for Angular's packages in a window part, ${Resources.angularPeerRangeForm}.`;
   }
 
   public static formatCatalogOutsideRange(id: string, version: string, range: string): string {

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+/// <reference types="node" />
+
 import type { Stats } from "node:fs";
 import type { Writable } from "node:stream";
 

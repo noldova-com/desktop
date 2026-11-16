@@ -45,6 +45,6 @@ export class NoldovaDesktopRangeTests {
   private static async runAsync(commandArguments: readonly string[]): Promise<{ readonly exitCode: number; readonly output: string }> {
     const output = new PassThrough();
     const exitCode = await new NoldovaDesktopRange(output, "noldova-desktop-release").runAsync(commandArguments);
-    return { exitCode, output: output.read()?.toString() ?? String.empty };
+    return { exitCode, output: output.read(output.readableLength)?.toString() ?? String.empty };
   }
 }
