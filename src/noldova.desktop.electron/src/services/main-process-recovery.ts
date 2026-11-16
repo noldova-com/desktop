@@ -99,6 +99,7 @@ export class MainProcessRecovery {
     catch (failure) {
       this.record(Resources.formatMainProcessNotReleased(MainProcessRecovery.describe(failure)));
     }
+    this.log?.flush();
     this.app.exit(code);
   }
 
