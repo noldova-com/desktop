@@ -103,7 +103,7 @@ export class GitHubReleasesFixture extends ProcessRunner {
         this.addRelease(fields.get("tag_name") ?? String.empty, fields.get("target_commitish") ?? String.empty, fields.get("draft") === "true")));
     if (method === "PATCH" && first === "releases" && !Object.isUndefined(release)) {
       release.isDraft = fields.get("draft") === "true";
-      if (!release.isDraft && release.target.length === 0 && !this.tags.has(release.tag) && !Object.isNull(this.defaultBranchHead))
+      if (!release.isDraft && !this.tags.has(release.tag) && !Object.isNull(this.defaultBranchHead))
         this.tags.set(release.tag, this.defaultBranchHead);
       return GitHubReleasesFixture.ok(GitHubReleasesFixture.describe(release));
     }
