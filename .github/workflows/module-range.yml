@@ -230,7 +230,8 @@ jobs:
             const names = new Set([
               ...Object.keys(locked).filter(key => /^node_modules\/@noldova\/[^/]+$/.test(key)).map(key => key.slice("node_modules/".length)),
               ...installed.map(name => `@noldova/${name}`)]);
-            [...names].sort().flatMap(name => {
+            const isLink = name => { try { return locked[`node_modules/${name}`]?.link === true || fs.lstatSync(`node_modules/${name}`).isSymbolicLink(); } catch { return false; } };
+            [...names].sort().filter(name => !isLink(name)).flatMap(name => {
               const version = read(`node_modules/${name}/package.json`)?.version ?? "";
               const lockedVersion = locked[`node_modules/${name}`]?.version ?? "";
               if (!/^[\w.+-]+$/.test(version) || version === lockedVersion)
