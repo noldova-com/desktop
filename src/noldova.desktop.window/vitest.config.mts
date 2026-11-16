@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 import { ClassMetadataCoverage } from "./scripts/angular/class-metadata-coverage.ts";
+import { FailedModuleRequests } from "./scripts/angular/failed-module-requests.ts";
 import { FontResponseLog } from "./scripts/angular/font-response-log.ts";
 import { TestHangGuard } from "./scripts/angular/test-hang-guard.ts";
 
@@ -29,6 +30,7 @@ export default defineConfig({
   },
   test: {
     attachmentsDir: fileURLToPath(new URL("../../.vitest/attachments", import.meta.url)),
+    browser: { commands: { watchFailedModuleRequests: new FailedModuleRequests().watch } },
     coverage: {
       reportsDirectory: fileURLToPath(new URL("../../_build/angular-coverage", import.meta.url))
     },

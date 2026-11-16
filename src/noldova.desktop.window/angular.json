@@ -46,6 +46,7 @@
             ],
             "providersFile": "tests/test-providers.ts",
             "setupFiles": [
+              "tests/failed-module-requests.setup.ts",
               "tests/product-name.setup.ts",
               "tests/browser-matchers.setup.ts",
               "tests/kit-stylesheet.setup.ts"
