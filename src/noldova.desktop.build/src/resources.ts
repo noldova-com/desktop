@@ -1150,6 +1150,8 @@ export class Resources {
   public static readonly commonJsScope: string = `${JSON.stringify({ type: "commonjs" })}\n`;
   public static readonly builderSegments: readonly string[] = [Resources.nodeModulesFolder, "electron-builder", "cli.js"];
   public static readonly builderOptions: readonly string[] = ["--publish", "never", "--config"];
+  public static readonly diskImageDetachFailure: string = "Unable to detach device cleanly";
+  public static readonly builderDetachRetry: string = "electron-builder could not detach the disk image it was making while macOS still held its volume; building the packages again, once.\n";
   public static readonly builderVariables: ReadonlySet<string> = new Set([
     "PATH", "PATHEXT", "COMSPEC", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS",
     "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA", "USER", "USERNAME", "LOGNAME",
