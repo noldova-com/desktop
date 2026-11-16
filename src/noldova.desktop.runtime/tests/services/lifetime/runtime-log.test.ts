@@ -95,7 +95,7 @@ export class RuntimeLogTests {
       const log = await RuntimeLog.openAsync(lock, null, () => new Date(RuntimeLogTests.STAMP), error);
       await rm(lock.dataDirectory.logsFolder, { recursive: true });
 
-      await new Promise<void>(resolve => log.diagnostics.write("Lost", () => resolve()));
+      log.diagnostics.write("Lost");
       log.writeLine("Lost too");
       await log.closeAsync();
 
