@@ -61,6 +61,7 @@ const MEMBERS: Readonly<Record<keyof IWindowPartContext, FakeMember<IWindowPartC
   openView: ["told", t => t.openView("terminal.session", "1", "Shell")],
   updateView: ["told", t => t.updateView("terminal.session", "1", { title: "Shell" })],
   closeView: ["told", t => t.closeView("terminal.session", "1")],
+  closeDialog: ["told", t => t.closeDialog("terminal.session", "1")],
   showView: ["told", t => t.showView("terminal.session")],
   hideViewDock: ["told", t => t.hideViewDock("terminal.session")],
   growViewDock: ["tracked", t => t.growViewDock("terminal.session", 10)],

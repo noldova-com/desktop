@@ -358,6 +358,10 @@ export class WindowPartHostService implements IWindowPartHost {
     this.changeView(new PendingViewChange(moduleId, this.activatingModules.has(moduleId), null, () => this.instances.close(name, instance)));
   }
 
+  public closeDialog(name: string, instance: string | null): void {
+    this.viewDialogs.closeShowing(name, instance);
+  }
+
   public showView(moduleId: string, name: string): void {
     this.changeView(new PendingViewChange(moduleId, this.activatingModules.has(moduleId), null, () => this.instances.show(new ViewTab(name))));
   }

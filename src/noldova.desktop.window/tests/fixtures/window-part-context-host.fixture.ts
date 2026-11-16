@@ -132,6 +132,10 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
     this.calls.push(`closeView ${moduleId} ${name} ${instance}`);
   }
 
+  public closeDialog(name: string, instance: string | null): void {
+    this.calls.push(`closeDialog ${name} ${instance ?? "-"}`);
+  }
+
   public showView(moduleId: string, name: string): void {
     this.calls.push(`showView ${moduleId} ${name}`);
   }

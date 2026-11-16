@@ -484,6 +484,18 @@ describe("WindowPartContext", () => {
     expect(host.viewListeners.size).toBe(0);
   });
 
+  it("closes the dialog showing its own view or document through the host, with or without an instance, refusing another module's name, an undeclared one and a blank instance, and not once withdrawn", () => {
+    context.closeDialog("notes.list");
+    context.closeDialog("notes.note", "2");
+
+    expect(() => context.closeDialog("clock.face")).toThrowError(WindowPartAccessException);
+    expect(() => context.closeDialog("notes.other")).toThrowError("The module notes does not declare the view or document notes.other.");
+    expect(() => context.closeDialog("notes.list", " ")).toThrowError(ArgumentException);
+    context.withdraw();
+    context.closeDialog("notes.list");
+    expect(host.calls).toEqual(["refresh", "closeDialog notes.list -", "closeDialog notes.note 2"]);
+  });
+
   it("shows its own view without instances and hides its dock through the host, refusing an instance for it and another module's view", () => {
     context.registerView(view("notes.list"));
 

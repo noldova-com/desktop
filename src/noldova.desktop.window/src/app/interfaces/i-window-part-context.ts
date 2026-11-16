@@ -84,6 +84,7 @@ export interface IWindowPartContext {
   openView(name: string, instance: string, title: string, options?: IViewInstanceOptions): void;
   updateView(name: string, instance: string, update: IViewUpdate): void;
   closeView(name: string, instance: string): void;
+  closeDialog(name: string, instance?: string): void;
   showView(name: string): void;
   hideViewDock(name: string, instance?: string): void;
   growViewDock(name: string, minimum: number, instance?: string): () => void;

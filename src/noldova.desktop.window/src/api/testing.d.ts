@@ -720,6 +720,26 @@ export declare class FakeWindowPartContext extends Fake<IWindowPartContext> impl
   public readonly closeView: IWindowPartContext["closeView"];
 
   /**
+   * Stands in for {@link IWindowPartContext.closeDialog}. Records each call,
+   * which {@link Fake.callsOf} reads, and calls the answer that
+   * {@link Fake.answer} gives; while unanswered, it only records the call.
+   *
+   * @example
+   * ```ts
+   * import type { FakeWindowPartContext } from "@noldova/desktop.window/testing";
+   *
+   * export function heardCloseDialog(fake: FakeWindowPartContext): readonly unknown[][] {
+   *   const heard: unknown[][] = [];
+   *   fake.answer("closeDialog", (...args) => {
+   *     heard.push(args);
+   *   });
+   *   return heard;
+   * }
+   * ```
+   */
+  public readonly closeDialog: IWindowPartContext["closeDialog"];
+
+  /**
    * Stands in for {@link IWindowPartContext.showView}. Records each call, which
    * {@link Fake.callsOf} reads, and calls the answer that {@link Fake.answer}
    * gives; while unanswered, it only records the call.

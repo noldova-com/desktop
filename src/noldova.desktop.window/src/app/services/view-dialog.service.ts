@@ -105,6 +105,12 @@ export class ViewDialogService {
     this.dialog?.close();
   }
 
+  public closeShowing(name: string, instance: string | null): void {
+    const tab = this.shownValue();
+    if (!Object.isNull(tab) && tab.name === name && (Object.isNull(instance) || tab.instance === instance))
+      this.close();
+  }
+
   public openInMainWindow(tab: Tab): void {
     if (this.layout.layout().isOpen(tab))
       this.layout.activate(tab);

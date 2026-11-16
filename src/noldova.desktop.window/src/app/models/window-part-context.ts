@@ -450,6 +450,14 @@ export class WindowPartContext implements IWindowPartContext {
       this.host.closeView(this.moduleId, name, instance);
   }
 
+  public closeDialog(name: string, instance?: string): void {
+    this.findOwnTab(name, instance);
+    if (!Object.isUndefined(instance) && String.isNullOrWhitespace(instance))
+      throw new ArgumentException(Resources.invalidInstance, Resources.instanceParameter);
+    if (!this.isWithdrawn)
+      this.host.closeDialog(name, instance ?? null);
+  }
+
   public showView(name: string): void {
     this.requirePlainView(name);
     if (!this.isWithdrawn)
