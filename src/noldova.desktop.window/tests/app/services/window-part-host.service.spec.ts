@@ -1342,6 +1342,34 @@ describe("WindowPartHostService", () => {
     expect(layout.layout().documents.active).toEqual(note("1"));
   });
 
+  it("brings to the front a document a part that keeps running opens while the window reconnects, whether its tab is open behind the active one or new", async () => {
+    const note = (instance: string): DocumentTab => new DocumentTab("notes.note", instance);
+    const part = new WindowPartFixture("notes", log, t => {
+      t.registerDocument(new DocumentContribution("notes.note", load));
+      ["1", "2"].forEach(u => t.openDocument("notes.note", u, `Note ${u}`));
+    });
+    const { host, layout } = start([source("notes", part)], [status("notes")]);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+    const reconnectOpeningAsync = async (instance: string, generation: number): Promise<readonly [readonly DocumentTab[], DocumentTab | null]> => {
+      layout.activate(note("1"));
+      part.onReconnect = () => {
+        host.openDocument("notes", "notes.note", instance, new DocumentHeading(`Note ${instance}`), false);
+        return true;
+      };
+      bridge.publishStartup({ kind: "Connecting", details: [] });
+      bridge.publishStartup({ kind: "Ready", details: [] });
+      await vi.waitFor(() => expect(host.generation()).toBe(generation));
+      return [layout.layout().documents.tabs, layout.layout().documents.active];
+    };
+
+    const reopened = await reconnectOpeningAsync("2", 2);
+    const added = await reconnectOpeningAsync("3", 3);
+
+    expect(log).toEqual(["activate notes", "reconnect notes", "reconnect notes"]);
+    expect(reopened).toEqual([[note("1"), note("2")], note("2")]);
+    expect(added).toEqual([[note("1"), note("2"), note("3")], note("3")]);
+  });
+
   it("leaves out a document closed while its part activates, closes one the saved layout holds once it loads, and closes one at once afterwards", async () => {
     const note = (instance: string): DocumentTab => new DocumentTab("notes.note", instance);
     const saved = Layout.createDefault(new ViewRegistry([], [])).openDocument(note("0")).openDocument(note("3")).openDocument(note("4"));
