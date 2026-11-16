@@ -1048,7 +1048,9 @@ export class ModuleCatalogTests {
       JSON.stringify({ name: ModuleCatalogTests.ORGANIZATION_PEER, version: ModuleCatalogTests.ORGANIZATION_VERSION }));
     await app.editInstalledManifestAsync(isWindowPart ? ModuleAppFixture.WINDOW_PACKAGE : ModuleAppFixture.MODULE_PACKAGE, {
       peerDependencies: {
-        ...(isWindowPart ? { [ModuleAppFixture.WINDOW]: ModuleAppFixture.NEEDED } : { [ModuleAppFixture.RUNTIME]: ModuleAppFixture.NEEDED }),
+        ...(isWindowPart
+          ? { [ModuleAppFixture.ANGULAR_CORE]: ModuleAppFixture.ANGULAR_VERSION, [ModuleAppFixture.WINDOW]: ModuleAppFixture.NEEDED }
+          : { [ModuleAppFixture.RUNTIME]: ModuleAppFixture.NEEDED }),
         [ModuleCatalogTests.ORGANIZATION_PEER]: needed
       }
     });
