@@ -281,6 +281,8 @@ describe("ViewDialogService", () => {
 
   it("returns a view or document shown from its tab to that tab, active again, when its module asks to close it", async () => {
     const layout = TestBed.inject(LayoutService);
+    layout.activate(plan);
+    TestBed.tick();
     const shown = dialogs.showAsync(plan);
     await vi.waitFor(() => expect(document.querySelector(".nol-test-note")).not.toBeNull());
     const during = [layout.layout().isOpen(plan), layout.hidden()?.key];
@@ -288,7 +290,7 @@ describe("ViewDialogService", () => {
     dialogs.closeShowing(plan.name, plan.instance ?? null);
     await shown;
 
-    expect([...during, layout.layout().isOpen(plan), layout.hidden(), layout.layout().groupOf(plan)?.active?.equals(plan)]).toEqual([false, plan.key, true, null, true]);
+    expect([...during, layout.layout().isOpen(plan), layout.hidden(), layout.layout().groupOf(plan)?.active?.equals(plan)]).toEqual([true, plan.key, true, null, true]);
   });
 
   it("focuses the tab of a document its module opened just before it asked to close the dialog", async () => {
