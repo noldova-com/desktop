@@ -40,7 +40,7 @@ export class ModuleRange {
     if (Object.isUndefined(outputFile) || outputFile.length === 0)
       return this.refuse(Resources.moduleRangeNoOutputFile);
     const file = path.join(moduleFolder, Resources.moduleDeclarationFileName);
-    const declaration = await ModuleRange.readDeclarationAsync(path.resolve(this.folder, file));
+    const declaration = await ModuleRange.readObjectAsync(path.resolve(this.folder, file));
     if (Object.isNull(declaration))
       return this.refuse(Resources.formatDeclarationNotObject(file));
     const declared = declaration.hasField(Resources.noldovaDesktopField) ? declaration.readValue(Resources.noldovaDesktopField) : undefined;
@@ -51,6 +51,18 @@ export class ModuleRange {
       return this.refuse(Resources.formatModuleRangeForm(file, declared));
     if (!range.isFollowing())
       return this.refuse(Resources.formatModuleRangeNotFollowing(file, range.toString(), range.minimum, String(VersionRange.following(range.minimum))));
+    const manifest = await ModuleRange.readObjectAsync(path.resolve(this.folder, Resources.packageManifestFileName));
+    if (Object.isNull(manifest))
+      return this.refuse(Resources.rootManifestUnreadable);
+    const pins = ModuleRange.readDesktopDependencies(manifest);
+    const loose = pins.find(([, version]) => !Object.isString(version) || !VersionRange.isVersion(version));
+    if (!Object.isUndefined(loose))
+      return this.refuse(Resources.formatModuleRangePinNotExact(loose[0], JSON.stringify(loose[1])));
+    if (pins.length === 0)
+      return this.refuse(Resources.moduleRangeNoPin);
+    const other = pins.find(([, version]) => version !== range.minimum);
+    if (!Object.isUndefined(other))
+      return this.refuse(Resources.formatModuleRangeNotPin(file, range.toString(), other[0], String(other[1])));
     const published = ModuleRange.readVersions(this.environment[Resources.publishedVersionsVariable] ?? String.empty);
     if (Object.isNull(published))
       return this.refuse(Resources.moduleRangeNoPublished);
@@ -60,6 +72,14 @@ export class ModuleRange {
     this.output.write(Resources.formatModuleRangeHolds(range.toString(), published.filter(t => range.includes(t)).length, newest));
     await appendFile(outputFile, Resources.formatModuleRangeOutputs(range.toString(), newest));
     return 0;
+  }
+
+  private static readDesktopDependencies(manifest: JsonReader): readonly (readonly [string, unknown])[] {
+    const record = new Map(Object.entries(manifest.toJson()));
+    return [Resources.manifestDependenciesField, Resources.manifestDevDependenciesField].flatMap(field => {
+      const dependencies = record.get(field);
+      return Object.isPlainObject(dependencies) ? Object.entries(dependencies) : [];
+    }).filter(([name]) => name.startsWith(Resources.modulesPrefix));
   }
 
   private static readVersions(text: string): readonly string[] | null {
@@ -75,7 +95,7 @@ export class ModuleRange {
     return strings.length === versions.length ? strings : null;
   }
 
-  private static async readDeclarationAsync(file: string): Promise<JsonReader | null> {
+  private static async readObjectAsync(file: string): Promise<JsonReader | null> {
     try {
       return JsonReader.parse(await readFile(file, Resources.textEncoding));
     }

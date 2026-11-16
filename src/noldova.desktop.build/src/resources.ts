@@ -1088,6 +1088,7 @@ export class Resources {
   public static readonly optionalTargetArchitecture: string = Resources.architectureArm64;
   public static readonly publishedVersionsVariable: string = "PUBLISHED_VERSIONS";
   public static readonly moduleRangeNoOutputFile: string = `${Resources.githubOutputVariable} names no file for the step's range and version outputs.`;
+  public static readonly moduleRangeNoPin: string = `The root ${Resources.packageManifestFileName} pins no Noldova Desktop package to one exact version, the version a module builds and tests against.`;
   public static readonly moduleRangeNoPublished: string = `${Resources.publishedVersionsVariable} holds no list of versions as npm view's JSON gives it.`;
   public static readonly feedSkipVariable: string = "SKIP_FEED_CHECK";
   public static readonly feedVersionVariable: string = "FEED_VERSION";
@@ -1357,6 +1358,7 @@ export class Resources {
   public static readonly manifestVersionField: string = "version";
   public static readonly manifestDependenciesField: string = "dependencies";
   public static readonly manifestOptionalDependenciesField: string = "optionalDependencies";
+  public static readonly manifestDevDependenciesField: string = "devDependencies";
   public static readonly manifestFilesField: string = "files";
   public static readonly manifestExportsField: string = "exports";
   public static readonly manifestCommitField: string = "gitHead";
@@ -3218,6 +3220,16 @@ export class Resources {
 
   public static formatModuleRangeNotFollowing(file: string, range: string, minimum: string, following: string): string {
     return `${file}'s ${Resources.noldovaDesktopField} is ${range}, but a range from ${minimum} ends below the next version that may break modules: ${following}.`;
+  }
+
+  public static formatModuleRangePinNotExact(name: string, version: string): string {
+    return `The root ${Resources.packageManifestFileName} names ${name} at ${version}, not at one exact version; `
+      + `a module pins each Noldova Desktop package to the exact version its range starts at, as MODULES.md's "Noldova Desktop versions" says.`;
+  }
+
+  public static formatModuleRangeNotPin(file: string, range: string, name: string, pin: string): string {
+    return `${file}'s ${Resources.noldovaDesktopField} is ${range}, but the root ${Resources.packageManifestFileName} pins ${name} at ${pin}; `
+      + `the range's lowest version is the module's exact development pin, as MODULES.md's "Noldova Desktop versions" says.`;
   }
 
   public static formatModuleRangeNoneInside(file: string, range: string): string {
