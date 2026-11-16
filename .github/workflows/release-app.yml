@@ -73,6 +73,10 @@ on:
         description: The environment of this repository whose secrets sign the packages, such as one per app in a repository that builds several apps.
         type: string
         default: release
+      publish-environment:
+        description: The environment of this repository that publishes the release, such as one per app; for a release-repository other than this repository, it holds the release GitHub App's client ID as the variable RELEASE_APP_CLIENT_ID and its private key as the secret RELEASE_APP_PRIVATE_KEY.
+        type: string
+        default: publish
       release-repository:
         description: The repository, as owner/name, whose releases the release publishes in, such as one shared by several apps; empty publishes in this repository. Another repository's release is tagged there by GitHub at its default branch, and its notes name the source repository's commit.
         type: string
@@ -113,6 +117,8 @@ on:
       APPLE_API_KEY_ID:
         required: false
       APPLE_API_ISSUER:
+        required: false
+      RELEASE_APP_PRIVATE_KEY:
         required: false
 
 permissions:
@@ -477,7 +483,7 @@ jobs:
     timeout-minutes: 30
     env:
       PEER_PACKAGES: ${{ needs.check.outputs.peers }}
-    environment: publish
+    environment: ${{ inputs.publish-environment }}
     permissions:
       contents: write
     concurrency:
@@ -509,11 +515,38 @@ jobs:
           pattern: report-*
           path: _build/release-reports
 
+      - name: Name the release repository's owner and name
+        id: release-repository
+        if: inputs.release-repository != '' && inputs.release-repository != github.repository
+        timeout-minutes: 1
+        env:
+          REPOSITORY: ${{ inputs.release-repository }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$REPOSITORY" =~ ^([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)$ ]]; then
+            echo "::error::release-repository must name a repository as owner/name, not $REPOSITORY."
+            exit 1
+          fi
+          echo "owner=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          echo "name=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+
+      - name: Create the release App's token for the release repository
+        id: release-token
+        if: steps.release-repository.outputs.name != ''
+        timeout-minutes: 2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ steps.release-repository.outputs.owner }}
+          repositories: ${{ steps.release-repository.outputs.name }}
+          permission-contents: write
+
       - name: Publish the release
         timeout-minutes: 20
         working-directory: ${{ inputs.app-folder }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.release-token.outputs.token || github.token }}
           RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
           RELEASE_SOURCE_REPOSITORY: ${{ inputs.source-repository || github.repository }}
           RELEASE_BUILD_REPOSITORY: ${{ github.repository }}
