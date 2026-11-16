@@ -214,6 +214,56 @@ export declare class FileNotOpenedException extends WindowException {
 }
 
 /**
+ * The exception {@link IWindowPartContext.requestAsync} rejects with when the
+ * runtime refuses or fails the request, so a part reads the failure's code and
+ * the details its module's runtime part gave, such as which note was missing.
+ */
+export declare class RuntimeRequestException extends WindowException {
+  /**
+   * The exception's name: `RuntimeRequestException`, or
+   * `RuntimeDisconnectedException` once the runtime is gone, when the window
+   * throws its own subclass; `instanceof RuntimeRequestException` holds for both.
+   */
+  public override readonly name: string;
+
+  /**
+   * The failure's code, one of `FailureCode`'s values from
+   * `@noldova/desktop.protocol`: the one the runtime part's method failed with,
+   * such as `NotFound`, or `Disconnected` once the runtime is gone.
+   */
+  public readonly code: string;
+
+  /**
+   * The failure's details, as the runtime part's method gave them with its
+   * failure, or `undefined` when it gave none.
+   */
+  public readonly details: JsonObject | undefined;
+
+  /**
+   * Creates the exception, for the window to throw, and for a part's specs to
+   * reject a fake request with, as the testing package's
+   * `FakeWindowPartContext.requestAsync` shows.
+   *
+   * @param code The failure's code.
+   * @param message A sentence describing the failure.
+   * @param details The failure's details, if any.
+   * @example
+   * ```ts
+   * import { JsonReader } from "@noldova/context.json";
+   * import { FailureCode } from "@noldova/desktop.protocol";
+   * import { RuntimeRequestException } from "@noldova/desktop.window";
+   *
+   * export function readMissingNote(error: unknown): string | null {
+   *   if (!(error instanceof RuntimeRequestException) || error.code !== FailureCode.NotFound || error.details === undefined)
+   *     return null;
+   *   return JsonReader.fromValue(error.details).readString("path");
+   * }
+   * ```
+   */
+  public constructor(code: string, message: string, details?: JsonObject);
+}
+
+/**
  * The key that runs a command, as {@link IWindowPartContext.keyOf} reads it.
  */
 export interface ICommandKey {
@@ -2942,8 +2992,9 @@ export interface IWindowPartContext {
    * @param method The method's name.
    * @param parameters The parameters.
    * @returns A promise of the method's result; it rejects when the method
-   * belongs to neither the module nor a dependency, or the runtime refuses
-   * or fails the request.
+   * belongs to neither the module nor a dependency, and with a
+   * {@link RuntimeRequestException}, whose `code` and `details` say why, when
+   * the runtime refuses or fails the request.
    * @example
    * ```ts
    * import type { JsonValue } from "@noldova/context.json";
