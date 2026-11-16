@@ -18,8 +18,8 @@ export class FailedStatFixture implements Disposable {
     const stat = this.stat;
     const lstat = this.lstat;
     Object.assign(fs, {
-      stat: (target: PathLike, options?: StatOptions): Promise<Stats | BigIntStats> => String(target) === file ? Promise.reject(failure) : stat(target, options),
-      lstat: (target: PathLike, options?: StatOptions): Promise<Stats | BigIntStats> => String(target) === file ? Promise.reject(failure) : lstat(target, options)
+      stat: (target: PathLike, options?: StatOptions): Promise<Stats | BigIntStats | undefined> => String(target) === file ? Promise.reject(failure) : stat(target, options),
+      lstat: (target: PathLike, options?: StatOptions): Promise<Stats | BigIntStats | undefined> => String(target) === file ? Promise.reject(failure) : lstat(target, options)
     });
     syncBuiltinESMExports();
   }

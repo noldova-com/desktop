@@ -13,7 +13,7 @@ import { PassThrough } from "node:stream";
 
 import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
-import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
@@ -33,6 +33,7 @@ import { TemporaryFolderRunnerFixture } from "../../fixtures/temporary-folder-ru
 
 @TestClass
 export class PackageTests {
+  private static readonly DETACH_FAILURE: string = "dmgbuild.core.DMGError: Unable to detach device cleanly: hdiutil: couldn't eject \"disk2\" - Resource busy";
   private static readonly TERMS_PACKAGE: string = "sample-sdk";
   private static readonly TERMS: string = "SEE LICENSE IN README.md";
   private static readonly UNLICENSED_PACKAGES: readonly (readonly [string, string])[] = [["@xterm/addon-serialize", "0.14.0"], ["@xterm/headless", "6.0.0"], ["standardwebhooks", "1.1.1"]];
@@ -600,6 +601,31 @@ export class PackageTests {
 
     Assert.areEqual(1, result.exitCode);
     Assert.isTrue(result.output.includes(`electron-builder left 0 copies of ${PackageTests.PRODUCT_NAME}.app in `), result.output);
+  }
+
+  @TestMethod
+  public async buildsAMacOsTargetAgainOnceWhenTheDiskImageCannotBeDetachedAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+
+    const result = await PackageTests.buildAsync(app, "darwin", "x64", true, [], {}, (t, u) => new StandInBuilderRunnerFixture(t, u, [PackageTests.DETACH_FAILURE]));
+
+    Assert.areEqual(2, result.environments.length);
+    Assert.isTrue(result.output.includes(Resources.builderDetachRetry), result.output);
+    Assert.isFalse(result.output.includes(Resources.formatBuilderFailed(1)), result.output);
+  }
+
+  @TestMethod
+  @TestData("darwin", "Unable to detach device cleanly", 2)
+  @TestData("darwin", "Unable to read the disk image", 1)
+  @TestData("linux", "Unable to detach device cleanly", 1)
+  public async failsWithoutBuildingAgainForAnyOtherFailureOrTargetOrASecondDetachFailureAsync(platform: string, failure: string, runs: number): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+
+    const result = await PackageTests.buildAsync(app, platform, "x64", true, [], {}, (t, u) => new StandInBuilderRunnerFixture(t, u, [`dmgbuild.core.DMGError: ${failure}`, PackageTests.DETACH_FAILURE]));
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.areEqual(runs, result.environments.length);
+    Assert.isTrue(result.output.endsWith(`${Resources.formatBuilderFailed(1)}\n`), result.output);
   }
 
   @TestMethod

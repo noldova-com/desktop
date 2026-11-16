@@ -16,6 +16,7 @@ import { ProcessTimeoutException } from "../../../src/exceptions/process-timeout
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { Resources } from "../../../src/resources.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
+import { CoverageEnvironmentFixture } from "../../fixtures/coverage-environment.fixture.js";
 
 @TestClass
 export class ProcessRunnerTests {
@@ -57,9 +58,10 @@ export class ProcessRunnerTests {
     try {
       const captured = await Assert.throwsAsync(() => runner.captureAsync(ProcessRunnerTests.MISSING, [], folder, ProcessRunnerTests.LIMIT), BuildException);
       const run = await Assert.throwsAsync(() => runner.runAsync(ProcessRunnerTests.MISSING, [], folder), BuildException);
+      const watched = await Assert.throwsAsync(() => runner.runAsync(ProcessRunnerTests.MISSING, [], folder, process.env, () => undefined), BuildException);
       const started = await Assert.throwsAsync(() => runner.startAsync(ProcessRunnerTests.MISSING, [], folder, path.join(folder, "log.txt")), BuildException);
 
-      for (const error of [captured, run, started]) {
+      for (const error of [captured, run, watched, started]) {
         Assert.areEqual(`"${ProcessRunnerTests.MISSING}" could not start.`, error.message);
         Assert.isInstanceOf(error.cause, Error);
       }
@@ -86,6 +88,32 @@ export class ProcessRunnerTests {
 
     Assert.areEqual(4, await runner.runAsync(process.execPath, ["-e", "process.exit(4)"], tmpdir()));
     Assert.areEqual(0, await runner.runAsync(process.execPath, ["-e", "process.exit(0)"], tmpdir(), process.env));
+  }
+
+  @TestMethod
+  public async showsAWatchedProcessOutputAndHandsEachChunkToTheWatchInTheGivenEnvironment(): Promise<void> {
+    const script = "process.stdout.write(process.env.SAMPLE_VALUE ?? 'none'); process.stderr.write('|err'); process.exit(5)";
+    const given: string[] = [];
+    const inherited: string[] = [];
+
+    const exitCode = await new ProcessRunner().runAsync(process.execPath, ["-e", script], tmpdir(), { ...process.env, SAMPLE_VALUE: "given" }, t => given.push(t));
+    const inheritedExitCode = await new ProcessRunner().runAsync(process.execPath, ["-e", script], tmpdir(), undefined, t => inherited.push(t));
+
+    Assert.areEqual("5|5", `${exitCode}|${inheritedExitCode}`);
+    Assert.areEqual("given|err", [...given].sort().join(String.empty));
+    Assert.areEqual("none|err", [...inherited].sort().join(String.empty));
+  }
+
+  @TestMethod
+  public async passesAWatchedProcessOutputOnToItsOwnOutputs(): Promise<void> {
+    const inner = "process.stdout.write('out'); process.stderr.write('err'); process.exit(3)";
+    const outer = `const { ProcessRunner } = await import(${JSON.stringify(import.meta.resolve("../../../src/services/processes/process-runner.js"))}); `
+      + `process.exitCode = await new ProcessRunner().runAsync(process.execPath, ["-e", ${JSON.stringify(inner)}], process.cwd(), process.env, () => undefined);`;
+
+    const result = await new ProcessRunner().captureAsync(process.execPath, ["--input-type=module", "-e", outer], tmpdir(), ProcessRunnerTests.LIMIT,
+      CoverageEnvironmentFixture.forChild(process.env));
+
+    Assert.areEqual("3|out|err", [result.exitCode, result.output, result.errorOutput].join("|"));
   }
 
   @TestMethod

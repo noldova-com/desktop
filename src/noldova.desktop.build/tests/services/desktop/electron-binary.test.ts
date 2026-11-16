@@ -37,7 +37,7 @@ export class ElectronBinaryTests {
     await binary.installAsync(output);
 
     Assert.isTrue(binary.isInstalled());
-    Assert.isNull(output.read());
+    Assert.isNull(output.read(output.readableLength));
     Assert.areEqual(0, runner.captured.length);
   }
 

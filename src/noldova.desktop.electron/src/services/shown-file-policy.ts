@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 
-import { type PlatformPath, posix, win32 } from "node:path";
+import { posix, win32 } from "node:path";
 
 import type { ICheckedPath } from "../interfaces/i-checked-path.js";
 import type { IShownPathFiles } from "../interfaces/i-shown-path-files.js";
@@ -99,7 +99,7 @@ export class ShownFilePolicy {
     return null;
   }
 
-  private static split(file: string, paths: PlatformPath): ISplitPath {
+  private static split(file: string, paths: typeof posix): ISplitPath {
     const root = paths.parse(file).root;
     const separators = paths === win32 ? Resources.windowsPathSeparators : Resources.posixPathSeparators;
     const parts = separators.reduce<string[]>((found, separator) => found.flatMap(t => t.split(separator)), [file.slice(root.length)]);

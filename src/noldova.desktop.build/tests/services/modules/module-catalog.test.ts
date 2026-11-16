@@ -30,8 +30,12 @@ export class ModuleCatalogTests {
   private static readonly LATER_ANGULAR_RANGE: string = ">=22.2.2 <23.0.0";
   private static readonly WIDE_ANGULAR_RANGE: string = ">=22.0.0 <24.0.0";
   private static readonly NARROW_ANGULAR_RANGE: string = ">=22.0.0 <22.3.0";
+  private static readonly ORGANIZATION_PEER: string = "@noldova/git.window";
+  private static readonly ORGANIZATION_VERSION: string = "0.0.5";
+  private static readonly ORGANIZATION_RANGE: string = ">=0.0.5 <0.1.0";
+  private static readonly LATER_ORGANIZATION_RANGE: string = ">=0.0.6 <0.1.0";
   private static readonly RANGE_RULE: string =
-    "; a peer names one exact version, such as 1.2.3, or, for Noldova Desktop's, context's and the kit's packages, a range of the form >=<lowest version> <first version refused>, such as >=0.0.70 <0.1.0, "
+    "; a peer names one exact version, such as 1.2.3, or, for the organization's packages, a range of the form >=<lowest version> <first version refused>, such as >=0.0.70 <0.1.0, "
     + "and, for Angular's packages in a window part, >=<the Angular it builds with> <the next Angular major>, such as >=22.2.5 <23.0.0.\n";
   private static readonly NO_PRODUCT: string = "The root package.json must declare desktop.product.\n";
   private static readonly CONTEXT: string = "@noldova/context.core";
@@ -45,7 +49,7 @@ export class ModuleCatalogTests {
   private static readonly KIT: string = "@noldova/ui.components.angular";
   private static readonly OTHER_PEER: string = "sample-optional-peer";
   private static readonly PEER_RULE: string =
-    "; a peer names one exact version, such as 1.2.3, or, for Noldova Desktop's, context's and the kit's packages, a range of the form >=<lowest version> <first version refused>, such as >=0.0.70 <0.1.0, "
+    "; a peer names one exact version, such as 1.2.3, or, for the organization's packages, a range of the form >=<lowest version> <first version refused>, such as >=0.0.70 <0.1.0, "
     + "and, for Angular's packages in a window part, >=<the Angular it builds with> <the next Angular major>, such as >=22.2.5 <23.0.0.\n";
   private static readonly OPTIONAL_DECLARATION: string = "node_modules/@noldova/sample/module.json ";
   private static readonly WINDOW_SUBJECT: string = `sample's window part package ${ModuleAppFixture.WINDOW_PACKAGE}`;
@@ -207,6 +211,45 @@ export class ModuleCatalogTests {
       Assert.isTrue(output.endsWith(`sample's window part package ${ModuleAppFixture.WINDOW_PACKAGE} needs ${ModuleAppFixture.ANGULAR_CORE} ${range}, `
         + "a range that doesn't end at the next major after 22.0.0; an Angular peer takes >=<the Angular it builds with> <the next Angular major>, such as >=22.2.5 <23.0.0, "
         + "since only a new Angular major may break a module.\n"), output);
+    }
+  }
+
+  @TestMethod
+  public async acceptsAPeerOnAnotherOfTheOrganizationsPackagesAsTheStandardsRangeThatHoldsTheInstalledVersionOrAtThatExactVersion(): Promise<void> {
+    for (const needed of [ModuleCatalogTests.ORGANIZATION_RANGE, ModuleCatalogTests.ORGANIZATION_VERSION])
+      for (const isWindowPart of [false, true]) {
+        await using app = await ModuleCatalogTests.createWithOrganizationPeerAsync(needed, isWindowPart);
+
+        const output = await ModuleCatalogTests.runAsync(app);
+
+        Assert.isTrue(output.endsWith(ModuleCatalogTests.NO_PRODUCT), output);
+      }
+  }
+
+  @TestMethod
+  public async refusesAPeerOnAnotherOfTheOrganizationsPackagesInARangeOrAtAVersionThatMissesTheInstalledVersion(): Promise<void> {
+    const parts: readonly (readonly [boolean, string, string])[] = [[false, ModuleCatalogTests.SAMPLE, "the app has"], [true, ModuleCatalogTests.WINDOW_SUBJECT, "the app's install has"]];
+    for (const needed of [ModuleCatalogTests.LATER_ORGANIZATION_RANGE, ModuleAppFixture.NEEDED])
+      for (const [isWindowPart, subject, holder] of parts) {
+        await using app = await ModuleCatalogTests.createWithOrganizationPeerAsync(needed, isWindowPart);
+
+        const output = await ModuleCatalogTests.runAsync(app);
+
+        Assert.isTrue(output.endsWith(`${subject} needs ${ModuleCatalogTests.ORGANIZATION_PEER} ${needed}, `
+          + `but ${holder} ${ModuleCatalogTests.ORGANIZATION_VERSION}${ModuleCatalogTests.RANGE_RULE}`), output);
+      }
+  }
+
+  @TestMethod
+  public async refusesAPeerOnAnotherOfTheOrganizationsPackagesInARangeThatDoesNotEndAtTheFirstVersionRefused(): Promise<void> {
+    for (const needed of [">=0.0.5 <0.2.0", ">=0.0.5 <1.0.0", ">=1.2.0 <1.3.0"]) {
+      await using app = await ModuleCatalogTests.createWithOrganizationPeerAsync(needed, false);
+
+      const output = await ModuleCatalogTests.runAsync(app);
+
+      Assert.isTrue(output.endsWith(`${ModuleCatalogTests.SAMPLE} needs ${ModuleCatalogTests.ORGANIZATION_PEER} ${needed}, a range that doesn't end at the first version refused after `
+        + `${needed.slice(2, needed.indexOf(" "))}, the next minor below 1.0.0 and the next major from it; a peer on another of the organization's packages takes `
+        + ">=<lowest version> <first version refused>, such as >=0.0.70 <0.1.0.\n"), output);
     }
   }
 
@@ -995,6 +1038,21 @@ export class ModuleCatalogTests {
     const app = await ModuleAppFixture.createAsync(ModuleAppFixture.NEEDED, ModuleAppFixture.NEEDED);
     await app.editInstalledManifestAsync(ModuleAppFixture.WINDOW_PACKAGE, {
       peerDependencies: { [ModuleAppFixture.ANGULAR_CORE]: range, [ModuleAppFixture.WINDOW]: ModuleAppFixture.NEEDED }
+    });
+    return app;
+  }
+
+  private static async createWithOrganizationPeerAsync(needed: string, isWindowPart: boolean): Promise<ModuleAppFixture> {
+    const app = await ModuleAppFixture.createAsync(ModuleAppFixture.NEEDED, ModuleAppFixture.NEEDED);
+    await app.writeFileAsync(["node_modules", ...ModuleCatalogTests.ORGANIZATION_PEER.split("/"), "package.json"],
+      JSON.stringify({ name: ModuleCatalogTests.ORGANIZATION_PEER, version: ModuleCatalogTests.ORGANIZATION_VERSION }));
+    await app.editInstalledManifestAsync(isWindowPart ? ModuleAppFixture.WINDOW_PACKAGE : ModuleAppFixture.MODULE_PACKAGE, {
+      peerDependencies: {
+        ...(isWindowPart
+          ? { [ModuleAppFixture.ANGULAR_CORE]: ModuleAppFixture.ANGULAR_VERSION, [ModuleAppFixture.WINDOW]: ModuleAppFixture.NEEDED }
+          : { [ModuleAppFixture.RUNTIME]: ModuleAppFixture.NEEDED }),
+        [ModuleCatalogTests.ORGANIZATION_PEER]: needed
+      }
     });
     return app;
   }

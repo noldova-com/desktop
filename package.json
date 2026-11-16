@@ -29,10 +29,10 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "packageManager": "npm@11.19.0",
+  "packageManager": "npm@11.20.0",
   "engines": {
-    "node": "24.21.0",
-    "npm": "11.19.0"
+    "node": "26.13.1",
+    "npm": "11.20.0"
   },
   "workspaces": [
     "src/noldova.desktop.window.app"
@@ -62,13 +62,18 @@
   "devDependencies": {
     "@noldova/context.testing": "0.0.8",
     "@playwright/test": "1.63.0",
-    "@types/node": "24.19.2",
+    "@types/node": "26.6.6",
     "@types/semver": "7.8.0",
     "electron": "44.9.1",
     "electron-builder": "26.16.1",
     "node-pty": "1.2.0-beta.15",
     "resedit": "3.1.0",
     "typescript": "6.0.3"
+  },
+  "overrides": {
+    "electron": {
+      "@types/node": "26.6.6"
+    }
   },
   "allowScripts": {
     "msgpackr-extract": false,

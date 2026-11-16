@@ -58,7 +58,9 @@ export class ProcessRunner {
       throw new BuildException(Resources.formatProcessFailed(path.basename(command), commandArguments, result.exitCode, result.text));
   }
 
-  public runAsync(command: string, commandArguments: readonly string[], directory: string, environment?: NodeJS.ProcessEnv): Promise<number | null> {
+  public runAsync(command: string, commandArguments: readonly string[], directory: string, environment?: NodeJS.ProcessEnv, watch?: (text: string) => void): Promise<number | null> {
+    if (!Object.isUndefined(watch))
+      return ProcessRunner.runWatchedAsync(command, commandArguments, directory, environment ?? process.env, watch);
     return new Promise<number | null>((resolve, reject) => {
       const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, stdio: Resources.inheritStdio, env: environment ?? process.env });
       child.on(Resources.errorEvent, t => reject(new BuildException(Resources.formatProcessNotStarted(command), new ExceptionOptions(t))));
@@ -82,6 +84,22 @@ export class ProcessRunner {
 
   public kill(processId: number): void {
     ProcessRunner.signal(processId, Resources.killSignal);
+  }
+
+  private static runWatchedAsync(command: string, commandArguments: readonly string[], directory: string, environment: NodeJS.ProcessEnv, watch: (text: string) => void):
+    Promise<number | null> {
+    return new Promise<number | null>((resolve, reject) => {
+      const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, stdio: [Resources.inheritStdio, Resources.pipeStdio, Resources.pipeStdio], env: environment });
+      child.stdout.on(Resources.dataEvent, (t: Buffer) => ProcessRunner.forward(process.stdout, t, watch));
+      child.stderr.on(Resources.dataEvent, (t: Buffer) => ProcessRunner.forward(process.stderr, t, watch));
+      child.on(Resources.errorEvent, t => reject(new BuildException(Resources.formatProcessNotStarted(command), new ExceptionOptions(t))));
+      child.on(Resources.closeEvent, t => resolve(t));
+    });
+  }
+
+  private static forward(target: NodeJS.WritableStream, chunk: Buffer, watch: (text: string) => void): void {
+    target.write(chunk);
+    watch(chunk.toString(Resources.textEncoding));
   }
 
   private static signal(processId: number, signal: NodeJS.Signals | 0): boolean {
