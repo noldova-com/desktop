@@ -426,9 +426,8 @@ export class Resources {
   public static readonly stageNoticeSeparator: string = `\n${"-".repeat(Resources.stageNoticeRuleWidth)}\n\n`;
   public static readonly stageUnreachableRegistry: string = "http://127.0.0.1:9/";
   public static readonly stageOverridesInvalid: string = "The root package.json's overrides must be an object, as npm reads them.";
-  public static readonly stageOverrideConflictMarker: string = "code EOVERRIDE";
-  public static readonly stageOverrideAdvice: string = "\nThe stage installs each shipped package from its archive as a direct dependency, and npm refuses a top-level override of a direct dependency; "
-    + "write the override nested under the dependent it is for, as { \"<dependent>\": { \"<package>\": \"<version>\" } }.";
+  public static readonly stageOverrideReferencePrefix: string = "$";
+  public static readonly stageOverrideSelfKey: string = ".";
   public static readonly stageInstallArguments: readonly string[] = [
     "install", "--offline", "--no-save", "--no-package-lock", "--omit=dev", "--legacy-peer-deps", "--ignore-scripts", "--no-audit", "--no-fund", "--loglevel=error",
     `--registry=${Resources.stageUnreachableRegistry}`, "--cache"
