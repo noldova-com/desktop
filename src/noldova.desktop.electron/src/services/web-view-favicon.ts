@@ -20,7 +20,7 @@ export class WebViewFavicon {
   private readonly readAllowed: () => readonly string[];
   private readonly waitAsync: (milliseconds: number, signal: AbortSignal) => Promise<void>;
   private readonly report: (image: string | null) => void;
-  private readonly fetches: Map<string, number> = new Map();
+  private readonly fetches: string[] = [];
   private image: string | null = null;
   private isNamed: boolean = false;
   private reads: number = 0;
@@ -35,7 +35,7 @@ export class WebViewFavicon {
   }
 
   public allowsRequest(url: string): boolean {
-    return this.fetches.has(url) && this.check.allowsNavigation(url, this.readAllowed(), false);
+    return this.fetches.includes(url) && this.check.allowsNavigation(url, this.readAllowed(), false);
   }
 
   public noteNavigation(): void {
@@ -88,16 +88,12 @@ export class WebViewFavicon {
   }
 
   private async fetchAsync(url: string): Promise<Uint8Array | null> {
-    this.fetches.set(url, (this.fetches.get(url) ?? 0) + 1);
+    this.fetches.push(url);
     try {
       return await this.session.readIconAsync(url, WebViewFaviconResources.byteLimit).catch(() => null);
     }
     finally {
-      const count = (this.fetches.get(url) ?? 1) - 1;
-      if (count === 0)
-        this.fetches.delete(url);
-      else
-        this.fetches.set(url, count);
+      this.fetches.splice(this.fetches.indexOf(url), 1);
     }
   }
 

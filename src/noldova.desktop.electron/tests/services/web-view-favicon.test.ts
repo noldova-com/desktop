@@ -69,16 +69,37 @@ export class WebViewFaviconTests {
   }
 
   @TestMethod
-  public async reportsAnIconOnlyWhenItChanges(): Promise<void> {
+  public async reportsAnIconOnlyWhenItChangesAndReadsOneAtAPrivateAddressTheViewAllowsByThatAddress(): Promise<void> {
     const harness = new FaviconHarness();
-    harness.session.icons.set("https://example.com/other.png", new Uint8Array([4, 5, 6]));
+    harness.allowed = [...harness.allowed, "http://192.168.1.20"];
+    harness.session.icons.set("http://192.168.1.20/other.png", new Uint8Array([4, 5, 6]));
 
     await harness.updateAsync(FaviconHarness.ICON);
     await harness.updateAsync(FaviconHarness.ICON);
     harness.decodeTo(FaviconHarness.png(12));
-    await harness.updateAsync("https://example.com/other.png");
+    await harness.updateAsync("http://192.168.1.20/other.png");
 
     Assert.areEqual(`png,${"data:image/png;base64,".length + 16}`, harness.describe());
+    Assert.areEqual(`${FaviconHarness.ICON} allowed,${FaviconHarness.ICON} allowed,http://192.168.1.20/other.png allowed`, harness.session.iconReads.join(","));
+  }
+
+  @TestMethod
+  public async letsAnIconsRequestThroughUntilTheLastOfItsReadsEnds(): Promise<void> {
+    const harness = new FaviconHarness();
+    const [first, second] = [Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+    harness.session.iconHolds.push(first.promise, second.promise);
+    const earlier = harness.updateAsync(FaviconHarness.ICON);
+    const later = harness.updateAsync(FaviconHarness.ICON);
+    await Condition.waitAsync(() => harness.session.iconReads.length === 2);
+
+    first.resolve();
+    await earlier;
+    const afterFirst = harness.favicon.allowsRequest(FaviconHarness.ICON);
+    second.resolve();
+    await later;
+
+    Assert.areEqual("true,false", [afterFirst, harness.favicon.allowsRequest(FaviconHarness.ICON)].join(","));
+    Assert.areEqual("png", harness.describe());
   }
 
   @TestMethod
@@ -93,8 +114,9 @@ export class WebViewFaviconTests {
   }
 
   @TestMethod
-  public async reportsNullForAnIconTooLargeToReadOrWhosePngIsOver16Kb(): Promise<void> {
+  public async reportsNullForAnIconTooLargeOrThatFailsToLoadOrWhosePngIsOver16Kb(): Promise<void> {
     const harness = new FaviconHarness();
+    harness.session.icons.set("https://example.com/broken.ico", new Error("net::ERR_CONNECTION_RESET"));
     harness.session.icons.set("https://example.com/large.ico", new Uint8Array(1_048_577));
     harness.session.icons.set("https://example.com/largest.ico", new Uint8Array(1_048_576));
 
@@ -105,8 +127,9 @@ export class WebViewFaviconTests {
     await harness.updateAsync("https://example.com/largest.ico");
     harness.decodeTo(FaviconHarness.png(16_384));
     await harness.updateAsync("https://example.com/largest.ico");
+    await harness.updateAsync("https://example.com/broken.ico");
 
-    Assert.areEqual(`png,null,png,null,${"data:image/png;base64,".length + 21_848}`, harness.describe());
+    Assert.areEqual(`png,null,png,null,${"data:image/png;base64,".length + 21_848},null`, harness.describe());
   }
 
   @TestMethod

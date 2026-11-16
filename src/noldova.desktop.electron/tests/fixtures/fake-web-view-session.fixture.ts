@@ -21,8 +21,9 @@ export class FakeWebViewSession implements IWebViewSession {
   public checkHandler: (() => boolean) | null = null;
   public deviceHandler: (() => boolean) | null = null;
   public readonly addresses: Map<string, readonly string[]> = new Map();
-  public readonly icons: Map<string, Uint8Array> = new Map();
+  public readonly icons: Map<string, Uint8Array | Error> = new Map();
   public readonly iconReads: string[] = [];
+  public readonly iconHolds: Promise<void>[] = [];
   public clears: number = 0;
   public clearFailure: Error | null = null;
 
@@ -64,13 +65,16 @@ export class FakeWebViewSession implements IWebViewSession {
     return Object.isUndefined(addresses) ? Promise.reject(new Error("ERR_NAME_NOT_RESOLVED")) : Promise.resolve(addresses);
   }
 
-  public readIconAsync(url: string, byteLimit: number): Promise<Uint8Array | null> {
+  public async readIconAsync(url: string, byteLimit: number): Promise<Uint8Array | null> {
     const isAllowed = this.request({ id: -1 - this.iconReads.length, url, resourceType: "other" });
     this.iconReads.push(`${url} ${isAllowed ? "allowed" : "refused"}`);
-    const icon = this.icons.get(url);
     if (!isAllowed)
-      return Promise.reject(new Error("net::ERR_BLOCKED_BY_CLIENT"));
-    return Object.isUndefined(icon) ? Promise.resolve(null) : Promise.resolve(icon.length > byteLimit ? null : icon);
+      throw new Error("net::ERR_BLOCKED_BY_CLIENT");
+    await this.iconHolds.shift();
+    const icon = this.icons.get(url);
+    if (icon instanceof Error)
+      throw icon;
+    return Object.isUndefined(icon) || icon.length > byteLimit ? null : icon;
   }
 
   public clearStorageDataAsync(): Promise<void> {
