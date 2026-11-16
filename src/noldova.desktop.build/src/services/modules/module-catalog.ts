@@ -65,6 +65,7 @@ export class ModuleCatalog {
     if (ids.size < declarations.length)
       throw new BuildException(Resources.formatCatalogIdsRepeated(declarations.map(t => t.folder)));
     ModuleCatalog.checkNames(declarations);
+    ModuleCatalog.checkFormerNames(declarations);
     const absent = excluded.filter(t => !ids.has(t));
     if (absent.length > 0)
       throw new BuildException(Resources.formatCatalogExcludedAbsent(absent));
@@ -226,6 +227,21 @@ export class ModuleCatalog {
     const repeated = [...places].filter(([, files]) => files.length > 1);
     if (repeated.length > 0)
       throw new BuildException(Resources.formatCatalogNamesRepeated(repeated));
+  }
+
+  private static checkFormerNames(declarations: readonly ModuleDeclaration[]): void {
+    const places = new Map<string, string[]>();
+    for (const declaration of declarations)
+      for (const formers of declaration.formerNames.values())
+        for (const former of formers)
+          places.set(former, [...places.get(former) ?? [], Resources.formatContributionPlace(declaration.file, Resources.formerNamesField)]);
+    const repeated = [...places].filter(([, files]) => files.length > 1);
+    if (repeated.length > 0)
+      throw new BuildException(Resources.formatCatalogFormerNamesRepeated(repeated));
+    const current = new Set(declarations.flatMap(t => [...t.contributions.values()].flat()));
+    const taken = [...places].filter(([name]) => current.has(name));
+    if (taken.length > 0)
+      throw new BuildException(Resources.formatCatalogFormerNamesCurrent(taken));
   }
 
   private static readPin(manifest: JsonReader, id: string, packageName: string): string {

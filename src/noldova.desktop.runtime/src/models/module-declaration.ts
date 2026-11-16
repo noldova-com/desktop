@@ -38,6 +38,7 @@ export class ModuleDeclaration {
   public readonly switchSetting: string | null;
   public readonly platforms: readonly string[] | null;
   public readonly noldovaDesktop: string | null;
+  public readonly formerNames: ReadonlyMap<string, readonly string[]>;
   private readonly noldovaDesktopBounds: readonly [string, string] | null;
 
   public constructor(
@@ -56,7 +57,8 @@ export class ModuleDeclaration {
     optionalDependencies: ReadonlyMap<string, string> = new Map(),
     switchSetting: string | null = null,
     platforms: readonly string[] | null = null,
-    noldovaDesktop: string | null = null) {
+    noldovaDesktop: string | null = null,
+    formerNames: ReadonlyMap<string, readonly string[]> = new Map()) {
     if (!Resources.moduleIdPattern.test(id) || id === Resources.reservedModuleId)
       throw new ArgumentException(Resources.moduleIdInvalid, Resources.idParameterName);
     if (WindowsDeviceNames.includes(id))
@@ -109,6 +111,7 @@ export class ModuleDeclaration {
     this.switchSetting = switchSetting;
     this.platforms = Object.isNull(platforms) ? null : [...platforms];
     this.noldovaDesktop = noldovaDesktop;
+    this.formerNames = new Map([...formerNames].map(([name, formers]) => [name, [...formers]]));
     this.noldovaDesktopBounds = Object.isNull(range) ? null : [String(range[1]), String(range[2])];
   }
 
@@ -143,7 +146,8 @@ export class ModuleDeclaration {
       ModuleDeclaration.read(Resources.optionalDependenciesField, t => fields.hasField(t) ? ModuleDeclaration.readVersions(fields.readObject(t), t) : new Map<string, string>()),
       ModuleDeclaration.read(Resources.switchSettingField, t => fields.hasField(t) ? fields.readNonBlankString(t) : null),
       ModuleDeclaration.read(Resources.platformsField, t => fields.hasField(t) ? ModuleDeclaration.readNames(fields, t, t) : null),
-      ModuleDeclaration.read(Resources.noldovaDesktopField, t => fields.hasField(t) ? fields.readNonBlankString(t) : null));
+      ModuleDeclaration.read(Resources.noldovaDesktopField, t => fields.hasField(t) ? fields.readNonBlankString(t) : null),
+      ModuleDeclaration.read(Resources.formerNamesField, t => fields.hasField(t) ? ModuleDeclaration.readFormerNames(fields.readObject(t), t) : new Map<string, readonly string[]>()));
   }
 
   public accepts(dependency: string, version: string): boolean {
@@ -244,6 +248,10 @@ export class ModuleDeclaration {
       versions.set(id, text);
     }
     return versions;
+  }
+
+  private static readFormerNames(fields: JsonReader, name: string): ReadonlyMap<string, readonly string[]> {
+    return new Map(Object.keys(fields.toJson()).map(t => [t, ModuleDeclaration.readNames(fields, t, name)]));
   }
 
   private static readNames(fields: JsonReader, field: string, name: string): readonly string[] {

@@ -63,6 +63,16 @@ describe("WindowPartSource", () => {
     expect([source.optionalDependencies, new WindowPartSource("notes", [], [], [], [], [], [], [], load).optionalDependencies]).toEqual([["clock"], []]);
   });
 
+  it("keeps the former names of its module's documents, copying each pair, and none when it declares none", () => {
+    const pair: [string, string] = ["notes.sheet", "notes.note"];
+    const formerNames = [pair];
+    const source = new WindowPartSource("notes", [], [], ["notes.note"], [], [], [], [], load, [], [], [], formerNames);
+    formerNames.push(["notes.page", "notes.note"]);
+    pair[0] = "notes.paper";
+
+    expect([source.formerDocumentNames, new WindowPartSource("notes", [], [], [], [], [], [], [], load).formerDocumentNames]).toEqual([[["notes.sheet", "notes.note"]], []]);
+  });
+
   it("refuses a module id that is not lowercase kebab-case", () => {
     expect(() => new WindowPartSource("Notes", [], [], [], [], [], [], [], load)).toThrowError(ArgumentException);
   });

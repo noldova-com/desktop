@@ -284,6 +284,7 @@ export class Resources {
   public static readonly viewField: string = "view";
   public static readonly moduleField: string = "module";
   public static readonly partitionField: string = "partition";
+  public static readonly keysField: string = "keys";
   public static readonly isAttachedField: string = "isAttached";
   public static readonly timeoutField: string = "timeoutMilliseconds";
   public static readonly downloadRequest: string = "download";

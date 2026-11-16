@@ -65,7 +65,7 @@ A **layer** draws the part's component over the live page: an element of the win
 
 - Each view keeps its own zoom: it holds across the view's navigations, to another site or after a crash too, since the view puts it back whenever a new page comes without it; two views of the same site keep theirs apart, every view starts at 1, and nothing of it is kept once the view closes.
 - The person zooms a focused view as in a browser: Ctrl, or Cmd on macOS, with `=`, `+` or the numpad's plus steps in, with `-` or the numpad's minus steps out, and with `0` or the numpad's 0 resets; turning the mouse wheel to zoom, as the engine reports it, steps too.
-  These keys are judged after the app's shortcuts and the keys the module declares, below, so a person's binding or a module's own key wins, and a held key keeps zooming.
+  These keys are judged after the keys the module declares and the app's shortcuts, below, so a person's binding or a module's own key wins, and a held key keeps zooming.
 - Every change of zoom, by a call, a key or the wheel, raises a `Zoom` event with the `factor`, and every finished search a `Found` event with `matches` and `active`; both reach the window part alone, through `handle.subscribe`.
 - `findAsync("")` ends the running search and returns `{ matches: 0, active: 0, isTimedOut: false, isEnded: false }`, since the engine searches no empty text; a navigation of the page, a crash or a newer search ends the search too, and a search ended before the engine finished it returns `{ matches: 0, active: 0, isTimedOut: false, isEnded: true }` and raises no `Found` event, so the module tells the person the search stopped rather than that nothing matched.
   A search the engine hasn't finished within 10 seconds returns `{ matches: 0, active: 0, isTimedOut: true, isEnded: false }` and raises no `Found` event, so the module tells the person the search timed out rather than that nothing matched.
@@ -75,12 +75,16 @@ A **layer** draws the part's component over the live page: an element of the win
 
 ### Keys from a view
 
-While a view has focus, the person's presses go to its page, except the app's shortcuts and the keys the module declares for its pane, such as a browser's reload and new tab.
+While a view has focus, the person's presses go to its page, except the keys the module declares for its pane, such as a browser's reload and new tab, and the app's shortcuts.
 
 - The host sees each press in a view before the page, and judges it in this order:
-  1. One of the app's shortcuts, as the window holds them at that moment, the person's bindings included, but a default key a focused page keeps, `Mod+Slash`: the page doesn't get it, and the window runs its command as if the press were in the window.
-  2. One of the keys the module declares in [`keys`](#webviewsjson): the page doesn't get it, and the window part gets a `Key` event of that view with the key's name.
+  1. One of the keys the module declares in [`keys`](#webviewsjson), or in `loadingKeys` while the view's page loads: the page doesn't get it, and the window part gets a `Key` event of that view with the key's name, even when one of the app's shortcuts is on the same key.
+  2. One of the app's shortcuts, as the window holds them at that moment, the person's bindings included, but a default key a focused page keeps, `Mod+Slash`: the page doesn't get it, and the window runs its command as if the press were in the window.
   3. Any other key reaches the page.
+- A declared key wins only in the module's own views: in the pane's toolbar the window part handles its keys itself, and anywhere else in the window the app's command keeps the key; Keyboard shortcuts says so on the command's row, as [WINDOW.md](WINDOW.md#settings-and-modules) says.
+- A loading key, such as `Escape` for a browser's Stop, reaches the pane only while the view's page loads, from the engine's start of a load to its end, and reaches the page the rest of the time, so a page's own use of the key, such as closing its dialog, keeps working once it has loaded.
+  Keyboard shortcuts notes only the keys in `keys`: a loading key gets no note on a command's row, since the pane takes it only for the moments a page loads.
+- F6 and Shift+F6 move the focus through the window's regions, the view and the rest of its pane, such as its toolbar, as two stops, as [WINDOW.md](WINDOW.md#workspace) says; pressed in a view, they run those commands at step 2, unless the module declares one of them, which then takes it from the region cycle inside its views.
 - A held key that repeats stays from the page, and only its first press runs the command or sends the event.
 - The `Key` event reaches the window part alone, through `handle.subscribe`, since a press belongs to the pane on screen; the runtime's `onViewEvent` never reports one.
 - Only the person's presses are judged: a key the runtime part sends through the relay goes on to the view's page as sent, even when the module declares it, and never raises `Key`, or is refused when it is one of the app's shortcuts, as [the relay](#the-relay) says.
@@ -165,13 +169,16 @@ The runtime part sends its views calls of the window's web engine's debugging pr
 
 ### webViews.json
 
-The file is an object with four optional fields: `methods`, each `{ "name": "<Domain>.<method>", "parameters": { ... } }`; `events`, each `"<Domain>.<event>"`, every name once; `keys`, each `{ "name": "<name>", "keys": [...], "macKeys": [...] }`, the keys the pane takes from its views; and `newWindows`, `true` when the module takes its views' [new-window requests](#new-windows), `false` by default.
+The file is an object with five optional fields: `methods`, each `{ "name": "<Domain>.<method>", "parameters": { ... } }`; `events`, each `"<Domain>.<event>"`, every name once; `keys`, each `{ "name": "<name>", "keys": [...], "macKeys": [...] }`, the keys the pane takes from its views; `loadingKeys`, in the same form, the keys the pane takes from its views only while their page loads; and `newWindows`, `true` when the module takes its views' [new-window requests](#new-windows), `false` by default.
 
 ```json
 {
   "keys": [
     { "name": "reload", "keys": ["Mod+R", "F5"], "macKeys": ["Mod+R"] },
     { "name": "newTab", "keys": ["Mod+T"] }
+  ],
+  "loadingKeys": [
+    { "name": "stop", "keys": ["Escape"] }
   ],
   "methods": [
     { "name": "Page.enable" },
@@ -204,7 +211,9 @@ The file is an object with four optional fields: `methods`, each `{ "name": "<Do
 - `keys` lists its keys on Windows and Linux, and `macKeys` on macOS where they differ, such as `Mod+BracketLeft` for a key that is `Alt+ArrowLeft` elsewhere; without `macKeys`, `keys` hold on macOS too.
   Each is in Noldova Desktop's key format, as [MODULES.md](MODULES.md#commands-and-keys) writes it, and appears once among a platform's keys.
 - A declared key follows a default key's rule, so typing and editing never leave the page: it needs `Mod`, `Ctrl` or `Alt`, or is a function key, and it is never a key that editing or the operating system owns.
-- The app's shortcuts go first, so the build refuses a declared key that is one of Noldova Desktop's default keys on that platform, and the stop key's default, `Mod+Shift+Period`, which is never declarable:
+  A loading key follows the same rules, but may also be `Escape`, with or without `Shift`, since a page takes it back once it has loaded.
+- A name and a platform's key appear once across `keys` and `loadingKeys` together, with at most 32 names in all, and the `Key` event names a loading key the same way.
+- A declared key goes ahead of the app's shortcuts in its views, so the build refuses one that is one of Noldova Desktop's default keys on that platform, but F6, Shift+F6 and `Mod+Slash` below, and the stop key's default, `Mod+Shift+Period`, which is never declarable:
 
 | Platform | Refused as Noldova Desktop's keys |
 |---|---|
@@ -213,8 +222,9 @@ The file is an object with four optional fields: `methods`, each `{ "name": "<Do
 | macOS | `Mod+BracketLeft`, `Mod+BracketRight`, `Mod+Alt+ArrowRight`, `Mod+Alt+ArrowLeft` |
 
 - `Mod+Slash`, Show keyboard shortcuts, is a default key a focused page keeps: a pane may declare it, a page gets it while it has the focus, and the shell takes it everywhere else, unless the person binds it to a command.
+- F6 and Shift+F6, which move the focus through the window's regions, are default keys a pane may declare: a pane that declares one takes it from the region cycle inside its own views, and the window keeps it everywhere else.
 - So a pane declares keys of its own, such as reload and new tab, and never Back, Forward or the tab keys, which stay Noldova Desktop's.
-  A pane's pages reach Back and Forward as places the view adds to them, and the tab keys move between the tabs in Noldova Desktop's own tab row, where a browser's pages are tabs.
+  A pane's pages reach Back and Forward as places the view adds to them with `recordPlace`, showing the page `onPlaceShown` names, and the tab keys move between the tabs in Noldova Desktop's own tab row, where a browser's pages are tabs.
   Pages keep `Escape`, a typing key.
 - A declared key the person later binds to a command, or a module's default key, is that command's while it holds the key: the app's shortcuts go first in the view too.
 - The build refuses `webViews.json` in a module without a window part, which opens its views; the hosts read the file again from the declarations and refuse the same methods and keys.

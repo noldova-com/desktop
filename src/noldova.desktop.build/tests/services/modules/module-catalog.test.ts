@@ -841,6 +841,53 @@ export class ModuleCatalogTests {
   }
 
   @TestMethod
+  public async readsEachModulesFormerNames(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      "package.json": JSON.stringify({ desktop: { modules: ["notes", "tasks", "clock"] } }),
+      "src/modules/notes/module.json": ModuleCatalogTests.declare("notes", [], { contributes: { commands: ["notes.create"], formerNames: { "notes.create": ["notes.add", "tasks.add"] } } }),
+      "src/modules/tasks/module.json": ModuleCatalogTests.declare("tasks", [], { contributes: { documents: ["tasks.page"], formerNames: { "tasks.page": ["tasks.sheet"] } } }),
+      "src/modules/clock/module.json": ModuleCatalogTests.declare("clock", [], { contributes: { commands: ["clock.start"] } })
+    });
+
+    const declarations = await new ModuleCatalog(tree.path).listBuildAsync(false, []);
+
+    Assert.areEqual(JSON.stringify([["clock", []], ["notes", [["notes.create", ["notes.add", "tasks.add"]]]], ["tasks", [["tasks.page", ["tasks.sheet"]]]]]),
+      JSON.stringify(declarations.map(t => [t.id, [...t.formerNames]]).sort()));
+  }
+
+  @TestMethod
+  public async refusesAFormerNameTwoModulesOrTwoNamesOfAModuleClaim(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      "package.json": JSON.stringify({ desktop: { modules: ["notes", "tasks"] } }),
+      "src/modules/notes/module.json": ModuleCatalogTests.declare("notes", [], {
+        contributes: { commands: ["notes.create", "notes.open"], formerNames: { "notes.create": ["old.add"], "notes.open": ["old.show"] } }
+      }),
+      "src/modules/tasks/module.json": ModuleCatalogTests.declare("tasks", [], {
+        contributes: { commands: ["tasks.make"], documents: ["tasks.page"], formerNames: { "tasks.make": ["old.add"], "tasks.page": ["old.show"] } }
+      })
+    });
+
+    const error = await Assert.throwsAsync(() => new ModuleCatalog(tree.path).listBuildAsync(false, []), BuildException);
+
+    Assert.areEqual("Former names repeat in the build, and a former name moves to one command or document: "
+      + `${Resources.formatNameInFile("old.add", "src/modules/notes/module.json (formerNames), src/modules/tasks/module.json (formerNames)")}; `
+      + `${Resources.formatNameInFile("old.show", "src/modules/notes/module.json (formerNames), src/modules/tasks/module.json (formerNames)")}.`, error.message);
+  }
+
+  @TestMethod
+  public async refusesAFormerNameThatAModuleContributes(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      "package.json": JSON.stringify({ desktop: { modules: ["notes", "tasks"] } }),
+      "src/modules/notes/module.json": ModuleCatalogTests.declare("notes", [], { contributes: { commands: ["notes.create"], formerNames: { "notes.create": ["tasks.make"] } } }),
+      "src/modules/tasks/module.json": ModuleCatalogTests.declare("tasks", [], { contributes: { commands: ["tasks.make"] } })
+    });
+
+    const error = await Assert.throwsAsync(() => new ModuleCatalog(tree.path).listBuildAsync(false, []), BuildException);
+
+    Assert.areEqual(`Former names are names a module contributes in the build: ${Resources.formatNameInFile("tasks.make", "src/modules/notes/module.json (formerNames)")}.`, error.message);
+  }
+
+  @TestMethod
   public async letsAModulePlaceItsToolbarsAndGroupsBesideItsDependencysPlaces(): Promise<void> {
     await using tree = await ModuleCatalogTests.createMenusAsync({ notes: ModuleCatalogTests.VERSION });
 

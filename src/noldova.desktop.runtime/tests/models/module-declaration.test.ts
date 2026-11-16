@@ -93,6 +93,17 @@ export class ModuleDeclarationTests {
   }
 
   @TestMethod
+  public readsTheNamesItsCommandsAndDocumentsHadBeforeOrNone(): void {
+    const declaration = ModuleDeclaration.fromJson({ ...ModuleDeclarationTests.VALID, formerNames: { "notes.create": ["notes.add", "tasks.add"], "notes.page": ["notes.sheet"] } });
+    const constructed = new ModuleDeclaration("notes", "1.2.3", "Notes", "Keeps notes.", new Map(), null, new Map());
+
+    Assert.areEqual(JSON.stringify([["notes.create", ["notes.add", "tasks.add"]], ["notes.page", ["notes.sheet"]]]), JSON.stringify([...declaration.formerNames]));
+    Assert.areEqual("0,0", [ModuleDeclaration.fromJson(ModuleDeclarationTests.VALID).formerNames.size, constructed.formerNames.size].join(","));
+    Assert.areEqual("A module declaration's formerNames is missing or invalid.",
+      Assert.throws(() => ModuleDeclaration.fromJson({ ...ModuleDeclarationTests.VALID, formerNames: { "notes.create": [" "] } }), DeclarationFieldInvalidException).message);
+  }
+
+  @TestMethod
   public refusesOptionalDependenciesThatAreNotOneExactVersionEach(): void {
     Assert.areEqual(
       "A module declaration's optionalDependencies is missing or invalid.",

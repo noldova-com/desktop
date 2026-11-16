@@ -42,17 +42,17 @@ on:
         type: string
         default: default
       runs-on-linux-arm64:
-        description: The runner of Linux ARM64, as the JSON runs-on takes; empty leaves the target out.
+        description: The runner of Linux ARM64, as the JSON runs-on takes; default takes the organization's from its versions workflow, and empty, or a default the organization has none for, leaves the target out.
         type: string
-        default: ''
+        default: default
       runs-on-windows-x64:
         description: The runner of Windows x64, as the JSON runs-on takes; default takes the organization's from its versions workflow.
         type: string
         default: default
       runs-on-windows-arm64:
-        description: The runner of Windows ARM64, as the JSON runs-on takes; empty leaves the target out.
+        description: The runner of Windows ARM64, as the JSON runs-on takes; default takes the organization's from its versions workflow, and empty, or a default the organization has none for, leaves the target out.
         type: string
-        default: ''
+        default: default
       runs-on-macos-x64:
         description: The runner of macOS x64, as the JSON runs-on takes; default takes the organization's from its versions workflow.
         type: string
@@ -131,7 +131,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@7930c8dcf906cccb753aa7559220ac2b139c89aa # v2.34.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@61a49ab45454e6f7074782ee34cf34fbfeeda512 # v2.35.0
     permissions: {}
 
   fetch:
@@ -398,9 +398,9 @@ jobs:
         env:
           SIGNING: ${{ steps.check.outputs.signed }}
           RUNS_ON_LINUX: ${{ inputs.runs-on-linux-x64 == 'default' && needs.versions.outputs.runs-on-linux-x64 || inputs.runs-on-linux-x64 != 'default' && inputs.runs-on-linux-x64 || '' }}
-          RUNS_ON_LINUX_ARM64: ${{ inputs.runs-on-linux-arm64 }}
+          RUNS_ON_LINUX_ARM64: ${{ inputs.runs-on-linux-arm64 == 'default' && needs.versions.outputs.runs-on-linux-arm64 || inputs.runs-on-linux-arm64 != 'default' && inputs.runs-on-linux-arm64 || '' }}
           RUNS_ON_WINDOWS: ${{ inputs.runs-on-windows-x64 == 'default' && needs.versions.outputs.runs-on-windows-x64 || inputs.runs-on-windows-x64 != 'default' && inputs.runs-on-windows-x64 || '' }}
-          RUNS_ON_WINDOWS_ARM64: ${{ inputs.runs-on-windows-arm64 }}
+          RUNS_ON_WINDOWS_ARM64: ${{ inputs.runs-on-windows-arm64 == 'default' && needs.versions.outputs.runs-on-windows-arm64 || inputs.runs-on-windows-arm64 != 'default' && inputs.runs-on-windows-arm64 || '' }}
           RUNS_ON_MACOS: ${{ inputs.runs-on-macos-x64 == 'default' && needs.versions.outputs.runs-on-macos-x64 || inputs.runs-on-macos-x64 != 'default' && inputs.runs-on-macos-x64 || '' }}
           RUNS_ON_MACOS_ARM64: ${{ inputs.runs-on-macos-arm64 == 'default' && needs.versions.outputs.runs-on-macos-arm64 || inputs.runs-on-macos-arm64 != 'default' && inputs.runs-on-macos-arm64 || '' }}
         run: |

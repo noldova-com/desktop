@@ -21,6 +21,7 @@ export class FakeWindowPartContext extends Fake<IWindowPartContext> implements I
   private readonly documentClosed: Set<{ readonly name: string; readonly listener: (instance: string) => void }> = new Set<{ readonly name: string; readonly listener: (instance: string) => void }>();
   private readonly tabRenamed: Set<{ readonly name: string; readonly listener: (instance: string, title: string) => void }> = new Set<{ readonly name: string; readonly listener: (instance: string, title: string) => void }>();
   private readonly viewClosed: Set<{ readonly name: string; readonly listener: (instance: string) => void }> = new Set<{ readonly name: string; readonly listener: (instance: string) => void }>();
+  private readonly placeShown: Set<{ readonly name: string; readonly listener: (place: string, instance: string | null) => void }> = new Set<{ readonly name: string; readonly listener: (place: string, instance: string | null) => void }>();
   private readonly events: Set<{ readonly name: string; readonly listener: (payload: JsonValue) => void }> = new Set<{ readonly name: string; readonly listener: (payload: JsonValue) => void }>();
   private readonly settingChanged: Set<{ readonly name: string; readonly listener: (value: JsonValue, scope: SettingScope | null, isSet: boolean) => void }> = new Set<{ readonly name: string; readonly listener: (value: JsonValue, scope: SettingScope | null, isSet: boolean) => void }>();
   private readonly dependencyChanged: Set<(moduleId: string, isActive: boolean) => void> = new Set<(moduleId: string, isActive: boolean) => void>();
@@ -61,11 +62,15 @@ export class FakeWindowPartContext extends Fake<IWindowPartContext> implements I
   public readonly openView: IWindowPartContext["openView"] = (...args) => this.tell("openView", args, this.answers.openView);
   public readonly updateView: IWindowPartContext["updateView"] = (...args) => this.tell("updateView", args, this.answers.updateView);
   public readonly closeView: IWindowPartContext["closeView"] = (...args) => this.tell("closeView", args, this.answers.closeView);
+  public readonly closeDialog: IWindowPartContext["closeDialog"] = (...args) => this.tell("closeDialog", args, this.answers.closeDialog);
   public readonly showView: IWindowPartContext["showView"] = (...args) => this.tell("showView", args, this.answers.showView);
   public readonly hideViewDock: IWindowPartContext["hideViewDock"] = (...args) => this.tell("hideViewDock", args, this.answers.hideViewDock);
   public readonly growViewDock: IWindowPartContext["growViewDock"] = (...args) => this.track("growViewDock", args);
   public readonly viewDockOf: IWindowPartContext["viewDockOf"] = (...args) => this.ask("viewDockOf", args, this.answers.viewDockOf);
   public readonly onViewClosed: IWindowPartContext["onViewClosed"] = (name, listener) => this.listen("onViewClosed", [name, listener], this.viewClosed, { name, listener });
+  public readonly recordPlace: IWindowPartContext["recordPlace"] = (...args) => this.tell("recordPlace", args, this.answers.recordPlace);
+  public readonly forgetPlace: IWindowPartContext["forgetPlace"] = (...args) => this.tell("forgetPlace", args, this.answers.forgetPlace);
+  public readonly onPlaceShown: IWindowPartContext["onPlaceShown"] = (name, listener) => this.listen("onPlaceShown", [name, listener], this.placeShown, { name, listener });
   public readonly showInDialogAsync: IWindowPartContext["showInDialogAsync"] = (...args) => this.respondAsync("showInDialogAsync", args, this.answers.showInDialogAsync);
   public readonly log: IWindowPartContext["log"] = (...args) => this.tell("log", args, this.answers.log);
   public readonly openLinkAsync: IWindowPartContext["openLinkAsync"] = (...args) => this.respondAsync("openLinkAsync", args, this.answers.openLinkAsync);
@@ -108,6 +113,10 @@ export class FakeWindowPartContext extends Fake<IWindowPartContext> implements I
 
   public raiseViewClosed(name: string, instance: string): void {
     this.raiseIsolated(this.viewClosed, t => t.name === name && t.listener(instance));
+  }
+
+  public raisePlaceShown(view: string, place: string, instance: string | null = null): void {
+    this.raiseIsolated(this.placeShown, t => t.name === view && t.listener(place, instance));
   }
 
   public raiseEvent(name: string, payload: JsonValue): void {

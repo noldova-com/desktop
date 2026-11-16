@@ -28,17 +28,17 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@7930c8dcf906cccb753aa7559220ac2b139c89aa # v2.34.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@61a49ab45454e6f7074782ee34cf34fbfeeda512 # v2.35.0
     permissions: {}
 
   build-and-test:
     name: Build and test
-    uses: noldova-com/.github/.github/workflows/build-and-test.yml@7930c8dcf906cccb753aa7559220ac2b139c89aa # v2.34.0
+    uses: noldova-com/.github/.github/workflows/build-and-test.yml@61a49ab45454e6f7074782ee34cf34fbfeeda512 # v2.35.0
     permissions:
       contents: read
       packages: read
     with:
-      targets: linux-x64 windows-x64 macos-x64 macos-arm64
+      targets: linux-x64 linux-arm64 windows-x64 windows-arm64 macos-x64 macos-arm64
       publishes: true
 
   package-targets:
@@ -70,7 +70,9 @@ jobs:
         timeout-minutes: 1
         env:
           RUNS_ON_LINUX: ${{ needs.versions.outputs.runs-on-linux-x64 }}
+          RUNS_ON_LINUX_ARM64: ${{ needs.versions.outputs.runs-on-linux-arm64 }}
           RUNS_ON_WINDOWS: ${{ needs.versions.outputs.runs-on-windows-x64 }}
+          RUNS_ON_WINDOWS_ARM64: ${{ needs.versions.outputs.runs-on-windows-arm64 }}
           RUNS_ON_MACOS: ${{ needs.versions.outputs.runs-on-macos-x64 }}
           RUNS_ON_MACOS_ARM64: ${{ needs.versions.outputs.runs-on-macos-arm64 }}
         run: |

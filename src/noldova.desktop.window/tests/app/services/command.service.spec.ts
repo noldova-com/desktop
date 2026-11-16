@@ -12,14 +12,17 @@ import { TestBed } from "@angular/core/testing";
 
 import { DialogService } from "@noldova/ui.components.angular";
 import { JsonReader, type JsonObject } from "@noldova/context.json";
+import { KeyChord } from "@noldova/desktop.protocol";
 
 import { ActionNotConfirmedException } from "../../../src/app/exceptions/action-not-confirmed.exception";
 import { CommandNotFoundException } from "../../../src/app/exceptions/command-not-found.exception";
 import { RuntimeDisconnectedException } from "../../../src/app/exceptions/runtime-disconnected.exception";
 import { CommandContribution } from "../../../src/app/models/command-contribution";
 import { CommandService } from "../../../src/app/services/command.service";
+import { PaneKeysService } from "../../../src/app/services/pane-keys.service";
 import { ShellCommandsService } from "../../../src/app/services/shell-commands.service";
 import { StartupService } from "../../../src/app/services/startup.service";
+import { DomFixture } from "../../fixtures/dom.fixture";
 import { FailureFixture } from "../../fixtures/failure.fixture";
 import { PreloadBridgeFixture } from "../../fixtures/preload-bridge.fixture";
 import { ModuleStatusFixture } from "../../fixtures/module-status.fixture";
@@ -202,6 +205,21 @@ describe("CommandService", () => {
 
     expect(runs).toEqual([]);
     expect([composing.defaultPrevented, repeated.defaultPrevented]).toEqual([false, false]);
+  });
+
+  it("runs the command bound to a key an open view's pane declares when the key is pressed in the pane's toolbar, outside its view", async () => {
+    const service = start("linux");
+    service.setCommands([command("notes.newNote", null)]);
+    bridge.publishEvent("desktop.settingsChanged", { name: "desktop.keyBindings", value: { "notes.newNote": "F7" }, isSet: true });
+    TestBed.inject(PaneKeysService).add("1", "pages", [KeyChord.parse("F7")]);
+    const group = document.body.appendChild(document.createElement("nol-tab-group"));
+    added.push(group);
+    group.innerHTML = "<nol-tab-slot><button id='reload'>Reload</button><div class='nol-web-view'><webview class='nol-web-view-guest'></webview></div></nol-tab-slot>";
+
+    const pressed = pressIn(DomFixture.one(group, "#reload"), { key: "F7", code: "F7" });
+
+    await vi.waitFor(() => expect(runs).toEqual(["notes.newNote null"]));
+    expect(pressed.defaultPrevented).toBe(true);
   });
 
   it("applies the person's bindings as the setting changes and reports a command that fails", async () => {

@@ -125,12 +125,17 @@ export class ShortcutsComponent {
     return `${Resources.shortcutCollisionIdPrefix}${this.index}${Resources.shortcutIdSeparator}${row.name}`;
   }
 
+  protected paneNoteId(row: ShortcutRow): string {
+    return `${Resources.shortcutPaneNoteIdPrefix}${this.index}${Resources.shortcutIdSeparator}${row.name}`;
+  }
+
   protected noticeId(row: ShortcutRow): string {
     return `${Resources.shortcutNoticeIdPrefix}${this.index}${Resources.shortcutIdSeparator}${row.name}`;
   }
 
   protected describeKey(row: ShortcutRow, hasNotice: boolean): string | null {
-    const ids = [Object.isNull(row.collision) ? null : this.collisionId(row), hasNotice ? this.noticeId(row) : null].filter(t => !Object.isNull(t));
+    const ids = [Object.isNull(row.collision) ? null : this.collisionId(row), Object.isNull(row.paneNote) ? null : this.paneNoteId(row), hasNotice ? this.noticeId(row) : null]
+      .filter(t => !Object.isNull(t));
     return ids.length === 0 ? null : ids.join(Resources.idListSeparator);
   }
 
