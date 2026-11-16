@@ -7,7 +7,7 @@
  */
 
 import "@noldova/context.core";
-import { Assert, Category, TestClass, TestData, TestMethod } from "@noldova/context.testing";
+import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 import { PosixProcessApi, ProcessClock, ProcessSettings, ProcessStartException } from "@noldova/desktop.runtime";
 
 import { ProcessSupervisorFixture } from "../../fixtures/process-supervisor.fixture.js";
@@ -16,6 +16,7 @@ import { ProgramFixture } from "../../fixtures/program.fixture.js";
 import { SettingsFixture } from "../../fixtures/settings.fixture.js";
 import { SimulatedProcessesFixture } from "../../fixtures/simulated-processes.fixture.js";
 import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.js";
+import { VirtualTimeFixture } from "../../fixtures/virtual-time.fixture.js";
 import { WindowsProcessApiFixture } from "../../fixtures/windows-process-api.fixture.js";
 
 @TestClass
@@ -129,7 +130,6 @@ export class WindowsProcessEnderTests {
     Assert.areEqual(ProcessSupervisorFixture.line(owned, `It did not end within the grace period, so processes ${leader}, 900201 were ended forcefully.`), settings.diagnostics.text);
   }
 
-  @Category("Timing")
   @TestMethod
   public async endsAStopThatTakesEveryWaitWithinTheStopLimitOnWindows(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
@@ -154,13 +154,10 @@ export class WindowsProcessEnderTests {
     simulated.add(900_202, 0, true);
     await ProgramFixture.readLineAsync(owned);
     try {
-      const began = Date.now();
-      await processes.stopOwnedByAsync(ProcessSupervisorFixture.MODULE);
-      const took = Date.now() - began;
+      const took = await VirtualTimeFixture.measureAsync(() => processes.stopOwnedByAsync(ProcessSupervisorFixture.MODULE));
 
       Assert.areEqual(`${leader} SIGKILL,900201 SIGKILL,900202 SIGKILL`, simulated.signals.filter(t => t.endsWith("SIGKILL")).join(","));
-      Assert.isTrue(took >= limits.stopLimit - 10, `A timing test: the stop took ${took} ms, less than the grace and three end waits, ${limits.stopLimit} ms, with 10 ms for timer rounding; a busy machine only lengthens the stop.`);
-      Assert.isTrue(took < limits.stopLimit + limits.endMilliseconds * 3 / 4, `A timing test: the stop took ${took} ms, more than its limit of ${limits.stopLimit} ms allows; a busy machine may delay the stop timers by up to three quarters of an end wait, ${limits.endMilliseconds * 3 / 4} ms, before this bound fails.`);
+      Assert.areEqual(limits.stopLimit, took);
     }
     finally {
       simulated.own(leader);
