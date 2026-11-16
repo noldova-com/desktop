@@ -16,6 +16,7 @@ export interface IModuleDeclarationJson {
   readonly runtimePackage: string | null;
   readonly cliPackage: string | null;
   readonly contributes: Readonly<Record<string, readonly string[]>>;
+  readonly formerNames?: Readonly<Record<string, readonly string[]>>;
   readonly settings: readonly Readonly<Record<string, unknown>>[];
   readonly cliCommands: readonly Readonly<Record<string, unknown>>[];
   readonly webViews?: Readonly<Record<string, unknown>>;

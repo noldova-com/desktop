@@ -40,6 +40,7 @@ export class ModuleDeclaration {
   public readonly optionalDependencyVersions: ReadonlyMap<string, string>;
   public readonly packageName: string | null;
   public readonly contributions: ReadonlyMap<string, readonly string[]>;
+  public readonly formerNames: ReadonlyMap<string, readonly string[]>;
   public readonly menus: ModuleMenus;
   public readonly settings: readonly Readonly<Record<string, unknown>>[];
   public readonly settingsPages: readonly ISettingsPageJson[];
@@ -71,6 +72,7 @@ export class ModuleDeclaration {
     switchSetting: string | null,
     platforms: readonly string[] | null,
     noldovaDesktop: VersionRange | null,
+    formerNames: ReadonlyMap<string, readonly string[]>,
     isFixture: boolean,
     modulesPrefix: string = Resources.modulesPrefix) {
     this.folder = folder;
@@ -85,6 +87,7 @@ export class ModuleDeclaration {
     this.optionalDependencyVersions = optionalDependencyVersions;
     this.packageName = packageName;
     this.contributions = contributions;
+    this.formerNames = formerNames;
     this.menus = menus;
     this.settings = settings.settings;
     this.settingsPages = settings.pages;
@@ -158,10 +161,16 @@ export class ModuleDeclaration {
       throw fail(Resources.moduleContributesNotObject);
     const contributions = new Map<string, readonly string[]>();
     for (const [kind, names] of Object.entries(contributes)) {
+      if (kind === Resources.formerNamesField)
+        continue;
       if (!Resources.moduleContributionKinds.includes(kind))
         throw fail(Resources.formatModuleUnknownKind(kind));
       contributions.set(kind, ModuleDeclaration.readNames(names, id, fail, kind));
     }
+    const contributed = new Map(Object.entries(contributes));
+    const formerNames = contributed.has(Resources.formerNamesField)
+      ? ModuleDeclaration.readFormerNames(contributed.get(Resources.formerNamesField), contributions, fail)
+      : new Map<string, readonly string[]>();
     const placeholders = contributions.get(Resources.placeholdersKind) ?? [];
     if (placeholders.length > 1)
       throw fail(Resources.modulePlaceholderRepeated);
@@ -187,7 +196,7 @@ export class ModuleDeclaration {
     const noldovaDesktop = record.has(Resources.noldovaDesktopField) ? ModuleDeclaration.readNoldovaDesktop(record.get(Resources.noldovaDesktopField), fail) : null;
     return new ModuleDeclaration(
       folder, id, version, displayName, description, parts, dependencyVersions, optionalDependencyVersions, packageName, contributions, menus, settings, cliCommands, webViews, usesPseudoTerminals,
-      switchSetting, platforms, noldovaDesktop, isFixture, await RootManifest.readModulePackagePrefixAsync(root));
+      switchSetting, platforms, noldovaDesktop, formerNames, isFixture, await RootManifest.readModulePackagePrefixAsync(root));
   }
 
   public get file(): string {
@@ -219,6 +228,7 @@ export class ModuleDeclaration {
       runtimePackage: this.runtimePackage,
       cliPackage: this.cliPackage,
       contributes: Object.fromEntries([...this.contributions].map(([kind, names]) => [kind, [...names]])),
+      ...this.formerNames.size === 0 ? {} : { formerNames: Object.fromEntries([...this.formerNames].map(([name, formers]) => [name, [...formers]])) },
       settings: [...this.settings],
       cliCommands: [...this.cliCommands],
       ...Object.isNull(this.webViews) ? {} : { webViews: this.webViews },
@@ -308,6 +318,22 @@ export class ModuleDeclaration {
     if (!Array.isArray(value) || !value.every(t => Object.isString(t) && isOwned(t)))
       throw fail(Resources.formatModuleNamesInvalid(kind, id));
     return value.map(t => String(t));
+  }
+
+  private static readFormerNames(value: unknown, contributions: ReadonlyMap<string, readonly string[]>, fail: (problem: string) => BuildException): ReadonlyMap<string, readonly string[]> {
+    if (!Object.isPlainObject(value))
+      throw fail(Resources.moduleFormerNamesNotObject);
+    const renamed = [...contributions.get(Resources.commandsKind) ?? [], ...contributions.get(Resources.documentsKind) ?? []];
+    const formerNames = new Map<string, readonly string[]>();
+    for (const [name, formers] of Object.entries(value)) {
+      if (!renamed.includes(name))
+        throw fail(Resources.formatModuleFormerNamesUndeclared(name));
+      if (!Array.isArray(formers) || formers.length === 0 || new Set(formers).size < formers.length
+        || !formers.every(t => Object.isString(t) && t !== name && Resources.qualifiedNamePattern.test(t)))
+        throw fail(Resources.formatModuleFormerNamesInvalid(name));
+      formerNames.set(name, formers.map(t => String(t)));
+    }
+    return formerNames;
   }
 
   private static readToolNames(value: unknown, id: string, fail: (problem: string) => BuildException): readonly string[] {

@@ -25,6 +25,7 @@ export class WindowPartSource {
   public readonly placeholderNames: readonly string[];
   public readonly optionalDependencies: readonly string[];
   public readonly settingsPages: readonly ISettingsPageDeclaration[];
+  public readonly formerDocumentNames: readonly (readonly [string, string])[];
 
   public constructor(
     moduleId: string,
@@ -38,7 +39,8 @@ export class WindowPartSource {
     load: () => Promise<IWindowPart>,
     placeholderNames: readonly string[] = [],
     optionalDependencies: readonly string[] = [],
-    settingsPages: readonly ISettingsPageDeclaration[] = []) {
+    settingsPages: readonly ISettingsPageDeclaration[] = [],
+    formerDocumentNames: readonly (readonly [string, string])[] = []) {
     if (!Resources.moduleIdPattern.test(moduleId))
       throw new ArgumentException(Resources.invalidModuleId, Resources.moduleIdParameterName);
 
@@ -54,5 +56,6 @@ export class WindowPartSource {
     this.placeholderNames = [...placeholderNames];
     this.optionalDependencies = [...optionalDependencies];
     this.settingsPages = settingsPages.map(t => ({ name: t.name, title: t.title }));
+    this.formerDocumentNames = formerDocumentNames.map(([former, name]) => [former, name] as const);
   }
 }

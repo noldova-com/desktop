@@ -8982,6 +8982,13 @@ export declare class ModuleDeclaration {
   public readonly noldovaDesktop: string | null;
 
   /**
+   * The names its commands and documents had before, by their names now; the
+   * runtime moves the person's key binding for a former command name to the
+   * command.
+   */
+  public readonly formerNames: ReadonlyMap<string, readonly string[]>;
+
+  /**
    * Creates the declaration.
    *
    * @param id The module's id: lowercase kebab-case, not `desktop`, and no
@@ -9014,6 +9021,8 @@ export declare class ModuleDeclaration {
    * version> <first version refused>` with the lowest below the first refused,
    * such as `>=0.0.70 <0.1.0`; or `null`, the default, for a module that names
    * none.
+   * @param formerNames The names its commands and documents had before, by
+   * their names now; left out, none.
    * @throws {ArgumentException} When the id, the version, the display name,
    * the description or a dependency's or optional dependency's version is not valid, a setting
    * belongs to another owner, is of
@@ -9045,7 +9054,8 @@ export declare class ModuleDeclaration {
     optionalDependencies?: ReadonlyMap<string, string>,
     switchSetting?: string | null,
     platforms?: readonly string[] | null,
-    noldovaDesktop?: string | null);
+    noldovaDesktop?: string | null,
+    formerNames?: ReadonlyMap<string, readonly string[]>);
 
   /**
    * Reads a declaration from its form in `declarations.json`.

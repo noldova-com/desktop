@@ -101,6 +101,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
   The bar sits on a surface unlike the view's in both modes, the panel's in a dock and the raised one in the middle, with no line; when agent control resumes, from any bar, the tray or a command, every bar goes and each view has its whole height back.
 - Noldova Desktop pads every view and document the same way, by where it shows; a page that runs edge to edge, such as a terminal, turns the padding off for its module, its declaration or the page itself, the most specific choice winning.
 - The saved layout restores the person's workspace, its toolbars and its docks, without opening unrelated content as a side effect, and keeps the place of a tab whose module is absent.
+  A tab saved under a document's former name reopens as that document, as [MODULES.md](MODULES.md#former-names) says.
   It keeps each open document's title, so a restored or background tab shows its title before its module titles it again; a title the module gives wins.
 - A window part opens one of its documents at the end of the active document group, or right after another open instance of the same document that it names, in that instance's group, such as a page opened from another page.
   A preview replaces that group's preview, and opens right after the named instance only when the group has none; a document already open only activates where it is.

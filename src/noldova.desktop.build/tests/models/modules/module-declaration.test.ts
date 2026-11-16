@@ -451,6 +451,41 @@ export class ModuleDeclarationTests {
     });
   }
 
+  @TestMethod
+  public async writesFormerNamesToTheDeclarationsAndADocumentsFormerNamesToItsWindowPartSource(): Promise<void> {
+    await using app = await ModuleAppFixture.createAsync(ModuleAppFixture.NEEDED, ModuleAppFixture.NEEDED);
+    await app.writeProductAsync();
+    await app.writeDeclarationAsync({
+      contributes: { commands: ["sample.go"], documents: ["sample.page"], formerNames: { "sample.go": ["sample.run"], "sample.page": ["sample.sheet", "old.page"] } }
+    }, ["runtime", "window"]);
+    await app.writeTreeModuleAsync("clock", ["runtime"], {});
+
+    await ModuleDeclarationTests.runAsync(app, await app.writeNpmAsync());
+
+    const modules = JsonReader.parse(await readFile(path.join(app.path, "_build", "modules", "declarations.json"), "utf8")).readObjectArray("modules");
+    Assert.areEqual(
+      JSON.stringify([["clock", null], ["sample", { "sample.go": ["sample.run"], "sample.page": ["sample.sheet", "old.page"] }]]),
+      JSON.stringify(modules.map(t => [t.readString("id"), t.hasField("formerNames") ? t.readValue("formerNames") : null]).sort()));
+    Assert.isTrue(modules.every(t => !t.readObject("contributes").hasField("formerNames")));
+    const sources = await readFile(path.join(app.path, "_build", "generated", "window-parts.ts"), "utf8");
+    Assert.isTrue(sources.includes(".then(t => t.windowPart), [], [], [], [[\"sample.sheet\",\"sample.page\"],[\"old.page\",\"sample.page\"]])"), sources);
+  }
+
+  @TestMethod
+  @TestData("[\"sample.run\"]", "must give its former names as an object from a command's or a document's name to the names it had before")
+  @TestData("{ \"sample.face\": [\"sample.run\"] }", "gives former names for \"sample.face\", which isn't one of its commands or documents")
+  @TestData("{ \"sample.gone\": [\"sample.run\"] }", "gives former names for \"sample.gone\", which isn't one of its commands or documents")
+  @TestData("{ \"sample.go\": [] }", "must give \"sample.go\" its former names as a list of different qualified names, such as \"notes.add\", none of them its own name")
+  @TestData("{ \"sample.go\": \"sample.run\" }", "must give \"sample.go\" its former names as a list of different qualified names, such as \"notes.add\", none of them its own name")
+  @TestData("{ \"sample.go\": [\"sample.go\"] }", "must give \"sample.go\" its former names as a list of different qualified names, such as \"notes.add\", none of them its own name")
+  @TestData("{ \"sample.go\": [\"sample.run\", \"sample.run\"] }", "must give \"sample.go\" its former names as a list of different qualified names, such as \"notes.add\", none of them its own name")
+  @TestData("{ \"sample.go\": [\"Sample.Run\"] }", "must give \"sample.go\" its former names as a list of different qualified names, such as \"notes.add\", none of them its own name")
+  @TestData("{ \"sample.go\": [7] }", "must give \"sample.go\" its former names as a list of different qualified names, such as \"notes.add\", none of them its own name")
+  public async refusesFormerNamesThatArentAMapFromItsCommandsAndDocumentsToOtherQualifiedNames(formerNames: string, problem: string): Promise<void> {
+    await ModuleDeclarationTests.assertOutputAsync(
+      { contributes: { commands: ["sample.go"], views: ["sample.face"], formerNames: JSON.parse(formerNames) } }, ["runtime", "window"], `${ModuleDeclarationTests.DECLARATION}${problem}.\n`);
+  }
+
   private static async runAsync(app: ModuleAppFixture, environment: NodeJS.ProcessEnv = {}): Promise<string> {
     const output = new PassThrough();
     const chunks: string[] = [];

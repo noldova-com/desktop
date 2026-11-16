@@ -89,6 +89,7 @@ import { SaveSecretMethod } from "../secrets/save-secret-method.js";
 import { SecretAnsweredMethod } from "../secrets/secret-answered-method.js";
 import { SecretStatusMethod } from "../secrets/secret-status-method.js";
 import { SecretTable } from "../secrets/secret-table.js";
+import { KeyBindingMoves } from "../settings/key-binding-moves.js";
 import { SettingReadMethod } from "../settings/setting-read-method.js";
 import { SettingResetMethod } from "../settings/setting-reset-method.js";
 import { SettingWriteMethod } from "../settings/setting-write-method.js";
@@ -125,6 +126,7 @@ export class RuntimeHost implements IIdleParticipant {
   private readonly publisher: DiscoveryPublisher;
   private readonly idle: IdleMonitor;
   private readonly stopped: PromiseWithResolvers<string> = Promise.withResolvers<string>();
+  private readonly declarations: readonly ModuleDeclaration[];
   private readonly platform: string;
   private readonly presence: ProcessPresence;
   private readonly environment: NodeJS.ProcessEnv;
@@ -169,6 +171,7 @@ export class RuntimeHost implements IIdleParticipant {
     declarations: readonly ModuleDeclaration[],
     noldovaDesktop: string | null) {
     this.lock = lock;
+    this.declarations = declarations;
     this.platform = platform;
     this.presence = presence;
     this.environment = environment;
@@ -401,6 +404,7 @@ export class RuntimeHost implements IIdleParticipant {
   private registerShellFacilities(database: ShellDatabase): SettingsService {
     const store = new WindowStateStore(database);
     const settings = new SettingsService(database, [...ShellSettings.definitionsFor(this.platform), ...this.modules.settingDefinitions], this.log.diagnostics);
+    KeyBindingMoves.move(settings, this.declarations);
     const changed = this.events.declare(ShellEvents.settingsChanged);
     this.notificationSettings = new NotificationSettings(settings);
     settings.onChanged(t => {

@@ -46,7 +46,7 @@ A module declares itself in `module.json` at its folder's root, with exactly the
 | `noldovaDesktop` | Optional for now: the Noldova Desktop versions it accepts, `>=<lowest version> <first version refused>`, such as `>=0.0.70 <0.1.0`, as [Noldova Desktop versions](#noldova-desktop-versions) says. |
 | `platforms` | Optional: the platforms it runs on, at least one, each once: `windows`, `macos` or `linux`; without it, the module runs on every platform. |
 | `pseudoTerminals` | Optional: `true` when its runtime part starts programs in pseudo-terminals, as [RUNTIME.md](RUNTIME.md#programs-modules-start) says; only a module with a runtime part declares it, and the runtime refuses a pseudo-terminal to a module that doesn't. |
-| `contributes` | The names it registers, by kind: `methods`, `events`, `commands`, `notifications`, `views`, `documents`, `placeholders`, `statusBarItems`, `topBarActions`, `menus`, `themes`, `settings`, `settingScopes`, `settingsPages`, `cliCommands` and `tools`. |
+| `contributes` | The names it registers, by kind: `methods`, `events`, `commands`, `notifications`, `views`, `documents`, `placeholders`, `statusBarItems`, `topBarActions`, `menus`, `themes`, `settings`, `settingScopes`, `settingsPages`, `cliCommands` and `tools`, and `formerNames`, the names its commands and documents had before, as [Former names](#former-names) says. |
 
 - A module that contributes settings defines them in `settings.json`, menus in `menus.json`, and command-line commands in `cli.json`, each beside `module.json`.
   A module that opens web views declares them, and the debugging calls its runtime part sends them, in `webViews.json` beside `module.json`, as [WEB-VIEWS.md](WEB-VIEWS.md#the-relay) says.
@@ -336,7 +336,26 @@ Noldova Desktop registers its own entries, such as the default theme, through th
 - In one of a module's web views the app's shortcuts go first too, and the keys the module declares for the pane in `webViews.json` come after them, as [WEB-VIEWS.md](WEB-VIEWS.md#keys-from-a-view) says.
 - A window part marks an element that keeps the Ctrl keys, such as a terminal, with `nolKeepsCtrlKeys`, and asks its context's `findWindowCommand` which command the window would run for a key; what the window does with such keys is in [WINDOW.md](WINDOW.md#keys-and-menus).
 - A window part reads the key that runs a command with its context's `keyOf`, a signal of the key's platform label, such as `⌥⌘N` on macOS and `Ctrl+Alt+N` elsewhere, and its `aria-keyshortcuts` form, such as `Alt+Meta+N` and `Control+Alt+N`, or of `null` while the command has none; it follows the person's bindings as they change.
-- The person's bindings are the shared setting `desktop.keyBindings`, from a command's name to its key or to `null`; a binding for an absent command is kept until it returns.
+- The person's bindings are the shared setting `desktop.keyBindings`, from a command's name to its key or to `null`; a binding for an absent command is kept until it returns, and one for a renamed command's former name moves to it, as [Former names](#former-names) says.
+
+### Former names
+
+- A module that renames a command or a document lists, in `contributes.formerNames`, the names it had before, by its name now:
+
+  ```json
+  "contributes": {
+    "commands": ["notes.create"],
+    "documents": ["notes.page"],
+    "formerNames": { "notes.create": ["notes.add"], "notes.page": ["notes.sheet"] }
+  }
+  ```
+
+- A former name is any qualified name, so a command or document that moved from another module keeps what the person kept for it; it names only one of the module's own commands and documents, and never the name itself.
+- When the runtime starts, a binding in `desktop.keyBindings` for a command's former name moves to the command and the former name's entry goes, in one write; a binding the person already set for the command wins, and the former one goes.
+  A binding for a former name that no module in the build declares stays as it is.
+- A tab the saved layout holds under a document's former name reopens as that document, with its instance, title and place, and the layout saves it under the new name; when the layout already holds that document's tab, the former one stays as it is.
+- A module keeps a former name as long as it wants old bindings and tabs carried over, since a person may return from any earlier version.
+- The build refuses a former name that two modules or two of a module's names claim, or that is a name a module contributes in the build.
 
 ### Menus and toolbars
 

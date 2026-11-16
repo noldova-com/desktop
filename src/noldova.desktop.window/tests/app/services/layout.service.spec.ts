@@ -12,8 +12,10 @@ import { TestBed } from "@angular/core/testing";
 
 import { BottomDockSpan } from "../../../src/app/enums/bottom-dock-span";
 import { DockSide } from "../../../src/app/enums/dock-side";
+import type { IWindowPart } from "../../../src/app/interfaces/i-window-part";
 import { PanelEdge } from "../../../src/app/enums/panel-edge";
 import { SplitAxis } from "../../../src/app/enums/split-axis";
+import { BuildTokens } from "../../../src/app/models/build-tokens";
 import { DocumentHeading } from "../../../src/app/models/document-heading";
 import { DocumentLook } from "../../../src/app/models/document-look";
 import { DocumentTab } from "../../../src/app/models/layout/document-tab";
@@ -22,6 +24,7 @@ import { LayoutMetrics } from "../../../src/app/models/layout/layout-metrics";
 import { LayoutReader } from "../../../src/app/services/layout.reader";
 import { ToolbarLayout } from "../../../src/app/models/layout/toolbar-layout";
 import { ViewTab } from "../../../src/app/models/layout/view-tab";
+import { WindowPartSource } from "../../../src/app/models/window-part-source";
 import { SideDropTarget } from "../../../src/app/models/layout/side-drop-target";
 import { SplitDropTarget } from "../../../src/app/models/layout/split-drop-target";
 import { LayoutStoreService } from "../../../src/app/services/layout-store.service";
@@ -561,6 +564,27 @@ describe("LayoutService", () => {
 
     expect([LayoutFixture.plan, LayoutFixture.todo, LayoutFixture.terminal, gone].map(t => labels.titleOf(t))).toEqual(["Plan", "Todo", null, null]);
     expect(write).not.toHaveBeenCalled();
+  });
+
+  it("reopens a tab saved under a former name of a document in the build as that document, with its title", async () => {
+    const sheet = new DocumentTab("notes.sheet", "plan");
+    const load = (): Promise<IWindowPart> => Promise.reject(new Error("The part was not loaded."));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{ provide: BuildTokens.sources, useValue: [new WindowPartSource("notes", [], [], ["notes.note"], [], [], [], [], load, [], [], [], [["notes.sheet", "notes.note"]])] }]
+    });
+    const moved = TestBed.inject(LayoutService);
+    moved.setMetrics(LayoutMetricsFixture.standard);
+    moved.setRegistry(registry);
+    const labels = TestBed.inject(TabLabelService);
+    const layout = Layout.createDefault(registry).openView(LayoutFixture.terminal, registry).openDocument(sheet).openDocument(LayoutFixture.todo);
+    await TestBed.inject(LayoutStoreService).writeAsync({ ...layout.toJson(), titles: { [sheet.key]: "Plan" } });
+
+    expect(await moved.loadAsync()).toBe(true);
+    TestBed.tick();
+
+    expect(moved.layout().toJson()).toEqual(prepared().toJson());
+    expect([labels.titleOf(LayoutFixture.plan), labels.titleOf(sheet)]).toEqual(["Plan", null]);
   });
 
   it("treats a layout whose titles are not text as unreadable", async () => {

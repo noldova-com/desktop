@@ -770,6 +770,8 @@ export class Resources {
   public static readonly moduleDisplayNameMissing: string = "must have a display name";
   public static readonly moduleDescriptionMissing: string = "must have a description";
   public static readonly moduleContributesNotObject: string = "must list its contributions as an object";
+  public static readonly moduleFormerNamesNotObject: string = "must give its former names as an object from a command's or a document's name to the names it had before";
+  public static readonly formerNamesField: string = "formerNames";
   public static readonly modulePlaceholderRepeated: string = "declares more than one placeholder, and a window shows one";
   public static readonly modulePlaceholderWithoutWindow: string = "declares a placeholder without a window part, which registers it";
   public static readonly moduleSettingsPagesWithoutWindow: string = "declares settings pages without a window part, which registers them";
@@ -2957,6 +2959,22 @@ export class Resources {
 
   public static formatCatalogPermissionsModuleInvalid(name: unknown): string {
     return `The root ${Resources.packageManifestFileName}'s ${Resources.desktopField}.${Resources.productField}.${Resources.permissionsModuleField} must be the id of a module in ${Resources.modulesListSection}, not ${JSON.stringify(name)}.`;
+  }
+
+  public static formatModuleFormerNamesUndeclared(name: string): string {
+    return `gives former names for "${name}", which isn't one of its commands or documents`;
+  }
+
+  public static formatModuleFormerNamesInvalid(name: string): string {
+    return `must give "${name}" its former names as a list of different qualified names, such as "notes.add", none of them its own name`;
+  }
+
+  public static formatCatalogFormerNamesRepeated(repeated: readonly (readonly [string, readonly string[]])[]): string {
+    return `Former names repeat in the build, and a former name moves to one command or document: ${repeated.map(([name, files]) => Resources.formatNameInFile(name, files.join(", "))).join("; ")}.`;
+  }
+
+  public static formatCatalogFormerNamesCurrent(current: readonly (readonly [string, readonly string[]])[]): string {
+    return `Former names are names a module contributes in the build: ${current.map(([name, files]) => Resources.formatNameInFile(name, files.join(", "))).join("; ")}.`;
   }
 
   public static formatContributionPlace(file: string, kind: string): string {
