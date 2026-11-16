@@ -18,6 +18,7 @@ interface IVirtualWait {
 }
 
 export class VirtualTimeFixture implements Disposable {
+  private readonly setTimeout: typeof timers.setTimeout = timers.setTimeout;
   private readonly restoreSetTimeout: () => void;
   private readonly now: typeof Date.now = Date.now;
   private readonly waits: IVirtualWait[] = [];
