@@ -11,7 +11,7 @@ import timers from "node:timers/promises";
 
 import "@noldova/context.core";
 
-interface VirtualWait {
+interface IVirtualWait {
   readonly deadline: number;
   readonly resolve: () => void;
 }
@@ -19,7 +19,7 @@ interface VirtualWait {
 export class VirtualTimeFixture implements Disposable {
   private readonly setTimeout: typeof timers.setTimeout = timers.setTimeout;
   private readonly now: typeof Date.now = Date.now;
-  private readonly waits: VirtualWait[] = [];
+  private readonly waits: IVirtualWait[] = [];
   private readonly start: number;
   private time: number;
   private isAdvancing: boolean = false;
@@ -59,7 +59,7 @@ export class VirtualTimeFixture implements Disposable {
       this.waits.splice(this.waits.indexOf(wait), 1);
       reject(Object.assign(new Error("The operation was aborted"), { name: "AbortError", code: "ABORT_ERR", cause: signal?.reason }));
     };
-    const wait: VirtualWait = {
+    const wait: IVirtualWait = {
       deadline: this.time + milliseconds,
       resolve: (): void => {
         signal?.removeEventListener("abort", abort);
