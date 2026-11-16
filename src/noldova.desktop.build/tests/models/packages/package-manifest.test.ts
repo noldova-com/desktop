@@ -56,7 +56,7 @@ export class PackageManifestTests {
         name: PackageManifestTests.NAME,
         version: "__VERSION__",
         dependencies: { "left-pad": "1.3.0", "@noldova/desktop.runtime": "__VERSION__", "@noldova/desktop": "__VERSION__" },
-        peerDependencies: { "@angular/core": "^20.0.0", "@noldova/desktop.runtime": "__VERSION__", "react": "^18.0.0", "vue": "^3.0.0" },
+        peerDependencies: { "@angular/core": "^20.0.0", "@noldova/desktop.runtime": ">=__VERSION__ <__NEXT_MINOR__", "react": "^18.0.0", "vue": "^3.0.0" },
         peerDependenciesMeta: { react: { optional: true }, vue: { optional: false }, "@angular/core": {} },
         noldova: { coverageExclusions: ["src/generated.ts"], windowsAddons: ["pty-host"], posixAddons: ["pty", "pty-spawn"] },
         files: ["dist", "README.md"]
@@ -180,6 +180,26 @@ export class PackageManifestTests {
     const error = await Assert.throwsAsync(() => PackageManifest.readAsync(tree.path, PackageManifestTests.SOURCE), BuildException);
 
     Assert.areEqual(Resources.formatManifestUnpinned(PackageManifestTests.FILE, ["left-pad", "top-pad"]), error.message);
+  }
+
+  @TestMethod
+  @TestData("__VERSION__")
+  @TestData(">=__VERSION__ <0.1.0")
+  public async refusesASiblingPeerNotAtThePeerRangePlaceholderAsync(range: string): Promise<void> {
+    await using tree = await PackageManifestTests.createAsync(`"peerDependencies":{"@noldova/desktop.runtime":"${range}","@noldova/desktop.window":">=__VERSION__ <__NEXT_MINOR__"}`);
+
+    const error = await Assert.throwsAsync(() => PackageManifest.readAsync(tree.path, PackageManifestTests.SOURCE), BuildException);
+
+    Assert.areEqual(Resources.formatManifestOwnPeerUnranged(PackageManifestTests.FILE, ["@noldova/desktop.runtime"]), error.message);
+  }
+
+  @TestMethod
+  public async refusesThePeerRangePlaceholderOnAPeerThatIsNoSiblingAsync(): Promise<void> {
+    await using tree = await PackageManifestTests.createAsync("\"peerDependencies\":{\"@noldova/desktop\":\">=__VERSION__ <__NEXT_MINOR__\"}");
+
+    const error = await Assert.throwsAsync(() => PackageManifest.readAsync(tree.path, PackageManifestTests.SOURCE), BuildException);
+
+    Assert.areEqual(Resources.formatManifestOwnUnstamped(PackageManifestTests.FILE, ["@noldova/desktop"]), error.message);
   }
 
   @TestMethod

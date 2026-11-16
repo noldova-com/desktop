@@ -1377,6 +1377,8 @@ export class Resources {
   public static readonly scopedPackageNameSegments: number = 2;
   public static readonly packageNameSegments: number = 1;
   public static readonly packageVersionPlaceholder: string = "__VERSION__";
+  public static readonly packageNextMinorPlaceholder: string = "__NEXT_MINOR__";
+  public static readonly packagePeerRangePlaceholder: string = Resources.formatVersionRange(Resources.packageVersionPlaceholder, Resources.packageNextMinorPlaceholder);
   public static readonly protocolVersionPlaceholder: string = ["__PROTOCOL", "VERSION__"].join("_");
   public static readonly packageNoCoverageExclusions: string = "[]";
   public static readonly angularScope: string = "@angular/";
@@ -2049,6 +2051,10 @@ export class Resources {
 
   public static formatManifestOwnUnstamped(file: string, names: readonly string[]): string {
     return `${file} must depend on ${names.join(Resources.listSeparator)} at version "${Resources.packageVersionPlaceholder}".`;
+  }
+
+  public static formatManifestOwnPeerUnranged(file: string, names: readonly string[]): string {
+    return `${file} must take ${names.join(Resources.listSeparator)} as a peer at "${Resources.packagePeerRangePlaceholder}"; the build stamps the version and its next minor.`;
   }
 
   public static formatModuleVersionsUnreadable(problems: readonly string[]): string {

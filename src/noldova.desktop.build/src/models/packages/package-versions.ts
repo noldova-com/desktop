@@ -48,12 +48,20 @@ export class PackageVersions {
   public stampManifest(manifest: PackageManifest, text: string): string {
     const source = JsonReader.parse(text);
     const stamped = Resources.stampedDependencyFields.filter(t => source.hasField(t)).map(t => [t, Object.fromEntries(
-      Object.entries(source.readObject(t).toJson()).map(([name, version]) => [name, manifest.dependencies.includes(name) ? this.of(name) : version]))]);
+      Object.entries(source.readObject(t).toJson()).map(([name, version]) => [name, manifest.dependencies.includes(name) ? this.stampOwn(name, version) : version]))]);
     return JSON.stringify({
       ...source.toJson(),
       [Resources.manifestVersionField]: this.of(manifest.name),
       ...Object.fromEntries(stamped),
       ...(Object.isNull(this.commit) ? {} : { [Resources.manifestCommitField]: this.commit })
     }, null, Resources.jsonIndent);
+  }
+
+  private stampOwn(name: string, source: unknown): string {
+    const version = this.of(name);
+    if (source !== Resources.packagePeerRangePlaceholder)
+      return version;
+    const [major, minor] = version.split(Resources.versionSeparator);
+    return Resources.formatVersionRange(version, Resources.formatVersion(Number(major), Number(minor) + 1, 0));
   }
 }

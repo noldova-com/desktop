@@ -88,13 +88,19 @@ export class PackageManifest {
       throw new BuildException(Resources.formatManifestPeersMetaInvalid(file), new ExceptionOptions(error));
     }
     const modulesPrefix = await RootManifest.readModulePackagePrefixAsync(root);
-    const own = [...Object.entries(dependencies), ...Object.entries(peers)].filter(([name]) => PackageNaming.isOwn(name, modulesPrefix));
+    const ownDependencies = Object.entries(dependencies).filter(([name]) => PackageNaming.isOwn(name, modulesPrefix));
+    const ownPeers = Object.entries(peers).filter(([name]) => PackageNaming.isOwn(name, modulesPrefix));
+    const own = [...ownDependencies, ...ownPeers];
     const unpinned = Object.entries(dependencies).filter(([name, version]) => !PackageNaming.isOwn(name, modulesPrefix) && !Object.isString(version)).map(([name]) => name);
     if (unpinned.length > 0)
       throw new BuildException(Resources.formatManifestUnpinned(file, unpinned));
-    const unstamped = own.filter(([, version]) => version !== Resources.packageVersionPlaceholder).map(([name]) => name);
+    const unstamped = [...ownDependencies, ...ownPeers.filter(([name]) => !PackageNaming.isSiblingPeer(packageName, name))]
+      .filter(([, version]) => version !== Resources.packageVersionPlaceholder).map(([name]) => name);
     if (unstamped.length > 0)
       throw new BuildException(Resources.formatManifestOwnUnstamped(file, unstamped));
+    const unranged = ownPeers.filter(([name, version]) => PackageNaming.isSiblingPeer(packageName, name) && version !== Resources.packagePeerRangePlaceholder).map(([name]) => name);
+    if (unranged.length > 0)
+      throw new BuildException(Resources.formatManifestOwnPeerUnranged(file, unranged));
 
     let settings: JsonReader;
     try {
