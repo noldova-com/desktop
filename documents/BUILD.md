@@ -221,7 +221,10 @@ Each target is packaged on its own platform and processor, through electron-buil
   - `release-check` then reads the revision, its comparison with `main` and its Build and test run in the source repository.
     It compares the version only with that repository's releases under the app's own prefix, refuses a tag that already exists there, and refuses an app whose `desktop.product.updateFeed` is unset, since that repository's latest release may be another app's.
   - The draft names no commit and its name is the tag; GitHub makes the tag at that repository's default branch when the release publishes, and publication then requires the tag rather than a commit.
-    The notes end with the source repository and commit.
+    The notes end with the source repository and commit, and when the release runs in a repository that is neither the source nor the release repository, they leave out the link to its run, which may be private.
+  - `release-tag-prefix` must name the app there, such as `app-`; `v` is refused, since a `v` tag in a shared repository can't say which app it belongs to.
+  - The release is still marked as that repository's latest, so its latest release is whichever app published last.
+    An installed app reads its own `desktop.product.updateFeed`, never that repository's latest; before a second app publishes there, every app's feed must resolve its newest release by the app's own prefix.
   - Publishing there needs a token that may write that repository's releases, since the run's own token writes only the repository running it.
     The `publish` job creates it with `actions/create-github-app-token` from a GitHub App installed on that repository, limited to it and to Contents write, whose client ID is the variable `RELEASE_APP_CLIENT_ID` and private key the secret `RELEASE_APP_PRIVATE_KEY` of `publish-environment`.
 - An app's official build may run in another repository, such as a private one that builds several apps, with `release-app.yml`'s `source-repository`; it defaults to the repository running the release.

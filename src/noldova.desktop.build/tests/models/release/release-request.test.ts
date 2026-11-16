@@ -36,10 +36,12 @@ export class ReleaseRequestTests {
   public buildsInItsSourceRepositoryUnlessAnotherIsNamed(): void {
     const request = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_BUILD_REPOSITORY: "" });
     const same = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_BUILD_REPOSITORY: "Example/Sample-App" });
-    const built = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_BUILD_REPOSITORY: "example/builds" });
+    const built = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_BUILD_REPOSITORY: "example/builds", RELEASE_TAG_PREFIX: "sample-app-" });
+    const apart = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_BUILD_REPOSITORY: "example/builds" });
 
     Assert.areEqual("example/sample-app,false,false", [request.buildRepository, request.isBuiltElsewhere, same.isBuiltElsewhere].join());
     Assert.areEqual("example/builds,example/sample-app,true,true", [built.buildRepository, built.sourceRepository, built.isBuiltElsewhere, built.isSeparate].join());
+    Assert.areEqual("false,true,true", [request.isBuiltApart, built.isBuiltApart, apart.isBuiltApart].join());
   }
 
   @TestMethod
@@ -52,11 +54,11 @@ export class ReleaseRequestTests {
 
   @TestMethod
   public readsTheVersionAtTheEndOfAHyphenatedAppsTagAndLeavesALongerAppsTags(): void {
-    const hyphenated = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_TAG_PREFIX: "computer-use-" });
-    const shorter = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_TAG_PREFIX: "computer-" });
+    const hyphenated = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_TAG_PREFIX: "sample-tool-" });
+    const shorter = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_TAG_PREFIX: "sample-" });
 
-    Assert.areEqual("computer-use-1.2.3,1.0.0", [hyphenated.tag, hyphenated.parseTag("computer-use-1.0.0", "The latest release").text].join());
-    Assert.areEqual("true,false,true,false", [hyphenated.ownsTag("computer-use-1.0.0"), shorter.ownsTag("computer-use-1.0.0"), shorter.ownsTag("computer-2.0.0"), hyphenated.ownsTag("computer-use-next")].join());
+    Assert.areEqual("sample-tool-1.2.3,1.0.0", [hyphenated.tag, hyphenated.parseTag("sample-tool-1.0.0", "The latest release").text].join());
+    Assert.areEqual("true,false,true,false", [hyphenated.ownsTag("sample-tool-1.0.0"), shorter.ownsTag("sample-tool-1.0.0"), shorter.ownsTag("sample-2.0.0"), hyphenated.ownsTag("sample-tool-next")].join());
   }
 
   @TestMethod
@@ -84,6 +86,10 @@ export class ReleaseRequestTests {
       [{ RELEASE_TAG_PREFIX: "sample-app" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"sample-app\"."],
       [{ RELEASE_TAG_PREFIX: "Sample-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"Sample-\"."],
       [{ RELEASE_TAG_PREFIX: "sample--app-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"sample--app-\"."],
+      [{ RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app" },
+        "RELEASE_TAG_PREFIX must name the app, such as app-, for a release in example/downloads, which isn't its source repository example/sample-app: a v tag there can't say which app it belongs to."],
+      [{ RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_TAG_PREFIX: "v" },
+        "RELEASE_TAG_PREFIX must name the app, such as app-, for a release in example/downloads, which isn't its source repository example/sample-app: a v tag there can't say which app it belongs to."],
       [{ RELEASE_TAG_PREFIX: "-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"-\"."]
     ];
 

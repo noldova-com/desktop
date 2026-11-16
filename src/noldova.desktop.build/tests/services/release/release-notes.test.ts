@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
@@ -85,6 +86,17 @@ export class ReleaseNotesTests {
   }
 
   @TestMethod
+  public leavesOutTheRunOfABuildInARepositoryThatIsNeitherTheSourceNorTheRelease(): void {
+    const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], "example/downloads", "https://github.com/example/builds/actions/runs/7", "example/sample-app", "example/downloads", "example/builds");
+    const inRelease = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], "example/downloads", ReleaseNotesTests.RUN, "example/sample-app", "example/downloads", "example/downloads");
+
+    Assert.isFalse(notes.includes("example/builds"), notes);
+    Assert.isFalse(notes.includes("install check"), notes);
+    Assert.isTrue(notes.endsWith("accepted by a CI run only.\n\nBuilt from example/sample-app at 0123456789abcdef0123456789abcdef01234567."), notes);
+    Assert.isTrue(inRelease.includes(ReleaseNotesTests.RUN), inRelease);
+  }
+
+  @TestMethod
   public refusesARunAddressThatIsNotHttps(): void {
     for (const run of ["http://github.com/example/sample-app/actions/runs/1", "runs/1"]) {
       const error = Assert.throws(() => ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], ReleaseNotesTests.REPOSITORY, run), BuildException);
@@ -94,7 +106,7 @@ export class ReleaseNotesTests {
   }
 
   private static compose(targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[] = [], repository: string = ReleaseNotesTests.REPOSITORY,
-    run: string = ReleaseNotesTests.RUN, source: string = repository, releaseRepository: string = "example/sample-app"): string {
+    run: string = ReleaseNotesTests.RUN, source: string = repository, releaseRepository: string = "example/sample-app", build: string = source): string {
     const product = ProductIdentity.fromManifest(JsonReader.fromValue({
       desktop: {
         product: {
@@ -111,7 +123,7 @@ export class ReleaseNotesTests {
         }
       }
     }));
-    const request = ReleaseRequest.read({ RELEASE_REPOSITORY: repository, RELEASE_SOURCE_REPOSITORY: source, RELEASE_VERSION: "0.0.2", RELEASE_REVISION: "0123456789abcdef0123456789abcdef01234567" });
+    const request = ReleaseRequest.read({ RELEASE_REPOSITORY: repository, RELEASE_SOURCE_REPOSITORY: source, RELEASE_BUILD_REPOSITORY: build, RELEASE_TAG_PREFIX: repository === source ? String.empty : "sample-app-", RELEASE_VERSION: "0.0.2", RELEASE_REVISION: "0123456789abcdef0123456789abcdef01234567" });
     return ReleaseNotes.compose(product, targets, supported, signed, request, run);
   }
 }

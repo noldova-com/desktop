@@ -39,6 +39,10 @@ export class ReleaseRequest {
     return this.buildRepository.toLowerCase() !== this.sourceRepository.toLowerCase();
   }
 
+  public get isBuiltApart(): boolean {
+    return this.isBuiltElsewhere && this.buildRepository.toLowerCase() !== this.repository.toLowerCase();
+  }
+
   public ownsTag(tag: string): boolean {
     return tag.startsWith(this.tagPrefix) && Resources.releaseVersionPattern.test(tag.slice(this.tagPrefix.length));
   }
@@ -66,6 +70,8 @@ export class ReleaseRequest {
     const tagPrefix = ReleaseRequest.readOptional(environment, Resources.releaseTagPrefixVariable) ?? Resources.releaseTagPrefix;
     if (!Resources.releaseTagPrefixPattern.test(tagPrefix))
       throw new BuildException(Resources.formatReleaseTagPrefixInvalid(tagPrefix));
+    if (tagPrefix === Resources.releaseTagPrefix && repository.toLowerCase() !== sourceRepository.toLowerCase())
+      throw new BuildException(Resources.formatReleaseTagPrefixNeeded(repository, sourceRepository));
     return new ReleaseRequest(repository, sourceRepository, buildRepository, version, revision, tagPrefix);
   }
 

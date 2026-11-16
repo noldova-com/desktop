@@ -23,9 +23,10 @@ export class ReleaseNotes {
       Resources.formatReleaseSummary(name, request.version.text, ReleaseNotes.formatTargets(targets), ReleaseNotes.describeSigning(signed)),
       supported.length === 0
         ? Resources.releaseNoneSupported
-        : Resources.formatReleaseSupported(ReleaseNotes.formatTargets(supported), ciOnly.length === 0 ? null : ReleaseNotes.formatTargets(ciOnly)),
-      Resources.formatReleaseRunCheck(runUrl)
+        : Resources.formatReleaseSupported(ReleaseNotes.formatTargets(supported), ciOnly.length === 0 ? null : ReleaseNotes.formatTargets(ciOnly))
     ];
+    if (!request.isBuiltApart)
+      paragraphs.push(Resources.formatReleaseRunCheck(runUrl));
     if (request.isSeparate)
       paragraphs.push(Resources.formatReleaseSource(request.sourceRepository, request.revision));
     if (!product.isReleaseRepository(request.repository))

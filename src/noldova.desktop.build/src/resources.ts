@@ -4199,6 +4199,11 @@ export class Resources {
     return `The tag ${tag} doesn't exist in ${repository}, though its release is published.`;
   }
 
+  public static formatReleaseTagPrefixNeeded(repository: string, sourceRepository: string): string {
+    return `${Resources.releaseTagPrefixVariable} must name the app, such as app-, for a release in ${repository}, which isn't its source repository ${sourceRepository}: `
+      + `a v tag there can't say which app it belongs to.`;
+  }
+
   public static formatReleaseSourceNotPublic(sourceRepository: string, buildRepository: string): string {
     return `The release runs in ${buildRepository} and reads its source ${sourceRepository} with the run's own token, which reads no other private repository, so ${sourceRepository} must be public; it is private or doesn't exist.`;
   }
