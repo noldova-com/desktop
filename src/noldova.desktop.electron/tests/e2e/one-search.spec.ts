@@ -32,10 +32,17 @@ function searchField(window: Page): Locator {
   return window.locator("nol-window-row .nol-window-row-search");
 }
 
-async function layOutAsync(mainProcess: MainProcessFixture, width: number): Promise<void> {
+async function layOutAsync(mainProcess: MainProcessFixture, natural: number, width: number): Promise<void> {
   await test.step(`lay the window out ${width} CSS px wide, since the hosted runners' display size varies`, async () => {
-    const shown = await mainProcess.window.evaluate(() => innerWidth);
-    await mainProcess.zoomAsync(shown / width, width);
+    await mainProcess.zoomAsync(natural / width, width);
+  });
+}
+
+function overHalfAsync(window: Page): Promise<number> {
+  return window.locator("nol-window-row .nol-window-row-middle").evaluate(t => {
+    const style = getComputedStyle(t);
+    const room = t.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return room - 27.5 * parseFloat(getComputedStyle(document.documentElement).fontSize) / 2;
   });
 }
 
@@ -53,7 +60,7 @@ test.describe("search", () => {
 
     test("shows a field centred in the window row that opens search over it, finds a module's command, runs it from the keyboard and lists it as recent next time @smoke", async ({ mainProcess }) => {
       const window = mainProcess.window;
-      await layOutAsync(mainProcess, 1280);
+      await layOutAsync(mainProcess, await window.evaluate(() => innerWidth), 1280);
       const tab = window.locator("nol-tab[data-tab-key=\"document/notes.note/2\"]");
       await expect(tab).toBeVisible();
       await tab.click();
@@ -120,13 +127,14 @@ test.describe("search", () => {
     test("keeps a narrow field unshifted in its group when the row has no room to centre it", async ({ mainProcess }) => {
       const window = mainProcess.window;
       await expect(searchField(window)).toBeVisible();
-      const narrow = await window.locator("nol-window-row .nol-window-row-middle").evaluate(t => {
-        const style = getComputedStyle(t);
-        const room = t.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-        const field = 27.5 * parseFloat(getComputedStyle(document.documentElement).fontSize);
-        return Math.round(innerWidth - room + field / 2);
-      });
-      await layOutAsync(mainProcess, narrow);
+      const natural = await window.evaluate(() => innerWidth);
+      const narrow = Math.round(natural - await overHalfAsync(window));
+      await layOutAsync(mainProcess, natural, narrow);
+      const folded = await overHalfAsync(window);
+      if (folded > 1)
+        await layOutAsync(mainProcess, natural, Math.round(narrow - folded));
+
+      expect(Math.abs(await overHalfAsync(window)), "The row leaves the field about half its width, once a narrow row folds its menu bar.").toBeLessThan(40);
       const shown = await searchField(window).evaluate(t => {
         const middle = t.closest(".nol-window-row-middle");
         if (middle === null)
