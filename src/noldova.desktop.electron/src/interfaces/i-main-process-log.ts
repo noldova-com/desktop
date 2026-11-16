@@ -8,4 +8,5 @@
 
 export interface IMainProcessLog {
   write(text: string): void;
+  flush(): void;
 }

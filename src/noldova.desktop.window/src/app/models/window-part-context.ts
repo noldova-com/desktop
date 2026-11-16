@@ -367,7 +367,7 @@ export class WindowPartContext implements IWindowPartContext {
     if (this.isWithdrawn)
       return;
     this.host.openDocumentLook(this.moduleId, name, instance, options);
-    this.host.openDocument(this.moduleId, name, instance, heading, options.preview === true, options.after ?? null);
+    this.host.openDocument(this.moduleId, name, instance, heading, options.preview === true, options.after ?? null, options.activate !== false);
   }
 
   public keepDocument(name: string, instance: string): void {
