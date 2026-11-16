@@ -57,7 +57,7 @@ export class WebViewHostTests {
     const answer = await WebViewHostTests.openUnattachedAsync(electron);
     const session = electron.webViews.session(WebViewHostTests.PARTITION);
 
-    Assert.areEqual(JSON.stringify({ view: { id: "1", module: "browser", pane: WebViewHostTests.PANE, profileKey: "workspace-1" }, partition: WebViewHostTests.PARTITION }),
+    Assert.areEqual(JSON.stringify({ view: { id: "1", module: "browser", pane: WebViewHostTests.PANE, profileKey: "workspace-1" }, partition: WebViewHostTests.PARTITION, keys: [] }),
       JSON.stringify(answer));
     Assert.areEqual(0, electron.webViews.views.length);
     Assert.areEqual("false,false,false,true", [session.checkHandler?.(), session.deviceHandler?.(), session.askPermission(500, "media"), session.askDisplayMedia(500)].join(","));
@@ -965,6 +965,44 @@ export class WebViewHostTests {
     Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
     Assert.isFalse(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Key"));
     Assert.isTrue(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Opened"));
+  }
+
+  @TestMethod
+  @TestData("linux", "[\"Mod+R\",\"F5\",\"Mod+T\"]")
+  @TestData("darwin", "[\"Mod+R\",\"Mod+T\"]")
+  public async tellsTheWindowTheKeysTheModuleDeclaresForItsPaneOnItsPlatform(platform: string, keys: string): Promise<void> {
+    const declaration = WebViewDeclaration.fromJson({ ...WebViewHostTests.KEYS.toJson(), loadingKeys: [{ name: "stop", keys: ["Escape"] }] });
+    const [electron] = await WebViewHostTests.startAsync({ browser: declaration }, platform);
+
+    const answer = await WebViewHostTests.openUnattachedAsync(electron, WebViewHostTests.PANE, "workspace-1", "browser", platform);
+
+    Assert.areEqual(keys, JSON.stringify(answer?.["keys"]));
+  }
+
+  @TestMethod
+  @TestData("linux")
+  @TestData("darwin")
+  public async givesThePaneItsDeclaredKeyAheadOfAnAppShortcutOnTheSameKeyAndItsLoadingKeyOnlyWhileThePageLoads(platform: string): Promise<void> {
+    const declaration = WebViewDeclaration.fromJson({ ...WebViewHostTests.KEYS.toJson(), loadingKeys: [{ name: "stop", keys: ["Escape"] }] });
+    const [electron, , connection] = await WebViewHostTests.startAsync({ browser: declaration }, platform);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    electron.ipcMain.send("desktop:webViewShortcuts", MainProcessStartFixture.trustedEvent(platform, window.id), ["Mod+R", "Mod+K"]);
+    await WebViewHostTests.openAsync(electron, WebViewHostTests.PANE, "workspace-1", "browser", platform);
+    const contents = WebViewHostTests.view(electron, 0).contents;
+    const press = (key: string, code: string, isMod: boolean): boolean => contents.prevent("before-input-event", WebViewHostTests.input(key, code, isMod, platform));
+
+    contents.loading = true;
+    const whileLoading = [press("r", "KeyR", true), press("Escape", "Escape", false), press("k", "KeyK", true)];
+    contents.loading = false;
+    const afterLoading = [press("Escape", "Escape", false), press("r", "KeyR", true)];
+    await Condition.waitAsync(() => WebViewHostTests.shortcuts(window).length > 0);
+
+    const isMac = platform === "darwin";
+    Assert.areEqual("true,true,true|false,true", `${whileLoading.join(",")}|${afterLoading.join(",")}`);
+    Assert.areEqual(JSON.stringify(["reload", "stop", "reload"]),
+      JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Key").map(t => WebViewHostTests.details(t)["name"])));
+    Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
+    Assert.isFalse(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Key"));
   }
 
   @TestMethod

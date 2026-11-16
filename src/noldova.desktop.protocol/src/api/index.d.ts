@@ -2633,7 +2633,7 @@ export declare class WebViewMethod {
  * A key a module's pane takes from its web views, by name, with its keys on
  * Windows and Linux and on macOS. A key needs `Mod`, `Ctrl` or `Alt`, or is a
  * function key, and is never one that editing, the operating system or
- * Noldova Desktop holds on its platform.
+ * Noldova Desktop holds on its platform; a loading key may also be `Escape`.
  */
 export declare class WebViewKey {
   /**
@@ -2653,30 +2653,40 @@ export declare class WebViewKey {
   public readonly macKeys: readonly KeyChord[];
 
   /**
+   * Whether it is a loading key, which the pane takes only while the view's
+   * page loads, and which may be `Escape`.
+   */
+  public readonly isLoadingKey: boolean;
+
+  /**
    * Creates the key.
    *
    * @param name The key's name.
    * @param keys One to four keys on Windows and Linux.
    * @param macKeys One to four keys on macOS; `keys` by default.
+   * @param isLoadingKey Whether it is a loading key; `false` by default.
    * @throws ArgumentException synchronously when the name is not a lowercase
    * letter followed by letters and digits, a platform has no keys, more than
-   * four or one twice, or a key is a typing key or one that editing, the
-   * operating system or Noldova Desktop holds on that platform.
+   * four or one twice, or a key is a typing key, other than `Escape` for a
+   * loading key, or one that editing, the operating system or Noldova
+   * Desktop holds on that platform.
    *
    * @example
    * ```ts
    * import { KeyChord, WebViewKey } from "@noldova/desktop.protocol";
    *
    * export const reload: WebViewKey = new WebViewKey("reload", [KeyChord.parse("Mod+R"), KeyChord.parse("F5")], [KeyChord.parse("Mod+R")]);
+   * export const stop: WebViewKey = new WebViewKey("stop", [KeyChord.parse("Escape")], undefined, true);
    * ```
    */
-  public constructor(name: string, keys: readonly KeyChord[], macKeys?: readonly KeyChord[]);
+  public constructor(name: string, keys: readonly KeyChord[], macKeys?: readonly KeyChord[], isLoadingKey?: boolean);
 
   /**
    * Reads a key from its wire form; `macKeys` is optional.
    *
    * @param value The parsed JSON value.
    * @param path The JSON path a rejection reports; `$` by default.
+   * @param isLoadingKey Whether it is a loading key; `false` by default.
    * @returns The key.
    * @throws JsonException synchronously when the value is not a valid key,
    * or has a field a key doesn't have.
@@ -2686,9 +2696,10 @@ export declare class WebViewKey {
    * import { WebViewKey } from "@noldova/desktop.protocol";
    *
    * export const newTab: WebViewKey = WebViewKey.fromJson({ name: "newTab", keys: ["Mod+T"] });
+   * export const stop: WebViewKey = WebViewKey.fromJson({ name: "stop", keys: ["Escape"] }, undefined, true);
    * ```
    */
-  public static fromJson(value: unknown, path?: string): WebViewKey;
+  public static fromJson(value: unknown, path?: string, isLoadingKey?: boolean): WebViewKey;
 
   /**
    * The key's keys on a platform.
@@ -2770,6 +2781,13 @@ export declare class WebViewDeclaration {
   public readonly newWindows: boolean;
 
   /**
+   * The keys the module's pane takes from its views only while their page
+   * loads, such as `Escape` to stop it, each named once across these and
+   * `keys`.
+   */
+  public readonly loadingKeys: readonly WebViewKey[];
+
+  /**
    * Creates the declaration.
    *
    * @param methods The methods; none by default.
@@ -2777,10 +2795,11 @@ export declare class WebViewDeclaration {
    * @param keys The keys; none by default.
    * @param newWindows Whether the module takes new-window requests; `false`
    * by default.
+   * @param loadingKeys The loading keys; none by default.
    * @throws ArgumentException synchronously when a method or an event is
    * named twice, an event is not a domain, a dot and a name, a key is named
-   * twice, a platform's key belongs to two of them, or there are more than 32
-   * keys.
+   * twice across `keys` and `loadingKeys`, a platform's key belongs to two of
+   * them, `keys` holds a loading key, or there are more than 32 keys in all.
    *
    * @example
    * ```ts
@@ -2789,7 +2808,7 @@ export declare class WebViewDeclaration {
    * export const declaration: WebViewDeclaration = new WebViewDeclaration([new WebViewMethod("Page.enable")], ["Page.loadEventFired"]);
    * ```
    */
-  public constructor(methods?: readonly WebViewMethod[], events?: readonly string[], keys?: readonly WebViewKey[], newWindows?: boolean);
+  public constructor(methods?: readonly WebViewMethod[], events?: readonly string[], keys?: readonly WebViewKey[], newWindows?: boolean, loadingKeys?: readonly WebViewKey[]);
 
   /**
    * Reads a declaration from its wire form; every field is optional.
@@ -2842,10 +2861,12 @@ export declare class WebViewDeclaration {
   public allowsEvent(method: string): boolean;
 
   /**
-   * The declared key a press is on a platform.
+   * The declared key a press is on a platform, a loading key among them only
+   * while the view's page loads.
    *
    * @param stroke The press.
    * @param platform The platform, as Node.js names it, such as `darwin`.
+   * @param isLoading Whether the view's page is loading; `false` by default.
    * @returns The key's name, or `null` when the press is none of them.
    *
    * @example
@@ -2855,9 +2876,13 @@ export declare class WebViewDeclaration {
    * export function nameOnMacOS(declaration: WebViewDeclaration, stroke: IKeyStroke): string | null {
    *   return declaration.findKey(stroke, "darwin");
    * }
+   *
+   * export function nameWhileLoading(declaration: WebViewDeclaration, stroke: IKeyStroke): string | null {
+   *   return declaration.findKey(stroke, "linux", true);
+   * }
    * ```
    */
-  public findKey(stroke: IKeyStroke, platform: string): string | null;
+  public findKey(stroke: IKeyStroke, platform: string, isLoading?: boolean): string | null;
 
   /**
    * Writes the declaration in its wire form.
@@ -4566,6 +4591,24 @@ export declare class ShellKeys {
    * ```
    */
   public static pageFirst(platform: string): readonly (readonly [KeyChord, string])[];
+
+  /**
+   * Noldova Desktop's default keys on a platform that a pane may declare,
+   * each with its command's name: F6 and Shift+F6 move the focus through the
+   * window's regions, but a pane that declares one takes it while one of its
+   * views has the focus.
+   *
+   * @param platform The platform, as Node.js names it, such as `darwin`.
+   * @returns Each key and its command.
+   *
+   * @example
+   * ```ts
+   * import { type KeyChord, ShellKeys } from "@noldova/desktop.protocol";
+   *
+   * export const keys: readonly (readonly [KeyChord, string])[] = ShellKeys.declarable("linux");
+   * ```
+   */
+  public static declarable(platform: string): readonly (readonly [KeyChord, string])[];
 
   /**
    * Whether a key is one of Noldova Desktop's default keys, or the stop key's

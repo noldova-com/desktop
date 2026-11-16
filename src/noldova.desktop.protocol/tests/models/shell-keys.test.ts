@@ -34,6 +34,15 @@ export class ShellKeysTests {
   }
 
   @TestMethod
+  public listsTheDefaultKeysAPaneMayDeclareApartFromTheOthers(): void {
+    const keys = (platform: string): string => ShellKeys.declarable(platform).map(([key, command]) => `${key.text} ${command}`).join();
+
+    Assert.areEqual("F6 desktop.focusNextRegion,Shift+F6 desktop.focusPreviousRegion", keys("win32"));
+    Assert.areEqual(keys("win32"), keys("darwin"));
+    Assert.isFalse(["F6", "Shift+F6"].some(t => ShellKeys.has(KeyChord.parse(t), "linux") || ShellKeys.has(KeyChord.parse(t), "darwin")));
+  }
+
+  @TestMethod
   public knowsADefaultKeyOrTheStopKeyByItsPlatformsMeaning(): void {
     const has = (text: string, platform: string): boolean => ShellKeys.has(KeyChord.parse(text), platform);
 

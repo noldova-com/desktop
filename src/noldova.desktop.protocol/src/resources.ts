@@ -248,6 +248,10 @@ export class Resources {
     ["desktop.toggleBottomDock", ["Mod+J"], ["Mod+J"]],
     ["desktop.toggleRightDock", ["Mod+Alt+B"], ["Mod+Alt+B"]]
   ];
+  public static readonly declarableShellKeys: readonly (readonly [string, readonly string[], readonly string[]])[] = [
+    ["desktop.focusNextRegion", ["F6"], ["F6"]],
+    ["desktop.focusPreviousRegion", ["Shift+F6"], ["Shift+F6"]]
+  ];
   public static readonly pageFirstShellKeys: readonly (readonly [string, readonly string[], readonly string[]])[] = [
     ["desktop.showShortcuts", ["Mod+Slash"], ["Mod+Slash"]]
   ];
@@ -389,6 +393,8 @@ export class Resources {
   public static readonly webViewKeyChordsLimit: number = 4;
   public static readonly keysField: string = "keys";
   public static readonly macKeysField: string = "macKeys";
+  public static readonly loadingKeysField: string = "loadingKeys";
+  public static readonly loadingOnlyKey: string = "Escape";
   public static readonly standardPlatformLabel: string = "Windows and Linux";
   public static readonly macPlatformLabel: string = "macOS";
   public static readonly stepTolerance: number = 1e-9;
@@ -431,7 +437,7 @@ export class Resources {
   public static readonly webViewMethodNameInvalid: string = "A web view's method or event must be a debugging protocol domain, a dot and a name, such as \"Page.captureScreenshot\".";
   public static readonly webViewNamesRepeated: string = "A web view declaration names each method and each event once.";
   public static readonly webViewKeyNameInvalid: string = "A declared key's name must start with a lowercase letter followed by letters and digits.";
-  public static readonly webViewKeysRepeated: string = `A web view declaration names each key once, and gives each key once on each platform, with at most ${Resources.webViewKeysLimit} names.`;
+  public static readonly webViewKeysRepeated: string = `A web view declaration names each key once across its keys and loading keys, and gives each key once on each platform, with at most ${Resources.webViewKeysLimit} names in all.`;
   public static readonly webViewKeyChordsInvalid: string = `A declared key has one to ${Resources.webViewKeyChordsLimit} keys on each platform.`;
   public static readonly webViewParameterNameInvalid: string = "A parameter's name must start with a lowercase letter followed by letters and digits.";
   public static readonly webViewRuleInvalid: string = "A parameter's rule gives at most one of values, a minimum and maximum, a maxLength and fields.";

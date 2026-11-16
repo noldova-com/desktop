@@ -342,6 +342,7 @@ export class Resources {
   public static readonly settingDescriptionIdPrefix: string = "nol-setting-description-";
   public static readonly settingNoteIdPrefix: string = "nol-setting-note-";
   public static readonly shortcutCollisionIdPrefix: string = "nol-shortcut-collision-";
+  public static readonly shortcutPaneNoteIdPrefix: string = "nol-shortcut-pane-note-";
   public static readonly shortcutNoticeIdPrefix: string = "nol-shortcut-notice-";
   public static readonly shortcutIdSeparator: string = "-";
   public static readonly shortcutsExplanation: string = "The keys that run commands. Choose a key to record a new one; your keys apply on every device.";
@@ -766,6 +767,18 @@ export class Resources {
   public static readonly focusPreviousGroupTitle: string = "Focus the previous group";
   public static readonly focusNextGroupGlyph: string = "keyboard_double_arrow_right";
   public static readonly focusPreviousGroupGlyph: string = "keyboard_double_arrow_left";
+  public static readonly focusNextRegionCommand: string = "desktop.focusNextRegion";
+  public static readonly focusPreviousRegionCommand: string = "desktop.focusPreviousRegion";
+  public static readonly focusNextRegionTitle: string = "Focus the next region";
+  public static readonly focusPreviousRegionTitle: string = "Focus the previous region";
+  public static readonly focusNextRegionGlyph: string = "move_down";
+  public static readonly focusPreviousRegionGlyph: string = "move_up";
+  public static readonly regionSelector: string = "nol-window-row, nol-toolbar-band, nol-dock, nol-tab-group, nol-status-bar";
+  public static readonly regionContentSelector: string = "nol-tab-slot";
+  public static readonly webViewGuestSelector: string = ".nol-web-view-guest";
+  public static readonly webViewFrameSelector: string = ".nol-web-view";
+  public static readonly regionVisibility: CheckVisibilityOptions = { visibilityProperty: true, opacityProperty: true };
+  public static readonly tabbableSelector: string = "a[href], button, input, select, textarea, [tabindex], [contenteditable]";
   public static readonly groupsGroup: string = "desktop.groups";
   public static readonly moveTabToGroupTitle: string = "Move the tab to another group";
   public static readonly groupArgument: string = "group";
@@ -1076,6 +1089,7 @@ export class Resources {
   public static readonly noPointerEvents: string = "none";
   public static readonly webViewViewField: string = "view";
   public static readonly webViewPartitionField: string = "partition";
+  public static readonly webViewKeysField: string = "keys";
   public static readonly webViewIsAttachedField: string = "isAttached";
   public static readonly webViewClosed: string = "The web view is closed.";
   public static readonly webViewZoomInvalid: string = "A web view's zoom is a finite factor above 0, 1 for 100%.";
@@ -1535,6 +1549,12 @@ export class Resources {
 
   public static formatKeyTaken(key: string, keptBy: string): string {
     return `${key} is taken by ${keptBy}`;
+  }
+
+  public static readonly paneNoteSeparator: string = "; ";
+
+  public static formatKeyTakenInPages(key: string, module: string): string {
+    return `${module} takes ${key} in its pages`;
   }
 
   public static formatWithKey(label: string, key: string | null): string {

@@ -29,6 +29,10 @@ export class WebViewKeys {
     return !tokens.some(t => t === Resources.modKey || t === Resources.ctrlKey || t === Resources.altKey) && !Resources.functionKeyPattern.test(String(tokens.at(-1)));
   }
 
+  public static isEscape(form: string): boolean {
+    return form.split(Resources.keyChordSeparator).at(-1) === Resources.escapeKey;
+  }
+
   public static refusedOn(isMac: boolean): readonly string[] {
     return [
       ...Resources.webViewEditingKeys,

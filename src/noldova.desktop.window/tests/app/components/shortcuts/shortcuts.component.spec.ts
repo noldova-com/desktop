@@ -12,11 +12,13 @@ import { type ComponentFixture, TestBed } from "@angular/core/testing";
 import { page, userEvent } from "vitest/browser";
 
 import type { JsonValue } from "@noldova/context.json";
-import type { SettingDefinition } from "@noldova/desktop.protocol";
+import { KeyChord, type SettingDefinition } from "@noldova/desktop.protocol";
+import { DefaultTheme, ThemeMode } from "@noldova/ui.components.angular";
 
 import { SettingsComponent } from "../../../../src/app/components/settings/settings.component";
 import { CommandContribution } from "../../../../src/app/models/command-contribution";
 import { CommandService } from "../../../../src/app/services/command.service";
+import { PaneKeysService } from "../../../../src/app/services/pane-keys.service";
 import { SettingsService } from "../../../../src/app/services/settings.service";
 import { WindowPartHostService } from "../../../../src/app/services/window-part-host.service";
 import { AppearanceFixture } from "@noldova/ui.components.angular/testing";
@@ -278,6 +280,27 @@ describe("ShortcutsComponent", () => {
       expect(settings.calls).toEqual([`set desktop.keyBindings {"clock.tick":"${binding}"}`]);
       expect(cells("desktop.nextTab").slice(2)).toEqual([`${kept}${taken} is taken by Tick the clock`, "Remove"]);
       expect(TestBed.inject(CommandService).keyLabel("desktop.nextTab")).toBe(kept);
+    });
+  }
+
+  for (const [platform, label, mode] of [["linux", "Ctrl+Alt+N", ThemeMode.Light], ["darwin", "⌥⌘N", ThemeMode.Dark]] as const) {
+    it(`says under a key that an open view's pane takes it in its pages, describes the key by it and draws it as the row's id note, under the key, on ${platform} in ${mode}`, async () => {
+      AppearanceFixture.apply(DefaultTheme.theme, mode);
+      const panes = TestBed.inject(PaneKeysService);
+      panes.add("1", "browser", [KeyChord.parse("Mod+Alt+N"), KeyChord.parse("F6")]);
+      panes.add("2", "browser", [KeyChord.parse("Mod+Alt+N")]);
+      await renderAsync(platform);
+      const paneNote = "[id^='nol-shortcut-pane-note-']";
+      const note = DomFixture.one(row("notes.newNote"), paneNote);
+      const id = DomFixture.one(row("notes.newNote"), ".nol-shortcut-name");
+      const [noteBox, keyBox] = [note.getBoundingClientRect(), keyOf("notes.newNote").getBoundingClientRect()];
+      const style = (element: Element): string[] => ["font-size", "line-height", "color"].map(t => getComputedStyle(element).getPropertyValue(t));
+      const described = keyOf("notes.newNote").getAttribute("aria-describedby")?.split(" ").map(t => document.getElementById(t)?.textContent?.trim());
+
+      expect([note.textContent?.trim(), described]).toEqual([`browser takes ${label} in its pages`, [`browser takes ${label} in its pages`]]);
+      expect([row("clock.tick").querySelector(paneNote), keyOf("clock.tick").getAttribute("aria-describedby")]).toEqual([null, null]);
+      expect([noteBox.left - keyBox.left, noteBox.top >= keyBox.bottom, noteBox.width > 0]).toEqual([0, true, true]);
+      expect(style(note)).toEqual(style(id));
     });
   }
 

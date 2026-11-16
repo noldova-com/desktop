@@ -98,7 +98,7 @@ export class WebViewHost {
       t => this.sendInput(windowId, { [Resources.moduleField]: info.module, [Resources.viewField]: info.id, [Resources.kindField]: t }));
     this.views.set(info.id, open);
     this.report(open, WebViewHost.createEvent(open, WebViewEventKind.Opened, { [Resources.paneField]: info.pane.toJson(), [Resources.profileKeyField]: profileKey }));
-    return { [Resources.viewField]: info.toJson(), [Resources.partitionField]: partition };
+    return { [Resources.viewField]: info.toJson(), [Resources.partitionField]: partition, [Resources.keysField]: declaration.keys.flatMap(t => t.keysOn(this.platform).map(u => u.text)) };
   }
 
   public async attachAsync(windowId: number, module: unknown, view: unknown, contentsId: unknown): Promise<JsonObject | null> {

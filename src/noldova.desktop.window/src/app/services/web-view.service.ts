@@ -27,6 +27,7 @@ import { WebViewLayer } from "../models/web-view-layer.js";
 import { CommandService } from "./command.service.js";
 import { LayoutService } from "./layout.service.js";
 import { LiveViewService } from "./live-view.service.js";
+import { PaneKeysService } from "./pane-keys.service.js";
 import { PreloadBridgeService } from "./preload-bridge.service.js";
 import { TabDragService } from "./tab-drag.service.js";
 import { ToolbarDragService } from "./toolbar-drag.service.js";
@@ -41,6 +42,7 @@ export class WebViewService {
   private readonly document: Document = inject(DOCUMENT);
   private readonly application: ApplicationRef = inject(ApplicationRef);
   private readonly handles: Map<string, WebViewHandle> = new Map();
+  private readonly paneKeys: PaneKeysService = inject(PaneKeysService);
   private shownTabs: ReadonlySet<string> = new Set();
   private isDragging: boolean = false;
 
@@ -85,6 +87,7 @@ export class WebViewService {
     handle.guest.addEventListener(Resources.webViewAttachEvent, () => this.attach(handle));
     handle.guest.addEventListener(Resources.focusInEvent, () => this.noteFocus(handle));
     this.handles.set(handle.id, handle);
+    this.paneKeys.add(handle.id, handle.moduleId, opened.keys);
     this.applyVisibility(handle);
     this.applyPointerEvents(handle);
     if (!this.layout.layout().isOpen(tab)) {
@@ -317,6 +320,7 @@ export class WebViewService {
 
   private remove(handle: WebViewHandle): void {
     this.handles.delete(handle.id);
+    this.paneKeys.remove(handle.id);
     handle.layer?.close();
     handle.frame.remove();
   }
