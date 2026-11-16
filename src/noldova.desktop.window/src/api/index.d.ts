@@ -216,8 +216,8 @@ export declare class FileNotOpenedException extends WindowException {
 /**
  * The exception {@link IWindowPartContext.showInFolderAsync} rejects with when
  * the window refuses to show a file in its folder, such as a path no file can
- * be read at or one that reaches another machine, so a part tells that refusal
- * apart from other failures.
+ * be read at, or a network or device path, so a part tells that refusal apart
+ * from other failures.
  */
 export declare class FileNotShownException extends WindowException {
   /**
