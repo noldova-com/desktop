@@ -13,6 +13,7 @@ import type { IWebViewDebugger } from "./i-web-view-debugger.js";
 import type { IWebViewInput } from "./i-web-view-input.js";
 import type { IWebViewInputEvent } from "./i-web-view-input-event.js";
 import type { IWebViewKeyEvent } from "./i-web-view-key-event.js";
+import type { IWindowNavigation } from "./i-window-navigation.js";
 import type { IWindowOpenDetails } from "./i-window-open-details.js";
 import type { WebViewHistory } from "../models/web-view-history.js";
 
@@ -44,6 +45,7 @@ export interface IWebViewContents {
   insertText(text: string): Promise<void>;
   executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown>;
   on(event: "will-frame-navigate", listener: (event: IPreventableEvent, url: string, isMainFrame: boolean) => void): unknown;
+  on(event: "did-start-navigation", listener: (navigation: IWindowNavigation) => void): unknown;
   on(event: "will-attach-webview", listener: (event: IPreventableEvent) => void): unknown;
   on(event: "before-input-event", listener: (event: IPreventableEvent, input: IWebViewInput) => void): unknown;
   on(event: "did-start-loading" | "did-stop-loading" | "did-navigate" | "did-navigate-in-page" | "page-title-updated" | "destroyed", listener: () => void): unknown;

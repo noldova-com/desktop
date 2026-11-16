@@ -3369,6 +3369,26 @@ export interface IWebViewContents {
   on(event: "will-frame-navigate", listener: (event: IPreventableEvent, url: string, isMainFrame: boolean) => void): unknown;
 
   /**
+   * Listens for a navigation starting in the page or in one of its frames, including one the engine refuses itself before any check, such as the page's own `about:srcdoc`.
+   *
+   * @param event The event's name.
+   * @param listener Receives the navigation, which says whether the page itself starts it.
+   * @returns Electron's own return value, which the main process does not use.
+   * @example
+   * ```ts
+   * import type { IWebViewContents } from "@noldova/desktop.electron";
+   *
+   * export function count(contents: IWebViewContents, starts: { count: number }): void {
+   *   contents.on("did-start-navigation", t => {
+   *     if (t.isMainFrame)
+   *       starts.count++;
+   *   });
+   * }
+   * ```
+   */
+  on(event: "did-start-navigation", listener: (navigation: IWindowNavigation) => void): unknown;
+
+  /**
    * Listens for a webview being attached to the page, which the listener may cancel.
    *
    * @param event The event's name.

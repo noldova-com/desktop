@@ -249,6 +249,8 @@ The file is an object with four optional fields: `methods`, each `{ "name": "<Do
 ## What fails closed
 
 - An address the check can't judge is refused.
+- A page's own top-level `about:srcdoc`, by a link or by `location`, never reaches the check: the engine refuses it itself, loads nothing, and shows its own error page in place of the page; the host reports it as `NavigationRefused`, without a `LoadFailed`.
+  A frame's `about:srcdoc` loads.
 - A view the host can't open, for a module without `webViews.json`, a pane it doesn't own or a full pane, isn't opened, and `openAsync` fails; the pane shows that no view is available.
 - A `<webview>` the main process didn't open, in another profile or with another address, never gets a page; a bind for a page of another window or profile is refused, and the window then closes that view, since a refused bind never ends a view by itself.
 - A page whose debugging connection can't be made, when it is bound or after it drops, ends its view; a page that is closing, such as when its window closes, only leaves its view waiting for its next page.

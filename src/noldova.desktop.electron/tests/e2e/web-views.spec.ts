@@ -173,6 +173,13 @@ function readFirstViewAsync(mainProcess: MainProcessFixture, script: string): Pr
   }, script);
 }
 
+function readFirstViewAddressAsync(mainProcess: MainProcessFixture): Promise<{ address: string; isLoading: boolean } | null> {
+  return mainProcess.application.evaluate(({ webContents }) => {
+    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+    return first === undefined ? null : { address: first.getURL(), isLoading: first.isLoading() };
+  });
+}
+
 function clickInFirstViewAsync(mainProcess: MainProcessFixture, x: number, y: number): Promise<boolean> {
   return mainProcess.application.evaluate(({ webContents }, [left, top]) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
@@ -758,6 +765,45 @@ test.describe("web views", () => {
       await pressInFirstViewAsync(mainProcess, "F8");
       await expect(view(window, 0)).toHaveAttribute("data-found", "2 1");
       await expect(window.locator("[data-fixture-content=pages-failure]")).toHaveText(String.empty);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view loads a frame's about:srcdoc, and its page's own top-level about:srcdoc, which the engine refuses itself with its error page, is reported as NavigationRefused without a LoadFailed", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      const id = await view(window, 0).getAttribute("data-view");
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("First page");
+
+      expect(await runInFirstViewAsync(mainProcess, "new Promise(resolve => { const frame = document.createElement(\"iframe\"); frame.srcdoc = \"<p>Inline</p>\"; frame.addEventListener(\"load\", resolve); document.body.append(frame); })")).toBe(true);
+      expect(await readFirstViewAsync(mainProcess, "document.querySelector(\"iframe\").contentDocument.body.textContent")).toBe("Inline");
+      expect(await eventsAsync(window)).not.toContain(`${id} NavigationRefused`);
+
+      for (const address of ["about:srcdoc", "about:srcdoc#x"]) {
+        expect(await runInFirstViewAsync(mainProcess, `void (location.href = ${JSON.stringify(address)})`)).toBe(true);
+        await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address, isLoading: false });
+        expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+        await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
+        await expect(view(window, 0)).toHaveText("First page");
+      }
+
+      const events = await eventsAsync(window);
+      expect(events.filter(t => t === `${id} NavigationRefused`)).toHaveLength(2);
+      expect(events).not.toContain(`${id} LoadFailed`);
+      await expect(window.locator("[data-fixture-content=pages-failure]")).toHaveText(String.empty);
+      await expect.poll(() => mainProcess.failures.filter(t => t.includes("Failed to load URL: about:srcdoc")).length).toBeGreaterThanOrEqual(2);
+      expect(mainProcess.acceptFailures(/Failed to load URL: about:srcdoc(#x)? with error: ERR_INVALID_URL|--trace-warnings/).length).toBeGreaterThan(0);
     }
     finally {
       await stopServerAsync(server);
