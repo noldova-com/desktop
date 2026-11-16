@@ -515,6 +515,26 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async refusesAPageNavigationOutsideItsOriginsAndReportsItButOnlyStopsAFramesOne(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+
+    const prevented = [
+      harness.contents.navigateFrame("https://example.com/next", true),
+      harness.contents.navigateFrame("https://other.example.net/", true),
+      harness.contents.navigateFrame("about:srcdoc", true),
+      harness.contents.navigateFrame("https://other.example.net/frame", false),
+      harness.contents.navigateFrame("about:srcdoc", false)
+    ];
+
+    Assert.areEqual("false,true,true,true,false", prevented.join(","));
+    Assert.areEqual([
+      "NavigationRefused {\"address\":\"https://other.example.net/\",\"origin\":\"https://other.example.net\",\"isRedirect\":false}",
+      "NavigationRefused {\"address\":\"about:srcdoc\",\"origin\":\"null\",\"isRedirect\":false}"
+    ].join("|"), harness.describe());
+  }
+
+  @TestMethod
   public async reportsItsOwnTopLevelAboutSrcdocAsRefusedWithoutTheEnginesLoadFailure(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
 
@@ -636,7 +656,7 @@ export class OpenWebViewTests {
     old.emit("render-process-gone", {}, { reason: "crashed" });
     old.show("https://example.com/");
     old.debugger.lose();
-    const isFramePrevented = old.prevent("will-frame-navigate", "https://example.com/", true);
+    const isFramePrevented = old.navigateFrame("https://example.com/", true);
     old.emit("did-start-navigation", { url: "about:srcdoc", isMainFrame: true, isSameDocument: false });
 
     Assert.isNull(without);

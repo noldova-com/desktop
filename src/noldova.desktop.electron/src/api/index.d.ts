@@ -2107,6 +2107,21 @@ export interface IPreventableEvent {
 }
 
 /**
+ * A frame about to navigate, as Electron's `will-frame-navigate` event describes it, which a listener may cancel.
+ */
+export interface IFrameNavigation extends IPreventableEvent {
+  /**
+   * The address the frame navigates to.
+   */
+  readonly url: string;
+
+  /**
+   * Whether the page's own frame navigates, rather than one of its frames.
+   */
+  readonly isMainFrame: boolean;
+}
+
+/**
  * The frame an IPC message came from.
  */
 export interface ISenderFrame {
@@ -3350,21 +3365,21 @@ export interface IWebViewContents {
    * Listens for a frame about to navigate, which the listener may cancel.
    *
    * @param event The event's name.
-   * @param listener Receives the cancellable event, the address and whether the page's own frame navigates.
+   * @param listener Receives the cancellable navigation, with its address and whether the page's own frame navigates.
    * @returns Electron's own return value, which the main process does not use.
    * @example
    * ```ts
    * import type { IWebViewContents } from "@noldova/desktop.electron";
    *
    * export function stayOnOrigin(contents: IWebViewContents, origin: string): void {
-   *   contents.on("will-frame-navigate", (event, url) => {
-   *     if (URL.parse(url)?.origin !== origin)
-   *       event.preventDefault();
+   *   contents.on("will-frame-navigate", t => {
+   *     if (t.isMainFrame && URL.parse(t.url)?.origin !== origin)
+   *       t.preventDefault();
    *   });
    * }
    * ```
    */
-  on(event: "will-frame-navigate", listener: (event: IPreventableEvent, url: string, isMainFrame: boolean) => void): unknown;
+  on(event: "will-frame-navigate", listener: (navigation: IFrameNavigation) => void): unknown;
 
   /**
    * Listens for a navigation starting in the page or in one of its frames, including one the engine refuses itself before any check, such as the page's own `about:srcdoc`.

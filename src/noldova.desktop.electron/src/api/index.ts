@@ -37,6 +37,7 @@ export type { IParentPort } from "../interfaces/i-parent-port.js";
 export type { IPathCommandFiles } from "../interfaces/i-path-command-files.js";
 export type { IPermissionHost } from "../interfaces/i-permission-host.js";
 export type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
+export type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 export type { IProgramHost } from "../interfaces/i-program-host.js";
 export type { IQuitHost } from "../interfaces/i-quit-host.js";
 export type { IQuitPrompt } from "../interfaces/i-quit-prompt.js";

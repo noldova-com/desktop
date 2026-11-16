@@ -8,6 +8,7 @@
 
 import type { RenderProcessGoneDetails, WindowOpenHandlerResponse } from "electron";
 
+import type { IFrameNavigation } from "./i-frame-navigation.js";
 import type { IPreventableEvent } from "./i-preventable-event.js";
 import type { IWebViewDebugger } from "./i-web-view-debugger.js";
 import type { IWebViewInput } from "./i-web-view-input.js";
@@ -44,7 +45,7 @@ export interface IWebViewContents {
   sendInputEvent(event: IWebViewKeyEvent): void;
   insertText(text: string): Promise<void>;
   executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown>;
-  on(event: "will-frame-navigate", listener: (event: IPreventableEvent, url: string, isMainFrame: boolean) => void): unknown;
+  on(event: "will-frame-navigate", listener: (navigation: IFrameNavigation) => void): unknown;
   on(event: "did-start-navigation", listener: (navigation: IWindowNavigation) => void): unknown;
   on(event: "will-attach-webview", listener: (event: IPreventableEvent) => void): unknown;
   on(event: "before-input-event", listener: (event: IPreventableEvent, input: IWebViewInput) => void): unknown;

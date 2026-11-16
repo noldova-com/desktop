@@ -771,6 +771,37 @@ test.describe("web views", () => {
     }
   });
 
+  test("a module's web view refuses its page's own link and location to an origin it doesn't allow, stays at its page, and reports NavigationRefused for each", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const port = portOf(server);
+      const origin = `http://${host}:${port}`;
+      const outside = `http://localhost:${port}/second`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      const id = await view(window, 0).getAttribute("data-view");
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("First page");
+
+      expect(await runInFirstViewAsync(mainProcess, `void Object.assign(document.body.appendChild(document.createElement("a")), { href: ${JSON.stringify(outside)} }).click()`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} NavigationRefused`).length).toBe(1);
+      expect(await runInFirstViewAsync(mainProcess, `void (location.href = ${JSON.stringify(outside)})`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} NavigationRefused`).length).toBe(2);
+
+      await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
+      await expect(view(window, 0)).toHaveText("First page");
+      expect(await eventsAsync(window)).not.toContain(`${id} LoadFailed`);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
   test("a module's web view loads a frame's about:srcdoc, and its page's own top-level about:srcdoc, which the engine refuses itself with its error page, is reported as NavigationRefused without a LoadFailed", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const server = await startServerAsync();
