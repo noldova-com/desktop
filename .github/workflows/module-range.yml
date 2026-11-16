@@ -60,6 +60,7 @@ jobs:
     outputs:
       range: ${{ steps.choose.outputs.range }}
       version: ${{ steps.choose.outputs.version }}
+      tested: ${{ steps.tested.outputs.tested }}
     steps:
       - name: Check out the module
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -216,6 +217,33 @@ jobs:
       - name: Build
         run: ${{ inputs.build }}
 
+      - name: Read the @noldova versions the run tests
+        id: tested
+        if: ${{ !cancelled() }}
+        run: |
+          tested=$(node --print '
+            const fs = require("node:fs");
+            const read = file => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; } };
+            const locked = read("package-lock.json")?.packages ?? {};
+            let installed = [];
+            try { installed = fs.readdirSync("node_modules/@noldova"); } catch {}
+            const names = new Set([
+              ...Object.keys(locked).filter(key => /^node_modules\/@noldova\/[^/]+$/.test(key)).map(key => key.slice("node_modules/".length)),
+              ...installed.map(name => `@noldova/${name}`)]);
+            [...names].sort().flatMap(name => {
+              const version = read(`node_modules/${name}/package.json`)?.version ?? "";
+              const lockedVersion = locked[`node_modules/${name}`]?.version ?? "";
+              if (!/^[\w.+-]+$/.test(version) || version === lockedVersion)
+                return [];
+              return [`\`${name}\` ${version}, ${lockedVersion === "" ? "which the lockfile leaves out" : `locked at ${lockedVersion}`}`];
+            }).join("; ")')
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+          if [ -n "$tested" ]; then
+            echo "The run tests these @noldova packages at versions other than the root package-lock.json's: $tested." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The run tests every @noldova package at the version the root package-lock.json locks." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Test
         run: ${{ inputs.test }}
 
@@ -235,12 +263,17 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           RANGE: ${{ needs.range.outputs.range }}
           VERSION: ${{ needs.range.outputs.version }}
+          TESTED: ${{ needs.range.outputs.tested }}
           TITLE: The module fails on the newest Noldova Desktop in its range
           BODY: ${{ runner.temp }}/module-range-issue.md
         run: |
           {
             if [ -n "$VERSION" ]; then
               echo "The nightly run $RUN_URL built and tested the module against Noldova Desktop $VERSION, the newest published version inside its range $RANGE, and it failed."
+              if [ -n "$TESTED" ]; then
+                echo
+                echo "It tested these @noldova packages at versions other than the root package-lock.json's: $TESTED."
+              fi
             else
               echo "The nightly run $RUN_URL could not choose a Noldova Desktop version from the module's range; its log says why."
             fi
