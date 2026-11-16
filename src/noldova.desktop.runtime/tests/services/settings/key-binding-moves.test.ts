@@ -10,8 +10,9 @@ import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { SettingKey, SettingValue } from "@noldova/desktop.protocol";
-import { ModuleDeclaration, ShellSettings } from "@noldova/desktop.runtime";
+import { ShellSettings } from "@noldova/desktop.runtime";
 
+import { ModuleDeclaration } from "../../../src/models/module-declaration.js";
 import { KeyBindingMoves } from "../../../src/services/settings/key-binding-moves.js";
 import { SettingsFixture } from "../../fixtures/settings.fixture.js";
 
