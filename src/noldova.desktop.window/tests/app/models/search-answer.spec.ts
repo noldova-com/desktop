@@ -24,6 +24,10 @@ describe("SearchAnswer", () => {
     expect(new SearchAnswer([]).total).toBe(0);
   });
 
+  it("says its total is exact unless told the source stopped counting at it", () => {
+    expect([new SearchAnswer(results).isCapped, new SearchAnswer(results, 1000).isCapped, new SearchAnswer(results, 1000, true).isCapped]).toEqual([false, false, true]);
+  });
+
   it.each([1, 2.5, Number.NaN])("refuses the total %d for two results", total => {
     expect(() => new SearchAnswer(results, total)).toThrowError(ArgumentOutOfRangeException);
   });

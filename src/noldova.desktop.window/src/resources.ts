@@ -451,6 +451,7 @@ export class Resources {
   public static readonly searchPaneClass: string = "nol-search-pane";
   public static readonly searchMarginProbeStyle: string = "position: fixed; visibility: hidden; height: var(--nol-quick-input-margin)";
   public static readonly searchGlyph: string = "search";
+  public static readonly cappedCountMark: string = "+";
   public static readonly nothingFound: string = "Nothing found.";
   public static readonly searchFooterHints: readonly string[] = ["Enter to open", "↑ ↓ to move", "Tab for the next filter"];
   public static readonly commandsOnlyHint: string = "Type > for commands only";

@@ -3526,10 +3526,18 @@ export declare class SearchAnswer {
   public readonly total: number;
 
   /**
+   * Whether the source stopped counting at {@link SearchAnswer.total}, so it
+   * found at least that many; the search shows the count with a `+`.
+   */
+  public readonly isCapped: boolean;
+
+  /**
    * Creates a source's answer to a query.
    *
    * @param results The matches the source lists, the best first.
    * @param total How many matches it found; left out, as many as it lists.
+   * @param isCapped Whether it stopped counting at the total, so there may be
+   * more; false when left out.
    * @throws ArgumentOutOfRangeException synchronously when the total is not a
    * whole number or is fewer than the results.
    * @example
@@ -3540,8 +3548,16 @@ export declare class SearchAnswer {
    *   return new SearchAnswer(results.slice(0, 20), found);
    * }
    * ```
+   * @example
+   * ```ts
+   * import { SearchAnswer, type SearchResult } from "@noldova/desktop.window";
+   *
+   * export function cappedAnswerOf(results: readonly SearchResult[], counted: number, limit: number): SearchAnswer {
+   *   return new SearchAnswer(results.slice(0, 20), Math.min(counted, limit), counted >= limit);
+   * }
+   * ```
    */
-  public constructor(results: readonly SearchResult[], total?: number);
+  public constructor(results: readonly SearchResult[], total?: number, isCapped?: boolean);
 }
 
 /**
