@@ -188,7 +188,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
   The field keeps its place, hidden, while the palette covers it.
   `desktop.search` with `{ "source": name }`, the name of a source, opens the palette under that source's filter, and is the one Noldova Desktop command a window part may run with its context's `runCommandAsync`; the View menu runs `desktop.search` and `desktop.showCommands` as Search and Show all commands.
 - Escape, a pointer outside the palette and opening a result close it, and focus goes back where it was when that is still there.
-- Under the field, a filter for All and one for each source, each source's with its match count while there is a query; Tab moves to the next filter, Shift+Tab to the one before, and a filter shows only its source.
+- Under the field, a filter for All and one for each source, each source's with its match count while there is a query, with a `+` right after a count the source capped; Tab moves to the next filter, Shift+Tab to the one before, and a filter shows only its source.
 - Before the person types, the palette shows each source's recent items in a group of its own under the source's recent heading, such as Recent chats and Recent commands, with the first row selected.
 - While the person types, a Best match row comes first, then one group for each source with its matches under the source's heading, as many as 2 under All.
   Under a source's own filter, or when only the commands are searched, the group lists every match the source gives and no Best match comes first.
@@ -210,7 +210,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
   - `recentHeading`, its group's heading before the person types, such as "Recent chats", or null when it has no recent items;
   - `icon`, the Material Symbols glyph its rows show;
   - `recentAsync(signal)`, which resolves to its recent items, the most recent first;
-  - `searchAsync(query, signal)`, which resolves to a `SearchAnswer`: its matches, the best first, and `total`, how many it found, which may be more than it lists.
+  - `searchAsync(query, signal)`, which resolves to a `SearchAnswer`: its matches, the best first, `total`, how many it found, which may be more than it lists, and `isCapped`, whether it stopped counting at that total, false unless it says so.
 - A `SearchResult` has an `id` unique within its source, a `title`, a `titleMatch`, the matched range of the title as a `TextRange` of `start` and `length` or null, a `detail` and its `detailMatch`, a `keyLabel` or null, and `openAsync()`, which the palette calls after it closes.
 - The query a source gets is trimmed, never starts with `>`, and is never empty; only Noldova Desktop's Commands gets an empty one, for `>` alone.
 - Sources come in the order of their modules in the module list, a module's own in the order it registered them, then Noldova Desktop's.

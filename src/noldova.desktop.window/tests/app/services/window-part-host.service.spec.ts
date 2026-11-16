@@ -13,7 +13,7 @@ import { TestBed } from "@angular/core/testing";
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonValue } from "@noldova/context.json";
 import { ModuleState, type ModuleStatus, NotificationPost, NotificationSeverity, QualifiedName, type SettingOption, SettingScope, WebViewPane } from "@noldova/desktop.protocol";
-import { FileNotOpenedException as ExportedFileNotOpenedException } from "@noldova/desktop.window";
+import { FileNotOpenedException as ExportedFileNotOpenedException, FileNotShownException as ExportedFileNotShownException } from "@noldova/desktop.window";
 import { LinkGesture } from "@noldova/ui.components.angular";
 
 import { ModulesComponent } from "../../../src/app/components/modules/modules.component";
@@ -1636,8 +1636,8 @@ describe("WindowPartHostService", () => {
     const refusal = await host.showInFolderAsync("/home/ada/missing.pdf").catch((error: unknown) => error);
 
     expect(bridge.shownFiles).toEqual(["/home/ada/report.pdf", "/home/ada/missing.pdf"]);
-    expect([refusal instanceof FileNotShownException, FailureFixture.of(refusal, Error).message])
-      .toEqual([true, "Noldova Desktop Sample didn't show the file in its folder: no file can be read at the path."]);
+    expect([refusal instanceof FileNotShownException, refusal instanceof ExportedFileNotShownException && refusal.reason, FailureFixture.of(refusal, Error).message])
+      .toEqual([true, bridge.showRefusal, "Noldova Desktop Sample didn't show the file in its folder: no file can be read at the path."]);
   });
 
   it("opens a window part's file in its default app through the main process, and rejects with the main process's reason when it refuses", async () => {

@@ -28,7 +28,8 @@ export class WebViewEventTests {
     [WebViewEventKind.Dropped, { count: 3 }],
     [WebViewEventKind.Key, { name: "reload" }],
     [WebViewEventKind.Zoom, { factor: 1.25 }],
-    [WebViewEventKind.Found, { matches: 4, active: 2 }]
+    [WebViewEventKind.Found, { matches: 4, active: 2 }],
+    [WebViewEventKind.Favicon, { image: "data:image/png;base64,iVBORw0KGgo=" }]
   ]);
 
   @TestMethod
@@ -47,6 +48,14 @@ export class WebViewEventTests {
     const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":false,\"origin\":null}}";
 
     Assert.areEqual(text, JSON.stringify(WebViewEvent.fromJson(JsonReader.parse(text).toJson()).toJson()));
+  }
+
+  @TestMethod
+  public carriesAPageWithoutAnIconAndTheLargestIcon(): void {
+    const largest = `data:image/png;base64,${"A".repeat(21_848)}`;
+
+    Assert.isNull(new WebViewEvent("browser", "7", WebViewEventKind.Favicon, { image: null }).details["image"]);
+    Assert.areEqual(largest, new WebViewEvent("browser", "7", WebViewEventKind.Favicon, { image: largest }).details["image"]);
   }
 
   @TestMethod
@@ -69,7 +78,13 @@ export class WebViewEventTests {
       [WebViewEventKind.Zoom, { factor: "1" }],
       [WebViewEventKind.Found, { matches: 2, active: 3 }],
       [WebViewEventKind.Found, { matches: -1, active: 0 }],
-      [WebViewEventKind.Found, { matches: 1.5, active: 0 }]
+      [WebViewEventKind.Found, { matches: 1.5, active: 0 }],
+      [WebViewEventKind.Favicon, {}],
+      [WebViewEventKind.Favicon, { image: "data:image/jpeg;base64,/9j/" }],
+      [WebViewEventKind.Favicon, { image: "https://example.com/favicon.ico" }],
+      [WebViewEventKind.Favicon, { image: "data:image/png;base64,iVBORw0KGgo" }],
+      [WebViewEventKind.Favicon, { image: `data:image/png;base64,${"A".repeat(21_852)}` }],
+      [WebViewEventKind.Favicon, { image: 1 }]
     ];
 
     for (const [kind, details] of refused)

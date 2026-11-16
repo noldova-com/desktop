@@ -58,8 +58,8 @@ class FakeSource {
     });
   }
 
-  public answer(index: number, titles: readonly string[], total?: number): void {
-    this.searches[index]?.answer.resolve(new SearchAnswer(titles.map(t => result(t)), total));
+  public answer(index: number, titles: readonly string[], total?: number, isCapped?: boolean): void {
+    this.searches[index]?.answer.resolve(new SearchAnswer(titles.map(t => result(t)), total, isCapped));
   }
 }
 
@@ -107,16 +107,16 @@ describe("SearchSession", () => {
     expect(session.filters().map(t => [t.label, t.count, t.isActive])).toEqual([["All", null, true], ["Chats", null, false], ["Messages", null, false], ["Commands", null, false]]);
   });
 
-  it("asks every source at once for the trimmed query, shows a Best match first and each source's matches as they come, two under All, with each source's total", async () => {
+  it("asks every source at once for the trimmed query, shows a Best match first and each source's matches as they come, two under All, with each source's total and whether it is capped", async () => {
     session.search("  term ");
     expect([chats.searches[0]?.query, messages.searches[0]?.query, commands.searches[0]?.query]).toEqual(["term", "term", "term"]);
 
-    messages.answer(0, ["…the terminal opens…", "…in a terminal first…", "…a third terminal…"], 14);
+    messages.answer(0, ["…the terminal opens…", "…in a terminal first…", "…a third terminal…"], 1000, true);
     await settle();
     expect(titles(session)).toEqual([["Best match", "…the terminal opens…"], ["In Messages", "…in a terminal first…", "…a third terminal…"]]);
 
     commands.answer(0, ["Toggle terminal", "New terminal", "Terminal: Font size", "Split terminal"]);
-    chats.answer(0, ["Open a terminal per teammate", "Terminal tab freezes"]);
+    chats.answer(0, ["Open a terminal per teammate", "Terminal tab freezes"], 1500);
     await settle();
 
     expect(titles(session)).toEqual([
@@ -125,7 +125,7 @@ describe("SearchSession", () => {
       ["In Messages", "…in a terminal first…", "…a third terminal…"],
       ["In Commands", "Toggle terminal", "New terminal"]
     ]);
-    expect(session.filters().map(t => [t.label, t.count])).toEqual([["All", null], ["Chats", 2], ["Messages", 14], ["Commands", 4]]);
+    expect(session.filters().map(t => [t.label, t.count, t.isCapped])).toEqual([["All", null, false], ["Chats", 1500, false], ["Messages", 1000, true], ["Commands", 4, false]]);
   });
 
   it("keeps the Best match it showed, and so the first row Enter opens, when a later answer ranks better, listing that result in its own group, and picks again for the next query", async () => {
