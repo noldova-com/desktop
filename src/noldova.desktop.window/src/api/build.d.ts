@@ -237,6 +237,12 @@ export declare class WindowPartSource {
   public readonly settingsPages: readonly ISettingsPageDeclaration[];
 
   /**
+   * The names its documents had before, each with the document's name now,
+   * from its declaration's `formerNames`.
+   */
+  public readonly formerDocumentNames: readonly (readonly [string, string])[];
+
+  /**
    * Creates the source of a module's window part.
    *
    * @param moduleId The module's id, lowercase kebab-case.
@@ -254,6 +260,9 @@ export declare class WindowPartSource {
    * @param optionalDependencies The ids of the modules it optionally depends
    * on; left out, none.
    * @param settingsPages The Settings pages it declares; left out, none.
+   * @param formerDocumentNames Each name a document of it had before, with the
+   * document's name now, so a tab saved under the former name reopens as the
+   * document; left out, none.
    * @throws ArgumentException synchronously when the id is not lowercase
    * kebab-case.
    * @example
@@ -278,5 +287,6 @@ export declare class WindowPartSource {
     load: () => Promise<IWindowPart>,
     placeholderNames?: readonly string[],
     optionalDependencies?: readonly string[],
-    settingsPages?: readonly ISettingsPageDeclaration[]);
+    settingsPages?: readonly ISettingsPageDeclaration[],
+    formerDocumentNames?: readonly (readonly [string, string])[]);
 }

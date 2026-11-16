@@ -27,22 +27,42 @@ import { ToolbarLayout } from "../models/layout/toolbar-layout.js";
 import { ViewTab } from "../models/layout/view-tab.js";
 
 export class LayoutReader {
+  private readonly moves: ReadonlyMap<string, DocumentTab>;
   private nextId: number = Resources.documentsGroupId + 1;
   private hasDocuments: boolean = false;
 
-  private constructor() {
+  private constructor(moves: ReadonlyMap<string, DocumentTab> = new Map()) {
+    this.moves = moves;
   }
 
-  public static read(value: unknown): Layout {
-    return new LayoutReader().readLayout(JsonReader.fromValue(value));
+  public static read(value: unknown, formerNames: ReadonlyMap<string, string> = new Map()): Layout {
+    return new LayoutReader(LayoutReader.readMoves(value, formerNames)).readLayout(JsonReader.fromValue(value));
   }
 
-  public static readTitles(value: unknown): ReadonlyMap<string, string> {
+  public static readTitles(value: unknown, formerNames: ReadonlyMap<string, string> = new Map()): ReadonlyMap<string, string> {
     const json = JsonReader.fromValue(value);
     if (!json.hasField(Resources.titlesField))
       return new Map();
+    const moves = LayoutReader.readMoves(value, formerNames);
     const titles = json.readObject(Resources.titlesField);
-    return new Map(Object.keys(titles.toJson()).map(t => [t, titles.readString(t)]));
+    return new Map(Object.keys(titles.toJson()).map(t => [moves.get(t)?.key ?? t, titles.readString(t)]));
+  }
+
+  private static readMoves(value: unknown, formerNames: ReadonlyMap<string, string>): ReadonlyMap<string, DocumentTab> {
+    if (formerNames.size === 0)
+      return new Map();
+    const tabs = new LayoutReader().readLayout(JsonReader.fromValue(value)).groups.flatMap(t => t.tabs);
+    const keys = new Set(tabs.map(t => t.key));
+    const moves = new Map<string, DocumentTab>();
+    for (const tab of tabs.filter(t => t instanceof DocumentTab)) {
+      const name = formerNames.get(tab.name);
+      const moved = Object.isUndefined(name) ? null : new DocumentTab(name, tab.instance);
+      if (Object.isNull(moved) || keys.has(moved.key))
+        continue;
+      keys.add(moved.key);
+      moves.set(tab.key, moved);
+    }
+    return moves;
   }
 
   private static construct<T>(json: JsonReader, create: () => T): T {
@@ -120,7 +140,8 @@ export class LayoutReader {
     }
     if (json.hasField(Resources.documentField)) {
       const name = json.readString(Resources.documentField);
-      return LayoutReader.construct(json, () => new DocumentTab(name, instance));
+      const tab = LayoutReader.construct(json, () => new DocumentTab(name, instance));
+      return this.moves.get(tab.key) ?? tab;
     }
     throw new JsonException(Resources.unknownTab, json.path);
   }
