@@ -47,7 +47,7 @@ export class KeyBindingMovesTests {
 
   @TestMethod
   public async leavesABindingForAFormerNameNoModuleInTheBuildGivesOrThatADocumentHad(): Promise<void> {
-    const bindings = { "old.add": "Mod+K", "notes.sheet": "Mod+L", "tasks.run": "Mod+M" };
+    const bindings = { "old.add": "Mod+K", "notes.sheet": "Mod+L", "tasks.run": "Mod+P" };
     await using settings = await KeyBindingMovesTests.createAsync(bindings);
     await using empty = await SettingsFixture.createAsync(ShellSettings.definitionsFor("linux"));
     const writes = KeyBindingMovesTests.countWrites(settings);

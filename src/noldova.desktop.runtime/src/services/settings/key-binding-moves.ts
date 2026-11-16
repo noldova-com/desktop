@@ -15,9 +15,6 @@ import type { SettingsService } from "./settings.service.js";
 import { ShellSettings } from "./shell-settings.js";
 
 export class KeyBindingMoves {
-  private constructor() {
-  }
-
   public static move(settings: Pick<SettingsService, "read" | "write">, declarations: readonly ModuleDeclaration[]): void {
     const renames = new Map(declarations.flatMap(t => t.listContributions(Resources.commandsKind).flatMap(u => (t.formerNames.get(u) ?? []).map(v => [v, u] as const))));
     const key = new SettingKey(ShellSettings.keyBindings);
