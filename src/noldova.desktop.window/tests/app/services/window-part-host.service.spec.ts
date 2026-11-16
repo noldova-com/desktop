@@ -1431,10 +1431,12 @@ describe("WindowPartHostService", () => {
     expect([isOpen, layout.layout().documents.active]).toEqual([false, note("1")]);
   });
 
-  it("drops a part's places from Back and Forward as it starts to deactivate, so neither it nor its next activation can reach them", async () => {
+  it("drops a part's places from Back and Forward as it starts to deactivate and those it records while deactivating, so neither it nor its next activation can reach them", async () => {
     const heard: string[] = [];
+    const contexts: IWindowPartContext[] = [];
     let activations = 0;
     const part = new WindowPartFixture("notes", log, t => {
+      contexts.push(t);
       t.registerView(new ViewContribution("notes.list", "Notes", "sticky_note_2", DockSide.Left, true, load));
       t.registerDocument(new DocumentContribution("notes.note", load));
       t.onPlaceShown("notes.list", u => heard.push(u));
@@ -1455,6 +1457,8 @@ describe("WindowPartHostService", () => {
     const during: boolean[] = [];
     vi.spyOn(part, "deactivateAsync").mockImplementation(() => {
       during.push(history.canGoBack());
+      contexts[0]?.recordPlace("notes.list", "note-2");
+      TestBed.tick();
       return Promise.resolve();
     });
 

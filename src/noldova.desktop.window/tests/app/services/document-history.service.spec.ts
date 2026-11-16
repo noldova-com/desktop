@@ -295,6 +295,7 @@ describe("DocumentHistoryService", () => {
     const stop = listen(heard);
     const heardState = state();
     stop();
+    stop();
 
     expect(unheard).toEqual([plan.key, [false, true]]);
     expect([heardState, state(), heard]).toEqual([[true, false], [true, false], []]);
