@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import { FocusTrapFactory } from "@angular/cdk/a11y";
-import { Component, type WritableSignal, signal } from "@angular/core";
+import { Component, type Signal, type WritableSignal, inject, signal } from "@angular/core";
 import { type ComponentFixture, TestBed } from "@angular/core/testing";
 
 import { AppearanceService, DefaultTheme, ThemeMode, Typography } from "@noldova/ui.components.angular";
@@ -24,8 +24,10 @@ import { Layout } from "../../../../src/app/models/layout/layout";
 import type { Tab } from "../../../../src/app/models/layout/tab";
 import { ViewRegistry } from "../../../../src/app/models/layout/view-registry";
 import { ViewTab } from "../../../../src/app/models/layout/view-tab";
+import { WindowPartTokens } from "../../../../src/app/models/window-part-tokens";
 import { DockGrowthService } from "../../../../src/app/services/dock-growth.service";
 import { LayoutService } from "../../../../src/app/services/layout.service";
+import { ShellCommandsService } from "../../../../src/app/services/shell-commands.service";
 import { ViewDialogService } from "../../../../src/app/services/view-dialog.service";
 import { ViewInstancesService } from "../../../../src/app/services/view-instances.service";
 import { WindowPartHostService } from "../../../../src/app/services/window-part-host.service";
@@ -58,6 +60,28 @@ class TestLateComponent {
   public static readonly isReady: WritableSignal<boolean> = signal(false);
 
   protected readonly ready: WritableSignal<boolean> = TestLateComponent.isReady;
+}
+
+const activeDocuments: Map<string, Signal<boolean>> = new Map();
+
+@Component({
+  selector: "nol-test-plan-page",
+  template: "<input class=\"plan\" />"
+})
+class TestPlanPageComponent {
+  public constructor() {
+    activeDocuments.set("plan", inject(WindowPartTokens.activeDocument));
+  }
+}
+
+@Component({
+  selector: "nol-test-todo-page",
+  template: "<input class=\"todo\" />"
+})
+class TestTodoPageComponent {
+  public constructor() {
+    activeDocuments.set("todo", inject(WindowPartTokens.activeDocument));
+  }
 }
 
 @Component({
@@ -214,6 +238,29 @@ describe("WorkspaceComponent", () => {
     expect(view).toEqual(["shell", shell.key, shell.key]);
     expect(instance).toEqual(["shell", terminal.key, shell.key, terminal.key]);
     expect(TestBed.inject(LayoutService).layout().documents.active).toEqual(plan);
+  });
+
+  it("tells two documents side by side which one is the window's active document as a saved split restores, and as the person moves between groups by pointer and by keyboard", async () => {
+    const registry = LayoutFixture.createRegistry();
+    const { plan, todo } = LayoutFixture;
+    activeDocuments.clear();
+    parts.contributions.set(plan.key, new ContributionMatch(() => Promise.resolve(TestPlanPageComponent), null, ContentPadding.Default));
+    parts.contributions.set(todo.key, new ContributionMatch(() => Promise.resolve(TestTodoPageComponent), null, ContentPadding.Default));
+    const fixture = await renderAsync(registry, Layout.createDefault(registry).openDocument(plan).openDocument(todo).splitGroup(todo, 0, PanelEdge.Right).focusDocuments(0));
+    const host = DomFixture.host(fixture);
+    const states = (): readonly (boolean | null)[] => ["plan", "todo"].map(t => activeDocuments.get(t)?.() ?? null);
+    const restored = states();
+
+    const tab = DomFixture.one(host, `nol-tab[data-tab-key="${todo.key}"]`);
+    tab.focus();
+    tab.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+    await settleAsync(fixture);
+    const pointed = states();
+    expect(await TestBed.inject(ShellCommandsService).commands.find(t => t.name === "desktop.focusPreviousGroup")?.runAsync(null)).toBeNull();
+    await settleAsync(fixture);
+
+    expect([restored, pointed, states()]).toEqual([[true, false], [false, true], [true, false]]);
+    expect(TestBed.inject(LayoutService).layout().documents.has(plan)).toBe(true);
   });
 
   it("keeps a pointer's request for the focus until the document shows a field, once its part activates or its view adds the field later", async () => {

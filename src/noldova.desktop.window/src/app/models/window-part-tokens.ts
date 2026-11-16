@@ -16,4 +16,5 @@ export class WindowPartTokens {
   public static readonly context: InjectionToken<IWindowPartContext> = new InjectionToken<IWindowPartContext>(Resources.windowPartContextToken);
   public static readonly contentPadding: InjectionToken<ContentPaddingRef> = new InjectionToken<ContentPaddingRef>(Resources.contentPaddingToken);
   public static readonly shown: InjectionToken<Signal<boolean>> = new InjectionToken<Signal<boolean>>(Resources.shownToken);
+  public static readonly activeDocument: InjectionToken<Signal<boolean>> = new InjectionToken<Signal<boolean>>(Resources.activeDocumentToken);
 }

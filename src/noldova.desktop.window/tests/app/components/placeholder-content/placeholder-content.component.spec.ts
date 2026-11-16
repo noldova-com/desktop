@@ -27,6 +27,7 @@ import { WindowPartContextHostFixture } from "../../../fixtures/window-part-cont
 class TestStartComponent {
   public readonly context: unknown = inject(WindowPartTokens.context);
   public readonly isShown: boolean = inject(WindowPartTokens.shown)();
+  public readonly isActiveDocument: boolean = inject(WindowPartTokens.activeDocument)();
 }
 
 @Component({
@@ -57,7 +58,7 @@ describe("PlaceholderContentComponent", () => {
     const start = fixture.debugElement.query(By.directive(TestStartComponent)).injector.get(TestStartComponent);
 
     expect([before, fixture.componentInstance.isLoaded()]).toEqual([false, true]);
-    expect([start.context, start.isShown]).toEqual([context, true]);
+    expect([start.context, start.isShown, start.isActiveDocument]).toEqual([context, true, false]);
     expect(fixture.componentInstance.element.querySelector(".start")?.textContent).toBe("Start");
   });
 

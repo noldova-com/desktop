@@ -4344,6 +4344,19 @@ export declare class WindowPartTokens {
    * such as timers, while it is hidden.
    */
   public static readonly shown: InjectionToken<Signal<boolean>>;
+
+  /**
+   * Whether the page the component is shown on is the window's active
+   * document: the active tab of the document group the person last worked in.
+   * @remarks With documents side by side in several groups, each is shown,
+   * and only the active group's active tab is the active document. The signal
+   * changes as the active document moves between groups, by pointer, by
+   * keyboard or as a saved layout restores, so a module that keeps one current
+   * item for the window, such as a record another view highlights, follows it.
+   * A view's page is the active document only while its tab is the active tab
+   * of that group; a settings page and a placeholder never are.
+   */
+  public static readonly activeDocument: InjectionToken<Signal<boolean>>;
 }
 
 /**
