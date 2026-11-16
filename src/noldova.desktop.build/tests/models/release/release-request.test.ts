@@ -34,21 +34,30 @@ export class ReleaseRequestTests {
 
   @TestMethod
   public publishesInAnotherRepositoryUnderItsOwnTagPrefix(): void {
-    const request = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_TAG_PREFIX: "sample-app-v" });
+    const request = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_TAG_PREFIX: "sample-app-" });
 
-    Assert.areEqual("example/downloads,example/sample-app,sample-app-v1.2.3,true", [request.repository, request.sourceRepository, request.tag, request.isSeparate].join());
-    Assert.areEqual("true,false,false", [request.ownsTag("sample-app-v0.0.1"), request.ownsTag("other-app-v0.0.1"), request.ownsTag("v0.0.1")].join());
+    Assert.areEqual("example/downloads,example/sample-app,sample-app-1.2.3,true", [request.repository, request.sourceRepository, request.tag, request.isSeparate].join());
+    Assert.areEqual("true,false,false", [request.ownsTag("sample-app-0.0.1"), request.ownsTag("other-app-0.0.1"), request.ownsTag("v0.0.1")].join());
+  }
+
+  @TestMethod
+  public readsTheVersionAtTheEndOfAHyphenatedAppsTagAndLeavesALongerAppsTags(): void {
+    const hyphenated = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_TAG_PREFIX: "computer-use-" });
+    const shorter = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_TAG_PREFIX: "computer-" });
+
+    Assert.areEqual("computer-use-1.2.3,1.0.0", [hyphenated.tag, hyphenated.parseTag("computer-use-1.0.0", "The latest release").text].join());
+    Assert.areEqual("true,false,true,false", [hyphenated.ownsTag("computer-use-1.0.0"), shorter.ownsTag("computer-use-1.0.0"), shorter.ownsTag("computer-2.0.0"), hyphenated.ownsTag("computer-use-next")].join());
   }
 
   @TestMethod
   public readsATagUnderItsPrefixAndRefusesAnyOther(): void {
     const request = ReleaseRequest.read(ReleaseRequestTests.REQUEST);
-    const prefixed = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_TAG_PREFIX: "sample-app-v" });
+    const prefixed = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_TAG_PREFIX: "sample-app-" });
 
-    Assert.areEqual("0.0.2,0.0.3", [request.parseTag("v0.0.2", "The latest release").text, prefixed.parseTag("sample-app-v0.0.3", "The latest release").text].join());
+    Assert.areEqual("0.0.2,0.0.3", [request.parseTag("v0.0.2", "The latest release").text, prefixed.parseTag("sample-app-0.0.3", "The latest release").text].join());
     Assert.areEqual("The latest release must be a tag such as v0.0.2, not \"0.0.2\".", Assert.throws(() => request.parseTag("0.0.2", "The latest release"), BuildException).message);
     Assert.areEqual("The latest release must be a plain version such as 0.0.2, not \"next\".", Assert.throws(() => request.parseTag("vnext", "The latest release"), BuildException).message);
-    Assert.areEqual("The latest release must be a tag such as sample-app-v0.0.2, not \"v0.0.2\".",
+    Assert.areEqual("The latest release must be a tag such as sample-app-0.0.2, not \"v0.0.2\".",
       Assert.throws(() => prefixed.parseTag("v0.0.2", "The latest release"), BuildException).message);
   }
 
@@ -60,9 +69,10 @@ export class ReleaseRequestTests {
       [{ RELEASE_VERSION: "1.2" }, "RELEASE_VERSION must be a plain version such as 0.0.2, not \"1.2\"."],
       [{ RELEASE_REVISION: "0123456" }, "RELEASE_REVISION must be a full commit SHA of 40 lowercase hexadecimal digits, not \"0123456\"."],
       [{ RELEASE_SOURCE_REPOSITORY: "sample-app" }, "RELEASE_SOURCE_REPOSITORY must name a repository as owner/name, not \"sample-app\"."],
-      [{ RELEASE_TAG_PREFIX: "sample-app-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in -v, such as app-v, not \"sample-app-\"."],
-      [{ RELEASE_TAG_PREFIX: "Sample-v" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in -v, such as app-v, not \"Sample-v\"."],
-      [{ RELEASE_TAG_PREFIX: "-v" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in -v, such as app-v, not \"-v\"."]
+      [{ RELEASE_TAG_PREFIX: "sample-app" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"sample-app\"."],
+      [{ RELEASE_TAG_PREFIX: "Sample-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"Sample-\"."],
+      [{ RELEASE_TAG_PREFIX: "sample--app-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"sample--app-\"."],
+      [{ RELEASE_TAG_PREFIX: "-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"-\"."]
     ];
 
     for (const [fields, message] of cases)

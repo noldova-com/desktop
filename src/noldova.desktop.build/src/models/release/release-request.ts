@@ -34,11 +34,11 @@ export class ReleaseRequest {
   }
 
   public ownsTag(tag: string): boolean {
-    return tag.startsWith(this.tagPrefix);
+    return tag.startsWith(this.tagPrefix) && Resources.releaseVersionPattern.test(tag.slice(this.tagPrefix.length));
   }
 
   public parseTag(tag: string, source: string): ReleaseVersion {
-    if (!this.ownsTag(tag))
+    if (!tag.startsWith(this.tagPrefix))
       throw new BuildException(Resources.formatReleaseTagInvalid(source, tag, this.tagPrefix));
     return ReleaseVersion.parse(tag.slice(this.tagPrefix.length), source);
   }

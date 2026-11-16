@@ -32,7 +32,7 @@ export class ReleasePublisherTests {
   private static readonly OTHER: string = "fedcba9876543210fedcba9876543210fedcba98";
   private static readonly TAG: string = "v1.2.3";
   private static readonly PAUSE: number = 10_000;
-  private static readonly SEPARATE: Readonly<Record<string, string>> = { RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_TAG_PREFIX: "sample-app-v" };
+  private static readonly SEPARATE: Readonly<Record<string, string>> = { RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_TAG_PREFIX: "sample-app-" };
   private static readonly FILES: readonly (readonly [string, Buffer])[] = [["Sample App-linux-x64.AppImage", Buffer.from("the package")], ["latest-linux-x64.yml", Buffer.from("version: 1.2.3\n")]];
 
   @TestMethod
@@ -274,18 +274,18 @@ export class ReleasePublisherTests {
     const output = await ReleasePublisherTests.publishAsync(github, ReleasePublisherTests.SEPARATE);
     const [release] = github.releases;
 
-    Assert.areEqual(`Creating the draft release sample-app-v1.2.3 for ${ReleasePublisherTests.REVISION}.\n`
-      + `Published sample-app-v1.2.3 from ${ReleasePublisherTests.REVISION} with 2 files.\n`, output);
-    Assert.areEqual("sample-app-v1.2.3,,false", [release?.tag, release?.target, release?.isDraft].join());
-    Assert.areEqual(github.defaultBranchHead, github.tags.get("sample-app-v1.2.3"));
-    Assert.isTrue(github.requests.some(t => t.includes("--raw-field tag_name=sample-app-v1.2.3 --raw-field name=sample-app-v1.2.3 --raw-field body=The notes.")), github.requests.join("\n"));
+    Assert.areEqual(`Creating the draft release sample-app-1.2.3 for ${ReleasePublisherTests.REVISION}.\n`
+      + `Published sample-app-1.2.3 from ${ReleasePublisherTests.REVISION} with 2 files.\n`, output);
+    Assert.areEqual("sample-app-1.2.3,,false", [release?.tag, release?.target, release?.isDraft].join());
+    Assert.areEqual(github.defaultBranchHead, github.tags.get("sample-app-1.2.3"));
+    Assert.isTrue(github.requests.some(t => t.includes("--raw-field tag_name=sample-app-1.2.3 --raw-field name=sample-app-1.2.3 --raw-field body=The notes.")), github.requests.join("\n"));
     Assert.isFalse(github.requests.some(t => t.includes("target_commitish") || t.endsWith("/git/refs")), github.requests.join("\n"));
   }
 
   @TestMethod
   public async fillsADraftInAnotherRepositoryWhateverBranchItTargetsAsync(): Promise<void> {
     const github = new GitHubReleasesFixture();
-    github.addRelease("sample-app-v1.2.3", "main", true);
+    github.addRelease("sample-app-1.2.3", "main", true);
 
     await ReleasePublisherTests.publishAsync(github, ReleasePublisherTests.SEPARATE);
 
@@ -295,21 +295,21 @@ export class ReleasePublisherTests {
   @TestMethod
   public async refusesATagInAnotherRepositoryThatIsNotItsOwnReleaseAsync(): Promise<void> {
     const github = new GitHubReleasesFixture();
-    github.tags.set("sample-app-v1.2.3", ReleasePublisherTests.REVISION);
+    github.tags.set("sample-app-1.2.3", ReleasePublisherTests.REVISION);
 
     const error = await Assert.throwsAsync(() => ReleasePublisherTests.publishAsync(github, ReleasePublisherTests.SEPARATE), BuildException);
 
-    Assert.areEqual("The tag sample-app-v1.2.3 already exists in example/downloads, which isn't the source repository, so it can't be this release's own; this release needs a new version.", error.message);
+    Assert.areEqual("The tag sample-app-1.2.3 already exists in example/downloads, which isn't the source repository, so it can't be this release's own; this release needs a new version.", error.message);
     Assert.areEqual(0, github.releases.length);
   }
 
   @TestMethod
   public async leavesAPublishedReleaseInAnotherRepositoryAndRefusesOneWithoutItsTagAsync(): Promise<void> {
     const tagged = new GitHubReleasesFixture();
-    tagged.addRelease("sample-app-v1.2.3", "main", false, ReleasePublisherTests.FILES.map(([name, bytes]) => tagged.createAsset(name, bytes)));
-    tagged.tags.set("sample-app-v1.2.3", ReleasePublisherTests.OTHER);
+    tagged.addRelease("sample-app-1.2.3", "main", false, ReleasePublisherTests.FILES.map(([name, bytes]) => tagged.createAsset(name, bytes)));
+    tagged.tags.set("sample-app-1.2.3", ReleasePublisherTests.OTHER);
     const untagged = new GitHubReleasesFixture();
-    untagged.addRelease("sample-app-v1.2.3", "main", false, ReleasePublisherTests.FILES.map(([name, bytes]) => untagged.createAsset(name, bytes)));
+    untagged.addRelease("sample-app-1.2.3", "main", false, ReleasePublisherTests.FILES.map(([name, bytes]) => untagged.createAsset(name, bytes)));
     const unmade = new GitHubReleasesFixture();
     unmade.defaultBranchHead = null;
 
@@ -317,10 +317,10 @@ export class ReleasePublisherTests {
     const missing = await Assert.throwsAsync(() => ReleasePublisherTests.publishAsync(untagged, ReleasePublisherTests.SEPARATE), BuildException);
     const late = await Assert.throwsAsync(() => ReleasePublisherTests.publishAsync(unmade, ReleasePublisherTests.SEPARATE), BuildException);
 
-    Assert.areEqual("sample-app-v1.2.3 is already published with every file as built; nothing changed.\n", output);
-    Assert.areEqual("The tag sample-app-v1.2.3 doesn't exist in example/downloads, though its release is published.", missing.message);
-    Assert.areEqual("sample-app-v1.2.3 is public now, but checking it after publishing failed: "
-      + "BuildException: The tag sample-app-v1.2.3 doesn't exist in example/downloads, though its release is published. Check it by hand; a published release is never replaced.", late.message);
+    Assert.areEqual("sample-app-1.2.3 is already published with every file as built; nothing changed.\n", output);
+    Assert.areEqual("The tag sample-app-1.2.3 doesn't exist in example/downloads, though its release is published.", missing.message);
+    Assert.areEqual("sample-app-1.2.3 is public now, but checking it after publishing failed: "
+      + "BuildException: The tag sample-app-1.2.3 doesn't exist in example/downloads, though its release is published. Check it by hand; a published release is never replaced.", late.message);
   }
 
   private static tagAppearing(commit: string): GitHubReleasesFixture {

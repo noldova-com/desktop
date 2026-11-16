@@ -1685,7 +1685,7 @@ export class Resources {
   public static readonly releaseRevisionPattern: RegExp = /^[0-9a-f]{40}$/u;
   public static readonly releaseVersionPattern: RegExp = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})$/u;
   public static readonly releaseTagPrefix: string = "v";
-  public static readonly releaseTagPrefixPattern: RegExp = /^(?:[a-z0-9]+(?:-[a-z0-9]+)*-)?v$/u;
+  public static readonly releaseTagPrefixPattern: RegExp = /^(?:v|[a-z0-9]+(?:-[a-z0-9]+)*-)$/u;
   public static readonly gitCommand: string = "git";
   public static readonly gitTimeout: number = 60_000;
   public static readonly successExitCodes: readonly number[] = [0];
@@ -4226,7 +4226,7 @@ export class Resources {
   }
 
   public static formatReleaseTagPrefixInvalid(prefix: string): string {
-    return `${Resources.releaseTagPrefixVariable} must be v, or lowercase words joined by dashes and ending in -v, such as app-v, not "${prefix}".`;
+    return `${Resources.releaseTagPrefixVariable} must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not "${prefix}".`;
   }
 
   public static formatReleaseRevisionInvalid(revision: string): string {

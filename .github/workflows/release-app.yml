@@ -70,7 +70,7 @@ on:
         type: string
         default: ''
       release-tag-prefix:
-        description: What the release's tag starts with before its version, v or lowercase words ending in -v such as app-v; empty is v. In a shared release-repository, only releases under this prefix count as this app's.
+        description: What the release's tag starts with before its version, v or lowercase words joined by dashes and ending in a dash, such as app- for app-1.0.0; empty is v. In a shared release-repository, only releases under this prefix count as this app's.
         type: string
         default: ''
       skip-feed-check:
