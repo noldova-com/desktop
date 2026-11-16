@@ -796,6 +796,8 @@ test.describe("web views", () => {
       await expect.poll(() => eventsAsync(window)).toContain(`${id} NavigationRefused`);
       expect(await eventsAsync(window)).not.toContain(`${id} LoadFailed`);
       await expect(window.locator("[data-fixture-content=pages-failure]")).toHaveText(String.empty);
+      await expect.poll(() => mainProcess.failures.some(t => t.includes("Failed to load URL: about:srcdoc with error: ERR_INVALID_URL"))).toBe(true);
+      expect(mainProcess.acceptFailures(/Failed to load URL: about:srcdoc with error: ERR_INVALID_URL|--trace-warnings/).length).toBeGreaterThan(0);
     }
     finally {
       await stopServerAsync(server);
