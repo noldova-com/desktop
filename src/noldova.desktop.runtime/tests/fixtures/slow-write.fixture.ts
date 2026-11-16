@@ -8,6 +8,7 @@
 
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 import { Worker } from "node:worker_threads";
 
 import "@noldova/context.core";
@@ -21,15 +22,15 @@ export class SlowWriteFixture implements Disposable {
     "writeSync(workerData.handle, workerData.text);"
   ].join("\n");
 
-  private readonly write: typeof fs.write = fs.write;
+  private readonly restore: () => void;
   private readonly held: PromiseWithResolvers<NodeJS.ErrnoException | null> = Promise.withResolvers<NodeJS.ErrnoException | null>();
   private readonly called: Map<number, PromiseWithResolvers<void>> = new Map<number, PromiseWithResolvers<void>>();
 
   public calls: number = 0;
 
   public constructor(isHeld: boolean) {
-    const write = this.write;
-    fs.write = ((handle: number, text: Buffer, callback: WriteCallback): void => {
+    const write = fs.write;
+    const replaced = mock.method(fs, "write", (handle: number, text: Buffer, callback: WriteCallback): void => {
       this.calls++;
       this.callFor(this.calls).resolve();
       if (this.calls > 1) {
@@ -46,7 +47,8 @@ export class SlowWriteFixture implements Disposable {
         else
           callback(failure);
       });
-    }) as typeof fs.write;
+    });
+    this.restore = () => replaced.mock.restore();
     syncBuiltinESMExports();
   }
 
@@ -63,7 +65,7 @@ export class SlowWriteFixture implements Disposable {
   }
 
   public [Symbol.dispose](): void {
-    fs.write = this.write;
+    this.restore();
     syncBuiltinESMExports();
   }
 

@@ -8,29 +8,31 @@
 
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 import "@noldova/context.core";
 
 type CloseCallback = (failure: NodeJS.ErrnoException | null) => void;
 
 export class FailingCloseFixture implements Disposable {
-  private readonly close: typeof fs.close = fs.close;
+  private readonly restore: () => void;
   private readonly failure: NodeJS.ErrnoException;
 
   public calls: number = 0;
 
   public constructor(failure: NodeJS.ErrnoException) {
-    const close = this.close;
+    const close = fs.close;
     this.failure = failure;
-    fs.close = ((handle: number, callback: CloseCallback): void => {
+    const replaced = mock.method(fs, "close", (handle: number, callback: CloseCallback): void => {
       this.calls++;
       close(handle, () => callback(this.failure));
-    }) as typeof fs.close;
+    });
+    this.restore = () => replaced.mock.restore();
     syncBuiltinESMExports();
   }
 
   public [Symbol.dispose](): void {
-    fs.close = this.close;
+    this.restore();
     syncBuiltinESMExports();
   }
 }

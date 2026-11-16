@@ -8,27 +8,29 @@
 
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 import "@noldova/context.core";
 
 type WriteCallback = (failure: NodeJS.ErrnoException | null, written: number, text: Buffer) => void;
 
 export class ShortWriteFixture implements Disposable {
-  private readonly write: typeof fs.write = fs.write;
+  private readonly restore: () => void;
 
   public readonly lengths: number[] = [];
 
   public constructor() {
-    const write = this.write;
-    fs.write = ((handle: number, text: Buffer, callback: WriteCallback): void => {
+    const write = fs.write;
+    const replaced = mock.method(fs, "write", (handle: number, text: Buffer, callback: WriteCallback): void => {
       this.lengths.push(text.length);
       write(handle, text.subarray(0, Math.ceil(text.length / 2)), callback);
-    }) as typeof fs.write;
+    });
+    this.restore = () => replaced.mock.restore();
     syncBuiltinESMExports();
   }
 
   public [Symbol.dispose](): void {
-    fs.write = this.write;
+    this.restore();
     syncBuiltinESMExports();
   }
 }
