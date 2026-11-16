@@ -32,8 +32,10 @@ import { ShellDocuments } from "../../../../src/app/models/shell-documents";
 import { TopBarAction } from "../../../../src/app/models/top-bar-action";
 import { TopBarActionContribution } from "../../../../src/app/models/top-bar-action-contribution";
 import { TopBarActionState } from "../../../../src/app/models/top-bar-action-state";
+import { ViewPlace } from "../../../../src/app/models/view-place";
 import { BarItemsService } from "../../../../src/app/services/bar-items.service";
 import { CommandService } from "../../../../src/app/services/command.service";
+import { DocumentHistoryService } from "../../../../src/app/services/document-history.service";
 import { LayoutService } from "../../../../src/app/services/layout.service";
 import { MenuService } from "../../../../src/app/services/menu.service";
 import { SearchPaletteService } from "../../../../src/app/services/search-palette.service";
@@ -1129,6 +1131,44 @@ describe("WindowRowComponent", () => {
         ["No earlier document to go back to", "No later document to go forward to"], ["No earlier document to go back to", forwardTip], [backTip, "No later document to go forward to"]
       ]);
     });
+
+  it("goes back and forward over a view's places between documents, showing the view each time, each button enabled only while a place or document lies that way", async () => {
+    PreloadBridgeFixture.install("win32");
+    apply();
+    const layout = await useLayout();
+    const history = TestBed.inject(DocumentHistoryService);
+    const shown: string[] = [];
+    history.onPlaceShown(LayoutFixture.files.name, place => shown.push(place));
+    const fixture = TestBed.createComponent(WindowRowComponent);
+    fixture.detectChanges();
+    await refresh(fixture);
+    const row: HTMLElement = DomFixture.host(fixture);
+    const [back, forward] = [".nol-window-row-back", ".nol-window-row-forward"].map(t => DomFixture.oneOf(row, t, HTMLButtonElement));
+    const state = (): (boolean | string | undefined)[] =>
+      [isUnavailable(back), isUnavailable(forward), layout.layout().documents.active?.key, layout.layout().groups.some(t => t.active?.equals(LayoutFixture.files) ?? false), shown.join(",")];
+    layout.openView(LayoutFixture.search);
+    history.recordPlace(new ViewPlace(LayoutFixture.files.name, null, "a"));
+    await refresh(fixture);
+    const recorded = state();
+    layout.openDocument(LayoutFixture.todo);
+    await refresh(fixture);
+    const opened = state();
+    const steps: (boolean | string | undefined)[][] = [];
+
+    for (const button of [back, back, forward, forward]) {
+      button?.click();
+      await refresh(fixture);
+      steps.push(state());
+    }
+
+    expect([recorded, opened]).toEqual([[false, true, LayoutFixture.plan.key, false, ""], [false, true, LayoutFixture.todo.key, false, ""]]);
+    expect(steps).toEqual([
+      [false, false, LayoutFixture.todo.key, true, "a"],
+      [true, false, LayoutFixture.plan.key, true, "a"],
+      [false, false, LayoutFixture.plan.key, true, "a,a"],
+      [false, true, LayoutFixture.todo.key, true, "a,a"]
+    ]);
+  });
 
   for (const mode of AppearanceFixture.modes)
     it(`keeps Back, Forward and Settings in the tab order while they can't run, each marked unavailable, described by its reason, showing it below on keyboard focus and running nothing on a click, Enter or Space, in ${mode} mode`, async () => {
