@@ -25,6 +25,7 @@ export class DependencyPinCheckResources {
   public static readonly toolSection: string = "devDependencies";
   public static readonly binField: string = "bin";
   public static readonly peerSection: string = "peerDependencies";
+  public static readonly nodeTypesPackage: string = "@types/node";
   public static readonly windowAppFolder: string = "src/noldova.desktop.window.app";
   public static readonly lockedFolder: string = "node_modules/";
   public static readonly pinSections: readonly string[] = ["dependencies", "devDependencies"];
@@ -47,7 +48,7 @@ export class DependencyPinCheckResources {
   }
 
   public static formatPeerForm(file: string, name: string, value: string, rangeForm: string): string {
-    return `${file}: ${DependencyPinCheckResources.peerSection} ${name} is "${value}"; a peer on context's packages or the kit takes a range of the form ${rangeForm}, `
+    return `${file}: ${DependencyPinCheckResources.peerSection} ${name} is "${value}"; a peer on context's packages, the kit or Node's types, @types/node, takes a range of the form ${rangeForm}, `
       + "ending at the next version that may break it, never an exact version or another form.";
   }
 
