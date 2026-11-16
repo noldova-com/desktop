@@ -246,21 +246,21 @@ describe("WorkspaceComponent", () => {
     activeDocuments.clear();
     parts.contributions.set(plan.key, new ContributionMatch(() => Promise.resolve(TestPlanPageComponent), null, ContentPadding.Default));
     parts.contributions.set(todo.key, new ContributionMatch(() => Promise.resolve(TestTodoPageComponent), null, ContentPadding.Default));
-    const fixture = await renderAsync(registry, Layout.createDefault(registry).openDocument(plan).openDocument(todo).splitGroup(todo, 0, PanelEdge.Right).focusDocuments(0));
+    const fixture = await renderAsync(registry, Layout.createDefault(registry).openDocument(plan).openDocument(todo).splitGroup(todo, 0, PanelEdge.Right));
     const host = DomFixture.host(fixture);
     const states = (): readonly (boolean | null)[] => ["plan", "todo"].map(t => activeDocuments.get(t)?.() ?? null);
     const restored = states();
 
-    const tab = DomFixture.one(host, `nol-tab[data-tab-key="${todo.key}"]`);
+    const tab = DomFixture.one(host, `nol-tab[data-tab-key="${plan.key}"]`);
     tab.focus();
     tab.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
     await settleAsync(fixture);
     const pointed = states();
-    expect(await TestBed.inject(ShellCommandsService).commands.find(t => t.name === "desktop.focusPreviousGroup")?.runAsync(null)).toBeNull();
+    expect(await TestBed.inject(ShellCommandsService).commands.find(t => t.name === "desktop.focusNextGroup")?.runAsync(null)).toBeNull();
     await settleAsync(fixture);
 
-    expect([restored, pointed, states()]).toEqual([[true, false], [false, true], [true, false]]);
-    expect(TestBed.inject(LayoutService).layout().documents.has(plan)).toBe(true);
+    expect([restored, pointed, states()]).toEqual([[false, true], [true, false], [false, true]]);
+    expect(TestBed.inject(LayoutService).layout().documents.has(todo)).toBe(true);
   });
 
   it("leaves the focus in the active document and its tab selected when a part opens another document without activating it", async () => {

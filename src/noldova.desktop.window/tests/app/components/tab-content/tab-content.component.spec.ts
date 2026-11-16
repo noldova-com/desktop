@@ -273,9 +273,10 @@ describe("TabContentComponent", () => {
   it("tells its page whether its tab is the window's active document, from a restored split on, as the active tab or the active document group changes", async () => {
     const { plan, todo, settings, files } = LayoutFixture;
     const registry = LayoutFixture.createRegistry();
-    const saved = Layout.createDefault(registry).openDocument(plan).openDocument(todo).splitGroup(todo, 0, PanelEdge.Right).focusDocuments(0);
+    const saved = Layout.createDefault(registry).openDocument(plan).openDocument(todo).splitGroup(todo, 0, PanelEdge.Right);
     const layout = await LayoutServiceFixture.prepareAsync(registry, saved);
     host.contributions.set(plan.key, new ContributionMatch(() => Promise.resolve(TestPageComponent), null, ContentPadding.Default));
+    host.contributions.set(todo.key, new ContributionMatch(() => Promise.resolve(TestPageComponent), null, ContentPadding.Default));
     host.contributions.set(files.key, new ContributionMatch(() => Promise.resolve(TestPageComponent), null, ContentPadding.Default));
     const activeOf = async (tab: Tab): Promise<Signal<boolean>> => {
       const fixture = TestBed.createComponent(TabContentComponent);
@@ -284,18 +285,21 @@ describe("TabContentComponent", () => {
       return fixture.debugElement.query(By.directive(TestPageComponent)).injector.get(WindowPartTokens.activeDocument);
     };
     const active = await activeOf(plan);
+    const besides = await activeOf(todo);
     const view = await activeOf(files);
-    const other = layout.layout().documentGroups.find(t => t.has(todo))?.id ?? -1;
-    const states = [active()];
+    const groupOf = (tab: Tab): number => layout.layout().documentGroups.find(t => t.has(tab))?.id ?? -1;
+    const restored = [active(), besides()];
 
-    layout.focusGroup(other);
+    layout.focusGroup(groupOf(plan));
+    const states = [active()];
+    layout.focusGroup(groupOf(todo));
     states.push(active());
     layout.activate(plan);
     states.push(active());
     layout.openDocument(settings);
     states.push(active());
 
-    expect(states).toEqual([true, false, true, false]);
+    expect([restored, states]).toEqual([[false, true], [true, false, true, false]]);
     expect(view()).toBe(false);
   });
 
