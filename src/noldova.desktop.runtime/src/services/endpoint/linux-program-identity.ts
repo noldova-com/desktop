@@ -31,7 +31,7 @@ export class LinuxProgramIdentity {
   private readonly peerDigests: Map<string, Promise<string>> = new Map();
   private own: Promise<readonly [StampedFile, StampedFile | null]> | null = null;
 
-  public constructor(program: string, processFolder: string = Resources.processFolder, readLink: (file: string) => Promise<string> = t => readlink(t)) {
+  public constructor(program: string, processFolder: string = Resources.processFolder, readLink: (file: string) => Promise<string> = readlink) {
     this.program = program;
     this.processFolder = processFolder;
     this.readLink = readLink;
