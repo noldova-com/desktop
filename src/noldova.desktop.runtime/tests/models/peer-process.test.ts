@@ -23,7 +23,19 @@ export class PeerProcessTests {
   }
 
   @TestMethod
-  public hasNoSenderByDefault(): void {
-    Assert.isNull(new PeerProcess("/usr/bin/fixture-studio", []).sender);
+  public hasNoSenderProcessIdOrStartTimeByDefault(): void {
+    const peer = new PeerProcess("/usr/bin/fixture-studio", []);
+
+    Assert.isNull(peer.sender);
+    Assert.isNull(peer.processId);
+    Assert.isNull(peer.startTime);
+  }
+
+  @TestMethod
+  public keepsTheProcessIdAndTheStartTime(): void {
+    const peer = new PeerProcess("/proc/4120/exe", [], null, 4120, "88123");
+
+    Assert.areEqual(4120, peer.processId);
+    Assert.areEqual("88123", peer.startTime);
   }
 }
