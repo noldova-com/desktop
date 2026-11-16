@@ -519,11 +519,22 @@ export class OpenWebViewTests {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
 
     harness.contents.emit("did-start-navigation", { url: "about:srcdoc", isMainFrame: true, isSameDocument: false });
+    harness.contents.emit("did-start-navigation", { url: "about:srcdoc#x", isMainFrame: true, isSameDocument: false });
+    harness.contents.emit("did-start-navigation", { url: "about:srcdoc?x", isMainFrame: true, isSameDocument: false });
+    harness.contents.emit("did-start-navigation", { url: "about:srcdoc#y", isMainFrame: true, isSameDocument: true });
     harness.contents.emit("did-start-navigation", { url: "about:srcdoc", isMainFrame: false, isSameDocument: false });
+    harness.contents.emit("did-start-navigation", { url: "about:blank", isMainFrame: true, isSameDocument: false });
+    harness.contents.emit("did-start-navigation", { url: "about:srcdocs", isMainFrame: true, isSameDocument: false });
+    harness.contents.emit("did-start-navigation", { url: "not an address", isMainFrame: true, isSameDocument: false });
     harness.contents.emit("did-start-navigation", { url: "https://example.com/next", isMainFrame: true, isSameDocument: false });
     harness.contents.emit("did-fail-load", {}, -300, "ERR_INVALID_URL", "about:srcdoc", true);
+    harness.contents.emit("did-fail-load", {}, -300, "ERR_INVALID_URL", "about:srcdoc#x", true);
 
-    Assert.areEqual("NavigationRefused {\"address\":\"about:srcdoc\",\"origin\":\"null\",\"isRedirect\":false}", harness.describe());
+    Assert.areEqual([
+      "NavigationRefused {\"address\":\"about:srcdoc\",\"origin\":\"null\",\"isRedirect\":false}",
+      "NavigationRefused {\"address\":\"about:srcdoc#x\",\"origin\":\"null\",\"isRedirect\":false}",
+      "NavigationRefused {\"address\":\"about:srcdoc?x\",\"origin\":\"null\",\"isRedirect\":false}"
+    ].join("|"), harness.describe());
   }
 
   @TestMethod

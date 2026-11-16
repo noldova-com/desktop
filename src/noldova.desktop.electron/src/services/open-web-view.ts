@@ -410,7 +410,7 @@ export class OpenWebView {
           this.reportState();
       });
     guest.on(Resources.didFailLoadEvent, (_event, code, description, url, isMainFrame) => {
-      if (this.isBound(guest) && isMainFrame && code !== Resources.webViewAbortedLoadCode && url !== Resources.sourceDocument)
+      if (this.isBound(guest) && isMainFrame && code !== Resources.webViewAbortedLoadCode && !OpenWebView.isSourceDocument(url))
         this.emit(WebViewEventKind.LoadFailed, { [Resources.addressField]: url, [Resources.codeField]: code, [Resources.descriptionField]: description });
     });
     guest.on(Resources.renderProcessGoneEvent, () => {
@@ -636,7 +636,7 @@ export class OpenWebView {
   }
 
   private noteStart(guest: IWebViewContents, navigation: IWindowNavigation): void {
-    if (this.isBound(guest) && navigation.isMainFrame && navigation.url === Resources.sourceDocument)
+    if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument && OpenWebView.isSourceDocument(navigation.url))
       this.emitRefusedNavigation(navigation.url, false);
   }
 
@@ -885,6 +885,11 @@ export class OpenWebView {
 
   private static ended(): JsonObject {
     return { [OpenWebViewResources.isEndedField]: true };
+  }
+
+  private static isSourceDocument(url: string): boolean {
+    const parsed = URL.parse(url);
+    return parsed?.protocol === Resources.aboutScheme && parsed.pathname === Resources.sourceDocumentPath;
   }
 
   private static originOf(url: string): string {

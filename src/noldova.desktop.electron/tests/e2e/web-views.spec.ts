@@ -790,14 +790,20 @@ test.describe("web views", () => {
       expect(await readFirstViewAsync(mainProcess, "document.querySelector(\"iframe\").contentDocument.body.textContent")).toBe("Inline");
       expect(await eventsAsync(window)).not.toContain(`${id} NavigationRefused`);
 
-      expect(await runInFirstViewAsync(mainProcess, "void (location.href = \"about:srcdoc\")")).toBe(true);
+      for (const address of ["about:srcdoc", "about:srcdoc#x"]) {
+        expect(await runInFirstViewAsync(mainProcess, `void (location.href = ${JSON.stringify(address)})`)).toBe(true);
+        await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address, isLoading: false });
+        expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+        await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
+        await expect(view(window, 0)).toHaveText("First page");
+      }
 
-      await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: "about:srcdoc", isLoading: false });
-      await expect.poll(() => eventsAsync(window)).toContain(`${id} NavigationRefused`);
-      expect(await eventsAsync(window)).not.toContain(`${id} LoadFailed`);
+      const events = await eventsAsync(window);
+      expect(events.filter(t => t === `${id} NavigationRefused`)).toHaveLength(2);
+      expect(events).not.toContain(`${id} LoadFailed`);
       await expect(window.locator("[data-fixture-content=pages-failure]")).toHaveText(String.empty);
-      await expect.poll(() => mainProcess.failures.some(t => t.includes("Failed to load URL: about:srcdoc with error: ERR_INVALID_URL"))).toBe(true);
-      expect(mainProcess.acceptFailures(/Failed to load URL: about:srcdoc with error: ERR_INVALID_URL|--trace-warnings/).length).toBeGreaterThan(0);
+      await expect.poll(() => mainProcess.failures.filter(t => t.includes("Failed to load URL: about:srcdoc")).length).toBeGreaterThanOrEqual(2);
+      expect(mainProcess.acceptFailures(/Failed to load URL: about:srcdoc(#x)? with error: ERR_INVALID_URL|--trace-warnings/).length).toBeGreaterThan(0);
     }
     finally {
       await stopServerAsync(server);
