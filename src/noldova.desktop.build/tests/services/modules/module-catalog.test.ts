@@ -860,6 +860,15 @@ export class ModuleCatalogTests {
   }
 
   @TestMethod
+  public async refusesAGroupInAPlaceOfAModuleItDoesNotDependOn(): Promise<void> {
+    await using tree = await ModuleCatalogTests.createMenusAsync({}, null);
+
+    const error = await Assert.throwsAsync(() => new ModuleCatalog(tree.path).listBuildAsync(false, []), BuildException);
+
+    Assert.areEqual("tasks's menus.json adds the group tasks.actions to notes.menu, which is neither the shell's place nor its own or a dependency's.", error.message);
+  }
+
+  @TestMethod
   @TestData("0.0.2", "0.0.2")
   @TestData(String.empty, "no version of it")
   public async refusesAPackagedModuleInstalledAtAnotherVersionThanItsPin(installed: string, holds: string): Promise<void> {
@@ -995,7 +1004,7 @@ export class ModuleCatalogTests {
     });
   }
 
-  private static async createMenusAsync(dependencies: Readonly<Record<string, string>>): Promise<SourceTreeFixture> {
+  private static async createMenusAsync(dependencies: Readonly<Record<string, string>>, after: string | null = "notes.bar"): Promise<SourceTreeFixture> {
     const declaration = (id: string, contributes: Readonly<Record<string, readonly string[]>>, needs: Readonly<Record<string, string>>): string =>
       ModuleCatalogTests.declare(id, [], { dependencies: needs, contributes });
     return await SourceTreeFixture.createAsync({
@@ -1004,7 +1013,7 @@ export class ModuleCatalogTests {
       "src/modules/notes/menus.json": JSON.stringify({ places: [{ name: "notes.bar", title: "Notes", shows: "toolbar" }, { name: "notes.menu", title: "Notes" }], groups: [] }),
       "src/modules/tasks/module.json": declaration("tasks", { menus: ["tasks.bar"], commands: ["tasks.add"] }, dependencies),
       "src/modules/tasks/menus.json": JSON.stringify({
-        places: [{ name: "tasks.bar", title: "Tasks", shows: "toolbar", after: "notes.bar" }],
+        places: [{ name: "tasks.bar", title: "Tasks", shows: "toolbar", ...Object.isNull(after) ? {} : { after } }],
         groups: [{ name: "tasks.actions", place: "notes.menu", items: [{ command: "tasks.add", label: "Add" }] }]
       })
     });
