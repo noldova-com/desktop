@@ -25,6 +25,7 @@ import {
 } from "@noldova/desktop.runtime";
 import { ShellEvents, WebViewBlockedPorts } from "@noldova/desktop.protocol";
 
+import { EventRegistry as SourceEventRegistry } from "../../../src/services/registry/event-registry.js";
 import { ToolEndpoint } from "../../../src/services/tools/tool-endpoint.js";
 import { ToolRegistry as SourceToolRegistry } from "../../../src/services/tools/tool-registry.js";
 import { WebViewCenter } from "../../../src/services/web-views/web-view-center.js";
@@ -382,7 +383,7 @@ export class ToolEndpointTests {
 
   private static createCenter(): [WebViewCenter, EventSinkFixture] {
     const sink = new EventSinkFixture();
-    const events = new EventRegistry(sink);
+    const events = new SourceEventRegistry(sink);
     const center = new WebViewCenter(new TextOutputFixture(), events.declare(ShellEvents.webViewCommand), events.declare(ShellEvents.webViewBlockedPorts));
     center.check(7);
     return [center, sink];

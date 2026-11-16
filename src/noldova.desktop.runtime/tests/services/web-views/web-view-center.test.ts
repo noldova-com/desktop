@@ -167,8 +167,7 @@ export class WebViewCenterTests {
 
     Assert.areEqual("[{\"serial\":1,\"ports\":[4600]},null]", JSON.stringify(read));
     Assert.isTrue(isPendingBeforeItsAcknowledgement);
-    Assert.areEqual("7 desktop.webViewBlockedPorts {\"serial\":2,\"ports\":[4600,4700]}
-7 desktop.webViewBlockedPorts {\"serial\":3,\"ports\":[4700]}",
+    Assert.areEqual("7 desktop.webViewBlockedPorts {\"serial\":2,\"ports\":[4600,4700]}\n7 desktop.webViewBlockedPorts {\"serial\":3,\"ports\":[4700]}",
       WebViewCenterTests.format(sink));
   }
 
