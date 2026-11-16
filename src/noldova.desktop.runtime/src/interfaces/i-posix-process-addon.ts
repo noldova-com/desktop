@@ -15,4 +15,5 @@ export interface IPosixProcessAddon {
   readProcessPath?(processId: number): unknown;
   readResponsibleProcessId?(processId: number, systemFunction: string): unknown;
   readEnvironment?(processId: number): unknown;
+  readVolume?(folder: string): unknown;
 }
