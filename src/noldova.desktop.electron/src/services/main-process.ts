@@ -312,7 +312,14 @@ export class MainProcess {
       createPathCommand,
       recordMainProcessAsync: () => recordMainProcessAsync(installation)
     });
-    recovery.attach(log, () => application.services.shellOpener.openLogFolderAsync(), () => application.release());
+    recovery.attach(log, () => application.services.shellOpener.openLogFolderAsync(), () => {
+      try {
+        application.release();
+      }
+      finally {
+        log.flush();
+      }
+    });
     application.run();
   }
 
@@ -345,7 +352,10 @@ export class MainProcess {
       return;
     }
     app.releaseSingleInstanceLock();
-    void relaunch.startAsync(() => app.whenReady()).then(() => app.exit(Resources.quitExitCode), (error: unknown) => this.stayInTerminal(error));
+    void relaunch.startAsync(() => app.whenReady()).then(() => {
+      this.options.log.flush();
+      app.exit(Resources.quitExitCode);
+    }, (error: unknown) => this.stayInTerminal(error));
   }
 
   private stayInTerminal(error: unknown): void {
@@ -367,6 +377,7 @@ export class MainProcess {
     app.on(Resources.willQuitEvent, () => {
       this.release();
       this.startup.close();
+      this.options.log.flush();
     });
     void app.whenReady().then(() => this.ready());
   }
@@ -532,6 +543,7 @@ export class MainProcess {
     this.phase.isExiting = true;
     this.startup.close();
     this.release();
+    this.options.log.flush();
     this.options.electron.app.exit(Resources.quitExitCode);
   }
 

@@ -185,6 +185,8 @@ export class Resources {
   public static readonly backupSweepWaitMilliseconds: number = 250;
   public static readonly privateFileMode: number = 0o600;
   public static readonly logSizeLimit: number = 1048576;
+  public static readonly logWriteWaitMilliseconds: number = 2_000;
+  public static readonly logWriteWaitPause: number = 5;
   public static readonly errorsLogCheckInterval: number = 5_000;
   public static readonly errorsCapSkippedCodes: readonly string[] = ["EBADF", "ENOENT", "EACCES", "EPERM", "EISDIR"];
   public static readonly startLogKeptCodes: readonly string[] = ["ENOENT", "EACCES", "EPERM", "EBUSY"];

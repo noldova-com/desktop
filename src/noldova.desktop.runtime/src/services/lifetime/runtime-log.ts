@@ -23,6 +23,7 @@ export class RuntimeLog {
   private readonly error: Writable;
   private isClosed: boolean = false;
   private hasFailed: boolean = false;
+  private passedOn: unknown = undefined;
 
   public readonly diagnostics: Writable;
 
@@ -52,8 +53,15 @@ export class RuntimeLog {
   }
 
   public writeLine(text: string): void {
-    if (!this.isClosed)
-      this.record(text);
+    if (this.isClosed || this.hasFailed)
+      return;
+
+    try {
+      this.file.append(this.file.format(text));
+    }
+    catch (failure) {
+      this.fail(failure);
+    }
   }
 
   public async closeAsync(): Promise<void> {
@@ -62,24 +70,34 @@ export class RuntimeLog {
 
     this.isClosed = true;
     await new Promise<void>(resolve => this.diagnostics.end(resolve));
+    await this.file.flushAsync();
+    if (!Object.isUndefined(this.passedOn))
+      throw this.passedOn;
   }
 
   private record(text: string): void {
+    if (!this.hasFailed)
+      void this.file.appendAsync(this.file.format(text)).catch((failure: unknown) => {
+        try {
+          this.fail(failure);
+        }
+        catch (error) {
+          this.passedOn = error;
+        }
+      });
+  }
+
+  private fail(failure: unknown): void {
     if (this.hasFailed)
       return;
 
+    this.hasFailed = true;
     try {
-      this.file.append(this.file.format(text));
+      this.error.write(this.file.format(Resources.formatRuntimeLogUnavailable(String(failure))));
     }
-    catch (failure) {
-      this.hasFailed = true;
-      try {
-        this.error.write(this.file.format(Resources.formatRuntimeLogUnavailable(String(failure))));
-      }
-      catch (error) {
-        if (!SystemErrorCode.isAny(error, Resources.unwritableStreamCodes))
-          throw error;
-      }
+    catch (error) {
+      if (!SystemErrorCode.isAny(error, Resources.unwritableStreamCodes))
+        throw error;
     }
   }
 }

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -95,6 +95,44 @@ export class MainProcessTests {
     Assert.areEqual(0, electron.app.count("window-all-closed"));
     Assert.areEqual(0, electron.windows.length);
     Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "Another main process owns this data directory, so this one (1000) quits and asks that one to show its window.").length);
+  }
+
+  @TestMethod
+  public async writesTheLinesStillWaitingForItsLogBeforeItQuits(): Promise<void> {
+    await MainProcessTests.withDataAsync(async (data, launcher, electron) => {
+      const file = join(data, "logs", "main.log");
+      let atQuit = String.empty;
+      electron.app.on("will-quit", () => {
+        atQuit = readFileSync(file, "utf8");
+      });
+
+      launcher.logs[0]?.("The first line before quitting.");
+      launcher.logs[0]?.("The last line before quitting.");
+      electron.app.emit("will-quit");
+
+      const first = atQuit.indexOf(" The first line before quitting.");
+      Assert.isTrue(first >= 0 && atQuit.indexOf(" The last line before quitting.") > first, atQuit);
+    });
+  }
+
+  @TestMethod
+  public async writesTheLinesStillWaitingForItsLogBeforeItQuitsAfterAFailure(): Promise<void> {
+    await MainProcessTests.withDataAsync(async (data, launcher, electron, process) => {
+      const file = join(data, "logs", "main.log");
+      let atExit = String.empty;
+      electron.app.exiting = () => {
+        atExit = readFileSync(file, "utf8");
+      };
+      electron.dialog.answers.push(2);
+
+      launcher.logs[0]?.("The line before the failure.");
+      for (const listener of process.exceptionListeners)
+        listener(new Error("The main process broke."));
+      await Condition.waitAsync(() => electron.app.calls.includes("exit 0"));
+
+      const before = atExit.indexOf(" The line before the failure.");
+      Assert.isTrue(before >= 0 && atExit.indexOf(" The person chose Quit.") > before, atExit);
+    });
   }
 
   @TestMethod
@@ -2119,5 +2157,19 @@ export class MainProcessTests {
   private static windowCount(connection: FakeRuntimeConnection): number | undefined {
     const windows = MainProcessTests.last(connection, MainProcessTests.WINDOWS);
     return Object.isUndefined(windows) ? undefined : JsonReader.fromValue(windows).readObjectArray("windows").length;
+  }
+
+  private static async withDataAsync(test: (data: string, launcher: FakeRuntimeLauncher, electron: FakeElectron, process: FakeMainProcessEnvironment) => Promise<void>): Promise<void> {
+    const data = await mkdtemp(join(tmpdir(), "desktop-main-process-"));
+    try {
+      const launcher = new FakeRuntimeLauncher();
+      const process = new FakeMainProcessEnvironment("linux", [`--data-dir=${data}`]);
+      const electron = await MainProcessStartFixture.startReadyAsync("linux", launcher, new FakeElectron(), new FakeDeviceIdentity(), process);
+      await Condition.waitAsync(() => existsSync(join(data, "logs", "main.log")));
+      await test(data, launcher, electron, process);
+    }
+    finally {
+      await rm(data, { recursive: true, force: true });
+    }
   }
 }
