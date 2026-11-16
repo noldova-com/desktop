@@ -268,6 +268,24 @@ describe("DocumentHistoryService", () => {
     expect(errors.mock.calls).toEqual([[failure], [failure]]);
   });
 
+  it("removes only its own registration of a listener given twice, however often its remover runs", () => {
+    const heard: string[] = [];
+    const listener = (place: string): void => {
+      heard.push(place);
+    };
+    const first = history.onPlaceShown(files.name, listener);
+    history.onPlaceShown(files.name, listener);
+    record("a");
+    open(todo);
+    go(-1);
+    first();
+    first();
+    go(1);
+    go(-1);
+
+    expect(heard).toEqual(["a", "a", "a"]);
+  });
+
   it("skips a place whose view has no listener, before one listens and once the last stops", () => {
     const heard: string[] = [];
     record("a");

@@ -24,7 +24,7 @@ export class DocumentHistoryService {
   private readonly errors: ErrorHandler = inject(ErrorHandler);
   private readonly entries: WritableSignal<readonly (DocumentTab | ViewPlace)[]> = signal([]);
   private readonly index: WritableSignal<number> = signal(-1);
-  private readonly listeners: WritableSignal<ReadonlyMap<string, readonly ((place: string, instance: string | null) => void)[]>> = signal(new Map());
+  private readonly listeners: WritableSignal<ReadonlyMap<string, readonly { readonly listener: (place: string, instance: string | null) => void }[]>> = signal(new Map());
   private readonly activeDocument: Signal<Tab | null> = computed(() => this.layout.layout().documents.active, { equal: (a, b) => a?.key === b?.key });
 
   public readonly canGoBack: Signal<boolean> = computed(() => !Object.isNull(this.nearest(-1)));
@@ -57,13 +57,14 @@ export class DocumentHistoryService {
   }
 
   public onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void {
-    this.listeners.update(t => new Map(t).set(view, [...t.get(view) ?? [], listener]));
+    const registration = { listener };
+    this.listeners.update(t => new Map(t).set(view, [...t.get(view) ?? [], registration]));
     return () => this.listeners.update(t => {
       const listeners = new Map(t);
-      const kept = [...listeners].filter(([name]) => name === view).flatMap(([, u]) => u);
-      if (!kept.includes(listener))
+      const registrations = listeners.get(view) ?? [];
+      if (!registrations.includes(registration))
         return t;
-      kept.splice(kept.indexOf(listener), 1);
+      const kept = registrations.filter(u => u !== registration);
       if (kept.length === 0)
         listeners.delete(view);
       else
@@ -105,9 +106,9 @@ export class DocumentHistoryService {
 
   private show(place: ViewPlace): void {
     this.views.show(place.tab);
-    for (const listener of [...this.listeners()].filter(([view]) => view === place.view).flatMap(([, t]) => t)) {
+    for (const registration of [...this.listeners()].filter(([view]) => view === place.view).flatMap(([, t]) => t)) {
       try {
-        listener(place.place, place.instance);
+        registration.listener(place.place, place.instance);
       }
       catch (error) {
         this.errors.handleError(error);
