@@ -1126,6 +1126,17 @@ export declare class FakeWindowPartContext extends Fake<IWindowPartContext> impl
    *   fake.answer("requestAsync", () => Promise.resolve(value));
    * }
    * ```
+   *
+   * @example
+   * ```ts
+   * import { FailureCode } from "@noldova/desktop.protocol";
+   * import { RuntimeRequestException } from "@noldova/desktop.window";
+   * import type { FakeWindowPartContext } from "@noldova/desktop.window/testing";
+   *
+   * export function failRequestAsync(fake: FakeWindowPartContext): void {
+   *   fake.answer("requestAsync", () => Promise.reject(new RuntimeRequestException(FailureCode.NotFound, "There is no such note.", { path: "/notes/a.md" })));
+   * }
+   * ```
    */
   public readonly requestAsync: IWindowPartContext["requestAsync"];
 
