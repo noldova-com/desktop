@@ -7,7 +7,7 @@
  */
 
 import "@noldova/context.core";
-import { Component, ElementRef, ErrorHandler, type Type, afterNextRender, inject } from "@angular/core";
+import { Component, ElementRef, ErrorHandler, type Injector, type Type, afterNextRender, inject } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 
 import { ArgumentException } from "@noldova/context.exceptions";
@@ -77,6 +77,7 @@ import { TabLabelService } from "../../../src/app/services/tab-label.service";
 import { TabRenameService } from "../../../src/app/services/tab-rename.service";
 import { ViewDialogService } from "../../../src/app/services/view-dialog.service";
 import { SettingsService } from "../../../src/app/services/settings.service";
+import { WebViewService } from "../../../src/app/services/web-view.service";
 import { WindowPartHostService } from "../../../src/app/services/window-part-host.service";
 import { FailureFixture } from "../../fixtures/failure.fixture";
 import { LayoutMetricsFixture } from "../../fixtures/layout-metrics.fixture";
@@ -93,6 +94,7 @@ class PaletteComponent {
   public readonly context = inject(WindowPartTokens.context);
   public readonly padding = inject(WindowPartTokens.contentPadding);
   public readonly shown = inject(WindowPartTokens.shown);
+  public readonly activeDocument = inject(WindowPartTokens.activeDocument);
 }
 
 @Component({ template: "<input class=\"palette-field\" aria-label=\"Find\" />" })
@@ -1535,7 +1537,7 @@ describe("WindowPartHostService", () => {
     expect(layout.layout().documents.preview).toBeNull();
   });
 
-  it("opens a window part's palette under the window row in its own pane, giving it the part's context, a padding of its own and shown", async () => {
+  it("opens a window part's palette under the window row in its own pane, giving it the part's context, a padding of its own, shown and never the active document", async () => {
     const row = document.body.appendChild(document.createElement("nol-window-row"));
     Object.assign(row.style, { position: "fixed", top: "0", left: "0", right: "0", height: "2rem", display: "block" });
     const { host } = start([source("notes", notesPart(log))], [status("notes")]);
@@ -1550,7 +1552,7 @@ describe("WindowPartHostService", () => {
     palette?.close();
     row.remove();
 
-    expect([opened?.context, opened?.padding.value(), opened?.shown(), Object.isNull(pane)]).toEqual([context, null, true, false]);
+    expect([opened?.context, opened?.padding.value(), opened?.shown(), opened?.activeDocument(), Object.isNull(pane)]).toEqual([context, null, true, false, false]);
   });
 
   it("returns focus to where it was when the part's withdrawal closes the palette that took it", async () => {
@@ -1662,6 +1664,33 @@ describe("WindowPartHostService", () => {
 
     expect(refusal).toBeInstanceOf(WebViewNotOpenedException);
     expect(bridge.webViewCalls).toEqual([]);
+  });
+
+  it("gives a window part's web view the part's tokens for its layers, the active document while the view's tab is", async () => {
+    const { host, layout } = start([source("notes", notesPart(log))], [status("notes")]);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+    const context = host.findContribution(new ViewTab("notes.list"))?.context;
+    if (Object.isNullOrUndefined(context))
+      throw new Error("The notes part has no context.");
+    const injectors: Injector[] = [];
+    vi.spyOn(TestBed.inject(WebViewService), "openAsync").mockImplementation((_moduleId, _pane, _tab, _profileKey, injector) => {
+      injectors.push(injector);
+      return Promise.reject(new WebViewNotOpenedException());
+    });
+    const [plan, todo] = [new DocumentTab("notes.note", "plan"), new DocumentTab("notes.note", "todo")];
+
+    await host.openWebViewAsync(context, "notes", new WebViewPane(QualifiedName.parse("notes.note"), "plan"), plan, "workspace-1").catch(() => undefined);
+    const [injector] = injectors;
+    if (Object.isNullOrUndefined(injector))
+      throw new Error("The web view got no injector.");
+    const activeDocument = injector.get(WindowPartTokens.activeDocument);
+    const states = [activeDocument()];
+    layout.openDocument(plan);
+    states.push(activeDocument());
+    layout.openDocument(todo);
+    states.push(activeDocument());
+
+    expect([injector.get(WindowPartTokens.context), injector.get(WindowPartTokens.shown)(), states]).toEqual([context, true, [false, true, false]]);
   });
 
   it("asks the main process for a window part's folder and passes on the answer", async () => {

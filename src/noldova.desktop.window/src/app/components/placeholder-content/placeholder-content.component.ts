@@ -51,7 +51,8 @@ export class PlaceholderContentComponent {
       providers: [
         { provide: WindowPartTokens.context, useValue: match.context },
         { provide: WindowPartTokens.contentPadding, useValue: pagePadding },
-        { provide: WindowPartTokens.shown, useValue: signal(true).asReadonly() }
+        { provide: WindowPartTokens.shown, useValue: signal(true).asReadonly() },
+        { provide: WindowPartTokens.activeDocument, useValue: signal(false).asReadonly() }
       ],
       parent: this.injector
     });

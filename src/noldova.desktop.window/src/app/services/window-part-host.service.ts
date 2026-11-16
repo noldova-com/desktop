@@ -266,7 +266,7 @@ export class WindowPartHostService implements IWindowPartHost {
   }
 
   public openWebViewAsync(context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string): Promise<IWebViewHandle> {
-    return this.webViews.openAsync(moduleId, pane, tab, profileKey, this.createPartInjector(context));
+    return this.webViews.openAsync(moduleId, pane, tab, profileKey, this.createPartInjector(context, computed(() => tab.equals(this.layout.layout().documents.active))));
   }
 
   public chooseFolderAsync(): Promise<string | null> {
@@ -384,7 +384,7 @@ export class WindowPartHostService implements IWindowPartHost {
   }
 
   public openBelowWindowRow<T>(context: IWindowPartContext, component: Type<T>): IWindowPalette<T> | null {
-    return this.overlays.open(component, this.createPartInjector(context), Resources.windowPalettePaneClass);
+    return this.overlays.open(component, this.createPartInjector(context, signal(false).asReadonly()), Resources.windowPalettePaneClass);
   }
 
   public declaresDynamicMenuGroup(moduleId: string, group: string): boolean {
@@ -492,12 +492,13 @@ export class WindowPartHostService implements IWindowPartHost {
       new Set(this.activations.flatMap(t => t.context.documents.filter(u => u.isRenamable).map(u => u.name)))));
   }
 
-  private createPartInjector(context: IWindowPartContext): Injector {
+  private createPartInjector(context: IWindowPartContext, isActiveDocument: Signal<boolean>): Injector {
     return Injector.create({
       providers: [
         { provide: WindowPartTokens.context, useValue: context },
         { provide: WindowPartTokens.contentPadding, useValue: new ContentPaddingRef() },
-        { provide: WindowPartTokens.shown, useValue: signal(true).asReadonly() }
+        { provide: WindowPartTokens.shown, useValue: signal(true).asReadonly() },
+        { provide: WindowPartTokens.activeDocument, useValue: isActiveDocument }
       ],
       parent: this.injector
     });

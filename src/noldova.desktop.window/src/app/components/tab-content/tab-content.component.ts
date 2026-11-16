@@ -23,6 +23,7 @@ import type { Tab } from "../../models/layout/tab.js";
 import { TabContent } from "../../models/tab-content.js";
 import { WindowPartTokens } from "../../models/window-part-tokens.js";
 import { DockGrowthService } from "../../services/dock-growth.service.js";
+import { LayoutService } from "../../services/layout.service.js";
 import { TabFocusService } from "../../services/tab-focus.service.js";
 import { TabLabelService } from "../../services/tab-label.service.js";
 import { WindowPartHostService } from "../../services/window-part-host.service.js";
@@ -47,8 +48,10 @@ export class TabContentComponent {
   private readonly tabFocus: TabFocusService = inject(TabFocusService);
   private readonly focusTraps: FocusTrapFactory = inject(FocusTrapFactory);
   private readonly growth: DockGrowthService = inject(DockGrowthService);
+  private readonly layout: LayoutService = inject(LayoutService);
   private readonly revision: Signal<number> = computed(() => this.host.revisionOf(this.tab()));
   private readonly stableTab: Signal<Tab> = computed(() => this.tab(), { equal: (a, b) => a.equals(b) });
+  private readonly isActiveDocument: Signal<boolean> = computed(() => this.tab().equals(this.layout.layout().documents.active));
   private focused: HTMLElement | null = null;
   private isRetrying: boolean = false;
   private readonly changes: MutationObserver = new MutationObserver(() => this.retry());
@@ -143,7 +146,8 @@ export class TabContentComponent {
     }
 
     const component = await match.loadComponent();
-    const page = [{ provide: WindowPartTokens.contentPadding, useValue: pagePadding }, { provide: WindowPartTokens.shown, useValue: this.isShown }];
+    const page = [{ provide: WindowPartTokens.contentPadding, useValue: pagePadding }, { provide: WindowPartTokens.shown, useValue: this.isShown },
+      { provide: WindowPartTokens.activeDocument, useValue: this.isActiveDocument }];
     if (Object.isNull(match.context))
       return new TabContent(component, Injector.create({ providers: page, parent: this.injector }), {}, match.padding, pagePadding);
     const injector = Injector.create({ providers: [{ provide: WindowPartTokens.context, useValue: match.context }, ...page], parent: this.injector });
