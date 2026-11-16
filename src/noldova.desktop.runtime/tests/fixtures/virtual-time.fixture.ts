@@ -7,6 +7,7 @@
  */
 
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 import timers from "node:timers/promises";
 
 import "@noldova/context.core";
@@ -18,6 +19,7 @@ interface IVirtualWait {
 
 export class VirtualTimeFixture implements Disposable {
   private readonly setTimeout: typeof timers.setTimeout = timers.setTimeout;
+  private readonly restoreSetTimeout: () => void;
   private readonly now: typeof Date.now = Date.now;
   private readonly waits: IVirtualWait[] = [];
   private readonly start: number;
@@ -28,8 +30,9 @@ export class VirtualTimeFixture implements Disposable {
   public constructor() {
     this.start = this.now();
     this.time = this.start;
-    timers.setTimeout = (<T = void>(milliseconds?: number, value?: T, options?: { signal?: AbortSignal }): Promise<T | undefined> =>
-      this.waitAsync(milliseconds ?? 0, value, options?.signal)) as typeof timers.setTimeout;
+    const waiting = mock.method(timers, "setTimeout", <T = void>(milliseconds?: number, value?: T, options?: { signal?: AbortSignal }): Promise<T | undefined> =>
+      this.waitAsync(milliseconds ?? 0, value, options?.signal));
+    this.restoreSetTimeout = () => waiting.mock.restore();
     Date.now = (): number => this.time;
     syncBuiltinESMExports();
   }
@@ -46,7 +49,7 @@ export class VirtualTimeFixture implements Disposable {
 
   public [Symbol.dispose](): void {
     this.isDisposed = true;
-    timers.setTimeout = this.setTimeout;
+    this.restoreSetTimeout();
     Date.now = this.now;
     syncBuiltinESMExports();
     for (const wait of this.waits.splice(0))

@@ -8,26 +8,28 @@
 
 import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 export class UnreadableFileFixture implements Disposable {
-  private readonly readFile: typeof fs.readFile = fs.readFile;
+  private readonly restore: () => void;
 
   public refused: number = 0;
 
   public constructor(file: string) {
-    const readFile = this.readFile;
-    fs.readFile = ((...values: Parameters<typeof fs.readFile>): Promise<string | Buffer> => {
+    const readFile = fs.readFile;
+    const reading = mock.method(fs, "readFile", (...values: Parameters<typeof fs.readFile>): Promise<string | Buffer> => {
       const [target] = values;
       if (String(target) !== file)
         return readFile(...values);
       this.refused++;
       return Promise.reject(Object.assign(new Error(`EACCES: permission denied, open '${file}'`), { code: "EACCES" }));
-    }) as typeof fs.readFile;
+    });
+    this.restore = () => reading.mock.restore();
     syncBuiltinESMExports();
   }
 
   public [Symbol.dispose](): void {
-    fs.readFile = this.readFile;
+    this.restore();
     syncBuiltinESMExports();
   }
 }
