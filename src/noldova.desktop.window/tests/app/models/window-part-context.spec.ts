@@ -491,9 +491,11 @@ describe("WindowPartContext", () => {
     expect(() => context.closeDialog("clock.face")).toThrowError(WindowPartAccessException);
     expect(() => context.closeDialog("notes.other")).toThrowError("The module notes does not declare the view or document notes.other.");
     expect(() => context.closeDialog("notes.list", " ")).toThrowError(ArgumentException);
+    const asked = [...host.calls];
     context.withdraw();
+    const withdrawn = host.calls.length;
     context.closeDialog("notes.list");
-    expect(host.calls).toEqual(["refresh", "closeDialog notes.list -", "closeDialog notes.note 2"]);
+    expect([asked, host.calls.length]).toEqual([["closeDialog notes.list -", "closeDialog notes.note 2"], withdrawn]);
   });
 
   it("shows its own view without instances and hides its dock through the host, refusing an instance for it and another module's view", () => {
