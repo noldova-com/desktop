@@ -8,14 +8,14 @@
 
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 import "@noldova/context.core";
 
 export class DescriptorFolderPatchFixture implements Disposable {
   public static readonly OPENED: number = 42;
 
-  private readonly readdirSync: typeof fs.readdirSync = fs.readdirSync;
-  private readonly readlinkSync: typeof fs.readlinkSync = fs.readlinkSync;
+  private readonly restoreReads: () => void;
   private readonly openSync: typeof fs.openSync = fs.openSync;
   private readonly fstatSync: typeof fs.fstatSync = fs.fstatSync;
   private readonly closeSync: typeof fs.closeSync = fs.closeSync;
@@ -29,19 +29,23 @@ export class DescriptorFolderPatchFixture implements Disposable {
   public openedInode: number = 81234;
 
   public constructor(folder: string, links: ReadonlyMap<string, string | null>, names: readonly string[] = [...links.keys()]) {
-    fs.readdirSync = ((target: fs.PathLike): string[] => {
+    const listing = mock.method(fs, "readdirSync", (target: fs.PathLike): string[] => {
       if (String(target) !== folder)
         throw Object.assign(new Error(`ENOENT: no such file or directory, scandir '${String(target)}'`), { code: "ENOENT" });
       return [...names];
-    }) as typeof fs.readdirSync;
-    fs.readlinkSync = ((target: fs.PathLike): string => {
+    });
+    const linking = mock.method(fs, "readlinkSync", (target: fs.PathLike): string => {
       if (!Object.isNull(this.linkFailure))
         throw Object.assign(new Error(`${this.linkFailure}: cannot read link '${String(target)}'`), { code: this.linkFailure });
       const link = links.get(String(target).slice(folder.length + 1));
       if (Object.isNullOrUndefined(link))
         throw Object.assign(new Error(`EINVAL: invalid argument, readlink '${String(target)}'`), { code: "EINVAL" });
       return link;
-    }) as typeof fs.readlinkSync;
+    });
+    this.restoreReads = () => {
+      listing.mock.restore();
+      linking.mock.restore();
+    };
     fs.openSync = (target: fs.PathLike, flags?: fs.OpenMode): number => {
       this.opened.push(`${String(target)} ${String(flags)}`);
       if (!Object.isNull(this.openFailure))
@@ -60,8 +64,7 @@ export class DescriptorFolderPatchFixture implements Disposable {
   }
 
   public [Symbol.dispose](): void {
-    fs.readdirSync = this.readdirSync;
-    fs.readlinkSync = this.readlinkSync;
+    this.restoreReads();
     fs.openSync = this.openSync;
     fs.fstatSync = this.fstatSync;
     fs.closeSync = this.closeSync;
