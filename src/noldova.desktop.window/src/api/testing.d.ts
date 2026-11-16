@@ -776,6 +776,27 @@ export declare class FakeWindowPartContext extends Fake<IWindowPartContext> impl
   public readonly growViewDock: IWindowPartContext["growViewDock"];
 
   /**
+   * Stands in for {@link IWindowPartContext.viewDockOf}. Records each call,
+   * which {@link Fake.callsOf} reads, and returns what the answer that
+   * {@link Fake.answer} gives returns.
+   *
+   * @throws {UnansweredCallException} Synchronously, naming the member, while
+   * the test has given it no answer.
+   *
+   * @example
+   * ```ts
+   * import { signal } from "@angular/core";
+   * import { DockSide } from "@noldova/desktop.window";
+   * import type { FakeWindowPartContext } from "@noldova/desktop.window/testing";
+   *
+   * export function answerSideDock(fake: FakeWindowPartContext): void {
+   *   fake.answer("viewDockOf", () => signal(DockSide.Right));
+   * }
+   * ```
+   */
+  public readonly viewDockOf: IWindowPartContext["viewDockOf"];
+
+  /**
    * Stands in for {@link IWindowPartContext.onViewClosed}. Records each
    * listener, which {@link FakeWindowPartContext.raiseViewClosed} calls and
    * {@link Fake.activeCallsOf} lists until the disposer it returns runs; it

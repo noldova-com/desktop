@@ -60,6 +60,10 @@ export class DependencyPinCheckResources {
     return `${file}: ${location} ${name} has no version string.`;
   }
 
+  public static formatOwnPeer(file: string, name: string, value: string, range: string): string {
+    return `${file}: ${DependencyPinCheckResources.peerSection} ${name} is "${value}"; Noldova's own packages take a peer at "${range}", which the build stamps.`;
+  }
+
   public static formatOwnVersion(file: string, location: string, name: string, value: string): string {
     return `${file}: ${location} ${name} is "${value}"; Noldova's own packages take "${DependencyPinCheckResources.ownVersion}", which the build stamps.`;
   }
