@@ -49,6 +49,7 @@ import { ClientListenerFixture } from "../../fixtures/client-listener.fixture.js
 import { ErrorCodeFixture } from "../../fixtures/error-code.fixture.js";
 import { FakeRuntimeFixture } from "../../fixtures/fake-runtime.fixture.js";
 import { FileReadsFixture } from "../../fixtures/file-reads.fixture.js";
+import { FinishedStarterFixture } from "../../fixtures/finished-starter.fixture.js";
 import { HeldOpenFixture } from "../../fixtures/held-open.fixture.js";
 import { HeldRenameFixture } from "../../fixtures/held-rename.fixture.js";
 import { RenameRetryFixture } from "../../fixtures/rename-retry.fixture.js";
@@ -562,14 +563,14 @@ export class RuntimeLauncherTests {
   @TestMethod
   public waitsForAnOlderRuntimeToStopPastTheLaunchTimeoutAndThenLaunchesWithAFullTimeout(): Promise<void> {
     return RuntimeLauncherTests.runWithFakeAsync(async fake => {
+      const starter = await FinishedStarterFixture.runAsync(`setTimeout(() => { console.error("It started after the stop."); process.exit(1); }, 1_100);`);
       fake.server.methods.register(ShellMethods.stop, { handleAsync: () => {
-        setTimeout(() => fake.release(), 3_000);
+        setTimeout(() => fake.release(), 1_500);
         return Promise.resolve(null);
       } });
-      const starter = new ScriptedStarterFixture(`console.error("It started after the stop."); process.exit(1);`);
 
       const exception = await Assert.throwsAsync(
-        () => UpdateBarrierFixture.createLauncher(fake.createSettings(2_000, 2_000, 10_000), FakeRuntimeFixture.NEWER, starter).attachAsync("main", new ClientListenerFixture()),
+        () => UpdateBarrierFixture.createLauncher(fake.createSettings(1_000, 2_000, 10_000), FakeRuntimeFixture.NEWER, starter).attachAsync("main", new ClientListenerFixture()),
         RuntimeExitedException);
 
       Assert.areEqual("The runtime exited while starting: It started after the stop.", exception.message);
