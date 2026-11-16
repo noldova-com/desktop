@@ -1595,6 +1595,16 @@ describe("WindowPartHostService", () => {
     expect(shown.mock.calls).toEqual([[new DocumentTab("notes.note", "2"), "Note 2"], [new ViewTab("notes.list"), null], [new ViewTab("notes.list", "3"), null], [new DocumentTab("desktop.settings"), null]]);
   });
 
+  it("closes the dialog showing a window part's view or document through the dialog service, by name or by name and instance", () => {
+    const { host } = start([], []);
+    const closing = vi.spyOn(TestBed.inject(ViewDialogService), "closeShowing").mockReturnValue();
+
+    host.closeDialog("notes.list", null);
+    host.closeDialog("notes.note", "2");
+
+    expect(closing.mock.calls).toEqual([["notes.list", null], ["notes.note", "2"]]);
+  });
+
   it("writes a window part's log lines through the main process under its module's id", async () => {
     const part = new WindowPartFixture("notes", log, t => t.log("Opened the list"));
     const { host } = start([source("notes", part)], [status("notes")]);

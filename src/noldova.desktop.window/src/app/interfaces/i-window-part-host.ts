@@ -61,6 +61,7 @@ export interface IWindowPartHost {
   updateView(moduleId: string, name: string, instance: string, title: string | null, icon: string | null, breadcrumb: readonly string[] | null, breadcrumbIcon: string | null): void;
 
   closeView(moduleId: string, name: string, instance: string): void;
+  closeDialog(name: string, instance: string | null): void;
 
   showView(moduleId: string, name: string): void;
 

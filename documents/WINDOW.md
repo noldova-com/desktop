@@ -100,6 +100,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
   When the last document closes and takes the focus with it, the focus moves to the placeholder's first focusable element once the placeholder shows; otherwise the placeholder leaves the focus where it is, at startup too.
 - A window part can show its own views and documents, its dependencies' and Noldova Desktop's in a large modal dialog, and the dialog's title bar offers to open the view in the main window.
   A view already open in a tab moves into the dialog as the same live view and returns to its tab when the dialog closes.
+  A window part can close the dialog while it shows one of the part's own views or documents, as the person's close does; asked about one shown in a tab or not shown, it does nothing.
 - While agent control is stopped, every open view and document of a module that declares tools shows a bar above it, laid out so it covers nothing: "Agents are stopped" and Resume, which runs `desktop.resumeAgentControl`.
   The bar sits on a surface unlike the view's in both modes, the panel's in a dock and the raised one in the middle, with no line; when agent control resumes, from any bar, the tray or a command, every bar goes and each view has its whole height back.
 - Noldova Desktop pads every view and document the same way, by where it shows; a page that runs edge to edge, such as a terminal, turns the padding off for its module, its declaration or the page itself, the most specific choice winning.
