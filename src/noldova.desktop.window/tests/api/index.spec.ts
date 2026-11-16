@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { DockSide, DocumentContribution, FileNotOpenedException, KeepsCtrlKeysDirective, LinkGesture, LinkPlace, PlaceholderContribution, SettingsRow, ViewContribution, WindowException, WindowPartTokens } from "@noldova/desktop.window";
+import { DockSide, DocumentContribution, FileNotOpenedException, KeepsCtrlKeysDirective, LinkGesture, LinkPlace, PlaceholderContribution, RuntimeRequestException, SettingsRow, ViewContribution, WindowException, WindowPartTokens } from "@noldova/desktop.window";
 import { LinkGesture as KitLinkGesture } from "@noldova/ui.components.angular";
 
 import * as api from "../../src/api/index";
@@ -14,6 +14,7 @@ import { KeepsCtrlKeysDirective as SourceKeepsCtrlKeysDirective } from "../../sr
 import { DockSide as SourceDockSide } from "../../src/app/enums/dock-side";
 import { LinkPlace as SourceLinkPlace } from "../../src/app/enums/link-place";
 import { FileNotOpenedException as SourceFileNotOpenedException } from "../../src/app/exceptions/file-not-opened.exception";
+import { RuntimeRequestException as SourceRuntimeRequestException } from "../../src/app/exceptions/runtime-request.exception";
 import { WindowException as SourceWindowException } from "../../src/app/exceptions/window.exception";
 import { DocumentContribution as SourceDocumentContribution } from "../../src/app/models/document-contribution";
 import { MenuDeclarations } from "../../src/app/models/menu-declarations";
@@ -25,8 +26,8 @@ import { WindowPartTokens as SourceWindowPartTokens } from "../../src/app/models
 
 describe("the window's API", () => {
   it("publishes the window-part contract", () => {
-    expect([DockSide, DocumentContribution, FileNotOpenedException, KeepsCtrlKeysDirective, LinkGesture, LinkPlace, PlaceholderContribution, SettingsRow, ViewContribution, WindowException, WindowPartTokens])
-      .toEqual([SourceDockSide, SourceDocumentContribution, SourceFileNotOpenedException, SourceKeepsCtrlKeysDirective, KitLinkGesture, SourceLinkPlace, SourcePlaceholderContribution, SourceSettingsRow, SourceViewContribution, SourceWindowException, SourceWindowPartTokens]);
+    expect([DockSide, DocumentContribution, FileNotOpenedException, KeepsCtrlKeysDirective, LinkGesture, LinkPlace, PlaceholderContribution, RuntimeRequestException, SettingsRow, ViewContribution, WindowException, WindowPartTokens])
+      .toEqual([SourceDockSide, SourceDocumentContribution, SourceFileNotOpenedException, SourceKeepsCtrlKeysDirective, KitLinkGesture, SourceLinkPlace, SourcePlaceholderContribution, SourceRuntimeRequestException, SourceSettingsRow, SourceViewContribution, SourceWindowException, SourceWindowPartTokens]);
   });
 
   it("leaves what only the build's generated source uses to the build entry", () => {
