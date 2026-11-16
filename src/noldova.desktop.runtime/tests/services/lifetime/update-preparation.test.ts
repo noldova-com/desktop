@@ -279,7 +279,7 @@ export class UpdatePreparationTests {
       mainProcess.sendMessages(new Request("main:1", ShellMethods.update, new UpdateRequest(installation.folder).toJson()));
       await read.waitForStartAsync();
       watches.fail("The watch broke.");
-      const [failed, failedEvents] = await RuntimeHostFixture.readMessagesAsync(mainProcess, 3);
+      const [first, firstEvents] = await RuntimeHostFixture.readMessagesAsync(mainProcess, 3);
       using nextWatches = new FolderWatchFixture(installation.folder);
       mainProcess.sendMessages(new Request("main:2", ShellMethods.update, new UpdateRequest(installation.folder).toJson()));
       const [next] = await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
@@ -290,8 +290,8 @@ export class UpdatePreparationTests {
       await UpdateBarrierFixture.readEventAsync(mainProcess, ShellEvents.updateEnded);
       const [, late] = await fixture.handshakeAsync("late", RuntimeBuild.identity);
 
-      Assert.areEqual(FailureCode.Unavailable, failed.get("main:1")?.failure?.code);
-      Assert.areEqual(`${ShellEvents.updating}|${ShellEvents.updateEnded}`, failedEvents.map(t => String(t.name)).join("|"));
+      Assert.isTrue(UpdateReady.fromJson(first.get("main:1")?.payload).isReady);
+      Assert.areEqual(`${ShellEvents.updating}|${ShellEvents.updateEnded}`, firstEvents.map(t => String(t.name)).join("|"));
       Assert.isTrue(UpdateReady.fromJson(next.get("main:2")?.payload).isReady);
       Assert.areEqual(FailureCode.Updating, whileUpdating.failure?.code);
       Assert.isFalse(late.hasFailed);
