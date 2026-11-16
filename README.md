@@ -206,6 +206,7 @@ A change to any other workflow, `build-and-test.yml` and `end-to-end-specs.yml` 
 `assets/` counts as code, since the app loads its fonts, icons and dictionaries from there.
 The "End-to-end specs" workflow, `.github/workflows/end-to-end.yml`, runs them on `main` every night at 02:30 UTC on the runners the organization's `versions.yml` names: Linux x64 and Windows x64 in 3 shards each.
 Pull requests run them on Linux x64 alone.
+Each job keeps the browser for the Angular tests in `$RUNNER_TEMP/ms-playwright` with `actions/cache`, keyed by the runner's system and architecture, the browsers the build installs, Chromium's headless shell, and the `playwright-core` version `package-lock.json` locks; on a hit the install downloads nothing, so an outage of Playwright's download host doesn't fail the job, and a miss downloads it as before and keeps it once the job passes.
 On Linux the job first sets the kernel's core pattern to a plain `core` file, since Ubuntu pipes each crashed process's core to systemd-coredump, which holds a crashed renderer in its exit for longer than the specs that crash a web view's page wait for it to end.
 A member starts a run on `main` with `gh workflow run end-to-end.yml --ref main`.
 A failed run keeps each failed shard's report and results as artifacts for 14 days, named by target and shard, and opens an issue titled "The end-to-end specs fail on main", or comments on the open one, with the run's link and each failed shard's failed specs.
