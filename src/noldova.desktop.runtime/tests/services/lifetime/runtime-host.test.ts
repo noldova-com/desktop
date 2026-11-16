@@ -422,6 +422,43 @@ export class RuntimeHostTests {
   }
 
   @TestMethod
+  public movesTheBindingForACommandsFormerNameBeforeModulesActivate(): Promise<void> {
+    return RuntimeHostFixture.runAsync(async fixture => {
+      const part = [
+        "export class RuntimePart {",
+        "  async activateAsync(context) {",
+        "    const bindings = context.settings.read(\"desktop.keyBindings\");",
+        "    context.registerMethod(`${context.moduleId}.echo`, { handleAsync: async () => bindings });",
+        "  }",
+        "}",
+        String.empty
+      ].join("
+");
+      const declarations = await fixture.writeModulesAsync([["notes", part]]);
+      const first = await fixture.startAsync(30_000, declarations);
+      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      connection.sendMessages(new Request("main:1", ShellMethods.setSetting, new SettingValue(new SettingKey(QualifiedName.parse("desktop.keyBindings")), { "notes.old": "Mod+K" }).toJson()));
+      const stored = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const before = await RuntimeHostFixture.callAsync(connection, "main:2", new QualifiedName("notes", "echo"), null);
+      first.requestStop("test");
+      await first.waitForStopAsync();
+      const text = await readFile(declarations, "utf8");
+      const renamed = text.replace("\"description\":\"notes\",", "\"description\":\"notes\",\"formerNames\":{\"notes.tick\":[\"notes.old\"]},");
+      await writeFile(declarations, renamed);
+      const second = await fixture.startAsync(30_000, declarations);
+      const [again] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const after = await RuntimeHostFixture.callAsync(again, "main:3", new QualifiedName("notes", "echo"), null);
+      second.requestStop("test");
+      await second.waitForStopAsync();
+
+      Assert.areNotEqual(text, renamed);
+      Assert.areEqual("desktop.settingsChanged|null", `${stored[0].name.text}|${JSON.stringify(stored[1].payload)}`);
+      Assert.areEqual(JSON.stringify({}), JSON.stringify(before.payload));
+      Assert.areEqual(JSON.stringify({ "notes.tick": "Mod+K" }), JSON.stringify(after.payload));
+    });
+  }
+
+  @TestMethod
   public servesAClientThatNeverAsksForModules(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["notes", RuntimeHostFixture.PART]]));
