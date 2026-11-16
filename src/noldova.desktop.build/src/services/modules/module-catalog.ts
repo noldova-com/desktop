@@ -328,9 +328,12 @@ export class ModuleCatalog {
   private static checkPeer(
     declaration: ModuleDeclaration, subject: string, peer: string, needed: unknown, version: string | null, isOptional: boolean, holder: string, isWindowPart: boolean): void {
     const isAngular = isWindowPart && PackageNaming.isAngular(peer);
-    const range = Object.isString(needed) && (PackageNaming.isShared(peer) || isAngular) ? VersionRange.parse(needed) : null;
+    const isOrganization = PackageNaming.isNoldova(peer) && !PackageNaming.isShared(peer);
+    const range = Object.isString(needed) && (PackageNaming.isNoldova(peer) || isAngular) ? VersionRange.parse(needed) : null;
     if (isAngular && !Object.isNull(range) && !range.isFollowing())
       throw new BuildException(Resources.formatCatalogAngularPeerRange(subject, peer, needed, range.minimum));
+    if (isOrganization && !Object.isNull(range) && !range.isFollowing())
+      throw new BuildException(Resources.formatCatalogOrganizationPeerRange(subject, peer, needed, range.minimum));
     const isExact = Object.isString(needed) && ModuleDeclaration.isVersion(needed);
     const noldovaDesktop = Object.isNull(declaration.noldovaDesktop) ? null : declaration.noldovaDesktop.toString();
     if (PackageNaming.isCore(peer) && (Object.isNull(noldovaDesktop) ? !Object.isNull(range) : needed !== noldovaDesktop))
