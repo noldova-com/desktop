@@ -44,8 +44,8 @@ export class ModuleRangeTests {
   @TestMethod
   public async takesTheExactNoldovaDesktopPinsOfTheRootManifestAndPassesOverItsOtherDependenciesAsync(): Promise<void> {
     const manifest = {
-      dependencies: { "@noldova/desktop.runtime": "0.0.70", "@noldova/context.core": "1.2.3", "@noldova/desktop.window": 70 },
-      devDependencies: { "@noldova/desktop.build": "^0.0.71", "@noldova/desktop.window": "0.0.70" }
+      dependencies: { "@noldova/desktop.runtime": "0.0.70", "@noldova/context.core": "^1.2.3", "@noldova/ui.components.angular": 70 },
+      devDependencies: { "@noldova/desktop.build": "0.0.70", "@noldova/desktop.window": "0.0.70" }
     };
 
     const result = await ModuleRangeTests.runAsync({ noldovaDesktop: ">=0.0.70 <0.1.0" }, {}, manifest);
@@ -71,17 +71,35 @@ export class ModuleRangeTests {
   }
 
   @TestMethod
-  public async refusesARootManifestThatPinsNoNoldovaDesktopVersionOrCannotBeReadAsync(): Promise<void> {
-    for (const manifest of [
-      null,
-      "{",
-      { dependencies: "@noldova/desktop.runtime" },
-      { devDependencies: { "@noldova/desktop.runtime": "^0.0.70", "@noldova/context.core": "0.0.70", "@noldova/desktop.window": 70 } }
-    ]) {
+  public async refusesANoldovaDesktopDependencyAtAnythingButOneExactVersionBesideAnExactPinAsync(): Promise<void> {
+    const pins = " not at one exact version; a module pins each Noldova Desktop package to the exact version its range starts at, as MODULES.md's \"Noldova Desktop versions\" says.";
+    for (const [manifest, message] of [
+      [{ dependencies: { "@noldova/desktop.runtime": "0.0.70" }, devDependencies: { "@noldova/desktop.build": "^0.0.71" } }, `The root package.json names @noldova/desktop.build at "^0.0.71",${pins}`],
+      [{ dependencies: { "@noldova/desktop.runtime": "0.0.70", "@noldova/desktop.window": 70 } }, `The root package.json names @noldova/desktop.window at 70,${pins}`]
+    ] as const) {
+      const result = await ModuleRangeTests.runAsync({ noldovaDesktop: ">=0.0.70 <0.1.0" }, {}, manifest);
+
+      Assert.areEqual(1, result.exitCode, message);
+      Assert.areEqual(`::error::${message}\n`, result.output, message);
+      Assert.areEqual("signed=yes\n", result.written);
+    }
+  }
+
+  @TestMethod
+  public async refusesARootManifestThatCannotBeReadOrPinsNoNoldovaDesktopVersionAsync(): Promise<void> {
+    const unreadable = "The root package.json could not be read as JSON.";
+    const unpinned = "The root package.json pins no Noldova Desktop package to one exact version, the version a module builds and tests against.";
+    for (const [manifest, message] of [
+      [null, unreadable],
+      ["{", unreadable],
+      [["@noldova/desktop.runtime"], unreadable],
+      [{ dependencies: "@noldova/desktop.runtime" }, unpinned],
+      [{ devDependencies: { "@noldova/context.core": "0.0.70", "@noldova/ui.components.angular": "1.0.0" } }, unpinned]
+    ] as const) {
       const result = await ModuleRangeTests.runAsync({ noldovaDesktop: ">=0.0.70 <0.1.0" }, {}, manifest);
 
       Assert.areEqual(1, result.exitCode, JSON.stringify(manifest));
-      Assert.areEqual("::error::The root package.json pins no Noldova Desktop package to one exact version, the version a module builds and tests against.\n", result.output, JSON.stringify(manifest));
+      Assert.areEqual(`::error::${message}\n`, result.output, JSON.stringify(manifest));
       Assert.areEqual("signed=yes\n", result.written);
     }
   }

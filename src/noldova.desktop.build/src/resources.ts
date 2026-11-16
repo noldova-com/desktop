@@ -3200,6 +3200,11 @@ export class Resources {
     return `${file}'s ${Resources.noldovaDesktopField} is ${range}, but a range from ${minimum} ends below the next version that may break modules: ${following}.`;
   }
 
+  public static formatModuleRangePinNotExact(name: string, version: string): string {
+    return `The root ${Resources.packageManifestFileName} names ${name} at ${version}, not at one exact version; `
+      + `a module pins each Noldova Desktop package to the exact version its range starts at, as MODULES.md's "Noldova Desktop versions" says.`;
+  }
+
   public static formatModuleRangeNotPin(file: string, range: string, name: string, pin: string): string {
     return `${file}'s ${Resources.noldovaDesktopField} is ${range}, but the root ${Resources.packageManifestFileName} pins ${name} at ${pin}; `
       + `the range's lowest version is the module's exact development pin, as MODULES.md's "Noldova Desktop versions" says.`;

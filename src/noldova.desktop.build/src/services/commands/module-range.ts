@@ -51,12 +51,18 @@ export class ModuleRange {
       return this.refuse(Resources.formatModuleRangeForm(file, declared));
     if (!range.isFollowing())
       return this.refuse(Resources.formatModuleRangeNotFollowing(file, range.toString(), range.minimum, String(VersionRange.following(range.minimum))));
-    const pins = ModuleRange.readPins(await ModuleRange.readObjectAsync(path.resolve(this.folder, Resources.packageManifestFileName)));
+    const manifest = await ModuleRange.readObjectAsync(path.resolve(this.folder, Resources.packageManifestFileName));
+    if (Object.isNull(manifest))
+      return this.refuse(Resources.rootManifestUnreadable);
+    const pins = ModuleRange.readDesktopDependencies(manifest);
+    const loose = pins.find(([, version]) => !Object.isString(version) || !VersionRange.isVersion(version));
+    if (!Object.isUndefined(loose))
+      return this.refuse(Resources.formatModuleRangePinNotExact(loose[0], JSON.stringify(loose[1])));
     if (pins.length === 0)
       return this.refuse(Resources.moduleRangeNoPin);
     const other = pins.find(([, version]) => version !== range.minimum);
     if (!Object.isUndefined(other))
-      return this.refuse(Resources.formatModuleRangeNotPin(file, range.toString(), other[0], other[1]));
+      return this.refuse(Resources.formatModuleRangeNotPin(file, range.toString(), other[0], String(other[1])));
     const published = ModuleRange.readVersions(this.environment[Resources.publishedVersionsVariable] ?? String.empty);
     if (Object.isNull(published))
       return this.refuse(Resources.moduleRangeNoPublished);
@@ -68,14 +74,12 @@ export class ModuleRange {
     return 0;
   }
 
-  private static readPins(manifest: JsonReader | null): readonly (readonly [string, string])[] {
-    if (Object.isNull(manifest))
-      return [];
+  private static readDesktopDependencies(manifest: JsonReader): readonly (readonly [string, unknown])[] {
     const record = new Map(Object.entries(manifest.toJson()));
     return [Resources.manifestDependenciesField, Resources.manifestDevDependenciesField].flatMap(field => {
       const dependencies = record.get(field);
       return Object.isPlainObject(dependencies) ? Object.entries(dependencies) : [];
-    }).flatMap(([name, version]) => name.startsWith(Resources.modulesPrefix) && Object.isString(version) && VersionRange.isVersion(version) ? [[name, version] as const] : []);
+    }).filter(([name]) => name.startsWith(Resources.modulesPrefix));
   }
 
   private static readVersions(text: string): readonly string[] | null {
