@@ -26,7 +26,7 @@ export class InstallTests {
 
     Assert.areEqual(0, exitCode);
     Assert.areEqual("angular-install", steps.steps.join());
-    Assert.isNull(output.read());
+    Assert.isNull(output.read(output.readableLength));
   }
 
   @TestMethod
@@ -37,7 +37,7 @@ export class InstallTests {
     const exitCode = await steps.createInstall(tmpdir(), output).runAsync(["--quick"]);
 
     Assert.areEqual(2, exitCode);
-    Assert.areEqual("Usage: noldova-desktop-build install\n", output.read()?.toString() ?? String.empty);
+    Assert.areEqual("Usage: noldova-desktop-build install\n", output.read(output.readableLength)?.toString() ?? String.empty);
     Assert.areEqual(0, steps.steps.length);
   }
 
@@ -49,7 +49,7 @@ export class InstallTests {
       const exitCode = await new BuildStepsFixture("angular-install", failure).createInstall(tmpdir(), output).runAsync([]);
 
       Assert.areEqual(1, exitCode);
-      Assert.areEqual(`${failure.message}\n`, output.read()?.toString() ?? String.empty);
+      Assert.areEqual(`${failure.message}\n`, output.read(output.readableLength)?.toString() ?? String.empty);
     }
   }
 

@@ -184,6 +184,6 @@ export class DevelopmentBinaryTests {
   private static async prepareAsync(binary: DevelopmentBinary): Promise<string> {
     const report = new PassThrough();
     const executable = await binary.prepareAsync(report);
-    return `${executable} ${String(report.read() ?? String.empty)}`;
+    return `${executable} ${String(report.read(report.readableLength) ?? String.empty)}`;
   }
 }

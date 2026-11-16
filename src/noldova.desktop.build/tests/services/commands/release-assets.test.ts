@@ -122,7 +122,7 @@ export class ReleaseAssetsTests {
     const exitCode = await new ReleaseAssets(app.path, "aix", "x64", output).runAsync([]);
 
     Assert.areEqual(1, exitCode);
-    Assert.areEqual("Packages are made for windows, macos and linux on x64 and arm64, not for aix on x64.\n", output.read()?.toString() ?? String.empty);
+    Assert.areEqual("Packages are made for windows, macos and linux on x64 and arm64, not for aix on x64.\n", output.read(output.readableLength)?.toString() ?? String.empty);
   }
 
   @TestMethod
@@ -133,7 +133,7 @@ export class ReleaseAssetsTests {
     const exitCode = await new ReleaseAssets(path.join(app.path, "missing"), "linux", "x64", output).runAsync([]);
 
     Assert.areEqual(1, exitCode);
-    Assert.areEqual(`${Resources.rootVersionInvalid}\n`, output.read()?.toString() ?? String.empty);
+    Assert.areEqual(`${Resources.rootVersionInvalid}\n`, output.read(output.readableLength)?.toString() ?? String.empty);
   }
 
   @TestMethod

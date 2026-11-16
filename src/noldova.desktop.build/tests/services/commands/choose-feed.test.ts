@@ -128,7 +128,7 @@ export class ChooseFeedTests {
       const exitCode = await new ChooseFeed(environment, output, "noldova-desktop-release").runAsync([]);
 
       Assert.areEqual(1, exitCode);
-      Assert.areEqual("::error::GITHUB_OUTPUT names no file for the step's update-feed and package-version outputs.\n", output.read()?.toString() ?? String.empty);
+      Assert.areEqual("::error::GITHUB_OUTPUT names no file for the step's update-feed and package-version outputs.\n", output.read(output.readableLength)?.toString() ?? String.empty);
     }
   }
 
@@ -154,7 +154,7 @@ export class ChooseFeedTests {
       await writeFile(file, earlier);
       const output = new PassThrough();
       const exitCode = await new ChooseFeed({ ...environment, GITHUB_OUTPUT: file }, output, "noldova-desktop-release").runAsync(commandArguments);
-      return { exitCode, output: output.read()?.toString() ?? String.empty, written: await readFile(file, "utf8") };
+      return { exitCode, output: output.read(output.readableLength)?.toString() ?? String.empty, written: await readFile(file, "utf8") };
     }
     finally {
       await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });

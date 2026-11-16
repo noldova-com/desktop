@@ -179,7 +179,7 @@ export class ReleaseCheckTests {
     const exitCode = await new ReleaseCheck(app.path, ReleaseCheckTests.passing(), {}, output, "noldova-desktop-release").runAsync(["now"]);
 
     Assert.areEqual(2, exitCode);
-    Assert.areEqual(Resources.formatReleaseCheckUsage("noldova-desktop-release"), output.read()?.toString() ?? String.empty);
+    Assert.areEqual(Resources.formatReleaseCheckUsage("noldova-desktop-release"), output.read(output.readableLength)?.toString() ?? String.empty);
   }
 
   private static request(repository: string): NodeJS.ProcessEnv {

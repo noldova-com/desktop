@@ -115,7 +115,7 @@ export class ModuleRangeTests {
       const exitCode = await new ModuleRange(folder, { GITHUB_OUTPUT: path.join(folder, "output") }, output, "noldova-desktop-release").runAsync(["src/notes"]);
 
       Assert.areEqual(1, exitCode);
-      Assert.areEqual("::error::PUBLISHED_VERSIONS holds no list of versions as npm view's JSON gives it.\n", output.read()?.toString() ?? String.empty);
+      Assert.areEqual("::error::PUBLISHED_VERSIONS holds no list of versions as npm view's JSON gives it.\n", output.read(output.readableLength)?.toString() ?? String.empty);
     }
     finally {
       await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
@@ -130,7 +130,7 @@ export class ModuleRangeTests {
       const exitCode = await new ModuleRange(tmpdir(), environment, output, "noldova-desktop-release").runAsync(["src/notes"]);
 
       Assert.areEqual(1, exitCode);
-      Assert.areEqual("::error::GITHUB_OUTPUT names no file for the step's range and version outputs.\n", output.read()?.toString() ?? String.empty);
+      Assert.areEqual("::error::GITHUB_OUTPUT names no file for the step's range and version outputs.\n", output.read(output.readableLength)?.toString() ?? String.empty);
     }
   }
 
@@ -142,7 +142,7 @@ export class ModuleRangeTests {
       const exitCode = await new ModuleRange(tmpdir(), {}, output, "noldova-desktop-release").runAsync(commandArguments);
 
       Assert.areEqual(2, exitCode);
-      Assert.areEqual("Usage: PUBLISHED_VERSIONS=<the versions npm view lists, as JSON> noldova-desktop-release module-range <module folder>\n", output.read()?.toString() ?? String.empty);
+      Assert.areEqual("Usage: PUBLISHED_VERSIONS=<the versions npm view lists, as JSON> noldova-desktop-release module-range <module folder>\n", output.read(output.readableLength)?.toString() ?? String.empty);
     }
   }
 
@@ -157,7 +157,7 @@ export class ModuleRangeTests {
       const output = new PassThrough();
       const exitCode = await new ModuleRange(folder, { PUBLISHED_VERSIONS: ModuleRangeTests.PUBLISHED, ...environment, GITHUB_OUTPUT: file }, output, "noldova-desktop-release")
         .runAsync(["src/notes"]);
-      return { exitCode, output: output.read()?.toString() ?? String.empty, written: await readFile(file, "utf8") };
+      return { exitCode, output: output.read(output.readableLength)?.toString() ?? String.empty, written: await readFile(file, "utf8") };
     }
     finally {
       await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
