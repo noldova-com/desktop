@@ -7226,8 +7226,7 @@ export declare class WebViewOriginCheck {
    * @param localOrigins The origins the app's settings mark as local addresses, which may connect to a loopback or private address; none by
    * default.
    * @param neverAllowedPorts The loopback ports of the app's own endpoints, refused even when an allowed origin names them, or a function
-   * read at each check that answers them, or `null` while they are unknown, when every loopback port is refused; none by default. The
-   * function is an addition in 0.0.2.
+   * read at each check that answers them, or `null` while they are unknown, when every loopback port is refused; none by default.
    * @example
    * ```ts
    * import { WebViewOriginCheck } from "@noldova/desktop.electron";

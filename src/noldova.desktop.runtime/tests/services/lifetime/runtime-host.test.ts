@@ -15,10 +15,10 @@ import "@noldova/context.core";
 import { Assert, Category, TestClass, TestMethod } from "@noldova/context.testing";
 import {
   BuildIdentity, Event, FailureCode, NotificationBroadcast, NotificationState, NotificationsQuery, QualifiedName, Request, SettingKey, SettingValue, ShellMethods, StopPolicy, StopRequest,
-  UpdateProcess
+  UpdateProcess, WebViewBlockedPorts
 } from "@noldova/desktop.protocol";
 import {
-  AppImageCopyRecord, DataDirectoryOwnedException, DeclarationsUnreadableException, OwnershipLock, ProcessPresence, RuntimeBuild, RuntimeEntry, RuntimeHost, RuntimeOptions, ServerSettings
+  AppImageCopyRecord, DataDirectoryOwnedException, DeclarationsUnreadableException, Endpoint, OwnershipLock, ProcessPresence, RuntimeBuild, RuntimeEntry, RuntimeHost, RuntimeOptions, ServerSettings
 } from "@noldova/desktop.runtime";
 
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
@@ -86,6 +86,33 @@ export class RuntimeHostTests {
       Assert.areEqual("{\"kind\":\"Response\",\"id\":\"other:3\",\"payload\":null}", stopped);
       Assert.isTrue(work.signal.aborted);
       Assert.areEqual("request", await host.waitForStopAsync());
+    });
+  }
+
+  @PlatformFixture.windowsOnly()
+  @TestMethod
+  public blocksItsOwnTcpPortForWebViews(): Promise<void> {
+    return RuntimeHostFixture.runAsync(async fixture => {
+      await fixture.startAsync();
+      const discovery = await fixture.readDiscoveryAsync();
+      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+
+      const answer = await RuntimeHostFixture.callAsync(mainProcess, "main:1", ShellMethods.readWebViewBlockedPorts, null);
+
+      Assert.areEqual(String(Endpoint.parse(discovery.endpoint).port), WebViewBlockedPorts.fromJson(answer.payload).ports.join(","));
+    });
+  }
+
+  @PlatformFixture.posixOnly()
+  @TestMethod
+  public blocksNoPortForItsSocket(): Promise<void> {
+    return RuntimeHostFixture.runAsync(async fixture => {
+      await fixture.startAsync();
+      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+
+      const answer = await RuntimeHostFixture.callAsync(mainProcess, "main:1", ShellMethods.readWebViewBlockedPorts, null);
+
+      Assert.areEqual("[]", JSON.stringify(WebViewBlockedPorts.fromJson(answer.payload).ports));
     });
   }
 

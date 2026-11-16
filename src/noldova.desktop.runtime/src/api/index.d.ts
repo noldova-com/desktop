@@ -16322,7 +16322,7 @@ export declare class WebViewCenter {
    * none, no main process is ever reached.
    * @param portsChannel The `desktop.webViewBlockedPorts` event each change of
    * the blocked loopback ports goes out on; with none, a block waits for no
-   * acknowledgement. An addition in 0.0.2.
+   * acknowledgement.
    * @example
    * ```ts
    * import { ShellEvents } from "@noldova/desktop.protocol";
@@ -16389,7 +16389,7 @@ export declare class WebViewCenter {
   /**
    * Adds a loopback port that no web view may reach, such as the runtime's own
    * endpoint or a tool endpoint's, and sends the new list to the connected main
-   * process. An addition in 0.0.2.
+   * process.
    *
    * @param port The port.
    * @returns The new list's serial, which {@link WebViewCenter.waitForPortsAsync}
@@ -16401,7 +16401,7 @@ export declare class WebViewCenter {
    * Waits until the connected main process acknowledges a list at least as new
    * as a serial, so that its web views refuse the ports in it; it settles at once
    * when no main process is connected, since no web view is open then, and when
-   * the main process goes. An addition in 0.0.2.
+   * the main process goes.
    *
    * @param serial The serial {@link WebViewCenter.blockPort} returned.
    * @param signal Stops the wait.
@@ -16413,8 +16413,7 @@ export declare class WebViewCenter {
 
   /**
    * Removes a loopback port once its endpoint has closed, and sends the new list
-   * to the connected main process; a port it doesn't hold changes nothing. An
-   * addition in 0.0.2.
+   * to the connected main process; a port it doesn't hold changes nothing.
    *
    * @param port The port.
    */
@@ -16422,7 +16421,6 @@ export declare class WebViewCenter {
 
   /**
    * Reads the blocked loopback ports for the connected main process.
-   * An addition in 0.0.2.
    *
    * @param connection The connection that asks.
    * @returns The list, or `null` for any connection but the main process's.
@@ -16431,7 +16429,7 @@ export declare class WebViewCenter {
 
   /**
    * Settles every wait the main process's acknowledgement covers, when it came
-   * on the main process's connection; any other is ignored. An addition in 0.0.2.
+   * on the main process's connection; any other is ignored.
    *
    * @param connection The connection the acknowledgement came on.
    * @param blocked The list the main process acknowledges.

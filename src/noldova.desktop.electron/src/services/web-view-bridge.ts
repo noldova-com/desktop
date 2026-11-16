@@ -28,6 +28,7 @@ export class WebViewBridge {
   private declarations: Promise<ReadonlyMap<string, WebViewDeclaration>> | undefined;
   private blockedPorts: ReadonlySet<number> | null = null;
   private blockedSerial: number = -1;
+  private connection: object | null = null;
 
   public constructor(options: IMainProcessOptions, windows: WindowRegistry, runtime: RuntimeCaller, isReady: () => boolean) {
     this.process = options.process;
@@ -55,7 +56,11 @@ export class WebViewBridge {
   }
 
   public async connectAsync(): Promise<void> {
+    const connection = {};
+    this.connection = connection;
     const response = await this.runtime.callAsync(ShellMethods.readWebViewBlockedPorts, null);
+    if (this.connection !== connection)
+      return;
     const payload = response.payload ?? null;
     if (response.hasFailed || Object.isNull(payload)) {
       this.log.write(Resources.formatWebViewPortsUnread(response.failure?.message ?? String(null)));
@@ -65,11 +70,14 @@ export class WebViewBridge {
   }
 
   public disconnect(): void {
+    this.connection = null;
     this.blockedPorts = null;
     this.blockedSerial = -1;
   }
 
   public async blockPortsAsync(payload: JsonValue): Promise<void> {
+    if (Object.isNull(this.connection))
+      return;
     let blocked: WebViewBlockedPorts;
     try {
       blocked = WebViewBlockedPorts.fromJson(payload);

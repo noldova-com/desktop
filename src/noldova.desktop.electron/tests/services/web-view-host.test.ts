@@ -603,6 +603,34 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async takesBlockedPortsOnlyFromTheConnectedRuntimeSoTheNextRuntimeAfterAnUpdateHasItsOwnApplied(): Promise<void> {
+    const [first, second] = [new FakeRuntimeConnection(), new FakeRuntimeConnection()];
+    const read = Promise.withResolvers<Response>();
+    first.deferred.set("desktop.readWebViewBlockedPorts", () => read.promise);
+    second.answers.set("desktop.readWebViewBlockedPorts", Response.success("r", { serial: 1, ports: [4700] }));
+    const launcher = new FakeRuntimeLauncher(first, second);
+    const [electron] = await WebViewHostTests.startWithAsync(launcher);
+    await WebViewHostTests.openAsync(electron);
+    await this.commandAsync(launcher, first, WebViewAction.SetAllowedOrigins, "1", ["http://127.0.0.1:4600", "http://127.0.0.1:4700"]);
+    const passes = (): string => WebViewHostTests.loopbackPasses(electron, [4600, 4700]);
+
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 5, ports: [4600] }));
+    await setImmediate();
+    const whileUpdating = passes();
+    launcher.listener?.onDisconnected(null);
+    await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(second).length === 1);
+    const fromTheNextRuntime = passes();
+    read.resolve(Response.success("r", { serial: 9, ports: [4600] }));
+    await setImmediate();
+    const afterTheOldRuntimesLateAnswer = passes();
+
+    Assert.areEqual("false,false|true,false|true,false", [whileUpdating, fromTheNextRuntime, afterTheOldRuntimesLateAnswer].join("|"));
+    Assert.areEqual(0, WebViewHostTests.portAcknowledgements(first).length);
+    Assert.areEqual("{\"serial\":1,\"ports\":[4700]}", WebViewHostTests.portAcknowledgements(second).join(","));
+  }
+
+  @TestMethod
   public async keepsRefusingEveryLoopbackPortAndLogsBlockedPortsItCannotReadOrThatAreNotValid(): Promise<void> {
     const [failing, empty] = [new FakeRuntimeConnection(), new FakeRuntimeConnection()];
     failing.answers.set("desktop.readWebViewBlockedPorts", Response.failure("r", new Failure(FailureCode.Internal, "The runtime is busy.")));

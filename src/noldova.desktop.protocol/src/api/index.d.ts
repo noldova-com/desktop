@@ -3321,7 +3321,6 @@ export declare class WebViewCommand {
 /**
  * The loopback ports a web view may never reach, in `desktop.webViewBlockedPorts` and its acknowledgement
  * `desktop.webViewPortsBlocked`: the runtime's own endpoint on Windows and every open tool endpoint.
- * An addition in 0.0.2.
  */
 export declare class WebViewBlockedPorts {
   /**
@@ -4676,7 +4675,6 @@ export declare class ShellEvents {
    * `desktop.webViewBlockedPorts`: the loopback ports the runtime and its modules' tool endpoints listen on, which a web view may
    * never reach; the runtime sends it to one main process only, on each change while it is connected, and its payload is a
    * `WebViewBlockedPorts`, which the main process acknowledges with `desktop.webViewPortsBlocked` once it refuses them.
-   * An addition in 0.0.2.
    */
   public static readonly webViewBlockedPorts: QualifiedName;
 }
@@ -4981,7 +4979,6 @@ export declare class ShellMethods {
    * `desktop.readWebViewBlockedPorts`: the main process reads the loopback ports its web views may never reach, each time it
    * connects, before it acknowledges them with `desktop.webViewPortsBlocked`; it takes no payload, and it answers a
    * `WebViewBlockedPorts` to the one main process the runtime sends its web view calls to, and `null` to any other client.
-   * An addition in 0.0.2.
    */
   public static readonly readWebViewBlockedPorts: QualifiedName;
 
@@ -4989,7 +4986,6 @@ export declare class ShellMethods {
    * `desktop.webViewPortsBlocked`: the main process acknowledges a `WebViewBlockedPorts` it read or was sent once its web views refuse
    * those ports; its payload is the `WebViewBlockedPorts` it applied, and the runtime gives a tool endpoint's address to its
    * module only after the acknowledgement that covers its port.
-   * An addition in 0.0.2.
    */
   public static readonly webViewPortsBlocked: QualifiedName;
 
