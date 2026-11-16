@@ -10,10 +10,14 @@ export class PeerProcess {
   public readonly program: string;
   public readonly environment: readonly string[];
   public readonly sender: string | null;
+  public readonly processId: number | null;
+  public readonly startTime: string | null;
 
-  public constructor(program: string, environment: readonly string[], sender: string | null = null) {
+  public constructor(program: string, environment: readonly string[], sender: string | null = null, processId: number | null = null, startTime: string | null = null) {
     this.program = program;
     this.environment = environment;
     this.sender = sender;
+    this.processId = processId;
+    this.startTime = startTime;
   }
 }

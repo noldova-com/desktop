@@ -9,6 +9,7 @@
 import type { Socket } from "node:net";
 
 export interface IMainProcessCheck {
+  accept?(socket: Socket): void;
   isMainProcessAsync(socket: Socket): Promise<boolean>;
   isSameSender(socket: Socket): boolean;
 }
