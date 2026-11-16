@@ -176,6 +176,23 @@ describe("MenuService", () => {
     expect(unchecked.map(t => t.rows)).toEqual([[new SubmenuRow("notes.sortChoice", "Sort")]]);
   });
 
+  it("shows on a choice the checked row's own icon, the place's icon when the checked row has none, and the place's icon when no row is checked", () => {
+    const menus = start(new MenuDeclarations("notes", [new MenuPlace("notes.main", "Main", false), new MenuPlace("notes.shellChoice", "Shell", false, "terminal")],
+      [new MenuGroup("notes.mainShell", "notes.main", false, [MenuItem.ofChoice("notes.shellChoice")]), MenuGroup.dynamic("notes.shells", "notes.shellChoice", true)]));
+    menus.setActiveModules(["notes"]);
+    menus.provideGroup("notes.shells", () => [MenuItem.ofCommand("notes.sortBy", { by: "week" }, "PowerShell", "code"), MenuItem.ofCommand("notes.sortBy", { by: "title" }, "Bash")]);
+    const choiceAt = (by: string): readonly SubmenuRow[] => {
+      sortBy = by;
+      return menus.resolve("notes.main").flatMap(t => t.rows).filter(t => t instanceof SubmenuRow);
+    };
+
+    expect([choiceAt("week"), choiceAt("title"), choiceAt("none")]).toEqual([
+      [new SubmenuRow("notes.shellChoice", "PowerShell", "code")],
+      [new SubmenuRow("notes.shellChoice", "Bash", "terminal")],
+      [new SubmenuRow("notes.shellChoice", "Shell", "terminal")]
+    ]);
+  });
+
   it("tells which dynamic groups a module declares", () => {
     const dynamic = MenuDeclarations.fromJson("notes", {
       places: [{ name: "notes.recent", title: "Recent" }],
