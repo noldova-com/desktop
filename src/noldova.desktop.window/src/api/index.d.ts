@@ -1334,7 +1334,10 @@ export interface IWindowPart {
    * with its context, contributions, views and documents. Before resolving
    * true, the part reads again through its context everything it took from
    * the runtime, including its notifications, because the new runtime may
-   * hold other state and events sent while it was away are lost.
+   * hold other state and events sent while it was away are lost. A document
+   * the part opens from here, or from anything else it runs while the window
+   * reconnects, waits for the reconnect to end, then opens as at any other
+   * time, in the order asked, each in front, so the last one is active.
    *
    * @returns A promise of true when the part continues, or false to have the
    * window deactivate it and activate it again, which is always safe; a
