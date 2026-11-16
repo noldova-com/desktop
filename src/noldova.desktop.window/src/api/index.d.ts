@@ -220,7 +220,9 @@ export declare class FileNotOpenedException extends WindowException {
  */
 export declare class RuntimeRequestException extends WindowException {
   /**
-   * The exception's name, `RuntimeRequestException`.
+   * The exception's name: `RuntimeRequestException`, or
+   * `RuntimeDisconnectedException` once the runtime is gone, when the window
+   * throws its own subclass; `instanceof RuntimeRequestException` holds for both.
    */
   public override readonly name: string;
 
