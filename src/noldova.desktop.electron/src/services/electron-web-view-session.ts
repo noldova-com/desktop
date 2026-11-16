@@ -58,8 +58,8 @@ export class ElectronWebViewSession implements IWebViewSession {
     return (await this.profile.resolveHost(host)).endpoints.map(t => t.address);
   }
 
-  public async readIconAsync(url: string, byteLimit: number): Promise<Uint8Array | null> {
-    const response = await this.profile.fetch(url, { redirect: "error" });
+  public async readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null> {
+    const response = await this.profile.fetch(url, { redirect: "error", signal });
     if (!response.ok || Object.isNull(response.body)) {
       await response.body?.cancel();
       return null;

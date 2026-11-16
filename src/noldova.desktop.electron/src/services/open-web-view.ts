@@ -366,6 +366,7 @@ export class OpenWebView {
     if (this.isClosed)
       return;
     this.isClosed = true;
+    this.favicon.close();
     this.end(WebViewFailureKind.ViewClosed);
     this.settleFinds(null);
     this.pendingUrl = undefined;

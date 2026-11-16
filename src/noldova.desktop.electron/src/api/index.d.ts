@@ -3680,17 +3680,18 @@ export interface IWebViewSession {
    *
    * @param url The icon's address.
    * @param byteLimit The most bytes it reads.
-   * @returns The icon's bytes, or null when the answer isn't a success or holds more than `byteLimit` bytes; it rejects when the request fails.
+   * @param signal Stops the request and the read when it aborts.
+   * @returns The icon's bytes, or null when the answer isn't a success or holds more than `byteLimit` bytes; it rejects when the request fails or `signal` aborts.
    * @example
    * ```ts
    * import type { IWebViewSession } from "@noldova/desktop.electron";
    *
    * export function readIconAsync(session: IWebViewSession): Promise<Uint8Array | null> {
-   *   return session.readIconAsync("https://example.com/favicon.ico", 1_048_576);
+   *   return session.readIconAsync("https://example.com/favicon.ico", 1_048_576, AbortSignal.timeout(10_000));
    * }
    * ```
    */
-  readIconAsync(url: string, byteLimit: number): Promise<Uint8Array | null>;
+  readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null>;
 
   /**
    * Clears the session's cookies, storage and cache.

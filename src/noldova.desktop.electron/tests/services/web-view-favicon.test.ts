@@ -9,6 +9,7 @@
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { WebViewFavicon } from "../../src/services/web-view-favicon.js";
+import { WebViewFaviconResources } from "../../src/services/web-view-favicon.resources.js";
 import { WebViewOriginCheck } from "../../src/services/web-view-origin-check.js";
 import { Condition } from "../fixtures/condition.fixture.js";
 import { FakeWebViewContents } from "../fixtures/fake-web-view-contents.fixture.js";
@@ -36,8 +37,13 @@ class FaviconHarness {
     this.decodeTo(FaviconHarness.PNG);
   }
 
-  public static png(length: number): string {
-    return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(length - 8)]).toString("base64");
+  public static png(length: number, width: number = 1, height: number = width, type: string = "IHDR"): string {
+    const png = Buffer.alloc(length);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).copy(png);
+    png.write(type, 12, "latin1");
+    png.writeUInt32BE(width, 16);
+    png.writeUInt32BE(height, 20);
+    return png.toString("base64");
   }
 
   public decodeTo(value: unknown): void {
@@ -76,10 +82,10 @@ export class WebViewFaviconTests {
 
     await harness.updateAsync(FaviconHarness.ICON);
     await harness.updateAsync(FaviconHarness.ICON);
-    harness.decodeTo(FaviconHarness.png(12));
+    harness.decodeTo(FaviconHarness.png(24));
     await harness.updateAsync("http://192.168.1.20/other.png");
 
-    Assert.areEqual(`png,${"data:image/png;base64,".length + 16}`, harness.describe());
+    Assert.areEqual(`png,${"data:image/png;base64,".length + 32}`, harness.describe());
     Assert.areEqual(`${FaviconHarness.ICON} allowed,${FaviconHarness.ICON} allowed,http://192.168.1.20/other.png allowed`, harness.session.iconReads.join(","));
   }
 
@@ -156,8 +162,8 @@ export class WebViewFaviconTests {
     harness.contents.onIsolated = () => new Promise(() => undefined);
     const started = harness.waits.length;
     const endless = harness.updateAsync(FaviconHarness.ICON);
-    await Condition.waitAsync(() => harness.waits.length === started + 1);
-    harness.waits[started]?.();
+    await Condition.waitAsync(() => harness.waits.length === started + 2);
+    harness.waits[started + 1]?.();
     await endless;
 
     Assert.areEqual("png,null,png,null,png,null,png,null,png,null,png,null", harness.describe());
@@ -200,11 +206,98 @@ export class WebViewFaviconTests {
     const earlier = harness.updateAsync(FaviconHarness.ICON);
     await Condition.waitAsync(() => harness.contents.isolated.length === 1);
 
-    harness.decodeTo(FaviconHarness.png(12));
+    harness.decodeTo(FaviconHarness.png(24));
     await harness.updateAsync(FaviconHarness.ICON);
     first.resolve(FaviconHarness.PNG);
     await earlier;
 
-    Assert.areEqual(`${"data:image/png;base64,".length + 16}`, harness.describe());
+    Assert.areEqual(`${"data:image/png;base64,".length + 32}`, harness.describe());
+  }
+
+  @TestMethod
+  public async stopsTheReadUnderWayWhenThePageNavigatesNamesAnotherIconStopsLoadingUnnamedOrTheViewCloses(): Promise<void> {
+    const harness = new FaviconHarness();
+    const stops: (() => Promise<void> | void)[] = [
+      () => harness.favicon.noteNavigation(),
+      () => harness.updateAsync("https://example.com/other.ico"),
+      () => {
+        harness.favicon.noteNavigation();
+        harness.favicon.noteStop();
+      },
+      () => harness.favicon.close()
+    ];
+
+    for (const stop of stops) {
+      harness.session.iconHolds.push(new Promise(() => undefined));
+      const started = harness.session.iconSignals.length;
+      const read = harness.updateAsync(FaviconHarness.ICON);
+      await Condition.waitAsync(() => harness.session.iconSignals.length === started + 1);
+      await stop();
+      await read;
+    }
+
+    Assert.areEqual("true,true,true,true", [0, 1, 3, 4].map(t => harness.session.iconSignals[t]?.aborted).join(","));
+    Assert.areEqual(0, harness.contents.isolated.length);
+    Assert.areEqual(String.empty, harness.describe());
+  }
+
+  @TestMethod
+  public async dropsAnIconReadForAPageItHasLeftThoughTheReadEndsBeforeTheNextPageNamesItsIcon(): Promise<void> {
+    const harness = new FaviconHarness();
+    const held = Promise.withResolvers<void>();
+    harness.session.ignoresIconAborts = true;
+    harness.session.iconHolds.push(held.promise);
+    const read = harness.updateAsync(FaviconHarness.ICON);
+    await Condition.waitAsync(() => harness.session.iconReads.length === 1);
+
+    harness.favicon.noteNavigation();
+    held.resolve();
+    await read;
+
+    Assert.areEqual(0, harness.contents.isolated.length);
+    Assert.areEqual(String.empty, harness.describe());
+  }
+
+  @TestMethod
+  public async stopsAnIconReadThatDoesntEndByItsDeadlineAndTakesThePagesNextIcon(): Promise<void> {
+    const harness = new FaviconHarness();
+    harness.session.icons.set("https://example.com/slow.ico", new Uint8Array([9]));
+    harness.session.iconHolds.push(new Promise(() => undefined));
+    const read = harness.updateAsync("https://example.com/slow.ico", FaviconHarness.ICON);
+    await Condition.waitAsync(() => harness.waits.length === 1 && harness.session.iconReads.length === 1);
+
+    harness.waits[0]?.();
+    await read;
+
+    Assert.areEqual("true,false", harness.session.iconSignals.map(t => t.aborted).join(","));
+    Assert.areEqual("png", harness.describe());
+  }
+
+  @TestMethod
+  public async refusesADecodedPngThatIsntAPngOfOneTo64PixelsASideBeforeReadingItsHeader(): Promise<void> {
+    const harness = new FaviconHarness();
+    const values = [FaviconHarness.png(24, 65), FaviconHarness.png(24, 64, 65), FaviconHarness.png(24, 0, 1), FaviconHarness.png(24, 1, 0),
+      FaviconHarness.png(24, 1, 1, "IDAT"), FaviconHarness.png(24).slice(0, 28), Buffer.alloc(24).toString("base64"), "A".repeat(21_849)];
+    const pattern = WebViewFaviconResources.base64Pattern;
+    const tested: string[] = [];
+    pattern.test = value => {
+      tested.push(value);
+      return RegExp.prototype.test.call(pattern, value);
+    };
+    try {
+      for (const value of values) {
+        harness.decodeTo(FaviconHarness.png(24, 64));
+        await harness.updateAsync(FaviconHarness.ICON);
+        harness.decodeTo(value);
+        await harness.updateAsync(FaviconHarness.ICON);
+      }
+    }
+    finally {
+      Reflect.deleteProperty(pattern, "test");
+    }
+
+    Assert.areEqual(Array(values.length).fill(`${"data:image/png;base64,".length + 32},null`).join(","), harness.describe());
+    Assert.isFalse(tested.includes(values[values.length - 1] ?? String.empty));
+    Assert.areEqual(values.length * 2 - 1, tested.length);
   }
 }

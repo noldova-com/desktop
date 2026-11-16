@@ -9,10 +9,17 @@
 export class WebViewFaviconResources {
   public static readonly decodeWorld: number = 1997;
   public static readonly decodeTimeout: number = 2000;
+  public static readonly fetchTimeout: number = 10_000;
   public static readonly candidateLimit: number = 4;
   public static readonly byteLimit: number = 1_048_576;
   public static readonly side: number = 64;
   public static readonly pngLimit: number = 16_384;
+  public static readonly base64Limit: number = 21_848;
+  public static readonly headerStart: number = 12;
+  public static readonly widthOffset: number = 16;
+  public static readonly heightOffset: number = 20;
+  public static readonly headerEnd: number = 24;
+  public static readonly headerType: string = "IHDR";
   public static readonly pngPrefix: string = "data:image/png;base64,";
   public static readonly pngSignature: readonly number[] = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
   public static readonly base64Pattern: RegExp = /^[A-Za-z0-9+/]+={0,2}$/u;

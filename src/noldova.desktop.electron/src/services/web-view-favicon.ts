@@ -23,7 +23,7 @@ export class WebViewFavicon {
   private readonly fetches: string[] = [];
   private image: string | null = null;
   private isNamed: boolean = false;
-  private reads: number = 0;
+  private read: AbortController = new AbortController();
 
   public constructor(session: IWebViewSession, check: WebViewOriginCheck, readAllowed: () => readonly string[],
     waitAsync: (milliseconds: number, signal: AbortSignal) => Promise<void>, report: (image: string | null) => void) {
@@ -40,22 +40,26 @@ export class WebViewFavicon {
 
   public noteNavigation(): void {
     this.isNamed = false;
+    this.drop();
   }
 
   public noteStop(): void {
     if (this.isNamed)
       return;
-    this.reads += 1;
+    this.drop();
     this.show(null);
+  }
+
+  public close(): void {
+    this.drop();
   }
 
   public async updateAsync(guest: IWebViewContents, candidates: readonly string[]): Promise<void> {
     this.isNamed = true;
-    this.reads += 1;
-    const read = this.reads;
+    const signal = this.drop();
     for (const url of candidates.slice(0, WebViewFaviconResources.candidateLimit)) {
-      const image = await this.readAsync(guest, url);
-      if (read !== this.reads)
+      const image = await this.readAsync(guest, url, signal);
+      if (signal.aborted)
         return;
       if (!Object.isNull(image))
         return this.show(image);
@@ -64,18 +68,23 @@ export class WebViewFavicon {
   }
 
   private static toImage(value: unknown): string | null {
-    if (!Object.isString(value) || !WebViewFaviconResources.base64Pattern.test(value))
+    if (!Object.isString(value) || value.length > WebViewFaviconResources.base64Limit || !WebViewFaviconResources.base64Pattern.test(value))
       return null;
-    const png = Buffer.from(value, Resources.base64Encoding);
-    const isPng = WebViewFaviconResources.pngSignature.every((t, index) => png[index] === t);
-    return isPng && png.length <= WebViewFaviconResources.pngLimit ? `${WebViewFaviconResources.pngPrefix}${value}` : null;
+    return WebViewFavicon.isIcon(Buffer.from(value, Resources.base64Encoding)) ? `${WebViewFaviconResources.pngPrefix}${value}` : null;
   }
 
-  private async readAsync(guest: IWebViewContents, url: string): Promise<string | null> {
+  private static isIcon(png: Buffer): boolean {
+    const { pngSignature, pngLimit, headerStart, headerEnd, headerType, widthOffset, heightOffset, side } = WebViewFaviconResources;
+    if (png.length < headerEnd || png.length > pngLimit || !pngSignature.every((t, index) => png[index] === t) || png.toString(Resources.latin1Encoding, headerStart, widthOffset) !== headerType)
+      return false;
+    return [png.readUInt32BE(widthOffset), png.readUInt32BE(heightOffset)].every(t => t >= 1 && t <= side);
+  }
+
+  private async readAsync(guest: IWebViewContents, url: string, signal: AbortSignal): Promise<string | null> {
     if (!await this.allowsAsync(url))
       return null;
-    const bytes = await this.fetchAsync(url);
-    return Object.isNull(bytes) ? null : this.decodeAsync(guest, bytes);
+    const bytes = await this.fetchAsync(url, signal);
+    return Object.isNull(bytes) || signal.aborted ? null : this.decodeAsync(guest, bytes);
   }
 
   private async allowsAsync(url: string): Promise<boolean> {
@@ -87,12 +96,16 @@ export class WebViewFavicon {
     return addresses.length > 0 && addresses.every(t => this.check.allowsConnection(url, this.readAllowed(), t));
   }
 
-  private async fetchAsync(url: string): Promise<Uint8Array | null> {
+  private async fetchAsync(url: string, signal: AbortSignal): Promise<Uint8Array | null> {
+    const late = new AbortController();
+    const deadline = new AbortController();
+    void this.waitAsync(WebViewFaviconResources.fetchTimeout, deadline.signal).then(() => late.abort(), () => undefined);
     this.fetches.push(url);
     try {
-      return await this.session.readIconAsync(url, WebViewFaviconResources.byteLimit).catch(() => null);
+      return await this.session.readIconAsync(url, WebViewFaviconResources.byteLimit, AbortSignal.any([signal, late.signal])).catch(() => null);
     }
     finally {
+      deadline.abort();
       this.fetches.splice(this.fetches.indexOf(url), 1);
     }
   }
@@ -105,6 +118,12 @@ export class WebViewFavicon {
     const value = await Promise.race([decoded, expired]);
     timeout.abort();
     return WebViewFavicon.toImage(value);
+  }
+
+  private drop(): AbortSignal {
+    this.read.abort();
+    this.read = new AbortController();
+    return this.read.signal;
   }
 
   private show(image: string | null): void {

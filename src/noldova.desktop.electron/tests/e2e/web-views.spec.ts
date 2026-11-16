@@ -51,6 +51,26 @@ function png(side: number): Buffer {
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(Buffer.alloc((side * 3 + 1) * side))), chunk("IEND", Buffer.alloc(0))]);
 }
 
+function ico(): Buffer {
+  const image = Buffer.alloc(48);
+  image.writeUInt32LE(40, 0);
+  image.writeInt32LE(1, 4);
+  image.writeInt32LE(2, 8);
+  image.writeUInt16LE(1, 12);
+  image.writeUInt16LE(32, 14);
+  image.writeUInt32LE(0xff3366cc, 40);
+  const header = Buffer.alloc(22);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(1, 4);
+  header.writeUInt8(1, 6);
+  header.writeUInt8(1, 7);
+  header.writeUInt16LE(1, 10);
+  header.writeUInt16LE(32, 12);
+  header.writeUInt32LE(image.length, 14);
+  header.writeUInt32LE(header.length, 18);
+  return Buffer.concat([header, image]);
+}
+
 function iconPage(title: string, ...icons: string[]): string {
   return `<!doctype html><title>${title}</title>${icons.map(t => `<link rel="icon" href="${t}">`).join(String.empty)}<p>${title}</p>`;
 }
@@ -274,6 +294,31 @@ async function startServerAsync(): Promise<Server> {
     if (request.url === "/large.png" || request.url === "/small.png") {
       iconRequests.push(`${request.headers.host ?? String.empty}${request.url}`);
       response.writeHead(200, { "Content-Type": "image/png" }).end(png(request.url === "/large.png" ? 128 : 16));
+      return;
+    }
+    if (request.url === "/icon.ico") {
+      iconRequests.push(request.url);
+      response.writeHead(200, { "Content-Type": "image/x-icon" }).end(ico());
+      return;
+    }
+    if (request.url === "/huge.png") {
+      iconRequests.push(request.url);
+      const icon = png(16);
+      response.writeHead(200, { "Content-Type": "image/png" }).end(Buffer.concat([icon, Buffer.alloc(1_048_577 - icon.length)]));
+      return;
+    }
+    if (request.url === "/moved.png") {
+      iconRequests.push(request.url);
+      response.writeHead(302, { Location: "/small.png" }).end();
+      return;
+    }
+    if (request.url === "/missing.png") {
+      iconRequests.push(request.url);
+      response.writeHead(404, { "Content-Type": "image/png" }).end(png(16));
+      return;
+    }
+    if (request.url?.startsWith("/icon-of?") === true) {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(iconPage("Icon page", request.url.slice("/icon-of?".length)));
       return;
     }
     if (request.url === "/icon") {
@@ -703,6 +748,38 @@ test.describe("web views", () => {
       await expect(view(window, 0)).toHaveAttribute("data-icons", "png png none png ");
       expect(await readIconSizeAsync(window)).toBe("16x16");
       expect(iconRequests.filter(t => t.startsWith("localhost"))).toEqual([]);
+      await expect(window.locator("[data-fixture-content=pages-failure]")).toHaveText(String.empty);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view decodes an ICO icon, and reports none for an icon over 1 MB, one that redirects, without following it, or one whose answer is a failure", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      iconRequests.length = 0;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      const shown: string[] = [];
+
+      for (const icon of ["/huge.png", "/moved.png", "/missing.png"]) {
+        expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/icon-of?/icon.ico` })).toEqual({ kind: "Started", origin: null });
+        shown.push("png");
+        await expect(view(window, 0)).toHaveAttribute("data-icons", `${shown.join(" ")} `);
+        expect(await readIconSizeAsync(window)).toBe("1x1");
+        expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/icon-of?${icon}` })).toEqual({ kind: "Started", origin: null });
+        shown.push("none");
+        await expect(view(window, 0)).toHaveAttribute("data-icons", `${shown.join(" ")} `);
+      }
+
+      expect(iconRequests.filter(t => t !== "/icon.ico")).toEqual(["/huge.png", "/moved.png", "/missing.png"]);
       await expect(window.locator("[data-fixture-content=pages-failure]")).toHaveText(String.empty);
     }
     finally {
