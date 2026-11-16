@@ -528,6 +528,39 @@ describe("WindowPartContext", () => {
     expect(host.calls).toEqual(["refresh", "growViewDock notes.list 1 20", "releaseViewDock notes.list 1"]);
   });
 
+  it("reads the dock of its own view's tab without instances through the host, refusing an instance for it", () => {
+    context.registerView(view("notes.list"));
+    host.docks.set(DockSide.Right);
+
+    const dock = context.viewDockOf("notes.list");
+
+    expect(() => context.viewDockOf("notes.list", "1")).toThrowError("The module notes does not declare the view with instances notes.list.");
+    expect(() => context.viewDockOf("clock.face")).toThrowError(WindowPartAccessException);
+    expect([dock(), host.calls]).toEqual([DockSide.Right, ["refresh", "viewDockOf notes.list -"]]);
+  });
+
+  it("reads the dock of its own view's instance through the host as it changes, refusing no instance or a blank one for it", () => {
+    context.registerView(instanceView());
+
+    const dock = context.viewDockOf("notes.list", "1");
+    const before = dock();
+    host.docks.set(DockSide.Bottom);
+
+    expect(() => context.viewDockOf("notes.list")).toThrowError("The module notes does not declare the view without instances notes.list.");
+    expect(() => context.viewDockOf("notes.list", " ")).toThrowError("An instance is a string that is not blank.");
+    expect([before, dock(), host.calls]).toEqual([null, DockSide.Bottom, ["refresh", "viewDockOf notes.list 1"]]);
+  });
+
+  it("reads no dock once withdrawn, without asking the host", () => {
+    context.registerView(instanceView());
+    host.docks.set(DockSide.Left);
+
+    context.withdraw();
+    const dock = context.viewDockOf("notes.list", "1");
+
+    expect([dock(), host.calls.filter(t => t.startsWith("viewDockOf"))]).toEqual([null, []]);
+  });
+
   it("releases the dock growths it still holds when withdrawn, and grows nothing once withdrawn", () => {
     context.registerView(instanceView());
     context.growViewDock("notes.list", 20, "1");

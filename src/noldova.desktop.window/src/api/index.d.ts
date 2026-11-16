@@ -2409,6 +2409,38 @@ export interface IWindowPartContext {
   growViewDock(name: string, minimum: number, instance?: string): () => void;
 
   /**
+   * Reads which dock holds one of the part's view tabs, such as to know
+   * whether {@link growViewDock} grows the tab's height or its width. The
+   * signal holds {@link DockSide.Bottom} while the tab is in the bottom dock,
+   * {@link DockSide.Left} or {@link DockSide.Right} while it is in a side
+   * dock, and `null` while it is outside a dock, such as among the documents,
+   * or not open, as before the part opens it or after it closes. It follows
+   * the tab as the person or the part moves, opens or closes it; a hidden
+   * dock still holds its tabs, so its side stays. Once the part deactivates,
+   * a new call reads `null`.
+   *
+   * @param name The view's name.
+   * @param instance Which instance's tab, for a view with instances; left
+   * out for a view without instances.
+   * @returns A signal of the dock's side, or of `null` while no dock holds
+   * the tab.
+   * @throws Error synchronously when the view belongs to another module or
+   * is not a registered view, the instance is left out for a view with
+   * instances or given for one without, or the instance is blank.
+   * @example
+   * ```ts
+   * import { type Signal, computed } from "@angular/core";
+   * import { DockSide, type IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function growsHeight(context: IWindowPartContext, id: string): Signal<boolean> {
+   *   const dock = context.viewDockOf("terminal.session", id);
+   *   return computed(() => dock() === DockSide.Bottom);
+   * }
+   * ```
+   */
+  viewDockOf(name: string, instance?: string): Signal<DockSide | null>;
+
+  /**
    * Listens for the person closing an instance's tab, such as to end its
    * terminal. It hears only the person's close: never the part's own
    * {@link closeView}, the saved tabs closed at the end of activation, the

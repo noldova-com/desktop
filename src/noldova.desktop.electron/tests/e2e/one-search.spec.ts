@@ -11,6 +11,7 @@ import type { Locator, Page } from "@playwright/test";
 
 import { CommandSearchFixture } from "./fixtures/command-search.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
+import type { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
 import { MediaFixture } from "./fixtures/media.fixture.ts";
 import { PageBridgeFixture } from "./fixtures/page-bridge.fixture.ts";
 import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
@@ -31,6 +32,20 @@ function searchField(window: Page): Locator {
   return window.locator("nol-window-row .nol-window-row-search");
 }
 
+async function layOutAsync(mainProcess: MainProcessFixture, natural: number, width: number): Promise<void> {
+  await test.step(`lay the window out ${width} CSS px wide, since the hosted runners' display size varies`, async () => {
+    await mainProcess.zoomAsync(natural / width, width);
+  });
+}
+
+function overHalfAsync(window: Page): Promise<number> {
+  return window.locator("nol-window-row .nol-window-row-middle").evaluate(t => {
+    const style = getComputedStyle(t);
+    const room = t.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return room - 27.5 * parseFloat(getComputedStyle(document.documentElement).fontSize) / 2;
+  });
+}
+
 function options(window: Page): Locator {
   return pane(window).getByRole("option");
 }
@@ -45,6 +60,7 @@ test.describe("search", () => {
 
     test("shows a field centred in the window row that opens search over it, finds a module's command, runs it from the keyboard and lists it as recent next time @smoke", async ({ mainProcess }) => {
       const window = mainProcess.window;
+      await layOutAsync(mainProcess, await window.evaluate(() => innerWidth), 1280);
       const tab = window.locator("nol-tab[data-tab-key=\"document/notes.note/2\"]");
       await expect(tab).toBeVisible();
       await tab.click();
@@ -106,6 +122,37 @@ test.describe("search", () => {
       await expect(options(window).first().locator(".nol-quick-input-title")).toHaveText("New note");
       await mainProcess.checkpointAsync("search-open");
       await window.keyboard.press("Escape");
+    });
+
+    test("keeps a narrow field unshifted in its group when the row has no room to centre it", async ({ mainProcess }) => {
+      const window = mainProcess.window;
+      await expect(searchField(window)).toBeVisible();
+      const natural = await window.evaluate(() => innerWidth);
+      const narrow = Math.round(natural - await overHalfAsync(window));
+      await layOutAsync(mainProcess, natural, narrow);
+      const folded = await overHalfAsync(window);
+      if (folded > 1)
+        await layOutAsync(mainProcess, natural, Math.round(narrow - folded));
+
+      expect(Math.abs(await overHalfAsync(window)), "The row leaves the field about half its width, once a narrow row folds its menu bar.").toBeLessThan(40);
+      const shown = await searchField(window).evaluate(t => {
+        const middle = t.closest(".nol-window-row-middle");
+        if (middle === null)
+          throw new Error("The search field is outside the row's middle group.");
+        const box = t.getBoundingClientRect();
+        const group = middle.getBoundingClientRect();
+        return {
+          shift: t.style.translate,
+          inGroup: box.left + box.width / 2 - (group.left + group.width / 2),
+          inWindow: box.left + box.width / 2 - innerWidth / 2,
+          width: box.width / parseFloat(getComputedStyle(document.documentElement).fontSize)
+        };
+      });
+
+      expect(shown.width).toBeLessThan(27.5);
+      expect(shown.shift).toBe("0px");
+      expect(Math.abs(shown.inGroup)).toBeLessThan(1);
+      expect(Math.abs(shown.inWindow)).toBeGreaterThan(1);
     });
   });
 

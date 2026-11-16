@@ -308,6 +308,43 @@ describe("ViewInstancesService", () => {
     ]);
   });
 
+  it("reads the dock that holds a view's tab as the tab moves between the docks and the documents, and none once it closes", () => {
+    measure(120, 60);
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    const dock = instances.dockOf(first);
+    const sides = [dock()];
+    for (const target of [new SideDropTarget(DockSide.Left), new SideDropTarget(DockSide.Right), new TabDropTarget(layout.layout().documents.id, 0), new SideDropTarget(DockSide.Bottom)]) {
+      layout.place(first, target);
+      sides.push(dock());
+    }
+    instances.close("terminal.shell", "1");
+
+    expect([...sides, dock()]).toEqual([DockSide.Bottom, DockSide.Left, DockSide.Right, null, DockSide.Bottom, null]);
+  });
+
+  it("reads the same dock for a view's tab while that dock is hidden, on each side", () => {
+    measure(120, 60);
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    const dock = instances.dockOf(first);
+    const results = [DockSide.Left, DockSide.Right, DockSide.Bottom].map(side => {
+      layout.place(first, new SideDropTarget(side));
+      instances.hideDock(first);
+      return [isShown(side), dock()];
+    });
+
+    expect(results).toEqual([[false, DockSide.Left], [false, DockSide.Right], [false, DockSide.Bottom]]);
+  });
+
+  it("reads no dock for a view's tab that is not open yet, and its dock once it opens", () => {
+    measure(120, 60);
+    const dock = instances.dockOf(files);
+    const before = dock();
+
+    instances.show(files);
+
+    expect([before, dock()]).toEqual([null, DockSide.Left]);
+  });
+
   it("changes nothing when hiding a view's dock for a tab that is not open, a tab among the documents or a dock already hidden", () => {
     measure(120, 60);
     instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);

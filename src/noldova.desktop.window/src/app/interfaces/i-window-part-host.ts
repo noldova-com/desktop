@@ -11,6 +11,7 @@ import type { Signal, Type } from "@angular/core";
 import type { JsonObject, JsonValue } from "@noldova/context.json";
 import type { AgentControlState, NotificationPost, SettingChange, SettingEntry, SettingOption, SettingScope, WebViewPane } from "@noldova/desktop.protocol";
 
+import type { DockSide } from "../enums/dock-side.js";
 import type { FileSaveOutcome } from "../enums/file-save-outcome.js";
 import type { DocumentHeading } from "../models/document-heading.js";
 import type { IssuedFileGrants } from "../models/issued-file-grants.js";
@@ -66,6 +67,8 @@ export interface IWindowPartHost {
   hideViewDock(moduleId: string, name: string, instance: string | null): void;
 
   growViewDock(name: string, instance: string | null, minimum: number): () => void;
+
+  viewDockOf(name: string, instance: string | null): Signal<DockSide | null>;
 
   onViewClosed(name: string, listener: (instance: string) => void): () => void;
 
