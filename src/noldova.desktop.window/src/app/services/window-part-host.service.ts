@@ -221,16 +221,16 @@ export class WindowPartHostService implements IWindowPartHost {
     return this.settings.onChanged(listener);
   }
 
-  public openDocument(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null = null): void {
+  public openDocument(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null = null, activate: boolean = true): void {
     this.pendingCloses = this.pendingCloses.filter(([owner, contribution, key]) => owner !== moduleId || contribution !== name || key !== instance);
     this.pendingUpdates = this.pendingUpdates.filter(([owner, contribution, key]) => owner !== moduleId || contribution !== name || key !== instance);
     if (this.activatingModules.has(moduleId) && this.documentInstances.isUnheard(name, instance))
       return;
     this.documentInstances.reopen(name, instance);
     if (this.isActivating)
-      this.pendingOpens.push(new PendingDocument(moduleId, name, instance, heading, isPreview, after, this.activatingModules.has(moduleId)));
+      this.pendingOpens.push(new PendingDocument(moduleId, name, instance, heading, isPreview, after, activate, this.activatingModules.has(moduleId)));
     else
-      this.opener.open(moduleId, name, instance, heading, isPreview, after);
+      this.opener.open(moduleId, name, instance, heading, isPreview, after, activate);
   }
 
   public listSaves(): ReadonlyMap<string, readonly (() => Promise<void>)[]> {
@@ -798,7 +798,7 @@ export class WindowPartHostService implements IWindowPartHost {
   }
 
   private openPending(pending: PendingDocument): void {
-    this.opener.open(pending.moduleId, pending.name, pending.instance, pending.heading, pending.isPreview, pending.after);
+    this.opener.open(pending.moduleId, pending.name, pending.instance, pending.heading, pending.isPreview, pending.after, pending.activates);
   }
 
   private describeRuntimeCommand(info: CommandInfo): CommandContribution {

@@ -136,6 +136,16 @@ describe("LayoutService", () => {
     expect(service.layout().dock(DockSide.Left)).toEqual(saved.dock(DockSide.Left));
   });
 
+  it("opens again without activating a document opened so before the layout loaded", async () => {
+    await store.writeAsync(Layout.createDefault(registry).openDocument(LayoutFixture.plan).toJson());
+    service.openDocument(LayoutFixture.todo, false, null, false);
+
+    await service.loadAsync();
+    service.reopenEarlyDocuments();
+
+    expect([service.layout().documents.tabs, service.layout().documents.active]).toEqual([[LayoutFixture.plan, LayoutFixture.todo], LayoutFixture.plan]);
+  });
+
   it("opens them again right after the document each named, when the restored layout holds it", async () => {
     const readme = new DocumentTab("notes.note", "readme");
     await store.writeAsync(Layout.createDefault(registry).openDocument(LayoutFixture.plan).openDocument(LayoutFixture.settings).toJson());
@@ -406,6 +416,18 @@ describe("LayoutService", () => {
 
     expect([opened?.tab.key, opened?.sequence]).toEqual([LayoutFixture.plan.key, start + 1]);
     expect([service.revealed()?.tab.key, service.revealed()?.sequence]).toEqual([LayoutFixture.files.key, start + 2]);
+  });
+
+  it("reveals no document it opens without activating", async () => {
+    const readme = new DocumentTab("notes.note", "readme");
+    await loadAsync(prepared());
+    service.openDocument(LayoutFixture.plan);
+    const opened = service.revealed();
+
+    service.openDocument(readme, false, null, false);
+
+    expect(service.revealed()).toBe(opened);
+    expect([service.layout().documents.tabs, service.layout().documents.active]).toEqual([[LayoutFixture.plan, LayoutFixture.todo, readme], LayoutFixture.plan]);
   });
 
   it("resizes a split through its handle", async () => {

@@ -105,8 +105,10 @@ The Window package keeps a class's own strings, those no other class uses, in a 
   It keeps each open document's title, so a restored or background tab shows its title before its module titles it again; a title the module gives wins.
 - A window part opens one of its documents at the end of the active document group, or right after another open instance of the same document that it names, in that instance's group, such as a page opened from another page.
   A preview replaces that group's preview, and opens right after the named instance only when the group has none; a document already open only activates where it is.
+- A window part can open a document without activating it, such as a page an agent opens beside the one the person reads: it joins its group's tabs where an active one would, the active tab, the active group and the focus stay as they were, and its tab doesn't scroll into view or close a view dialog; a document already open stays where it is, behind the active tab, and a preview tab of it is kept unless it opens as a preview again.
+  Such a preview replaces the group's preview only when that preview isn't the active tab, which otherwise stays open as an ordinary tab; in an empty group the document becomes the active tab.
 - When the window first loads its layout, documents that parts open while they activate show only where the saved layout holds them, and never change which tab is active; documents the person opened before the layout loaded open again after them.
-- While modules switch or the window reconnects to the runtime, a document a part that keeps running opens waits for the switch or the reconnect to end, then opens as at any other time, active; one that a part the switch or the reconnect starts again opens while it activates joins the layout without changing which tab is active.
+- While modules switch or the window reconnects to the runtime, a document a part that keeps running opens waits for the switch or the reconnect to end, then opens as at any other time, active unless the part asked otherwise; one that a part the switch or the reconnect starts again opens while it activates joins the layout without changing which tab is active.
 - A window part can close one of its own documents: its tab closes as when the person closes it, the view dialog showing it closes, and a close asked for before the layout loads applies once it has.
   It forgets a document whose subject is gone, such as a deleted note, which also closes it and takes it out of Back and Forward; a forget asked for before the layout loads applies once it has, so Back can't reach a document the saved layout showed.
   A new title or breadcrumb for a document, with a glyph before the breadcrumb if the part gives one, a tab in the background included, given before the layout loads applies once it has; a later close or open of the document, also before the load, drops it.
@@ -184,7 +186,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
   The field keeps its place, hidden, while the palette covers it.
   `desktop.search` with `{ "source": name }`, the name of a source, opens the palette under that source's filter, and is the one Noldova Desktop command a window part may run with its context's `runCommandAsync`; the View menu runs `desktop.search` and `desktop.showCommands` as Search and Show all commands.
 - Escape, a pointer outside the palette and opening a result close it, and focus goes back where it was when that is still there.
-- Under the field, a filter for All and one for each source, each source's with its match count while there is a query; Tab moves to the next filter, Shift+Tab to the one before, and a filter shows only its source.
+- Under the field, a filter for All and one for each source, each source's with its match count while there is a query, with a `+` right after a count the source capped; Tab moves to the next filter, Shift+Tab to the one before, and a filter shows only its source.
 - Before the person types, the palette shows each source's recent items in a group of its own under the source's recent heading, such as Recent chats and Recent commands, with the first row selected.
 - While the person types, a Best match row comes first, then one group for each source with its matches under the source's heading, as many as 2 under All.
   Under a source's own filter, or when only the commands are searched, the group lists every match the source gives and no Best match comes first.
@@ -206,7 +208,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
   - `recentHeading`, its group's heading before the person types, such as "Recent chats", or null when it has no recent items;
   - `icon`, the Material Symbols glyph its rows show;
   - `recentAsync(signal)`, which resolves to its recent items, the most recent first;
-  - `searchAsync(query, signal)`, which resolves to a `SearchAnswer`: its matches, the best first, and `total`, how many it found, which may be more than it lists.
+  - `searchAsync(query, signal)`, which resolves to a `SearchAnswer`: its matches, the best first, `total`, how many it found, which may be more than it lists, and `isCapped`, whether it stopped counting at that total, false unless it says so.
 - A `SearchResult` has an `id` unique within its source, a `title`, a `titleMatch`, the matched range of the title as a `TextRange` of `start` and `length` or null, a `detail` and its `detailMatch`, a `keyLabel` or null, and `openAsync()`, which the palette calls after it closes.
 - The query a source gets is trimmed, never starts with `>`, and is never empty; only Noldova Desktop's Commands gets an empty one, for `>` alone.
 - Sources come in the order of their modules in the module list, a module's own in the order it registered them, then Noldova Desktop's.

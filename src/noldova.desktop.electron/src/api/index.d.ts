@@ -3501,6 +3501,15 @@ export interface IWebViewContents {
    * @returns Electron's own return value, which the main process does not use.
    */
   on(event: "zoom-changed", listener: (event: unknown, direction: string) => void): unknown;
+
+  /**
+   * Listens for the page naming its icons, after a navigation or when it changes them.
+   *
+   * @param event The event's name.
+   * @param listener Receives Electron's event and the icons' addresses, in the page's order.
+   * @returns Electron's own return value, which the main process does not use.
+   */
+  on(event: "page-favicon-updated", listener: (event: unknown, favicons: string[]) => void): unknown;
 }
 
 /**
@@ -3665,6 +3674,24 @@ export interface IWebViewSession {
    * ```
    */
   resolveHostAsync(host: string): Promise<readonly string[]>;
+
+  /**
+   * Fetches a page's icon in the session, with its cookies and cache, without following a redirect; the session's own request checks still judge the request.
+   *
+   * @param url The icon's address.
+   * @param byteLimit The most bytes it reads.
+   * @param signal Stops the request and the read when it aborts.
+   * @returns The icon's bytes, or null when the answer isn't a success or holds more than `byteLimit` bytes; it rejects when the request fails or `signal` aborts.
+   * @example
+   * ```ts
+   * import type { IWebViewSession } from "@noldova/desktop.electron";
+   *
+   * export function readIconAsync(session: IWebViewSession): Promise<Uint8Array | null> {
+   *   return session.readIconAsync("https://example.com/favicon.ico", 1_048_576, AbortSignal.timeout(10_000));
+   * }
+   * ```
+   */
+  readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null>;
 
   /**
    * Clears the session's cookies, storage and cache.
@@ -4514,6 +4541,22 @@ export interface IMainProcessLog {
    * ```
    */
   write(text: string): void;
+
+  /**
+   * Writes every line still waiting at once, before the main process exits.
+   *
+   * @example
+   * ```ts
+   * import type { IMainProcessLog } from "@noldova/desktop.electron";
+   *
+   * export function recordAndExit(log: IMainProcessLog, exit: () => void): void {
+   *   log.write("The main process is exiting.");
+   *   log.flush();
+   *   exit();
+   * }
+   * ```
+   */
+  flush(): void;
 }
 
 /**
@@ -10586,8 +10629,8 @@ export declare class MainProcessLog implements IMainProcessLog {
   public openAsync(): Promise<void>;
 
   /**
-   * Records a line, stamped with the time and redacted, on standard error and, once open, in the file. When the file
-   * cannot take a line, later lines go to standard error only, and the log records why there.
+   * Records a line, stamped with the time and redacted, on standard error at once and, once open, in the file without
+   * waiting for the disk. When the file cannot take a line, later lines go to standard error only, and the log records why there.
    *
    * @param text What happened.
    * @example
@@ -10634,6 +10677,20 @@ export declare class MainProcessLog implements IMainProcessLog {
    * ```
    */
   public writeShared(text: string): void;
+
+  /**
+   * Writes the lines still waiting for the file at once, in order, as when the main process is about to quit or exit.
+   *
+   * @example
+   * ```ts
+   * import type { MainProcessLog } from "@noldova/desktop.electron";
+   *
+   * export function finish(log: MainProcessLog): void {
+   *   log.flush();
+   * }
+   * ```
+   */
+  public flush(): void;
 }
 
 /**

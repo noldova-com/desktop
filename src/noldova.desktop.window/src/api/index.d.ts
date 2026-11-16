@@ -214,6 +214,91 @@ export declare class FileNotOpenedException extends WindowException {
 }
 
 /**
+ * The exception {@link IWindowPartContext.showInFolderAsync} rejects with when
+ * the window refuses to show a file in its folder, such as a path no file can
+ * be read at, or a network or device path, so a part tells that refusal apart
+ * from other failures.
+ */
+export declare class FileNotShownException extends WindowException {
+  /**
+   * The exception's name, `FileNotShownException`.
+   */
+  public override readonly name: string;
+
+  /**
+   * Why the file wasn't shown, as the main process gave it, such as that no
+   * file can be read at the path.
+   */
+  public readonly reason: string;
+
+  /**
+   * Creates the exception, for the window to throw.
+   *
+   * @param productName The app's name, which the message starts with.
+   * @param reason Why the file wasn't shown.
+   * @example
+   * ```ts
+   * import { FileNotShownException } from "@noldova/desktop.window";
+   *
+   * export function readRefusal(error: unknown): string | null {
+   *   return error instanceof FileNotShownException ? error.reason : null;
+   * }
+   * ```
+   */
+  public constructor(productName: string, reason: string);
+}
+
+/**
+ * The exception {@link IWindowPartContext.requestAsync} rejects with when the
+ * runtime refuses or fails the request, so a part reads the failure's code and
+ * the details its module's runtime part gave, such as which note was missing.
+ */
+export declare class RuntimeRequestException extends WindowException {
+  /**
+   * The exception's name: `RuntimeRequestException`, or
+   * `RuntimeDisconnectedException` once the runtime is gone, when the window
+   * throws its own subclass; `instanceof RuntimeRequestException` holds for both.
+   */
+  public override readonly name: string;
+
+  /**
+   * The failure's code, one of `FailureCode`'s values from
+   * `@noldova/desktop.protocol`: the one the runtime part's method failed with,
+   * such as `NotFound`, or `Disconnected` once the runtime is gone.
+   */
+  public readonly code: string;
+
+  /**
+   * The failure's details, as the runtime part's method gave them with its
+   * failure, or `undefined` when it gave none.
+   */
+  public readonly details: JsonObject | undefined;
+
+  /**
+   * Creates the exception, for the window to throw, and for a part's specs to
+   * reject a fake request with, as the testing package's
+   * `FakeWindowPartContext.requestAsync` shows.
+   *
+   * @param code The failure's code.
+   * @param message A sentence describing the failure.
+   * @param details The failure's details, if any.
+   * @example
+   * ```ts
+   * import { JsonReader } from "@noldova/context.json";
+   * import { FailureCode } from "@noldova/desktop.protocol";
+   * import { RuntimeRequestException } from "@noldova/desktop.window";
+   *
+   * export function readMissingNote(error: unknown): string | null {
+   *   if (!(error instanceof RuntimeRequestException) || error.code !== FailureCode.NotFound || error.details === undefined)
+   *     return null;
+   *   return JsonReader.fromValue(error.details).readString("path");
+   * }
+   * ```
+   */
+  public constructor(code: string, message: string, details?: JsonObject);
+}
+
+/**
  * The key that runs a command, as {@link IWindowPartContext.keyOf} reads it.
  */
 export interface ICommandKey {
@@ -307,6 +392,18 @@ export interface IDocumentOptions {
    * is only activated where it is.
    */
   readonly after?: string;
+
+  /**
+   * Whether the document becomes its group's active tab, as when the person
+   * chooses it; true when left out. When false, the document joins its group's
+   * tabs without becoming active, the group stays as it was, and the focus
+   * stays where it is, such as a page an agent opens beside the one the person
+   * reads; an open document stays where it is, behind the active tab. A preview
+   * replaces the group's preview only when that preview isn't the active tab,
+   * which otherwise stays open as an ordinary tab. A document opened into an
+   * empty group still becomes that group's active tab.
+   */
+  readonly activate?: boolean;
 }
 
 /**
@@ -1132,8 +1229,10 @@ export interface IWebViewHandle {
   /**
    * Reports the view's events: its state, failed loads, refused navigations
    * and requests, a crash, a cleared profile, the person's declared keys, each
-   * zoom change and each search's result, and `Closed` when the main
-   * process ends it. No event comes after the part closes the view itself.
+   * zoom change, each search's result, each change of the page's icon as a
+   * `Favicon` event whose `image` is a `data:image/png` URL or null, and
+   * `Closed` when the main process ends it. No event comes after the part
+   * closes the view itself.
    *
    * @param listener Receives each event.
    * @returns The release.
@@ -2078,15 +2177,16 @@ export interface IWindowPartContext {
   /**
    * Opens one of the module's documents at the end of the active document
    * group, or right after another of its open instances when
-   * {@link IDocumentOptions.after} names one, or activates it where it is. While the part first activates with a saved
+   * {@link IDocumentOptions.after} names one, or activates it where it is,
+   * unless {@link IDocumentOptions.activate} is false. While the part first activates with a saved
    * layout, the document shows only when the layout holds it. An open document
    * keeps its look, changing only what the options give.
    *
    * @param name The document's name.
    * @param instance Which of the document's instances, such as a note's id.
    * @param title The tab's title.
-   * @param options Whether it opens as a preview, its breadcrumb, its look
-   * and the document it opens after; an ordinary tab with no breadcrumb, at
+   * @param options Whether it opens as a preview, its breadcrumb, its look,
+   * the document it opens after and whether it becomes active; an ordinary, active tab with no breadcrumb, at
    * the end of the active group, when left out.
    * @throws Error synchronously when the document belongs to another module,
    * or the title or a breadcrumb segment is blank.
@@ -2673,9 +2773,9 @@ export interface IWindowPartContext {
    *
    * @param path The file's or folder's absolute path.
    * @returns A promise that settles once the request is handed to the system's
-   * file manager; it rejects, with the reason, when the path is refused.
-   * After the part is withdrawn, it settles at once without checking the path
-   * and shows nothing.
+   * file manager; it rejects with a {@link FileNotShownException}, whose
+   * `reason` says why, when the path is refused. After the part is withdrawn,
+   * it settles at once without checking the path and shows nothing.
    * @example
    * ```ts
    * import type { IWindowPartContext } from "@noldova/desktop.window";
@@ -2929,8 +3029,9 @@ export interface IWindowPartContext {
    * @param method The method's name.
    * @param parameters The parameters.
    * @returns A promise of the method's result; it rejects when the method
-   * belongs to neither the module nor a dependency, or the runtime refuses
-   * or fails the request.
+   * belongs to neither the module nor a dependency, and with a
+   * {@link RuntimeRequestException}, whose `code` and `details` say why, when
+   * the runtime refuses or fails the request.
    * @example
    * ```ts
    * import type { JsonValue } from "@noldova/context.json";
@@ -3460,10 +3561,18 @@ export declare class SearchAnswer {
   public readonly total: number;
 
   /**
+   * Whether the source stopped counting at {@link SearchAnswer.total}, so it
+   * found at least that many; the search shows the count with a `+`.
+   */
+  public readonly isCapped: boolean;
+
+  /**
    * Creates a source's answer to a query.
    *
    * @param results The matches the source lists, the best first.
    * @param total How many matches it found; left out, as many as it lists.
+   * @param isCapped Whether it stopped counting at the total, so there may be
+   * more; false when left out.
    * @throws ArgumentOutOfRangeException synchronously when the total is not a
    * whole number or is fewer than the results.
    * @example
@@ -3474,8 +3583,16 @@ export declare class SearchAnswer {
    *   return new SearchAnswer(results.slice(0, 20), found);
    * }
    * ```
+   * @example
+   * ```ts
+   * import { SearchAnswer, type SearchResult } from "@noldova/desktop.window";
+   *
+   * export function cappedAnswerOf(results: readonly SearchResult[], counted: number, limit: number): SearchAnswer {
+   *   return new SearchAnswer(results.slice(0, 20), Math.min(counted, limit), counted >= limit);
+   * }
+   * ```
    */
-  public constructor(results: readonly SearchResult[], total?: number);
+  public constructor(results: readonly SearchResult[], total?: number, isCapped?: boolean);
 }
 
 /**

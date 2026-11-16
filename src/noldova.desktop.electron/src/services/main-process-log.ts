@@ -78,15 +78,19 @@ export class MainProcessLog implements IMainProcessLog {
     }
   }
 
+  public flush(): void {
+    this.file.flush();
+  }
+
   private append(line: string): void {
+    if (this.isOpen)
+      void this.file.appendAsync(line).catch((failure: unknown) => this.fail(failure));
+  }
+
+  private fail(failure: unknown): void {
     if (!this.isOpen)
       return;
-    try {
-      this.file.append(line);
-    }
-    catch (failure) {
-      this.isOpen = false;
-      this.write(Resources.formatMainProcessLogUnavailable(String(failure)));
-    }
+    this.isOpen = false;
+    this.write(Resources.formatMainProcessLogUnavailable(String(failure)));
   }
 }

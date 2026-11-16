@@ -25,8 +25,8 @@ export class DocumentOpenerService {
   private readonly tabFocus: TabFocusService = inject(TabFocusService);
   private readonly viewDialogs: ViewDialogService = inject(ViewDialogService);
 
-  public open(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null = null): void {
-    this.layout.openDocument(this.titled(moduleId, name, instance, heading), isPreview, Object.isNull(after) ? null : new DocumentTab(name, after));
+  public open(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null = null, activate: boolean = true): void {
+    this.layout.openDocument(this.titled(moduleId, name, instance, heading), isPreview, Object.isNull(after) ? null : new DocumentTab(name, after), activate);
   }
 
   public restore(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean): void {

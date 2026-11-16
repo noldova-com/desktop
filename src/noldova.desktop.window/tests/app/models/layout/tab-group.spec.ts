@@ -125,6 +125,27 @@ describe("TabGroup", () => {
     expect(() => group.openPreview(plan)).toThrow(ArgumentException);
   });
 
+  it("adds a tab at an index without activating it, as its preview when asked", () => {
+    const added = group.add(terminal, 1, false);
+    const previewed = group.add(terminal, 3, true);
+
+    expect([added.tabs, added.active, added.preview]).toEqual([[files, terminal, search, changes], search, null]);
+    expect([previewed.tabs, previewed.active, previewed.preview]).toEqual([[files, search, changes, terminal], search, terminal]);
+    expect(() => group.add(plan, 0, false)).toThrow(ArgumentException);
+  });
+
+  it("puts an added preview in place of a preview behind the active tab, and keeps an active preview as a normal tab", () => {
+    const behind = new TabGroup(3, [files, search, changes], files, search);
+    const active = new TabGroup(3, [files, search, changes], search, search);
+    const replaced = behind.add(terminal, 0, true);
+    const beside = active.add(terminal, 3, true);
+    const kept = behind.add(terminal, 3, false);
+
+    expect([replaced.tabs, replaced.active, replaced.preview]).toEqual([[files, terminal, changes], files, terminal]);
+    expect([beside.tabs, beside.active, beside.preview]).toEqual([[files, search, changes, terminal], search, terminal]);
+    expect([kept.tabs, kept.active, kept.preview]).toEqual([[files, search, changes, terminal], files, search]);
+  });
+
   it("keeps its preview as a normal tab, and keeps a moved or reordered preview too", () => {
     const previewing = new TabGroup(3, [files, search, changes], files, search);
 

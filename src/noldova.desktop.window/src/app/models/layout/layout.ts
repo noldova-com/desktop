@@ -115,10 +115,16 @@ export class Layout {
     return this.withDock(dock.withRoot(opened).withCollapsed(false));
   }
 
-  public openDocument(tab: DocumentTab, isPreview: boolean = false, after: DocumentTab | null = null): Layout {
-    if (this.isOpen(tab))
-      return isPreview ? this.activate(tab) : this.activate(tab).keep(tab);
+  public openDocument(tab: DocumentTab, isPreview: boolean = false, after: DocumentTab | null = null, activate: boolean = true): Layout {
+    if (this.isOpen(tab)) {
+      const shown = activate ? this.activate(tab) : this;
+      return isPreview ? shown : shown.keep(tab);
+    }
     const group = Object.isNull(after) ? null : this.groupOf(after);
+    if (!activate) {
+      const target = group ?? this.documents;
+      return this.withGroup(target.add(tab, Object.isNull(group) ? target.tabs.length : target.tabs.findIndex(t => t.equals(after)) + 1, isPreview));
+    }
     if (Object.isNull(group))
       return this.withGroup(isPreview ? this.documents.openPreview(tab) : this.documents.insert(tab, this.documents.tabs.length));
     const index = group.tabs.findIndex(t => t.equals(after)) + 1;

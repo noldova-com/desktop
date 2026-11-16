@@ -13,7 +13,7 @@ import { TestBed } from "@angular/core/testing";
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonValue } from "@noldova/context.json";
 import { ModuleState, type ModuleStatus, NotificationPost, NotificationSeverity, QualifiedName, type SettingOption, SettingScope, WebViewPane } from "@noldova/desktop.protocol";
-import { FileNotOpenedException as ExportedFileNotOpenedException } from "@noldova/desktop.window";
+import { FileNotOpenedException as ExportedFileNotOpenedException, FileNotShownException as ExportedFileNotShownException } from "@noldova/desktop.window";
 import { LinkGesture } from "@noldova/ui.components.angular";
 
 import { ModulesComponent } from "../../../src/app/components/modules/modules.component";
@@ -809,6 +809,23 @@ describe("WindowPartHostService", () => {
 
     expect(started).toEqual([note("1"), note("3"), note("2")]);
     expect(layout.layout().documents.tabs).toEqual([note("1"), note("4"), note("3"), note("2")]);
+  });
+
+  it("opens a document without activating it when asked, whether asked for during activation or later", async () => {
+    const note = (instance: string): DocumentTab => new DocumentTab("notes.note", instance);
+    const part = new WindowPartFixture("notes", log, t => {
+      t.registerDocument(new DocumentContribution("notes.note", load));
+      t.openDocument("notes.note", "1", "Note 1");
+      t.openDocument("notes.note", "2", "Note 2", { activate: false });
+    });
+    const { host, layout } = start([source("notes", part)], [status("notes")]);
+    await vi.waitFor(() => expect(layout.layout().documents.tabs).toHaveLength(2));
+    const started = [layout.layout().documents.tabs, layout.layout().documents.active];
+
+    host.openDocument("notes", "notes.note", "3", new DocumentHeading("Note 3"), false, "1", false);
+
+    expect(started).toEqual([[note("1"), note("2")], note("1")]);
+    expect([layout.layout().documents.tabs, layout.layout().documents.active]).toEqual([[note("1"), note("3"), note("2")], note("1")]);
   });
 
   it("changes the heading of a document opened during activation once it opens, and of an open one at once", async () => {
@@ -1617,8 +1634,8 @@ describe("WindowPartHostService", () => {
     const refusal = await host.showInFolderAsync("/home/ada/missing.pdf").catch((error: unknown) => error);
 
     expect(bridge.shownFiles).toEqual(["/home/ada/report.pdf", "/home/ada/missing.pdf"]);
-    expect([refusal instanceof FileNotShownException, FailureFixture.of(refusal, Error).message])
-      .toEqual([true, "Noldova Desktop Sample didn't show the file in its folder: no file can be read at the path."]);
+    expect([refusal instanceof FileNotShownException, refusal instanceof ExportedFileNotShownException && refusal.reason, FailureFixture.of(refusal, Error).message])
+      .toEqual([true, bridge.showRefusal, "Noldova Desktop Sample didn't show the file in its folder: no file can be read at the path."]);
   });
 
   it("opens a window part's file in its default app through the main process, and rejects with the main process's reason when it refuses", async () => {

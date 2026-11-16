@@ -8,20 +8,22 @@
 
 import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 export class FileReadsFixture implements Disposable {
-  private readonly readFile: typeof fs.readFile = fs.readFile;
+  private readonly restore: () => void;
   private readonly waiting: Map<number, () => void> = new Map();
   private reads: number = 0;
 
   public constructor(file: string) {
-    const readFile = this.readFile;
-    fs.readFile = ((...values: Parameters<typeof fs.readFile>): Promise<string | Buffer> => {
+    const readFile = fs.readFile;
+    const reading = mock.method(fs, "readFile", (...values: Parameters<typeof fs.readFile>): Promise<string | Buffer> => {
       const [target] = values;
       if (String(target) === file)
         this.count();
       return readFile(...values);
-    }) as typeof fs.readFile;
+    });
+    this.restore = () => reading.mock.restore();
     syncBuiltinESMExports();
   }
 
@@ -33,7 +35,7 @@ export class FileReadsFixture implements Disposable {
   }
 
   public [Symbol.dispose](): void {
-    fs.readFile = this.readFile;
+    this.restore();
     syncBuiltinESMExports();
   }
 

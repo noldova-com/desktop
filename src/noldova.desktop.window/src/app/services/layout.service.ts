@@ -145,10 +145,11 @@ export class LayoutService {
     return saving;
   }
 
-  public openDocument(tab: DocumentTab, isPreview: boolean = false, after: DocumentTab | null = null): void {
-    this.early?.push(new EarlyDocument(tab, isPreview, after));
-    this.update(this.layoutState().openDocument(tab, isPreview && this.previewTabs(), after));
-    this.reveal(tab);
+  public openDocument(tab: DocumentTab, isPreview: boolean = false, after: DocumentTab | null = null, activate: boolean = true): void {
+    this.early?.push(new EarlyDocument(tab, isPreview, after, activate));
+    this.update(this.layoutState().openDocument(tab, isPreview && this.previewTabs(), after, activate));
+    if (activate)
+      this.reveal(tab);
   }
 
   public openView(tab: ViewTab): void {
@@ -158,7 +159,7 @@ export class LayoutService {
   public reopenEarlyDocuments(): void {
     this.early = null;
     for (const early of this.reopening)
-      this.openDocument(early.tab, early.isPreview, early.after);
+      this.openDocument(early.tab, early.isPreview, early.after, early.activates);
     this.reopening = [];
   }
 

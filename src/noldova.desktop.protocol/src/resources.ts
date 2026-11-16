@@ -346,6 +346,9 @@ export class Resources {
   public static readonly factorField: string = "factor";
   public static readonly matchesField: string = "matches";
   public static readonly activeField: string = "active";
+  public static readonly imageField: string = "image";
+  public static readonly webViewIconPattern: RegExp = /^data:image\/png;base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
+  public static readonly webViewIconLengthLimit: number = 21_870;
   public static readonly webViewZoomMinimum: number = 0.25;
   public static readonly webViewZoomMaximum: number = 5;
   public static readonly webViewCommandMember: string = "webViewCommand";

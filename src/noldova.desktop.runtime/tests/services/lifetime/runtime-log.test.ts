@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -22,6 +23,7 @@ import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
 export class RuntimeLogTests {
   private static readonly OWN: string = "start-11111111-2222-4333-8444-555555555555.log";
   private static readonly STALE: string = "start-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.log";
+  private static readonly WRITE_WAIT: number = 60_000;
   private static readonly STAMP: string = "2026-10-02T23:40:01.250Z";
 
   @TestMethod
@@ -93,7 +95,7 @@ export class RuntimeLogTests {
       const log = await RuntimeLog.openAsync(lock, null, () => new Date(RuntimeLogTests.STAMP), error);
       await rm(lock.dataDirectory.logsFolder, { recursive: true });
 
-      await new Promise<void>(resolve => log.diagnostics.write("Lost", () => resolve()));
+      log.diagnostics.write("Lost");
       log.writeLine("Lost too");
       await log.closeAsync();
 
@@ -117,6 +119,7 @@ export class RuntimeLogTests {
 
       log.writeLine("Lost");
       await new Promise<void>(resolve => log.diagnostics.write("Lost too", () => resolve()));
+      log.writeLine("Lost again");
       await log.closeAsync();
 
       Assert.areEqual(1, attempts);
@@ -136,6 +139,53 @@ export class RuntimeLogTests {
 
       const thrown = Assert.throws(() => log.writeLine("Lost"), Error);
       await log.closeAsync();
+
+      Assert.areEqual("The stream broke.", thrown.message);
+    });
+  }
+
+  @TestMethod
+  public writesALineAtOnceAfterTheDiagnosticsBeforeIt(): Promise<void> {
+    return RuntimeLogTests.runAsync(async lock => {
+      const log = await RuntimeLogTests.openAsync(lock, null);
+
+      for (const record of ["first", "second"])
+        await new Promise<void>(resolve => log.diagnostics.write(record, () => resolve()));
+      log.writeLine("third");
+      const atOnce = readFileSync(lock.dataDirectory.runtimeLog, "utf8");
+      await log.closeAsync();
+
+      Assert.areEqual(["first", "second", "third"].map(t => `${RuntimeLogTests.STAMP} ${t}\n`).join(String.empty), atOnce);
+    });
+  }
+
+  @TestMethod
+  public writesEveryWaitingDiagnosticBeforeItCloses(): Promise<void> {
+    return RuntimeLogTests.runAsync(async lock => {
+      const log = await RuntimeLogTests.openAsync(lock, null);
+      const records = Array.from({ length: 50 }, (_, i) => `record ${i + 1}`);
+
+      for (const record of records)
+        log.diagnostics.write(record);
+      await log.closeAsync();
+
+      Assert.areEqual(records.map(t => `${RuntimeLogTests.STAMP} ${t}\n`).join(String.empty), await readFile(lock.dataDirectory.runtimeLog, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public passesOnWhenClosingAStandardErrorThatFailedForAnUnexpectedReasonAfterADiagnostic(): Promise<void> {
+    return RuntimeLogTests.runAsync(async lock => {
+      const error = new Writable({
+        write: () => {
+          throw new Error("The stream broke.");
+        }
+      });
+      const log = await RuntimeLog.openAsync(lock, null, () => new Date(RuntimeLogTests.STAMP), error);
+      await rm(lock.dataDirectory.logsFolder, { recursive: true });
+
+      await new Promise<void>(resolve => log.diagnostics.write("Lost", () => resolve()));
+      const thrown = await Assert.throwsAsync(() => log.closeAsync(), Error);
 
       Assert.areEqual("The stream broke.", thrown.message);
     });
@@ -196,7 +246,7 @@ export class RuntimeLogTests {
   }
 
   private static openAsync(lock: OwnershipLock, ownStartLogName: string | null): Promise<RuntimeLog> {
-    return RuntimeLog.openAsync(lock, ownStartLogName, () => new Date(RuntimeLogTests.STAMP));
+    return RuntimeLog.openAsync(lock, ownStartLogName, () => new Date(RuntimeLogTests.STAMP), process.stderr, homedir(), RuntimeLogTests.WRITE_WAIT);
   }
 
   private static async runAsync(test: (lock: OwnershipLock) => Promise<void>): Promise<void> {

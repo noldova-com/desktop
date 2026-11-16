@@ -82,6 +82,8 @@ export class Resources {
   public static readonly clearSelection: "clearSelection" = "clearSelection";
   public static readonly foundInPageEvent: "found-in-page" = "found-in-page";
   public static readonly zoomChangedEvent: "zoom-changed" = "zoom-changed";
+  public static readonly pageFaviconUpdatedEvent: "page-favicon-updated" = "page-favicon-updated";
+  public static readonly imageField: string = "image";
   public static readonly factorField: string = "factor";
   public static readonly matchesField: string = "matches";
   public static readonly activeField: string = "active";
@@ -436,6 +438,7 @@ export class Resources {
   public static readonly updateVersionPattern: RegExp = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-internal\.(0|[1-9]\d{0,8}))?$/u;
   public static readonly sha512Algorithm: string = "sha512";
   public static readonly base64Encoding: "base64" = "base64";
+  public static readonly latin1Encoding: "latin1" = "latin1";
   public static readonly lineBreak: string = "\n";
   public static readonly updateInfoInvalid: string = "The release's information is invalid.";
   public static readonly updateDownloadMismatch: string = "The download doesn't match the release.";

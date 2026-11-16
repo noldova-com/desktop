@@ -94,6 +94,13 @@ describe("Layout", () => {
     expect(opened.middle).toBe(opened.documents);
   });
 
+  it("opens a document without activating it behind the active one, and as the active tab of an empty group", () => {
+    const opened = initial.openDocument(plan, false, null, false);
+
+    expect(opened.documents).toEqual(new DocumentGroup([plan], plan));
+    expect(opened.openDocument(todo, false, null, false).documents).toEqual(new DocumentGroup([plan, todo], plan));
+  });
+
   it("opens document previews, each replacing the last, and keeps one opened again normally or asked to keep", () => {
     const first = initial.openDocument(plan).openDocument(todo, true);
     const second = first.openDocument(settings, true);
@@ -430,6 +437,26 @@ describe("Layout", () => {
       expect(split.openDocument(plan, false, todo)).toEqual(split.openDocument(plan));
       expect(contents(split.openDocument(plan, false, todo))).toEqual([[0, [plan, settings]], [3, [todo]]]);
       expect(split.openDocument(plan, true, todo)).toEqual(split.openDocument(plan, true));
+    });
+
+    it("opens a document without activating it, at the end of the active group or right after the document it names, leaving the active group as it was", () => {
+      const added = split.openDocument(readme, false, null, false);
+      const after = split.openDocument(readme, false, plan, false);
+
+      expect(contents(added)).toEqual([[0, [plan, settings]], [3, [todo, readme]]]);
+      expect([added.documents.id, added.documents.active]).toEqual([3, todo]);
+      expect(contents(after)).toEqual([[0, [plan, readme, settings]], [3, [todo]]]);
+      expect([after.documents.id, after.group(0)?.active]).toEqual([3, settings]);
+      expect(split.openDocument(readme, false, new DocumentTab("notes.note", "gone"), false)).toEqual(added);
+      expect(split.openDocument(readme, true, null, false).documents).toEqual(new DocumentGroup([todo, readme], todo, readme, 3));
+    });
+
+    it("leaves a document that is already open where it is when it opens without activating, keeping its preview unless it opens as one", () => {
+      const previewing = split.openDocument(readme, true, null, false);
+
+      expect(split.openDocument(plan, false, todo, false)).toEqual(split);
+      expect(previewing.openDocument(readme, true, null, false)).toBe(previewing);
+      expect(previewing.openDocument(readme, false, null, false).documents).toEqual(new DocumentGroup([todo, readme], todo, null, 3));
     });
 
     it("opens a preview right after the document it names when that group has none, and otherwise in place of that group's preview", () => {
