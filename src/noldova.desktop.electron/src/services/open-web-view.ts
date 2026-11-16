@@ -399,7 +399,7 @@ export class OpenWebView {
     guest.on(Resources.willAttachWebviewEvent, event => this.prevent(guest, event, Resources.nestedViewRequest));
     guest.on(Resources.beforeInputEvent, (event, input) => {
       if (this.isBound(guest))
-        this.judgeInput(event, input);
+        this.judgeInput(guest, event, input);
     });
     guest.on(Resources.certificateErrorEvent, (event, _url, _error, _certificate, callback) => {
       this.prevent(guest, event, Resources.certificateRequest);
@@ -781,14 +781,14 @@ export class OpenWebView {
       this.report(event);
   }
 
-  private judgeInput(event: IPreventableEvent, input: IWebViewInput): void {
+  private judgeInput(guest: IWebViewContents, event: IPreventableEvent, input: IWebViewInput): void {
     if (!Resources.keyDownInputs.includes(input.type))
       return;
     const stroke: IKeyStroke = { key: input.key, code: input.code, ctrlKey: input.control, altKey: input.alt, shiftKey: input.shift, metaKey: input.meta };
     const relayKey = this.relayKeys.find(t => OpenWebView.isSameStroke(t, stroke));
     if (!Object.isUndefined(relayKey))
       return this.forgetRelayKey(relayKey);
-    const name = this.declaration.findKey(stroke, this.platform, this.guest?.isLoading() ?? false);
+    const name = this.declaration.findKey(stroke, this.platform, guest.isLoading());
     if (Object.isNull(name) && !this.isShortcut(stroke))
       return this.judgeZoomKey(event, stroke);
     event.preventDefault();
