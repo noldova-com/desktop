@@ -46,14 +46,15 @@ describe("failed module request setup", () => {
   });
 
   it("prints a module the test server answers with a page rather than JavaScript once, with its status and its type", async () => {
+    const id = crypto.randomUUID();
     const page = new URL(location.href);
-    page.searchParams.set("module", crypto.randomUUID());
-    const url = page.href;
+    page.searchParams.set("module", id);
+    const printedForPage = async (): Promise<readonly string[]> => (await commands.watchFailedModuleRequests()).filter(t => t.includes(`module=${id}`));
 
-    expect(await failedLoadAsync(url)).toBe("error");
+    expect(await failedLoadAsync(page.href)).toBe("error");
 
-    await expect.poll(() => printedFor(url)).toHaveLength(1);
-    const printed = await printedFor(url);
+    await expect.poll(printedForPage).toHaveLength(1);
+    const printed = await printedForPage();
     expect(printed[0]).toMatch(/^Failed module response at \S+: 200 text\/html/u);
   });
 
