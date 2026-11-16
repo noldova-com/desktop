@@ -14,7 +14,7 @@ import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { DiagnosticRedactor, LogFile } from "@noldova/desktop.runtime";
 
-import { FailingCloseFixture } from "../../fixtures/failing-close.fixture.js";
+import { ClosePatchFixture } from "../../fixtures/close-patch.fixture.js";
 import { ShortWriteFixture } from "../../fixtures/short-write.fixture.js";
 import { SlowWriteFixture } from "../../fixtures/slow-write.fixture.js";
 import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.js";
@@ -292,7 +292,7 @@ export class LogFileTests {
       const lines = Array.from({ length: 2 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
       {
-        using failing = new FailingCloseFixture(Object.assign(new Error("EIO: the disk failed."), { code: "EIO" }));
+        using failing = new ClosePatchFixture(Object.assign(new Error("EIO: the disk failed."), { code: "EIO" }));
         await Assert.throwsAsync(() => log.appendAsync(lines[0] ?? String.empty), Error);
         Assert.areEqual(1, failing.calls);
       }
@@ -308,6 +308,7 @@ export class LogFileTests {
     return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
       const lines = Array.from({ length: 2 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
+      using closes = new ClosePatchFixture(null);
 
       const first = log.appendAsync(lines[0] ?? String.empty);
       log.append(lines[1] ?? String.empty);
@@ -315,6 +316,7 @@ export class LogFileTests {
       await first;
       await log.flushAsync();
 
+      Assert.areEqual(1, closes.calls);
       Assert.areEqual(lines.join(String.empty), atOnce);
       Assert.areEqual(lines.join(String.empty), await readFile(file, "utf8"));
     });
