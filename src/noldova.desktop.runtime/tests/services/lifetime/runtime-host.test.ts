@@ -432,8 +432,7 @@ export class RuntimeHostTests {
         "  }",
         "}",
         String.empty
-      ].join("
-");
+      ].join("\n");
       const declarations = await fixture.writeModulesAsync([["notes", part]]);
       const first = await fixture.startAsync(30_000, declarations);
       const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
