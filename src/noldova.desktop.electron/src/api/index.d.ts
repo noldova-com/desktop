@@ -4514,6 +4514,22 @@ export interface IMainProcessLog {
    * ```
    */
   write(text: string): void;
+
+  /**
+   * Writes every line still waiting at once, before the main process exits.
+   *
+   * @example
+   * ```ts
+   * import type { IMainProcessLog } from "@noldova/desktop.electron";
+   *
+   * export function recordAndExit(log: IMainProcessLog, exit: () => void): void {
+   *   log.write("The main process is exiting.");
+   *   log.flush();
+   *   exit();
+   * }
+   * ```
+   */
+  flush(): void;
 }
 
 /**
@@ -10586,8 +10602,8 @@ export declare class MainProcessLog implements IMainProcessLog {
   public openAsync(): Promise<void>;
 
   /**
-   * Records a line, stamped with the time and redacted, on standard error and, once open, in the file. When the file
-   * cannot take a line, later lines go to standard error only, and the log records why there.
+   * Records a line, stamped with the time and redacted, on standard error at once and, once open, in the file without
+   * waiting for the disk. When the file cannot take a line, later lines go to standard error only, and the log records why there.
    *
    * @param text What happened.
    * @example
@@ -10634,6 +10650,20 @@ export declare class MainProcessLog implements IMainProcessLog {
    * ```
    */
   public writeShared(text: string): void;
+
+  /**
+   * Writes the lines still waiting for the file at once, in order, as when the main process is about to quit or exit.
+   *
+   * @example
+   * ```ts
+   * import type { MainProcessLog } from "@noldova/desktop.electron";
+   *
+   * export function finish(log: MainProcessLog): void {
+   *   log.flush();
+   * }
+   * ```
+   */
+  public flush(): void;
 }
 
 /**

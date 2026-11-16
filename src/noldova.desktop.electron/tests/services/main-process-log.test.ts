@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -16,6 +16,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { MainProcessLog } from "@noldova/desktop.electron";
 import { DataDirectory, DiagnosticRedactor } from "@noldova/desktop.runtime";
 
+import { Condition } from "../fixtures/condition.fixture.js";
 import { FakeMainProcessEnvironment } from "../fixtures/fake-main-process-environment.fixture.js";
 
 @TestClass
@@ -32,6 +33,7 @@ export class MainProcessLogTests {
       log.write("Before the file.");
       await log.openAsync();
       log.write(`Saved in ${path.join(folder, "notes")} with ${MainProcessLogTests.TOKEN}.`);
+      log.flush();
 
       const later = `2026-10-02T23:40:01.250Z Saved in ${path.join("~", "notes")} with [redacted].\n`;
       Assert.areEqual(`2026-10-02T23:40:01.250Z Before the file.\n${later}`, process.errors);
@@ -51,6 +53,7 @@ export class MainProcessLogTests {
       log.write("In the file.");
       log.writeKept("Kept again.");
       await log.openAsync();
+      log.flush();
 
       const lines = ["Kept for the file.", "Before the file.", "In the file.", "Kept again."].map(t => `2026-10-02T23:40:01.250Z ${t}\n`);
       Assert.areEqual(lines.join(String.empty), process.errors);
@@ -70,6 +73,7 @@ export class MainProcessLogTests {
       log.writeKept("Kept while the file opens.");
       await opening;
       log.write("Once open.");
+      log.flush();
 
       const lines = ["Kept for the file.", "While the file opens.", "Kept while the file opens.", "Once open."].map(t => `2026-10-02T23:40:01.250Z ${t}\n`);
       Assert.areEqual(lines.join(String.empty), process.errors);
@@ -86,11 +90,29 @@ export class MainProcessLogTests {
         log.write(start);
         await log.openAsync();
         log.write(`${start} again`);
+        log.flush();
       }
 
       Assert.areEqual("main.log,main.previous.log", (await readdir(directory.logsFolder)).sort().join(","));
       Assert.areEqual("2026-10-02T23:40:01.250Z third\n2026-10-02T23:40:01.250Z third again\n", await readFile(directory.mainProcessLog, "utf8"));
       Assert.areEqual("2026-10-02T23:40:01.250Z second\n2026-10-02T23:40:01.250Z second again\n", await readFile(directory.previousMainProcessLog, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public async writesWithoutWaitingForTheFileAndWritesTheWaitingLinesAtOnceWhenFlushed(): Promise<void> {
+    await MainProcessLogTests.runAsync(async (folder, directory) => {
+      const log = new MainProcessLog(directory, new FakeMainProcessEnvironment("linux").errorOutput, new DiagnosticRedactor(folder), () => MainProcessLogTests.MOMENT);
+      await log.openAsync();
+      const lines = ["first", "second"].map(t => `2026-10-02T23:40:01.250Z ${t}\n`);
+
+      log.write("first");
+      log.write("second");
+      const before = readFileSync(directory.mainProcessLog, "utf8");
+      log.flush();
+
+      Assert.areNotEqual(lines.join(String.empty), before);
+      Assert.areEqual(lines.join(String.empty), readFileSync(directory.mainProcessLog, "utf8"));
     });
   }
 
@@ -102,6 +124,7 @@ export class MainProcessLogTests {
 
       for (let i = 0; i < 5; i++)
         log.write(`${i}${"word ".repeat(60000)}`);
+      log.flush();
 
       Assert.isTrue((await stat(directory.mainProcessLog)).size <= 1048576);
       Assert.isTrue((await readFile(directory.mainProcessLog, "utf8")).includes(" 4word"));
@@ -143,14 +166,18 @@ export class MainProcessLogTests {
       await rm(directory.logsFolder, { recursive: true });
 
       log.write("Lost from the file.");
+      log.write("Lost too.");
+      await Condition.waitAsync(() => process.errors.includes("The main process's log could not be written"));
       log.write("Only on standard error.");
+      log.flush();
 
       Assert.isFalse(existsSync(directory.logsFolder));
       const lines = process.errors.trimEnd().split("\n").map(t => t.slice(t.indexOf(" ") + 1));
       Assert.areEqual("Lost from the file.", lines[0]);
-      Assert.isTrue(lines[1]?.startsWith("The main process's log could not be written, so its records go to standard error only: Error: ") === true);
-      Assert.areEqual("Only on standard error.", lines[2]);
-      Assert.areEqual(3, lines.length);
+      Assert.areEqual("Lost too.", lines[1]);
+      Assert.isTrue(lines[2]?.startsWith("The main process's log could not be written, so its records go to standard error only: Error: ") === true);
+      Assert.areEqual("Only on standard error.", lines[3]);
+      Assert.areEqual(4, lines.length);
     });
   }
 

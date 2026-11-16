@@ -18,6 +18,7 @@ export class FakeApplicationHost implements IApplicationHost {
   private readonly readiness: PromiseWithResolvers<void> = Promise.withResolvers<void>();
 
   public readonly calls: string[] = [];
+  public exiting: () => void = () => undefined;
   public readonly isPackaged: boolean;
   public hasLock: boolean;
   public systemLanguages: string[] = ["en-US"];
@@ -97,6 +98,7 @@ export class FakeApplicationHost implements IApplicationHost {
 
   public exit(exitCode: number): void {
     this.calls.push(`exit ${exitCode}`);
+    this.exiting();
   }
 
   public whenReady(): Promise<unknown> {

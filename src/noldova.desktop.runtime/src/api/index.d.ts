@@ -1803,7 +1803,8 @@ export declare class DiagnosticRedactor {
 
 /**
  * A log file whose size is bounded. Each record is stamped with its time and redacted, and the file becomes the
- * previous file, replacing it, when a record would take it over its size limit.
+ * previous file, replacing it, when a record would take it over its size limit. Lines are written in the order they
+ * were appended, whether they wait for the disk or are written at once.
  */
 export declare class LogFile {
   /**
@@ -1814,6 +1815,7 @@ export declare class LogFile {
    * @param redactor Redacts every record.
    * @param now Returns the time to stamp a record with; the current time by default.
    * @param limit The most bytes the file holds, 1 MiB by default. A record is cut to a quarter of it.
+   * @param writeWait The most milliseconds a line written at once waits for a write already under way to land, so that it lands after it; 2 seconds by default.
    * @example
    * ```ts
    * import { homedir } from "node:os";
@@ -1823,7 +1825,7 @@ export declare class LogFile {
    * export const log: LogFile = new LogFile("/data/logs/app.log", "/data/logs/app.previous.log", new DiagnosticRedactor(homedir()));
    * ```
    */
-  public constructor(file: string, previousFile: string, redactor: DiagnosticRedactor, now?: () => Date, limit?: number);
+  public constructor(file: string, previousFile: string, redactor: DiagnosticRedactor, now?: () => Date, limit?: number, writeWait?: number);
 
   /**
    * Stamps and redacts a record.
@@ -1857,7 +1859,8 @@ export declare class LogFile {
   public open(): void;
 
   /**
-   * Appends a line. When it would take the file over its size limit, the file first becomes the previous file.
+   * Appends a line at once, as when the process is about to end: first the lines still waiting, as {@link LogFile.flush}
+   * writes them, then this one. When it would take the file over its size limit, the file first becomes the previous file.
    *
    * @param line The line from {@link LogFile.format}.
    * @throws {Error} Thrown when the file cannot become the previous file, in which case it keeps what it holds, or cannot be written.
@@ -1871,6 +1874,57 @@ export declare class LogFile {
    * ```
    */
   public append(line: string): void;
+
+  /**
+   * Appends a line without waiting for the disk: the line is written after the lines appended before it, with the
+   * lines that wait meanwhile written together. When it would take the file over its size limit, the file first becomes
+   * the previous file, so no line is lost when the file fills.
+   *
+   * @param line The line from {@link LogFile.format}.
+   * @returns A promise that settles once the line is written; the caller handles its rejection.
+   * @throws {Error} Rejected when the file cannot become the previous file, in which case it keeps what it holds, or cannot be written; later lines are still tried.
+   * @example
+   * ```ts
+   * import type { LogFile } from "@noldova/desktop.runtime";
+   *
+   * export function note(log: LogFile): void {
+   *   log.appendAsync(log.format("The runtime started.")).catch((failure: unknown) => console.error(failure));
+   * }
+   * ```
+   */
+  public appendAsync(line: string): Promise<void>;
+
+  /**
+   * Writes the lines still waiting at once, in order, as when the process is about to end. A write already under way
+   * is given up to the write wait, 2 seconds by default, to land first, so the lines keep their order; it has landed once
+   * its text is in the file past what this log had written before it, whatever another process appended meanwhile, or once the file can't be read. Each
+   * waiting line's promise settles as it is written or fails.
+   *
+   * @example
+   * ```ts
+   * import type { LogFile } from "@noldova/desktop.runtime";
+   *
+   * export function finish(log: LogFile): void {
+   *   log.flush();
+   * }
+   * ```
+   */
+  public flush(): void;
+
+  /**
+   * Waits until every line appended so far is written or has failed.
+   *
+   * @returns A promise that resolves once no line is waiting; it never rejects.
+   * @example
+   * ```ts
+   * import type { LogFile } from "@noldova/desktop.runtime";
+   *
+   * export async function finishAsync(log: LogFile): Promise<void> {
+   *   await log.flushAsync();
+   * }
+   * ```
+   */
+  public flushAsync(): Promise<void>;
 }
 
 /**
@@ -10397,7 +10451,7 @@ export declare class ChildProcessStarter implements IProcessStarter {
  */
 export declare class RuntimeLog {
   /**
-   * The stream the runtime writes its diagnostics to; each write is one record, stamped and redacted like a line, without its trailing line ending. It writes to the log until the log closes.
+   * The stream the runtime writes its diagnostics to; each write is one record, stamped and redacted like a line, without its trailing line ending. It writes to the log until the log closes, without waiting for the disk.
    */
   public readonly diagnostics: Writable;
 
@@ -10411,6 +10465,7 @@ export declare class RuntimeLog {
    * @param now Returns the time to stamp a line with; the current time by default.
    * @param error Receives the report when the log can no longer be written; standard error by default.
    * @param homeFolder The home folder the log redacts, with its user name; the current user's by default.
+   * @param writeWait The most milliseconds a line written at once waits for a diagnostic already being written to land; 2 seconds by default.
    * @returns A promise of the open log.
    * @throws {OwnershipReleasedException} Rejected when the ownership was released.
    * @example
@@ -10424,10 +10479,10 @@ export declare class RuntimeLog {
    * }
    * ```
    */
-  public static openAsync(lock: OwnershipLock, ownStartLogName: string | null, now?: () => Date, error?: Writable, homeFolder?: string): Promise<RuntimeLog>;
+  public static openAsync(lock: OwnershipLock, ownStartLogName: string | null, now?: () => Date, error?: Writable, homeFolder?: string, writeWait?: number): Promise<RuntimeLog>;
 
   /**
-   * Writes one line at once, as when the process is about to end; nothing is written after the log closes. When a line cannot be written, the failure is reported once on the error stream and nothing more is written to the log.
+   * Writes one line at once, as when the process is about to end, after the diagnostics still waiting; nothing is written after the log closes. When a line cannot be written, the failure is reported once on the error stream and nothing more is written to the log.
    *
    * @param text The line, without its line ending.
    * @example
@@ -10442,9 +10497,10 @@ export declare class RuntimeLog {
   public writeLine(text: string): void;
 
   /**
-   * Finishes the diagnostics stream and closes the log; closing again does nothing.
+   * Finishes the diagnostics stream, waits until every diagnostic is written, and closes the log; closing again does nothing.
    *
    * @returns A promise that settles once the log is closed.
+   * @throws {Error} Rejected with the failure of the error stream, other than a closed or full stream's, when it could not take the report that a diagnostic could not be written.
    * @example
    * ```ts
    * import type { RuntimeLog } from "@noldova/desktop.runtime";

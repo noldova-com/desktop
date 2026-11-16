@@ -10,8 +10,13 @@ import type { IMainProcessLog } from "@noldova/desktop.electron";
 
 export class FakeMainProcessLog implements IMainProcessLog {
   public readonly lines: string[] = [];
+  public readonly flushed: string[][] = [];
 
   public write(text: string): void {
     this.lines.push(text);
+  }
+
+  public flush(): void {
+    this.flushed.push([...this.lines]);
   }
 }
