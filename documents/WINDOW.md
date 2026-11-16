@@ -162,6 +162,7 @@ The Window package keeps a class's own strings, those no other class uses, in a 
   They skip a document its part forgot and one whose module no longer offers it.
   Their keys are Alt+Left and Alt+Right on Windows and Linux, and Cmd+[ and Cmd+] on macOS, where Option+Left moves by a word in text.
 - A menu row shows its command's title and icon, unless it gives its own: a declared item may give a label, and a row a window part supplies to a dynamic group, a `MenuRowContribution`, a label and a Material Symbols icon, which it shows in a menu, a submenu, a tab row's buttons, a toolbar and search.
+  A choice shows its place's checked row's title and icon, or its place's title and icon when no row is checked, and its place's icon when the checked row has none.
 - The layout menu, the place `desktop.layoutMenu`, shows or hides each dock and each view the window lists, except views with instances, a view opening in its dock, and resets the layout.
 - A window part opens its own palette just under the window row, centred across the window, with its context's `openBelowWindowRowAsync`.
   The window shows one palette at a time: the call answers null without a window row, while a palette is open, or when the part is withdrawn while the component loads, which is then never created; the search's keys close a module's palette and open the search.
