@@ -103,11 +103,13 @@ export class WebViewFaviconTests {
   }
 
   @TestMethod
-  public async refusesAnIconFromAnOriginTheViewDoesntAllowOrAPrivateAddressThatIsntALocalEntryAndReportsNull(): Promise<void> {
+  public async refusesAnIconFromAnOriginTheViewDoesntAllowOrAPrivateAddressThatIsntALocalEntryOrANameThatDoesntResolveAndReportsNull(): Promise<void> {
     const harness = new FaviconHarness();
+    harness.allowed = [...harness.allowed, "https://unknown.example.com"];
     await harness.updateAsync(FaviconHarness.ICON);
 
     await harness.updateAsync("https://example.net/favicon.ico", "http://127.0.0.1:9000/favicon.ico", "https://private.example.com/favicon.ico", "data:image/png;base64,AQID");
+    await harness.updateAsync("https://unknown.example.com/favicon.ico");
 
     Assert.areEqual("png,null", harness.describe());
     Assert.areEqual(`${FaviconHarness.ICON} allowed`, harness.session.iconReads.join(","));
