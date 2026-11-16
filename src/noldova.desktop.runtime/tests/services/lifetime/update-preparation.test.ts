@@ -298,6 +298,58 @@ export class UpdatePreparationTests {
     });
   }
 
+  @TestMethod
+  public endsTheNextUpdateAtOnceWhenACheckForAnEndedOneFinishesLateAndTheBarrierIsGone(): Promise<void> {
+    return RuntimeHostFixture.runAsync(async fixture => {
+      await using folder = await TemporaryFolderFixture.createAsync();
+      const installation = UpdateBarrierFixture.open(folder.path);
+      await fixture.startAsync(30_000, undefined, undefined, process.env, new ServerSettings(undefined, undefined, undefined, undefined, 5_000, 2_147_483_647), installation.folder);
+      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      await UpdateBarrierFixture.holdAsync(installation);
+      using read = new PausedReadFixture(installation.barrierFile);
+      using watches = new FolderWatchFixture(installation.folder);
+
+      mainProcess.sendMessages(new Request("main:1", ShellMethods.update, new UpdateRequest(installation.folder).toJson()));
+      await read.waitForStartAsync();
+      watches.fail("The watch broke.");
+      await RuntimeHostFixture.readMessagesAsync(mainProcess, 3);
+      using nextWatches = new FolderWatchFixture(installation.folder);
+      mainProcess.sendMessages(new Request("main:2", ShellMethods.update, new UpdateRequest(installation.folder).toJson()));
+      const [next] = await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
+      await rm(installation.barrierFile);
+      read.releaseAsMissing();
+      await UpdateBarrierFixture.readEventAsync(mainProcess, ShellEvents.updateEnded);
+      const [, late] = await fixture.handshakeAsync("late", RuntimeBuild.identity);
+
+      Assert.isTrue(UpdateReady.fromJson(next.get("main:2")?.payload).isReady);
+      Assert.areEqual(1, nextWatches.count);
+      Assert.isFalse(late.hasFailed);
+    });
+  }
+
+  @TestMethod
+  public changesNothingWhenACheckForAnEndedUpdateFinishesLateWithNoUpdateWatched(): Promise<void> {
+    return RuntimeHostFixture.runAsync(async fixture => {
+      await using folder = await TemporaryFolderFixture.createAsync();
+      const installation = UpdateBarrierFixture.open(folder.path);
+      await fixture.startAsync(30_000, undefined, undefined, process.env, new ServerSettings(undefined, undefined, undefined, undefined, 5_000, 2_147_483_647), installation.folder);
+      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      await UpdateBarrierFixture.holdAsync(installation);
+      using read = new PausedReadFixture(installation.barrierFile);
+      using watches = new FolderWatchFixture(installation.folder);
+
+      mainProcess.sendMessages(new Request("main:1", ShellMethods.update, new UpdateRequest(installation.folder).toJson()));
+      await read.waitForStartAsync();
+      watches.fail("The watch broke.");
+      const [, firstEvents] = await RuntimeHostFixture.readMessagesAsync(mainProcess, 3);
+      read.releaseAsMissing();
+      const [, late] = await fixture.handshakeAsync("late", RuntimeBuild.identity);
+
+      Assert.areEqual(`${ShellEvents.updating}|${ShellEvents.updateEnded}`, firstEvents.map(t => String(t.name)).join("|"));
+      Assert.isFalse(late.hasFailed);
+    });
+  }
+
   private static async readWhileUnreadableAsync<T>(file: string, readAsync: () => Promise<T>): Promise<[boolean, T]> {
     using barrier = new UnreadableFileFixture(file);
     const isRead = await WaitFixture.untilAsync(() => barrier.refused > 0, 5_000, 20);

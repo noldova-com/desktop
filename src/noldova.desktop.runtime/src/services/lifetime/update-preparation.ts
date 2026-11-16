@@ -36,7 +36,7 @@ export class UpdatePreparation implements Disposable {
   private expected: readonly ConnectedClient[] = [];
   private watcher: FSWatcher | null = null;
   private holderCheck: NodeJS.Timeout | undefined;
-  private watched: Installation | null = null;
+  private watched: { readonly installation: Installation; readonly fail: (message: string, error: Error) => void } | null = null;
   private isChecking: boolean = false;
   private isStale: boolean = false;
 
@@ -139,7 +139,7 @@ export class UpdatePreparation implements Disposable {
   }
 
   private watchBarrier(installation: Installation, watcher: FSWatcher, fail: (message: string, error: Error) => void): void {
-    this.watched = installation;
+    this.watched = { installation, fail };
     this.watcher = watcher;
     watcher.once(Resources.errorEvent, (error: Error) => fail(Resources.barrierUnwatchable, error));
     this.holderCheck = setInterval(() => this.check(installation, fail), this.barrierHolderCheckInterval).unref();
@@ -168,8 +168,13 @@ export class UpdatePreparation implements Disposable {
       }
     } while (this.isStale && !hasEnded && Object.isNull(bug));
     this.isChecking = false;
-    if (this.watched !== installation)
+    const watched = this.watched;
+    if (Object.isNull(watched))
       return;
+    if (watched.installation !== installation) {
+      this.check(watched.installation, watched.fail);
+      return;
+    }
     if (!Object.isNull(bug))
       fail(Resources.barrierUncheckable, bug);
     else if (hasEnded)
