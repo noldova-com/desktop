@@ -6,7 +6,9 @@ Each version's section is written by the pull request that changes the version, 
 
 ## 0.0.2
 
-- A window part reads which dock holds one of its view's tabs with `IWindowPartContext.viewDockOf(name, instance?)`, a signal of `DockSide.Bottom`, `DockSide.Left`, `DockSide.Right`, or `null` outside a dock or while the tab isn't open. It follows the tab as it moves, opens and closes, and a hidden dock keeps its side. The testing package's fake context answers it like `keyOf`.
+- A window part reads which dock holds one of its view's tabs with `IWindowPartContext.viewDockOf(name, instance?)`, a signal of `DockSide.Bottom`, `DockSide.Left`, `DockSide.Right`, or `null` outside a dock or while the tab isn't open.
+  It follows the tab as it moves, opens and closes, and a hidden dock keeps its side.
+  The testing package's fake context answers it like `keyOf`.
 - `@noldova/desktop.window`'s peer on `@noldova/desktop.protocol` is a range up to the next minor, `>=0.0.2 <0.1.0` for this version, instead of the exact version, so an app may install any protocol of the same minor beside the window.
 - A tab's content stays in the page, hidden and inert, while another tab of its group shows, so a module's web view behind another tab keeps its page and the runtime part's calls on it reach it.
 - A tab moved to another group, a dock or a dialog binds its web view's page again, so the runtime part's calls on it answer as before the move, and the page keeps its form values and scroll position, since the new page restores the old one's history instead of loading its address.
