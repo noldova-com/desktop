@@ -74,7 +74,13 @@ describe("TabRowActionsComponent", () => {
     TestBed.configureTestingModule({
       providers: [
         {
-          provide: BuildTokens.menus, useValue: [MenuDeclarations.fromJson("terminal", {
+          provide: BuildTokens.menus, useValue: [MenuDeclarations.fromJson("ssh", {
+            places: [],
+            groups: [
+              { name: "ssh.tabRowActions", place: "terminal.tabRow", exclusive: false, items: [{ command: "ssh.connect", arguments: { host: "build" }, label: "Connect to build" }] },
+              { name: "ssh.shellList", place: "terminal.shells", exclusive: false, items: [{ command: "ssh.connect", arguments: { host: "build" }, label: "ssh build" }] }
+            ]
+          }), MenuDeclarations.fromJson("terminal", {
             places: [{ name: "terminal.tabRow", title: "Terminal tabs", shows: "menu" }, { name: "terminal.shells", title: "Choose a shell", shows: "menu" }],
             groups: [
               { name: "terminal.tabRowActions", place: "terminal.tabRow", exclusive: false, items: [{ command: "terminal.new", arguments: {} }, { command: "terminal.split", arguments: {} }] },
@@ -92,7 +98,8 @@ describe("TabRowActionsComponent", () => {
     };
     TestBed.inject(CommandService).setCommands([
       new CommandContribution("terminal.new", "New terminal", "add", null, t => run("terminal.new", t)),
-      new CommandContribution("terminal.split", "Split terminal", null, null, t => run("terminal.split", t), () => false)
+      new CommandContribution("terminal.split", "Split terminal", null, null, t => run("terminal.split", t), () => false),
+      new CommandContribution("ssh.connect", "Connect", "lan", null, t => run("ssh.connect", t))
     ]);
     TestBed.inject(MenuService).setActiveModules(["terminal"]);
     layout = await LayoutServiceFixture.prepareAsync(registry, prepared);
@@ -136,6 +143,11 @@ describe("TabRowActionsComponent", () => {
   async function settleAsync(): Promise<void> {
     fixture.detectChanges();
     await fixture.whenStable();
+  }
+
+  async function addDependentAsync(): Promise<void> {
+    TestBed.inject(MenuService).setActiveModules(["terminal", "ssh"]);
+    await settleAsync();
   }
 
   it("shows the place's rows as named buttons in every group holding the view's tabs, after the tabs and before the group's own buttons", () => {
@@ -296,6 +308,36 @@ describe("TabRowActionsComponent", () => {
     await settleAsync();
 
     expect([button(second, "zsh"), button(second, "New terminal")].map(t => t.querySelector(".material-symbols-rounded")?.textContent?.trim())).toEqual(["terminal", "add"]);
+  });
+
+  it("shows a dependent module's group in its dependency's tab-row place after the dependency's own groups, and runs the dependent's command with the row's group id", async () => {
+    const id = layout.layout().groupOf(second)?.id;
+    await addDependentAsync();
+    const names = actions(second).map(t => t.getAttribute("aria-label"));
+    const connect = button(second, "Connect to build");
+    const panel = button(second, "Panel actions");
+    connect.click();
+    await settleAsync();
+
+    expect(names.slice(0, 5)).toEqual(["New terminal", "Split terminal", "Choose a shell", "Connect to build", "Panel actions"]);
+    expect(button(second, "Choose a shell").compareDocumentPosition(connect)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(connect.compareDocumentPosition(panel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(connect.querySelector(".material-symbols-rounded")?.textContent?.trim()).toBe("lan");
+    expect(runs).toEqual([`ssh.connect {"tabGroup":"${id}","host":"build"}`]);
+  });
+
+  it("shows a dependent module's group in its dependency's submenu that a tab-row button opens, after the dependency's own rows, and runs the dependent's command with the row's group id", async () => {
+    const id = layout.layout().groupOf(second)?.id;
+    await addDependentAsync();
+    button(second, "Choose a shell").click();
+    await settleAsync();
+    const shells = DomFixture.one(document, ".cdk-overlay-container nol-menu[data-place='terminal.shells']");
+    const labels = [...shells.querySelectorAll(".nol-menu-item-label")].map(t => t.textContent?.trim());
+    DomFixture.oneOf(shells, "[data-command='ssh.connect']", HTMLButtonElement).click();
+    await settleAsync();
+
+    expect(labels).toEqual(["bash", "ssh build"]);
+    expect(runs).toEqual([`ssh.connect {"tabGroup":"${id}","host":"build"}`]);
   });
 
   it("keeps the place out of the toolbar band and the Toolbars list", () => {
