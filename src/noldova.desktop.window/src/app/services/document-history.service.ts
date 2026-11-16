@@ -17,8 +17,6 @@ import { Resources } from "../../resources.js";
 import { LayoutService } from "./layout.service.js";
 import { ViewInstancesService } from "./view-instances.service.js";
 
-type PlaceListener = (place: string, instance: string | null) => void;
-
 @Injectable({ providedIn: "root" })
 export class DocumentHistoryService {
   private readonly layout: LayoutService = inject(LayoutService);
@@ -26,7 +24,7 @@ export class DocumentHistoryService {
   private readonly errors: ErrorHandler = inject(ErrorHandler);
   private readonly entries: WritableSignal<readonly (DocumentTab | ViewPlace)[]> = signal([]);
   private readonly index: WritableSignal<number> = signal(-1);
-  private readonly listeners: WritableSignal<ReadonlyMap<string, readonly PlaceListener[]>> = signal(new Map());
+  private readonly listeners: WritableSignal<ReadonlyMap<string, readonly ((place: string, instance: string | null) => void)[]>> = signal(new Map());
   private readonly activeDocument: Signal<Tab | null> = computed(() => this.layout.layout().documents.active, { equal: (a, b) => a?.key === b?.key });
 
   public readonly canGoBack: Signal<boolean> = computed(() => !Object.isNull(this.nearest(-1)));
@@ -58,7 +56,7 @@ export class DocumentHistoryService {
     this.record(place);
   }
 
-  public onPlaceShown(view: string, listener: PlaceListener): () => void {
+  public onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void {
     this.listeners.update(t => new Map(t).set(view, [...t.get(view) ?? [], listener]));
     return () => this.listeners.update(t => {
       const listeners = new Map(t);
