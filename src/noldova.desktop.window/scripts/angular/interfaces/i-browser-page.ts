@@ -7,7 +7,9 @@
  */
 
 import type { IBrowserRequest } from "./i-browser-request.ts";
+import type { IBrowserResponse } from "./i-browser-response.ts";
 
 export interface IBrowserPage {
   on(event: "requestfailed", listener: (request: IBrowserRequest) => void): unknown;
+  on(event: "response", listener: (response: IBrowserResponse) => void): unknown;
 }
