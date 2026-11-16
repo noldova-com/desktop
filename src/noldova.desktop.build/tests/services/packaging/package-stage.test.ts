@@ -27,7 +27,7 @@ import { StandInBuildFixture } from "../../fixtures/stand-in-build.fixture.js";
 import { TarballFixture } from "../../fixtures/tarball.fixture.js";
 import { TemporaryFolderRunnerFixture } from "../../fixtures/temporary-folder-runner.fixture.js";
 
-type OverrideForm = "nested" | "$";
+type OverrideForm = "nested" | "$" | "top-level" | "top-level with its own";
 
 class ProductStandInBuild extends StandInBuildFixture {
   public override async buildAsync(folder: string): Promise<void> {
@@ -39,9 +39,12 @@ class ProductStandInBuild extends StandInBuildFixture {
 @TestClass
 export class PackageStageTests {
   private static readonly FIELDS: Readonly<Record<string, unknown>> = { name: "sample-app", version: "1.2.3", private: true };
-  private static readonly FORMS: Readonly<Record<OverrideForm, readonly [Readonly<Record<string, unknown>>, Readonly<Record<string, unknown>>]>> = {
-    "nested": [{ "sdk-host": { "shared-type": "2.1.0" } }, PackageStageTests.FIELDS],
-    "$": [{ "sdk-host": { "shared-type": "$shared-type" } }, { ...PackageStageTests.FIELDS, dependencies: { "shared-type": "2.1.0" } }]
+  private static readonly FORMS: Readonly<Record<OverrideForm,
+    readonly [Readonly<Record<string, unknown>>, Readonly<Record<string, unknown>>, Readonly<Record<string, unknown>>]>> = {
+    "nested": [{ "sdk-host": { "shared-type": "2.1.0" } }, PackageStageTests.FIELDS, { "sdk-host": { "shared-type": "2.1.0" } }],
+    "$": [{ "sdk-host": { "shared-type": "$shared-type" } }, { ...PackageStageTests.FIELDS, dependencies: { "shared-type": "2.1.0" } }, { "sdk-host": { "shared-type": "$shared-type" } }],
+    "top-level": [{ "shared-type": "2.1.0", "absent-type": "1.0.0" }, PackageStageTests.FIELDS, { "shared-type": "$shared-type", "absent-type": "1.0.0" }],
+    "top-level with its own": [{ "shared-type": { ".": "2.1.0", "absent-type": "1.0.0" } }, PackageStageTests.FIELDS, { "shared-type": { ".": "$shared-type", "absent-type": "1.0.0" } }]
   };
   private static readonly PACKAGES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     "sdk-host": { version: "1.0.0", dependencies: { "shared-type": "^1.0.5" } },
@@ -54,15 +57,15 @@ export class PackageStageTests {
     "shared-type": { version: "2.1.0" }
   };
   private static readonly INVALID: string = "The root package.json's overrides must be an object, as npm reads them.";
-  private static readonly NESTED_ADVICE: string = "\nThe stage installs each shipped package from its archive as a direct dependency, and npm refuses a top-level override of a direct dependency; "
-    + "write the override nested under the dependent it is for, as { \"<dependent>\": { \"<package>\": \"<version>\" } }.";
   private static readonly FAILED: string = "Installing the packages into the stage failed with exit code 1; it uses only the build's archives and never the registry:\n";
 
   @TestMethod
   @TestData("nested")
   @TestData("$")
+  @TestData("top-level")
+  @TestData("top-level with its own")
   public async installsOfflineWithTheAppsOverridesInEachFormSoTheDependentTakesTheOneVersionTheArchivesHold(form: OverrideForm): Promise<void> {
-    const [overrides, fields] = PackageStageTests.FORMS[form];
+    const [overrides, fields, expected] = PackageStageTests.FORMS[form];
     await using stage = await PackageStageTests.createStageAsync();
 
     await PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1, overrides), fields, stage.cache, stage.archives);
@@ -70,7 +73,7 @@ export class PackageStageTests {
 
     Assert.areEqual("2.1.0", await PackageStageTests.readVersionAsync(path.join(stage.path, "node_modules", "shared-type")));
     Assert.isFalse(existsSync(path.join(stage.path, "node_modules", "sdk-host", "node_modules")));
-    Assert.areEqual(`${JSON.stringify({ ...fields, overrides }, null, 2)}\n`, written);
+    Assert.areEqual(`${JSON.stringify({ ...fields, overrides: expected }, null, 2)}\n`, written);
   }
 
   @TestMethod
@@ -104,13 +107,15 @@ export class PackageStageTests {
   }
 
   @TestMethod
-  public async refusesATopLevelOverrideOfAShippedPackageAndSaysToWriteItNestedUnderItsDependent(): Promise<void> {
+  public async leavesATopLevelOverrideOfAShippedPackageThatIsNeitherAVersionNorAnObjectForNpmToRefuse(): Promise<void> {
     await using stage = await PackageStageTests.createStageAsync();
 
-    const error = await Assert.throwsAsync(() => PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1, { "shared-type": "2.1.0" }), PackageStageTests.FIELDS,
+    const error = await Assert.throwsAsync(() => PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1, { "shared-type": 2 }), PackageStageTests.FIELDS,
       stage.cache, stage.archives), BuildException);
+    const written = JsonReader.parse(await readFile(path.join(stage.path, "package.json"), "utf8")).toJson();
 
-    Assert.isTrue(error.message.startsWith(PackageStageTests.FAILED) && error.message.includes("EOVERRIDE") && error.message.endsWith(PackageStageTests.NESTED_ADVICE), error.message);
+    Assert.isTrue(error.message.startsWith(PackageStageTests.FAILED), error.message);
+    Assert.areEqual(JSON.stringify({ "shared-type": 2 }), JSON.stringify(written["overrides"]));
   }
 
   @TestMethod
@@ -120,7 +125,7 @@ export class PackageStageTests {
     const error = await Assert.throwsAsync(() => PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1), PackageStageTests.FIELDS, stage.cache, stage.archives),
       BuildException);
 
-    Assert.isTrue(error.message.startsWith(PackageStageTests.FAILED) && error.message.includes("ENOTCACHED") && !error.message.includes(PackageStageTests.NESTED_ADVICE), error.message);
+    Assert.isTrue(error.message.startsWith(PackageStageTests.FAILED) && error.message.includes("ENOTCACHED"), error.message);
   }
 
   @TestMethod
@@ -128,11 +133,15 @@ export class PackageStageTests {
     const overrides = { "sdk-host": { "shared-type": "1.0.0" } };
 
     const [staged, version, written] = await PackageStageTests.stageSdkHostAsync(overrides);
+    const [stagedTopLevel, topLevelVersion, writtenTopLevel] = await PackageStageTests.stageSdkHostAsync({ "shared-type": "1.0.0" });
     const [refused] = await PackageStageTests.stageSdkHostAsync(null);
 
     Assert.isNull(staged);
     Assert.areEqual("1.0.0", version);
     Assert.areEqual(JSON.stringify(overrides), JSON.stringify(written));
+    Assert.isNull(stagedTopLevel);
+    Assert.areEqual("1.0.0", topLevelVersion);
+    Assert.areEqual(JSON.stringify({ "shared-type": "$shared-type" }), JSON.stringify(writtenTopLevel));
     Assert.isTrue(!Object.isNull(refused) && refused.startsWith(PackageStageTests.FAILED) && refused.includes("ENOTCACHED"), String(refused));
   }
 
@@ -263,13 +272,13 @@ export class PackageStageTests {
   }
 
   private static async createStageAsync(packages: Readonly<Record<string, Readonly<Record<string, unknown>>>> = PackageStageTests.PACKAGES):
-    Promise<{ path: string, cache: string, archives: readonly string[], npm: NpmCommand } & AsyncDisposable> {
+    Promise<{ path: string, cache: string, archives: ReadonlyMap<string, string>, npm: NpmCommand } & AsyncDisposable> {
     const folder = await mkdtemp(path.join(tmpdir(), "package-stage-"));
-    const archives: string[] = [];
+    const archives = new Map<string, string>();
     for (const [name, fields] of Object.entries(packages)) {
       const archive = path.join(folder, `${name}-${String(fields["version"])}.tgz`);
       await writeFile(archive, TarballFixture.create({ "package.json": JSON.stringify({ name, license: "MIT", ...fields }) }));
-      archives.push(archive);
+      archives.set(name, archive);
     }
     const stage = path.join(folder, "stage");
     await mkdir(stage);
