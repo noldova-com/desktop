@@ -1914,6 +1914,7 @@ export class MainProcessTests {
       electron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), { background: "red" });
       refusedElectron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), { background: "red" });
       await Condition.waitAsync(() => MainProcessStartFixture.firstWindow(refusedElectron).isShown);
+      await Condition.waitAsync(() => readFileSync(join(owned, "logs", "main.log"), "utf8").includes(" The window reported"));
 
       const lines = (await readFile(join(owned, "logs", "main.log"), "utf8")).trimEnd().split("\n");
       Assert.areEqual(1, lines.length);

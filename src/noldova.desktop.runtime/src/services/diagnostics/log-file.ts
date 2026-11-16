@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { appendFileSync, close, closeSync, fstatSync, openSync, readSync, renameSync, write, writeFileSync } from "node:fs";
+import { appendFileSync, close, closeSync, fstatSync, open, openSync, readSync, renameSync, write, writeFileSync } from "node:fs";
 
 import "@noldova/context.core";
 
@@ -26,6 +26,7 @@ export class LogFile {
   private readonly queue: LogBatch[] = [];
   private readonly pause: Int32Array = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
   private writing: Promise<void> | null = null;
+  private opening: LogBatch | null = null;
   private written: LogWrite | null = null;
   private size: number = 0;
   private landed: number = 0;
@@ -89,18 +90,12 @@ export class LogFile {
   public flush(): void {
     if (!Object.isNull(this.written))
       this.waitForWrite(this.written);
-    for (const batch of this.queue.splice(0)) {
-      try {
-        if (batch.isRollOver)
-          this.rollOver();
-        appendFileSync(this.file, batch.text, { mode: Resources.privateFileMode });
-        this.landed += Buffer.byteLength(batch.text);
-        batch.resolve();
-      }
-      catch (failure) {
-        batch.reject(failure);
-      }
-    }
+    const opening = this.opening;
+    this.opening = null;
+    if (!Object.isNull(opening))
+      this.writeAtOnce(opening, false);
+    for (const batch of this.queue.splice(0))
+      this.writeAtOnce(batch, batch.isRollOver);
   }
 
   public async flushAsync(): Promise<void> {
@@ -108,43 +103,77 @@ export class LogFile {
       await this.writing;
   }
 
-  private drain(): void {
-    for (let batch = this.takeNext(); !Object.isUndefined(batch); batch = this.takeNext()) {
-      const taken = batch;
-      const handle = this.openFor(taken);
-      if (Object.isUndefined(handle))
-        continue;
-      const text = Buffer.from(taken.text, Resources.utf8Encoding);
-      const generation = this.generation;
-      this.written = new LogWrite(text, this.landed);
-      this.writing = LogFile.writeAsync(handle, text).then(() => {
-        if (this.generation === generation)
-          this.landed += text.length;
-        this.settle();
-        taken.resolve();
-      }, (failure: unknown) => {
-        this.settle();
-        taken.reject(failure);
-      });
-    }
-  }
-
-  private settle(): void {
-    this.written = null;
-    this.writing = null;
-    this.drain();
-  }
-
-  private openFor(batch: LogBatch): number | undefined {
+  private writeAtOnce(batch: LogBatch, isRollOver: boolean): void {
     try {
-      if (batch.isRollOver)
+      if (isRollOver)
         this.rollOver();
-      return openSync(this.file, Resources.appendFlag, Resources.privateFileMode);
+      appendFileSync(this.file, batch.text, { mode: Resources.privateFileMode });
+      this.landed += Buffer.byteLength(batch.text);
+      batch.resolve();
     }
     catch (failure) {
       batch.reject(failure);
-      return undefined;
     }
+  }
+
+  private drain(): void {
+    for (let batch = this.takeNext(); !Object.isUndefined(batch); batch = this.takeNext()) {
+      if (this.rollOverFor(batch))
+        this.start(batch);
+    }
+  }
+
+  private rollOverFor(batch: LogBatch): boolean {
+    try {
+      if (batch.isRollOver)
+        this.rollOver();
+      return true;
+    }
+    catch (failure) {
+      batch.reject(failure);
+      return false;
+    }
+  }
+
+  private start(batch: LogBatch): void {
+    const settled = Promise.withResolvers<void>();
+    this.opening = batch;
+    this.writing = settled.promise;
+    open(this.file, Resources.appendFlag, Resources.privateFileMode, (failure, handle) => {
+      const isTakenBack = this.opening !== batch;
+      this.opening = null;
+      if (!Object.isNull(failure)) {
+        this.settle(settled);
+        batch.reject(failure);
+      }
+      else if (isTakenBack)
+        close(handle, () => this.settle(settled));
+      else
+        this.write(batch, handle, settled);
+    });
+  }
+
+  private write(batch: LogBatch, handle: number, settled: PromiseWithResolvers<void>): void {
+    const text = Buffer.from(batch.text, Resources.utf8Encoding);
+    const generation = this.generation;
+    this.written = new LogWrite(text, this.landed);
+    LogFile.writeAll(handle, text, failure => close(handle, closeFailure => {
+      if (Object.isNull(failure) && this.generation === generation)
+        this.landed += text.length;
+      this.settle(settled);
+      const error = failure ?? closeFailure;
+      if (Object.isNull(error))
+        batch.resolve();
+      else
+        batch.reject(error);
+    }));
+  }
+
+  private settle(settled: PromiseWithResolvers<void>): void {
+    this.written = null;
+    this.writing = null;
+    this.drain();
+    settled.resolve();
   }
 
   private takeNext(): LogBatch | undefined {
@@ -191,14 +220,12 @@ export class LogFile {
     }
   }
 
-  private static writeAsync(handle: number, text: Buffer): Promise<void> {
-    const written = Promise.withResolvers<void>();
-    write(handle, text, failure => close(handle, () => {
-      if (Object.isNull(failure))
-        written.resolve();
+  private static writeAll(handle: number, text: Buffer, done: (failure: NodeJS.ErrnoException | null) => void): void {
+    write(handle, text, (failure, written) => {
+      if (Object.isNull(failure) && written < text.length)
+        LogFile.writeAll(handle, text.subarray(written), done);
       else
-        written.reject(failure);
-    }));
-    return written.promise;
+        done(failure);
+    });
   }
 }
