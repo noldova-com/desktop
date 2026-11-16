@@ -8,7 +8,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -38,7 +38,22 @@ export class PosixAddonVariantFixture {
   private static readonly HEADERS_SEGMENTS: readonly string[] = ["_build", "node-gyp"];
   private static readonly TARGET: string = "posix_process";
   private static readonly NO_NPM: string = "npm_execpath is not set; run the tests through npm test.";
-  private static readonly TIMEOUT: number = 25_000;
+  private static readonly ELF_MAGIC: number = 0x7f454c46;
+  private static readonly ELF_CLASS: number = 4;
+  private static readonly ELF_64_BIT: number = 2;
+  private static readonly ELF_ENCODING: number = 5;
+  private static readonly ELF_LITTLE_ENDIAN: number = 1;
+  private static readonly SECTION_TABLE_OFFSET: number = 0x28;
+  private static readonly SECTION_ENTRY_SIZE_OFFSET: number = 0x3a;
+  private static readonly SECTION_COUNT_OFFSET: number = 0x3c;
+  private static readonly SECTION_TYPE: number = 4;
+  private static readonly SECTION_OFFSET: number = 24;
+  private static readonly SECTION_SIZE: number = 32;
+  private static readonly SECTION_LINK: number = 40;
+  private static readonly DYNAMIC_SYMBOLS: number = 11;
+  private static readonly SYMBOL_SIZE: number = 24;
+  private static readonly SYMBOL_SECTION: number = 6;
+  private static readonly UNDEFINED_SECTION: number = 0;
 
   public static async buildAsync(variant: string, folder: string): Promise<string> {
     if (variant === PosixAddonVariantFixture.BUILT)
@@ -60,13 +75,28 @@ export class PosixAddonVariantFixture {
     await promisify(execFile)(process.execPath, [
       path.join(path.dirname(String(npm)), ...PosixAddonVariantFixture.NODE_GYP_SEGMENTS), "rebuild", "--loglevel=error", "--enable-lto=false", "--enable-thin-lto=false",
       "--devdir", path.join(root, ...PosixAddonVariantFixture.HEADERS_SEGMENTS)
-    ], { cwd: folder, timeout: PosixAddonVariantFixture.TIMEOUT });
+    ], { cwd: folder });
     return path.join(folder, "build", "Release", `${PosixAddonVariantFixture.TARGET}.node`);
   }
 
   public static async readImportsAsync(addon: string): Promise<readonly string[]> {
-    const { stdout } = await promisify(execFile)("nm", ["-D", "--undefined-only", addon], { encoding: "utf8", timeout: PosixAddonVariantFixture.TIMEOUT });
-    return stdout.split("\n").map(t => t.trim().split(/\s+/).at(-1)?.split("@")[0] ?? String.empty).filter(t => t.length > 0);
+    const file = await readFile(addon);
+    if (file.readUInt32BE(0) !== PosixAddonVariantFixture.ELF_MAGIC || file[PosixAddonVariantFixture.ELF_CLASS] !== PosixAddonVariantFixture.ELF_64_BIT
+      || file[PosixAddonVariantFixture.ELF_ENCODING] !== PosixAddonVariantFixture.ELF_LITTLE_ENDIAN)
+      Assert.fail(`${addon} is not a 64-bit little-endian ELF file.`);
+    const table = Number(file.readBigUInt64LE(PosixAddonVariantFixture.SECTION_TABLE_OFFSET));
+    const entrySize = file.readUInt16LE(PosixAddonVariantFixture.SECTION_ENTRY_SIZE_OFFSET);
+    const sections = Array.from({ length: file.readUInt16LE(PosixAddonVariantFixture.SECTION_COUNT_OFFSET) }, (_, i) => table + i * entrySize);
+    const symbols = sections.find(t => file.readUInt32LE(t + PosixAddonVariantFixture.SECTION_TYPE) === PosixAddonVariantFixture.DYNAMIC_SYMBOLS);
+    if (Object.isUndefined(symbols))
+      Assert.fail(`${addon} has no dynamic symbol table.`);
+    const names = Number(file.readBigUInt64LE(table + file.readUInt32LE(symbols + PosixAddonVariantFixture.SECTION_LINK) * entrySize + PosixAddonVariantFixture.SECTION_OFFSET));
+    const first = Number(file.readBigUInt64LE(symbols + PosixAddonVariantFixture.SECTION_OFFSET));
+    const count = Number(file.readBigUInt64LE(symbols + PosixAddonVariantFixture.SECTION_SIZE)) / PosixAddonVariantFixture.SYMBOL_SIZE;
+    return Array.from({ length: count }, (_, i) => first + i * PosixAddonVariantFixture.SYMBOL_SIZE)
+      .filter(t => file.readUInt16LE(t + PosixAddonVariantFixture.SYMBOL_SECTION) === PosixAddonVariantFixture.UNDEFINED_SECTION && file.readUInt32LE(t) > 0)
+      .map(t => names + file.readUInt32LE(t))
+      .map(t => file.toString("latin1", t, file.indexOf(0, t)));
   }
 
   private static findRoot(): string {
