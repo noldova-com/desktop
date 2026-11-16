@@ -563,7 +563,7 @@ export class RuntimeLauncherTests {
   @TestMethod
   public waitsForAnOlderRuntimeToStopPastTheLaunchTimeoutAndThenLaunchesWithAFullTimeout(): Promise<void> {
     return RuntimeLauncherTests.runWithFakeAsync(async fake => {
-      const starter = await FinishedStarterFixture.runAsync(`setTimeout(() => { console.error("It started after the stop."); process.exit(1); }, 1_100);`);
+      const starter = await FinishedStarterFixture.prepareAsync(1_100, "It started after the stop.");
       fake.server.methods.register(ShellMethods.stop, { handleAsync: () => {
         setTimeout(() => fake.release(), 1_500);
         return Promise.resolve(null);
