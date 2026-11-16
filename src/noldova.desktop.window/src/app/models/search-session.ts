@@ -47,8 +47,11 @@ export class SearchSession {
     const query = this.queryValue();
     const answers = this.answersValue();
     return [
-      new SearchFilter(null, Resources.allFilterLabel, null, Object.isNull(filter)),
-      ...this.searched().map(t => new SearchFilter(t.name, t.label, query.isEmpty ? null : answers.get(t.name)?.total ?? null, t.name === filter))
+      new SearchFilter(null, Resources.allFilterLabel, null, false, Object.isNull(filter)),
+      ...this.searched().map(t => {
+        const answer = query.isEmpty ? undefined : answers.get(t.name);
+        return new SearchFilter(t.name, t.label, answer?.total ?? null, answer?.isCapped ?? false, t.name === filter);
+      })
     ];
   });
   public readonly groups: Signal<readonly SearchGroup[]> = computed(() => {

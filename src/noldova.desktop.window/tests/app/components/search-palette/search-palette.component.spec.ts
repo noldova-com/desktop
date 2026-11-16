@@ -135,6 +135,20 @@ describe("SearchPaletteComponent", () => {
     expect([DomFixture.one(host, "nol-quick-input").getAttribute("data-searching"), host.querySelector("[aria-busy]")]).toEqual(["false", null]);
   });
 
+  it("shows a capped count with a + right after it, and a count of 1000 or more that isn't capped as it is", async () => {
+    const capped = new SearchSourceContribution("chat.capped", "Capped", "capped", "In Capped", null, "chat",
+      () => Promise.resolve([]), () => Promise.resolve(new SearchAnswer([result("chat.many", "Terminal logs")], 1000, true)));
+    const exact = new SearchSourceContribution("chat.exact", "Exact", "exact", "In Exact", null, "chat",
+      () => Promise.resolve([]), () => Promise.resolve(new SearchAnswer([result("chat.more", "Terminal notes")], 1500)));
+    TestBed.overrideProvider(SearchService, { useValue: { placeholder: signal("Search chats"), createSession: () => new SearchSession([capped, exact], "desktop.commands", () => undefined) } });
+    const fixture = await renderAsync();
+    const host = DomFixture.host(fixture);
+    await typeAsync(fixture, "term", t => !Object.isNull(t.querySelector("[data-item='chat.exact/chat.more']")));
+
+    expect(filters(host).map(t => t[1])).toEqual(["All", "Capped 1000+", "Exact 1500"]);
+    expect([...host.querySelectorAll(".nol-search-filter-count")].map(t => t.textContent)).toEqual(["1000+", "1500"]);
+  });
+
   it("marks the palette as searching while a source is still answering, and leaves the count, the results and the field to assistive technology", async () => {
     let answer: (value: SearchAnswer) => void = () => undefined;
     const slow = new SearchSourceContribution("chat.slow", "Slow", "slow", "In Slow", null, "chat",
