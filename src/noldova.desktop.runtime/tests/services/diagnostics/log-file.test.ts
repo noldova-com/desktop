@@ -14,7 +14,7 @@ import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { DiagnosticRedactor, LogFile } from "@noldova/desktop.runtime";
 
-import { SlowAppendFixture } from "../../fixtures/slow-append.fixture.js";
+import { SlowWriteFixture } from "../../fixtures/slow-write.fixture.js";
 import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.js";
 
 @TestClass
@@ -134,7 +134,7 @@ export class LogFileTests {
     return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
       const lines = Array.from({ length: 3 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
-      using slow = new SlowAppendFixture(false);
+      using slow = new SlowWriteFixture(false);
 
       const written = [log.appendAsync(lines[0] ?? String.empty), log.appendAsync(lines[1] ?? String.empty)];
       log.append(lines[2] ?? String.empty);
@@ -152,7 +152,7 @@ export class LogFileTests {
     return LogFileTests.runAsync(0, async (log, file) => {
       const lines = Array.from({ length: 2 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
-      using held = new SlowAppendFixture(true);
+      using held = new SlowWriteFixture(true);
 
       const first = log.appendAsync(lines[0] ?? String.empty);
       log.append(lines[1] ?? String.empty);
@@ -172,7 +172,7 @@ export class LogFileTests {
       const shared = "Another main process was refused the lock and wrote this.\n";
       log.open();
       appendFileSync(file, shared);
-      using slow = new SlowAppendFixture(false);
+      using slow = new SlowWriteFixture(false);
 
       const first = log.appendAsync(lines[0] ?? String.empty);
       log.append(lines[1] ?? String.empty);
@@ -185,6 +185,29 @@ export class LogFileTests {
   }
 
   @TestMethod
+  public findsALaterLineBeingWrittenAfterALineWrittenAtOnceRollsOverDuringAWrite(): Promise<void> {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
+      const lines = Array.from({ length: 7 }, (_, i) => log.format(`record ${i + 1}`));
+      log.open();
+      for (const line of lines.slice(0, 3))
+        log.append(line);
+      using slow = new SlowWriteFixture(false);
+
+      const during = log.appendAsync(lines[3] ?? String.empty);
+      log.append(lines[4] ?? String.empty);
+      await during;
+      const later = log.appendAsync(lines[5] ?? String.empty);
+      log.append(lines[6] ?? String.empty);
+      const atOnce = readFileSync(file, "utf8");
+      await later;
+
+      Assert.areEqual(2, slow.calls);
+      Assert.areEqual(lines.slice(0, 4).join(String.empty), await readFile(previous, "utf8"));
+      Assert.areEqual(lines.slice(4).join(String.empty), atOnce);
+    });
+  }
+
+  @TestMethod
   public keepsTheOrderAfterALineItCouldNotWrite(): Promise<void> {
     return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
       const lines = Array.from({ length: 3 }, (_, i) => log.format(`record ${i + 1}`));
@@ -193,7 +216,7 @@ export class LogFileTests {
       await Assert.throwsAsync(() => log.appendAsync(lines[0] ?? String.empty), Error);
       await rm(file, { recursive: true });
       await writeFile(file, String.empty);
-      using slow = new SlowAppendFixture(false);
+      using slow = new SlowWriteFixture(false);
       const second = log.appendAsync(lines[1] ?? String.empty);
       log.append(lines[2] ?? String.empty);
       const atOnce = readFileSync(file, "utf8");
@@ -209,7 +232,7 @@ export class LogFileTests {
     return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
       const lines = Array.from({ length: 2 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
-      using held = new SlowAppendFixture(true);
+      using held = new SlowWriteFixture(true);
 
       const first = log.appendAsync(lines[0] ?? String.empty);
       await rm(file);
@@ -219,7 +242,23 @@ export class LogFileTests {
       await first;
 
       Assert.areEqual(lines[1], atOnce);
-      Assert.areEqual(`${lines[1]}${lines[0]}`, await readFile(file, "utf8"));
+      Assert.areEqual(lines[1], await readFile(file, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public rejectsALineWhoseWriteFailsAndStillWritesTheNextOne(): Promise<void> {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
+      const lines = Array.from({ length: 2 }, (_, i) => log.format(`record ${i + 1}`));
+      log.open();
+      using held = new SlowWriteFixture(true);
+
+      const first = log.appendAsync(lines[0] ?? String.empty);
+      held.fail(Object.assign(new Error("EIO: the disk failed."), { code: "EIO" }));
+      await Assert.throwsAsync(() => first, Error);
+      await log.appendAsync(lines[1] ?? String.empty);
+
+      Assert.areEqual(lines[1], await readFile(file, "utf8"));
     });
   }
 
@@ -256,7 +295,7 @@ export class LogFileTests {
     return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
       const lines = Array.from({ length: 5 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
-      using slow = new SlowAppendFixture(false);
+      using slow = new SlowWriteFixture(false);
       const written = lines.map(t => log.appendAsync(t));
       await mkdir(path.join(previous, "held"), { recursive: true });
 

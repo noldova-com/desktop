@@ -258,6 +258,7 @@ SQLite holds every durable record.
 - The runtime and the main process each keep a log in the data directory's `logs` folder, timestamped, redacted and limited in size, with the previous run's beside it.
   Lines go to the file without waiting for the disk, in the order they were written; the lines that wait meanwhile are written together, and when the file fills it becomes the previous file between two lines, so none is lost.
   A line that must land before the process ends is written at once, after the lines still waiting: the runtime's own lines, such as an uncaught exception's, and, as the main process quits or exits, every line still waiting for its log; a write already under way gets up to 2 seconds to land first, so the order holds; it has landed once its text is in the file, so a line another main process adds to the log meanwhile doesn't end the wait early.
+  A write opens its file as it starts, so it goes on while the process waits for it, and when the file is removed meanwhile, that write's lines go with the removed file.
   Closing the runtime's log waits for every line.
   The running runtime's own standard error, its start log or `runtime.errors.log`, is neither timestamped nor redacted, since the runtime writes it without its log, such as when its log can't be written or when Node ends it; it holds what the runtime and its modules' runtime parts write to standard error.
   What is kept of it, `runtime.previous.errors.log`, is redacted as the log is, so only the running runtime's own file is raw.

@@ -6,8 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { appendFileSync, closeSync, fstatSync, openSync, readSync, renameSync, writeFileSync } from "node:fs";
-import { appendFile } from "node:fs/promises";
+import { appendFileSync, close, closeSync, fstatSync, openSync, readSync, renameSync, write, writeFileSync } from "node:fs";
 
 import "@noldova/context.core";
 
@@ -30,6 +29,7 @@ export class LogFile {
   private written: LogWrite | null = null;
   private size: number = 0;
   private landed: number = 0;
+  private generation: number = 0;
 
   public constructor(
     file: string,
@@ -111,26 +111,39 @@ export class LogFile {
   private drain(): void {
     for (let batch = this.takeNext(); !Object.isUndefined(batch); batch = this.takeNext()) {
       const taken = batch;
-      try {
-        if (taken.isRollOver)
-          this.rollOver();
-      }
-      catch (failure) {
-        taken.reject(failure);
+      const handle = this.openFor(taken);
+      if (Object.isUndefined(handle))
         continue;
-      }
       const text = Buffer.from(taken.text, Resources.utf8Encoding);
+      const generation = this.generation;
       this.written = new LogWrite(text, this.landed);
-      this.writing = appendFile(this.file, text, { mode: Resources.privateFileMode })
-        .then(() => {
+      this.writing = LogFile.writeAsync(handle, text).then(() => {
+        if (this.generation === generation)
           this.landed += text.length;
-          taken.resolve();
-        }, (failure: unknown) => taken.reject(failure))
-        .finally(() => {
-          this.written = null;
-          this.writing = null;
-          this.drain();
-        });
+        this.settle();
+        taken.resolve();
+      }, (failure: unknown) => {
+        this.settle();
+        taken.reject(failure);
+      });
+    }
+  }
+
+  private settle(): void {
+    this.written = null;
+    this.writing = null;
+    this.drain();
+  }
+
+  private openFor(batch: LogBatch): number | undefined {
+    try {
+      if (batch.isRollOver)
+        this.rollOver();
+      return openSync(this.file, Resources.appendFlag, Resources.privateFileMode);
+    }
+    catch (failure) {
+      batch.reject(failure);
+      return undefined;
     }
   }
 
@@ -142,21 +155,22 @@ export class LogFile {
     this.replacePrevious();
     writeFileSync(this.file, String.empty, { mode: Resources.privateFileMode });
     this.landed = 0;
+    this.generation++;
   }
 
-  private waitForWrite(write: LogWrite): void {
+  private waitForWrite(pending: LogWrite): void {
     const deadline = Date.now() + this.writeWait;
-    while (!this.hasLanded(write) && Date.now() < deadline)
+    while (!this.hasLanded(pending) && Date.now() < deadline)
       Atomics.wait(this.pause, 0, 0, Resources.logWriteWaitPause);
   }
 
-  private hasLanded(write: LogWrite): boolean {
+  private hasLanded(pending: LogWrite): boolean {
     try {
       const handle = openSync(this.file, Resources.readFlag);
       try {
-        const tail = Buffer.alloc(Math.max(0, fstatSync(handle).size - write.from));
-        readSync(handle, tail, 0, tail.length, write.from);
-        return tail.includes(write.text);
+        const tail = Buffer.alloc(Math.max(0, fstatSync(handle).size - pending.from));
+        readSync(handle, tail, 0, tail.length, pending.from);
+        return tail.includes(pending.text);
       }
       finally {
         closeSync(handle);
@@ -175,5 +189,16 @@ export class LogFile {
       if (!SystemErrorCode.is(failure, Resources.missingFileErrorCode))
         throw failure;
     }
+  }
+
+  private static writeAsync(handle: number, text: Buffer): Promise<void> {
+    const written = Promise.withResolvers<void>();
+    write(handle, text, failure => close(handle, () => {
+      if (Object.isNull(failure))
+        written.resolve();
+      else
+        written.reject(failure);
+    }));
+    return written.promise;
   }
 }
