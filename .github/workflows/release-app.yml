@@ -65,8 +65,16 @@ on:
         description: The internal update feed's HTTPS URL, which internal-feed needs.
         type: string
         default: ''
+      source-repository:
+        description: The repository, as owner/name, whose app the release checks out at revision and builds; empty is this repository. Another repository must be public, since the release reads it with this run's token, and revision must be on its main with a passed Build and test run there.
+        type: string
+        default: ''
+      signing-environment:
+        description: The environment of this repository whose secrets sign the packages, such as one per app in a repository that builds several apps.
+        type: string
+        default: release
       release-repository:
-        description: The repository, as owner/name, whose releases the release publishes in, such as one shared by several apps; empty publishes in this repository. Another repository's release is tagged there by GitHub at its default branch, and its notes name this repository's commit.
+        description: The repository, as owner/name, whose releases the release publishes in, such as one shared by several apps; empty publishes in this repository. Another repository's release is tagged there by GitHub at its default branch, and its notes name the source repository's commit.
         type: string
         default: ''
       release-tag-prefix:
@@ -187,7 +195,7 @@ jobs:
         env:
           API_URL: ${{ github.api_url }}
           GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
+          REPOSITORY: ${{ inputs.source-repository || github.repository }}
           REVISION: ${{ inputs.revision }}
         run: |
           set -euo pipefail
@@ -210,6 +218,7 @@ jobs:
         timeout-minutes: 5
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          repository: ${{ inputs.source-repository || github.repository }}
           ref: ${{ inputs.revision }}
           persist-credentials: false
 
@@ -355,7 +364,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
-          RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
+          RELEASE_SOURCE_REPOSITORY: ${{ inputs.source-repository || github.repository }}
+          RELEASE_BUILD_REPOSITORY: ${{ github.repository }}
           RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}
@@ -418,6 +428,7 @@ jobs:
     with:
       app-folder: ${{ inputs.app-folder }}
       prepare: ${{ inputs.prepare }}
+      repository: ${{ inputs.source-repository }}
       revision: ${{ inputs.revision }}
       targets: ${{ needs.check.outputs.targets }}
       update-feed: ${{ needs.check.outputs.update-feed }}
@@ -436,9 +447,11 @@ jobs:
     with:
       app-folder: ${{ inputs.app-folder }}
       prepare: ${{ inputs.prepare }}
+      repository: ${{ inputs.source-repository }}
       revision: ${{ inputs.revision }}
       targets: ${{ needs.check.outputs.signed-targets }}
       signed: true
+      signing-environment: ${{ inputs.signing-environment }}
       update-feed: ${{ needs.check.outputs.update-feed }}
       package-version: ${{ needs.check.outputs.package-version }}
       keep-release-files: true
@@ -502,7 +515,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
-          RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
+          RELEASE_SOURCE_REPOSITORY: ${{ inputs.source-repository || github.repository }}
+          RELEASE_BUILD_REPOSITORY: ${{ github.repository }}
           RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}
@@ -566,7 +580,8 @@ jobs:
         working-directory: ${{ inputs.app-folder }}
         env:
           RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
-          RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
+          RELEASE_SOURCE_REPOSITORY: ${{ inputs.source-repository || github.repository }}
+          RELEASE_BUILD_REPOSITORY: ${{ github.repository }}
           RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}

@@ -33,6 +33,16 @@ export class ReleaseRequestTests {
   }
 
   @TestMethod
+  public buildsInItsSourceRepositoryUnlessAnotherIsNamed(): void {
+    const request = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_BUILD_REPOSITORY: "" });
+    const same = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_BUILD_REPOSITORY: "Example/Sample-App" });
+    const built = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_BUILD_REPOSITORY: "example/builds" });
+
+    Assert.areEqual("example/sample-app,false,false", [request.buildRepository, request.isBuiltElsewhere, same.isBuiltElsewhere].join());
+    Assert.areEqual("example/builds,example/sample-app,true,true", [built.buildRepository, built.sourceRepository, built.isBuiltElsewhere, built.isSeparate].join());
+  }
+
+  @TestMethod
   public publishesInAnotherRepositoryUnderItsOwnTagPrefix(): void {
     const request = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_TAG_PREFIX: "sample-app-" });
 
@@ -69,6 +79,8 @@ export class ReleaseRequestTests {
       [{ RELEASE_VERSION: "1.2" }, "RELEASE_VERSION must be a plain version such as 0.0.2, not \"1.2\"."],
       [{ RELEASE_REVISION: "0123456" }, "RELEASE_REVISION must be a full commit SHA of 40 lowercase hexadecimal digits, not \"0123456\"."],
       [{ RELEASE_SOURCE_REPOSITORY: "sample-app" }, "RELEASE_SOURCE_REPOSITORY must name a repository as owner/name, not \"sample-app\"."],
+      [{ RELEASE_BUILD_REPOSITORY: "builds" }, "RELEASE_BUILD_REPOSITORY must name a repository as owner/name, not \"builds\"."],
+      [{ RELEASE_BUILD_REPOSITORY: "example/builds/app" }, "RELEASE_BUILD_REPOSITORY must name a repository as owner/name, not \"example/builds/app\"."],
       [{ RELEASE_TAG_PREFIX: "sample-app" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"sample-app\"."],
       [{ RELEASE_TAG_PREFIX: "Sample-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"Sample-\"."],
       [{ RELEASE_TAG_PREFIX: "sample--app-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not \"sample--app-\"."],

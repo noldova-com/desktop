@@ -33,6 +33,7 @@ export class ReleaseCheckTests {
     RELEASE_VERSION: "1.2.3",
     RELEASE_REVISION: ReleaseCheckTests.REVISION
   };
+  private static readonly BUILT: NodeJS.ProcessEnv = { ...ReleaseCheckTests.SEPARATE, RELEASE_BUILD_REPOSITORY: "example/builds" };
 
   @TestMethod
   public async checksANewVersionOnMainWhoseRunPassedAndWritesItsOutputsAsync(): Promise<void> {
@@ -121,6 +122,41 @@ export class ReleaseCheckTests {
     Assert.areEqual("1.2.3 is not newer than the highest release, 1.3.0.\n", older.output);
     const asked = github.requests.map(t => (t.split(" ").find(u => u.startsWith("repos/")) ?? String.empty).split(/[/?]/u).slice(1, 4).join("/"));
     Assert.areEqual("example/downloads/releases,example/downloads/git,example/sample-app/compare,example/sample-app/actions", [...new Set(asked)].join());
+  }
+
+  @TestMethod
+  public async checksThatASourceBuiltInAnotherRepositoryIsPublicAndItsRevisionOnItsMainAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync({ updateFeed: ReleaseCheckTests.OWN_FEED });
+    const github = ReleaseCheckTests.describing(ReleaseCheckTests.passing(), { private: false });
+    const behind = ReleaseCheckTests.describing(ReleaseCheckTests.answering({ status: "behind" }, []), { private: false });
+    const missing = ReleaseCheckTests.describing(ReleaseCheckTests.answering(null, []), { private: false });
+
+    const result = await ReleaseCheckTests.runAsync(app.path, github, ReleaseCheckTests.BUILT);
+    const elsewhere = await ReleaseCheckTests.runAsync(app.path, behind, ReleaseCheckTests.BUILT);
+    const unknown = await ReleaseCheckTests.runAsync(app.path, missing, ReleaseCheckTests.BUILT);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    const asked = github.requests.map(t => (t.split(" ").find(u => u.startsWith("repos/")) ?? String.empty).split(/[/?]/u).slice(1, 4).join("/"));
+    Assert.areEqual("example/downloads/releases,example/downloads/git,example/sample-app,example/sample-app/compare,example/sample-app/actions", [...new Set(asked)].join());
+    Assert.areEqual(`${ReleaseCheckTests.REVISION} is not on main; main is behind compared with it.\n`, elsewhere.output);
+    Assert.areEqual(`${ReleaseCheckTests.REVISION} is not a commit of example/sample-app.\n`, unknown.output);
+    Assert.areEqual("1,1", [elsewhere.exitCode, unknown.exitCode].join());
+  }
+
+  @TestMethod
+  public async refusesASourceBuiltInAnotherRepositoryThatIsPrivateOrMissingAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync({ updateFeed: ReleaseCheckTests.OWN_FEED });
+    const hidden = ReleaseCheckTests.describing(ReleaseCheckTests.passing(), { private: true });
+
+    const secret = await ReleaseCheckTests.runAsync(app.path, hidden, ReleaseCheckTests.BUILT);
+    const absent = await ReleaseCheckTests.runAsync(app.path, ReleaseCheckTests.passing(), ReleaseCheckTests.BUILT);
+
+    const message = "The release runs in example/builds and reads its source example/sample-app with the run's own token, which reads no other private repository, so example/sample-app must be public; "
+      + "it is private or doesn't exist.\n";
+    Assert.areEqual(message, secret.output);
+    Assert.areEqual(message, absent.output);
+    Assert.areEqual("1,1", [secret.exitCode, absent.exitCode].join());
+    Assert.isFalse(hidden.requests.some(t => t.includes("/compare/")), hidden.requests.join("\n"));
   }
 
   @TestMethod
@@ -245,6 +281,12 @@ export class ReleaseCheckTests {
         return GitHubReleasesFixture.ok({ workflow_runs: runs });
       return null;
     };
+    return github;
+  }
+
+  private static describing(github: GitHubReleasesFixture, repository: unknown): GitHubReleasesFixture {
+    const answer = github.intercept;
+    github.intercept = t => t.includes("repos/example/sample-app") ? GitHubReleasesFixture.ok(repository) : answer(t);
     return github;
   }
 

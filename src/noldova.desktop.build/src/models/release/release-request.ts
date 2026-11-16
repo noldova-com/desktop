@@ -15,14 +15,16 @@ import { Resources } from "../../resources.ts";
 export class ReleaseRequest {
   public readonly repository: string;
   public readonly sourceRepository: string;
+  public readonly buildRepository: string;
   public readonly version: ReleaseVersion;
   public readonly revision: string;
   public readonly tag: string;
   private readonly tagPrefix: string;
 
-  private constructor(repository: string, sourceRepository: string, version: ReleaseVersion, revision: string, tagPrefix: string) {
+  private constructor(repository: string, sourceRepository: string, buildRepository: string, version: ReleaseVersion, revision: string, tagPrefix: string) {
     this.repository = repository;
     this.sourceRepository = sourceRepository;
+    this.buildRepository = buildRepository;
     this.version = version;
     this.revision = revision;
     this.tagPrefix = tagPrefix;
@@ -31,6 +33,10 @@ export class ReleaseRequest {
 
   public get isSeparate(): boolean {
     return this.repository.toLowerCase() !== this.sourceRepository.toLowerCase();
+  }
+
+  public get isBuiltElsewhere(): boolean {
+    return this.buildRepository.toLowerCase() !== this.sourceRepository.toLowerCase();
   }
 
   public ownsTag(tag: string): boolean {
@@ -54,10 +60,13 @@ export class ReleaseRequest {
     const sourceRepository = ReleaseRequest.readOptional(environment, Resources.releaseSourceRepositoryVariable) ?? repository;
     if (!Resources.releaseRepositoryPattern.test(sourceRepository))
       throw new BuildException(Resources.formatReleaseRepositoryInvalid(sourceRepository, Resources.releaseSourceRepositoryVariable));
+    const buildRepository = ReleaseRequest.readOptional(environment, Resources.releaseBuildRepositoryVariable) ?? sourceRepository;
+    if (!Resources.releaseRepositoryPattern.test(buildRepository))
+      throw new BuildException(Resources.formatReleaseRepositoryInvalid(buildRepository, Resources.releaseBuildRepositoryVariable));
     const tagPrefix = ReleaseRequest.readOptional(environment, Resources.releaseTagPrefixVariable) ?? Resources.releaseTagPrefix;
     if (!Resources.releaseTagPrefixPattern.test(tagPrefix))
       throw new BuildException(Resources.formatReleaseTagPrefixInvalid(tagPrefix));
-    return new ReleaseRequest(repository, sourceRepository, version, revision, tagPrefix);
+    return new ReleaseRequest(repository, sourceRepository, buildRepository, version, revision, tagPrefix);
   }
 
   private static readOptional(environment: NodeJS.ProcessEnv, variable: string): string | null {

@@ -182,7 +182,7 @@ Each target is packaged on its own platform and processor, through electron-buil
     It then reads the `@noldova/*` names among the archive's `peerDependencies`, and takes and checks each of those packages the same way, at the version the lockfile locks; a peer the lockfile doesn't lock fails the job with its name.
     It passes that list on as its `peers` output, so the later jobs check and unpack the same packages, a job without a checkout against the SHA-512s the `fetch` job checked.
   - Its `check` and `publish` jobs check those archives again and run its release entry with no install, so no third-party code runs where `contents: write` is held.
-  - Its `build` and `build-signed` jobs call `$/.github/workflows/package-app.yml`, Noldova Desktop's own file at the commit the app calls; only `build-signed` runs in the environment `release`, from main, with the signing secrets, and only `publish` runs in the environment `publish`.
+  - Its `build` and `build-signed` jobs call `$/.github/workflows/package-app.yml`, Noldova Desktop's own file at the commit the app calls; only `build-signed` runs in the environment `signing-environment` names, `release` by default, from main, with the signing secrets, and only `publish` runs in the environment `publish`.
 - `package-app.yml` installs the app's dependencies and runs its `prepare` command with install scripts off, so npm runs no dependency's install script in either, and no pre- or post-script of a script `prepare` runs.
   Since that also skips the app's own root lifecycle, the install then runs the root package's `preinstall`, `install`, `postinstall`, `prepublish`, `preprepare`, `prepare` and `postprepare` scripts by name, in npm's order, as `npm ci` would; one that installs another folder, such as `npm ci --prefix src`, runs no dependency's install script either.
   Electron's binary installs in a step of its own.
@@ -223,6 +223,10 @@ Each target is packaged on its own platform and processor, through electron-buil
   - The draft names no commit and its name is the tag; GitHub makes the tag at that repository's default branch when the release publishes, and publication then requires the tag rather than a commit.
     The notes end with the source repository and commit.
   - Publishing there needs a token that may write that repository's releases; the release's own token writes only the source repository.
+- An app's official build may run in another repository, such as a private one that builds several apps, with `release-app.yml`'s `source-repository`; it defaults to the repository running the release.
+  - Every job checks out `source-repository` at `revision` and builds `app-folder` from it, and `release-check` reads the revision, its comparison with `main` and its Build and test run there.
+  - The source must be public: the release reads it with the run's own token, which reads no other private repository, and `release-check` refuses a private or missing source before anything else there.
+  - `signing-environment` names the environment of the repository running the release whose secrets sign the packages, such as one per app.
 - `feed-check` checks a published update feed as an installed app reads it, anonymously: for each target it reads `latest-<platform>-<architecture>.yml` and requires the release's version, then downloads every file it lists and requires its SHA-512 and size.
   It reads the latest release of a repository, or a feed URL it is given, which must carry no user info, query or fragment, so no secret reaches a request or the log.
   While a target's update information is missing or names another version, as from a CDN still serving the release before, it tries again every 15 seconds for up to 10 minutes by default; any other failure, such as a package whose SHA-512 differs, ends the check at once, and its downloads together get at most 10 minutes past that wait.

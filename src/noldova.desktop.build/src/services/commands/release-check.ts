@@ -81,6 +81,12 @@ export class ReleaseCheck {
       throw new BuildException(Resources.formatReleaseTagTaken(request.tag, request.repository));
     ReleaseTag.requireAt(request.tag, tagged, request.revision);
 
+    if (request.isBuiltElsewhere) {
+      const repository = await source.readOptionalAsync(String.empty);
+      if (Object.isNull(repository) || GitHubJson.flag(GitHubJson.object(repository, Resources.sourceRepositoryLabel), Resources.gitHubPrivateField, Resources.sourceRepositoryLabel))
+        throw new BuildException(Resources.formatReleaseSourceNotPublic(request.sourceRepository, request.buildRepository));
+    }
+
     const comparison = await source.readOptionalAsync(Resources.formatCompareRoute(request.revision));
     if (Object.isNull(comparison))
       throw new BuildException(Resources.formatRevisionNotCommit(request.revision, request.sourceRepository));

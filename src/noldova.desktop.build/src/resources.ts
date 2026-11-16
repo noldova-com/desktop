@@ -1092,6 +1092,9 @@ export class Resources {
   public static readonly feedUrlVariable: string = "FEED_URL";
   public static readonly releaseRepositoryVariable: string = "RELEASE_REPOSITORY";
   public static readonly releaseSourceRepositoryVariable: string = "RELEASE_SOURCE_REPOSITORY";
+  public static readonly releaseBuildRepositoryVariable: string = "RELEASE_BUILD_REPOSITORY";
+  public static readonly gitHubPrivateField: string = "private";
+  public static readonly sourceRepositoryLabel: string = "the source repository";
   public static readonly releaseTagPrefixVariable: string = "RELEASE_TAG_PREFIX";
   public static readonly feedWaitVariable: string = "FEED_WAIT_SECONDS";
   public static readonly feedSkipValue: string = "true";
@@ -3296,7 +3299,7 @@ export class Resources {
   }
 
   public static formatReleaseSourceOptions(): string {
-    return `[${Resources.releaseSourceRepositoryVariable}=<owner/name>] [${Resources.releaseTagPrefixVariable}=<prefix>]`;
+    return `[${Resources.releaseSourceRepositoryVariable}=<owner/name>] [${Resources.releaseBuildRepositoryVariable}=<owner/name>] [${Resources.releaseTagPrefixVariable}=<prefix>]`;
   }
 
   public static formatRootVersionMismatch(rootVersion: string, version: string): string {
@@ -4194,6 +4197,10 @@ export class Resources {
 
   public static formatReleaseTagMissing(tag: string, repository: string): string {
     return `The tag ${tag} doesn't exist in ${repository}, though its release is published.`;
+  }
+
+  public static formatReleaseSourceNotPublic(sourceRepository: string, buildRepository: string): string {
+    return `The release runs in ${buildRepository} and reads its source ${sourceRepository} with the run's own token, which reads no other private repository, so ${sourceRepository} must be public; it is private or doesn't exist.`;
   }
 
   public static formatSeparateReleaseNeedsFeed(repository: string, sourceRepository: string): string {
