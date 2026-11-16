@@ -695,6 +695,8 @@ export class Resources {
   public static readonly defaultField: string = "default";
   public static readonly keysField: string = "keys";
   public static readonly macKeysField: string = "macKeys";
+  public static readonly loadingKeysField: string = "loadingKeys";
+  public static readonly escapeKey: string = "Escape";
   public static readonly newWindowsField: string = "newWindows";
   public static readonly parametersField: string = "parameters";
   public static readonly valuesField: string = "values";
@@ -915,7 +917,7 @@ export class Resources {
     "Network.setRequestInterception", "Network.continueInterceptedRequest"
   ];
   public static readonly webViewRefusedDomains: readonly string[] = ["Target", "Browser", "Fetch", "Security"];
-  public static readonly webViewFields: readonly string[] = [Resources.methodsKind, Resources.eventsKind, Resources.keysField, Resources.newWindowsField];
+  public static readonly webViewFields: readonly string[] = [Resources.methodsKind, Resources.eventsKind, Resources.keysField, Resources.newWindowsField, Resources.loadingKeysField];
   public static readonly webViewMethodFields: readonly string[] = [Resources.nameField, Resources.parametersField];
   public static readonly webViewKeyFields: readonly string[] = [Resources.nameField, Resources.keysField, Resources.macKeysField];
   public static readonly webViewRuleFields: readonly string[] = [
@@ -924,12 +926,12 @@ export class Resources {
   public static readonly webViewStandardPlatforms: string = "Windows and Linux";
   public static readonly webViewMacPlatform: string = "macOS";
   public static readonly webViewFileInvalid: string =
-    `must be an object with optional ${Resources.methodsKind}, ${Resources.eventsKind}, ${Resources.keysField} and ${Resources.newWindowsField}`;
+    `must be an object with optional ${Resources.methodsKind}, ${Resources.eventsKind}, ${Resources.keysField}, ${Resources.newWindowsField} and ${Resources.loadingKeysField}`;
   public static readonly webViewMethodRepeated: string = "names a method more than once";
   public static readonly webViewEventsInvalid: string =
     "must list its events once each as a debugging protocol domain, a dot and a name, such as Page.loadEventFired";
   public static readonly webViewNewWindowsNotBoolean: string = `must say ${Resources.newWindowsField} as true or false`;
-  public static readonly webViewKeysInvalid: string = `must name each of its keys once, with at most ${Resources.webViewKeysLimit} names`;
+  public static readonly webViewKeysInvalid: string = `must name each of its keys and loading keys once, with at most ${Resources.webViewKeysLimit} names in all`;
   public static readonly modulePackageFixturesFolder: string = `${Resources.moduleFixtureFolder}/packages`;
   public static readonly modulesSourceFolder: string = `${Resources.sourceFolder}/modules`;
   public static readonly angularCorePackage: string = "@angular/core";
@@ -2875,12 +2877,12 @@ export class Resources {
     return `gives a key more than once on ${platform}`;
   }
 
-  public static formatWebViewKeyInvalid(index: number): string {
-    return `must describe ${Resources.keysField}[${index}] with a name, its keys and optionally its macOS keys`;
+  public static formatWebViewKeyInvalid(field: string, index: number): string {
+    return `must describe ${field}[${index}] with a name, its keys and optionally its macOS keys`;
   }
 
-  public static formatWebViewKeyNameInvalid(index: number): string {
-    return `must name ${Resources.keysField}[${index}] with a lowercase letter followed by letters and digits`;
+  public static formatWebViewKeyNameInvalid(field: string, index: number): string {
+    return `must name ${field}[${index}] with a lowercase letter followed by letters and digits`;
   }
 
   public static formatWebViewChordsInvalid(where: string): string {
@@ -2892,7 +2894,7 @@ export class Resources {
   }
 
   public static formatWebViewKeyRefused(where: string, text: string, platform: string): string {
-    return `gives ${where} ${text}, which cannot be declared on ${platform}: it needs Mod, Ctrl or Alt, or a function key, and it must not be a key that editing, the operating system or Noldova Desktop holds`;
+    return `gives ${where} ${text}, which cannot be declared on ${platform}: it needs Mod, Ctrl or Alt, or a function key, or is Escape among the loading keys, and it must not be a key that editing, the operating system or Noldova Desktop holds`;
   }
 
   public static formatWebViewMethodInvalid(index: number): string {

@@ -20,6 +20,10 @@ export class ShellKeys {
     return ShellKeys.parse(Resources.pageFirstShellKeys, platform);
   }
 
+  public static declarable(platform: string): readonly (readonly [KeyChord, string])[] {
+    return ShellKeys.parse(Resources.declarableShellKeys, platform);
+  }
+
   public static has(key: KeyChord, platform: string): boolean {
     return [...ShellKeys.list(platform).map(t => t[0]), ShellKeys.stopAgentControl].some(t => t.isSameOn(key, platform));
   }

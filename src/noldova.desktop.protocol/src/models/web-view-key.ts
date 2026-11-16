@@ -22,22 +22,24 @@ export class WebViewKey {
   public readonly name: string;
   public readonly keys: readonly KeyChord[];
   public readonly macKeys: readonly KeyChord[];
+  public readonly isLoadingKey: boolean;
 
-  public constructor(name: string, keys: readonly KeyChord[], macKeys: readonly KeyChord[] = keys) {
+  public constructor(name: string, keys: readonly KeyChord[], macKeys: readonly KeyChord[] = keys, isLoadingKey: boolean = false) {
     if (!Resources.memberPattern.test(name))
       throw new ArgumentException(Resources.webViewKeyNameInvalid, Resources.nameField);
     for (const [platform, label, chords, field] of [
       [Resources.standardPlatform, Resources.standardPlatformLabel, keys, Resources.keysField],
       [Resources.macPlatform, Resources.macPlatformLabel, macKeys, Resources.macKeysField]
     ] as const)
-      WebViewKey.check(platform, label, chords, field);
+      WebViewKey.check(platform, label, chords, field, isLoadingKey);
 
     this.name = name;
     this.keys = [...keys];
     this.macKeys = [...macKeys];
+    this.isLoadingKey = isLoadingKey;
   }
 
-  public static fromJson(value: unknown, path?: string): WebViewKey {
+  public static fromJson(value: unknown, path?: string, isLoadingKey: boolean = false): WebViewKey {
     const reader = JsonReader.fromValue(value, path);
     WireContract.requireKnownFields(reader, WebViewKey.FIELDS);
     return WireContract.create(reader, () => {
@@ -45,7 +47,8 @@ export class WebViewKey {
       return new WebViewKey(
         reader.readString(Resources.nameField),
         keys,
-        reader.hasField(Resources.macKeysField) ? reader.readStringArray(Resources.macKeysField).map(t => KeyChord.parse(t, Resources.macKeysField)) : keys);
+        reader.hasField(Resources.macKeysField) ? reader.readStringArray(Resources.macKeysField).map(t => KeyChord.parse(t, Resources.macKeysField)) : keys,
+        isLoadingKey);
     });
   }
 
@@ -61,10 +64,10 @@ export class WebViewKey {
     return { [Resources.nameField]: this.name, [Resources.keysField]: this.keys.map(t => t.text), [Resources.macKeysField]: this.macKeys.map(t => t.text) };
   }
 
-  private static check(platform: string, label: string, chords: readonly KeyChord[], field: string): void {
+  private static check(platform: string, label: string, chords: readonly KeyChord[], field: string, isLoadingKey: boolean): void {
     if (chords.length === 0 || chords.length > Resources.webViewKeyChordsLimit || chords.some((t, index) => chords.findIndex(u => u.isSameOn(t, platform)) !== index))
       throw new ArgumentException(Resources.webViewKeyChordsInvalid, field);
-    const refused = chords.find(t => t.isTypingKey || ShellKeys.has(t, platform)
+    const refused = chords.find(t => (t.isTypingKey && !(isLoadingKey && t.key.token === Resources.loadingOnlyKey)) || ShellKeys.has(t, platform)
       || Resources.reservedKeys.some(([owner, , reserved]) => owner === platform && reserved.some(u => KeyChord.parse(u).isSameOn(t, platform))));
     if (!Object.isUndefined(refused))
       throw new ArgumentException(Resources.formatWebViewKeyRefused(refused.text, label), field);

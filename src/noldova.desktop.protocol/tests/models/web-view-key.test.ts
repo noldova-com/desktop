@@ -55,6 +55,19 @@ export class WebViewKeyTests {
   }
 
   @TestMethod
+  public takesEscapeOnlyAsALoadingKeyAndRefusesItsOtherTypingKeys(): void {
+    const stop = WebViewKey.fromJson({ name: "stop", keys: ["Escape", "Shift+Escape"] }, undefined, true);
+
+    Assert.areEqual("Escape,Shift+Escape|true", `${stop.keys.map(t => t.text).join()}|${stop.isLoadingKey}`);
+    Assert.areEqual("{\"name\":\"stop\",\"keys\":[\"Escape\",\"Shift+Escape\"],\"macKeys\":[\"Escape\",\"Shift+Escape\"]}", JSON.stringify(stop.toJson()));
+    Assert.isFalse(new WebViewKey("reload", [KeyChord.parse("Mod+R")]).isLoadingKey);
+    Assert.areEqual("keys", Assert.throws(() => new WebViewKey("stop", [KeyChord.parse("Escape")]), ArgumentException).parameterName);
+    Assert.areEqual("keys", Assert.throws(() => new WebViewKey("stop", [KeyChord.parse("Enter")], undefined, true), ArgumentException).parameterName);
+    Assert.areEqual("macKeys", Assert.throws(() => new WebViewKey("stop", [KeyChord.parse("Escape")], [KeyChord.parse("Mod+Alt+Escape")], true), ArgumentException).parameterName);
+    Assert.areEqual("F5", new WebViewKey("stop", [KeyChord.parse("F5")], undefined, true).keys.map(t => t.text).join());
+  }
+
+  @TestMethod
   public takesAKeyOnThePlatformWhereNothingHoldsIt(): void {
     const keys = new WebViewKey("both", [KeyChord.parse("Mod+H"), KeyChord.parse("Mod+BracketLeft")], [KeyChord.parse("Alt+F4"), KeyChord.parse("Alt+ArrowLeft")]);
 

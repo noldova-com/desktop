@@ -135,7 +135,7 @@ describe("ShellCommandsService", () => {
     expect(service.commands.map(t => t.name)).toEqual([
       "desktop.closeTab", "desktop.keepTab", "desktop.renameTab", "desktop.closeOtherTabs", "desktop.closeTabsToTheRight", "desktop.closeAllTabs", "desktop.moveTabLeft", "desktop.moveTabRight",
       "desktop.nextTab", "desktop.previousTab", "desktop.splitTabLeft", "desktop.splitTabRight", "desktop.splitTabUp", "desktop.splitTabDown", "desktop.dockTabLeft", "desktop.dockTabRight",
-      "desktop.dockTabBottom", "desktop.moveTabToGroup", "desktop.moveTabToNextGroup", "desktop.moveTabToPreviousGroup", "desktop.focusNextGroup", "desktop.focusPreviousGroup",
+      "desktop.dockTabBottom", "desktop.moveTabToGroup", "desktop.moveTabToNextGroup", "desktop.moveTabToPreviousGroup", "desktop.focusNextGroup", "desktop.focusPreviousGroup", "desktop.focusNextRegion", "desktop.focusPreviousRegion",
       "desktop.toggleLeftDock", "desktop.toggleRightDock", "desktop.toggleBottomDock", "desktop.undo", "desktop.redo", "desktop.cut",
       "desktop.copy", "desktop.paste", "desktop.selectAll", "desktop.replaceMisspelling", "desktop.addToDictionary", "desktop.openLinkInApp", "desktop.openLinkInBrowser", "desktop.search", "desktop.showCommands", "desktop.openSettings", "desktop.showShortcuts", "desktop.installCommand", "desktop.checkForUpdates",
       "desktop.restartToUpdate", "desktop.openLogFolder", "desktop.copyDetails", "desktop.openModules", "desktop.showInDialog", "desktop.toggleToolbar", "desktop.moveToolbarLeft",
@@ -524,6 +524,25 @@ describe("ShellCommandsService", () => {
     expect(names.map(t => enabled(t, t.includes("focus") ? null : tab(plan.key)))).toEqual([false, false, true, true]);
   });
 
+  it("moves the focus to the next and previous region with F6 and Shift+F6, enabled only while a region has an element in the tab order", async () => {
+    const region = document.body.appendChild(document.createElement("nol-status-bar"));
+    const names = ["desktop.focusNextRegion", "desktop.focusPreviousRegion"];
+    const keys = service.keys("linux").filter(t => names.includes(t[1])).map(([key, name]) => `${key.text} ${name}`);
+    const before = names.map(t => enabled(t));
+    const button = region.appendChild(document.createElement("button"));
+    button.textContent = "Status";
+    const after = names.map(t => enabled(t));
+    await runAsync("desktop.focusNextRegion");
+    const next = document.activeElement;
+    button.blur();
+    await runAsync("desktop.focusPreviousRegion");
+    const previous = document.activeElement;
+    region.remove();
+
+    expect(keys).toEqual(["F6 desktop.focusNextRegion", "Shift+F6 desktop.focusPreviousRegion"]);
+    expect([before, after, next, previous]).toEqual([[false, false], [true, true], button, button]);
+  });
+
   it("moves a view to the next or previous group, which may be a documents group, wrapping around every group", async () => {
     const groups = layout.layout().groups;
     const own = layout.layout().groupOf(search);
@@ -543,12 +562,12 @@ describe("ShellCommandsService", () => {
     expect(labels("win32")).toEqual([
       ["desktop.search", "Ctrl+K"], ["desktop.showCommands", "Ctrl+Shift+P"], ["desktop.goBack", "Alt+Left"], ["desktop.goForward", "Alt+Right"], ["desktop.openSettings", "Ctrl+,"], ["desktop.closeTab", "Ctrl+W"], ["desktop.nextTab", "Ctrl+Tab"], ["desktop.nextTab", "Ctrl+PageDown"],
       ["desktop.previousTab", "Ctrl+Shift+Tab"], ["desktop.previousTab", "Ctrl+PageUp"], ["desktop.toggleLeftDock", "Ctrl+B"], ["desktop.toggleBottomDock", "Ctrl+J"],
-      ["desktop.toggleRightDock", "Ctrl+Alt+B"], ["desktop.showShortcuts", "Ctrl+/"]
+      ["desktop.toggleRightDock", "Ctrl+Alt+B"], ["desktop.focusNextRegion", "F6"], ["desktop.focusPreviousRegion", "Shift+F6"], ["desktop.showShortcuts", "Ctrl+/"]
     ]);
     expect(labels("darwin")).toEqual([
       ["desktop.search", "⌘K"], ["desktop.showCommands", "⇧⌘P"], ["desktop.goBack", "⌘["], ["desktop.goForward", "⌘]"], ["desktop.openSettings", "⌘,"], ["desktop.closeTab", "⌘W"], ["desktop.nextTab", "⌃⇥"], ["desktop.nextTab", "⌥⌘→"],
       ["desktop.previousTab", "⌃⇧⇥"], ["desktop.previousTab", "⌥⌘←"], ["desktop.toggleLeftDock", "⌘B"], ["desktop.toggleBottomDock", "⌘J"],
-      ["desktop.toggleRightDock", "⌥⌘B"], ["desktop.showShortcuts", "⌘/"]
+      ["desktop.toggleRightDock", "⌥⌘B"], ["desktop.focusNextRegion", "F6"], ["desktop.focusPreviousRegion", "⇧F6"], ["desktop.showShortcuts", "⌘/"]
     ]);
     for (const platform of ["linux", "darwin"]) {
       const keys = service.keys(platform);

@@ -17,27 +17,32 @@ import { WebViewKey } from "./web-view-key.js";
 import { WebViewMethod } from "./web-view-method.js";
 
 export class WebViewDeclaration {
-  private static readonly FIELDS: readonly string[] = [Resources.methodsField, Resources.eventsField, Resources.keysField, Resources.newWindowsField];
+  private static readonly FIELDS: readonly string[] = [Resources.methodsField, Resources.eventsField, Resources.keysField, Resources.newWindowsField, Resources.loadingKeysField];
 
   public readonly methods: readonly WebViewMethod[];
   public readonly events: readonly string[];
   public readonly keys: readonly WebViewKey[];
   public readonly newWindows: boolean;
+  public readonly loadingKeys: readonly WebViewKey[];
 
-  public constructor(methods: readonly WebViewMethod[] = [], events: readonly string[] = [], keys: readonly WebViewKey[] = [], newWindows: boolean = false) {
+  public constructor(methods: readonly WebViewMethod[] = [], events: readonly string[] = [], keys: readonly WebViewKey[] = [], newWindows: boolean = false,
+    loadingKeys: readonly WebViewKey[] = []) {
     if (new Set(methods.map(t => t.name)).size !== methods.length)
       throw new ArgumentException(Resources.webViewNamesRepeated, Resources.methodsField);
     if (events.some(t => !Resources.webViewMethodPattern.test(t)))
       throw new ArgumentException(Resources.webViewMethodNameInvalid, Resources.eventsField);
     if (new Set(events).size !== events.length)
       throw new ArgumentException(Resources.webViewNamesRepeated, Resources.eventsField);
-    if (keys.length > Resources.webViewKeysLimit || new Set(keys.map(t => t.name)).size !== keys.length || !WebViewDeclaration.hasDistinctKeys(keys))
+    if (keys.some(t => t.isLoadingKey) || !WebViewDeclaration.areDistinct(keys))
       throw new ArgumentException(Resources.webViewKeysRepeated, Resources.keysField);
+    if (!WebViewDeclaration.areDistinct([...keys, ...loadingKeys]))
+      throw new ArgumentException(Resources.webViewKeysRepeated, Resources.loadingKeysField);
 
     this.methods = [...methods];
     this.events = [...events];
     this.keys = [...keys];
     this.newWindows = newWindows;
+    this.loadingKeys = [...loadingKeys];
   }
 
   public static fromJson(value: unknown, path?: string): WebViewDeclaration {
@@ -47,7 +52,8 @@ export class WebViewDeclaration {
       reader.hasField(Resources.methodsField) ? reader.readObjectArray(Resources.methodsField).map(t => WebViewMethod.fromJson(t.toJson(), t.path)) : [],
       reader.hasField(Resources.eventsField) ? reader.readStringArray(Resources.eventsField) : [],
       reader.hasField(Resources.keysField) ? reader.readObjectArray(Resources.keysField).map(t => WebViewKey.fromJson(t.toJson(), t.path)) : [],
-      reader.hasField(Resources.newWindowsField) ? reader.readBoolean(Resources.newWindowsField) : false));
+      reader.hasField(Resources.newWindowsField) ? reader.readBoolean(Resources.newWindowsField) : false,
+      reader.hasField(Resources.loadingKeysField) ? reader.readObjectArray(Resources.loadingKeysField).map(t => WebViewKey.fromJson(t.toJson(), t.path, true)) : []));
   }
 
   public allows(method: string, parameters: unknown): boolean {
@@ -58,8 +64,8 @@ export class WebViewDeclaration {
     return this.events.includes(method);
   }
 
-  public findKey(stroke: IKeyStroke, platform: string): string | null {
-    return this.keys.find(t => t.matches(stroke, platform))?.name ?? null;
+  public findKey(stroke: IKeyStroke, platform: string, isLoading: boolean = false): string | null {
+    return [...this.keys, ...isLoading ? this.loadingKeys : []].find(t => t.matches(stroke, platform))?.name ?? null;
   }
 
   public toJson(): JsonObject {
@@ -67,8 +73,13 @@ export class WebViewDeclaration {
       [Resources.methodsField]: this.methods.map(t => t.toJson()),
       [Resources.eventsField]: [...this.events],
       [Resources.keysField]: this.keys.map(t => t.toJson()),
-      ...this.newWindows ? { [Resources.newWindowsField]: true } : {}
+      ...this.newWindows ? { [Resources.newWindowsField]: true } : {},
+      ...this.loadingKeys.length > 0 ? { [Resources.loadingKeysField]: this.loadingKeys.map(t => t.toJson()) } : {}
     };
+  }
+
+  private static areDistinct(keys: readonly WebViewKey[]): boolean {
+    return keys.length <= Resources.webViewKeysLimit && new Set(keys.map(t => t.name)).size === keys.length && WebViewDeclaration.hasDistinctKeys(keys);
   }
 
   private static hasDistinctKeys(keys: readonly WebViewKey[]): boolean {

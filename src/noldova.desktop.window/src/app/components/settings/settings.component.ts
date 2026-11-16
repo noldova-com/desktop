@@ -25,6 +25,7 @@ import { TextMatch } from "../../models/settings/text-match.js";
 import { Resources } from "../../../resources.js";
 import { ClockSettingService } from "../../services/clock-setting.service.js";
 import { CommandService } from "../../services/command.service.js";
+import { PaneKeysService } from "../../services/pane-keys.service.js";
 import { PreloadBridgeService } from "../../services/preload-bridge.service.js";
 import { ModuleStatusService } from "../../services/module-status.service.js";
 import { SettingsPageService } from "../../services/settings-page.service.js";
@@ -77,6 +78,7 @@ export class SettingsComponent {
   private readonly statuses: ModuleStatusService = inject(ModuleStatusService);
   private readonly updates: UpdateService = inject(UpdateService);
   private readonly parts: WindowPartHostService = inject(WindowPartHostService);
+  private readonly paneKeys: PaneKeysService = inject(PaneKeysService);
   private readonly offeredDefinitions: Signal<readonly SettingDefinition[]> = computed(() => {
     const definitions = this.settings.definitions().flatMap(t => t.name.text === Resources.timeFormatSetting ? [this.clock.definition, t] : [t]);
     return this.updates.state().kind === UpdateStateKind.Off ? definitions.filter(t => t.page !== Resources.aboutPage) : definitions;
@@ -108,11 +110,16 @@ export class SettingsComponent {
   protected readonly shortcuts: Signal<readonly ShortcutRow[]> = computed(() => {
     const map = this.commands.shortcuts();
     const bindings = this.commands.bindings();
+    const paneKeys = this.paneKeys.keys();
     return this.commands.commands().map(command => {
       const collision = map.collisions.find(t => t.refused === command.name);
       const key = this.commands.keyLabel(command.name);
+      const chord = map.keyOf(command.name);
+      const notes = Object.isNull(chord) ? [] : [...new Set(paneKeys.filter(t => t[1].isSameOn(chord, this.bridge.platform)).map(t => this.statuses.nameOf(t[0])))]
+        .map(t => Resources.formatKeyTakenInPages(chord.label(this.bridge.platform), t));
       return new ShortcutRow(command.name, command.title, this.commands.ownerOf(command.name), key ?? Resources.noKey, !Object.isNull(key), bindings.has(command.name),
-        Object.isUndefined(collision) ? null : Resources.formatKeyTaken(collision.key.label(this.bridge.platform), this.commands.titleOf(collision.keptBy)));
+        Object.isUndefined(collision) ? null : Resources.formatKeyTaken(collision.key.label(this.bridge.platform), this.commands.titleOf(collision.keptBy)),
+        notes.length === 0 ? null : notes.join(Resources.paneNoteSeparator));
     });
   });
   protected readonly results: Signal<readonly SettingsPage[]> = computed(() => {

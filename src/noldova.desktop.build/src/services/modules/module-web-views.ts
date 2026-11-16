@@ -44,34 +44,42 @@ export class ModuleWebViews {
     if (!Object.isBoolean(newWindows))
       throw fail(Resources.webViewNewWindowsNotBoolean);
     const windows = newWindows ? { newWindows } : {};
-    if (!top.has(Resources.keysField))
+    if (!top.has(Resources.keysField) && !top.has(Resources.loadingKeysField))
       return { methods, events, ...windows };
-    const keys = ModuleWebViews.readArray(top.get(Resources.keysField), fail, Resources.keysField).map((t, index) => ModuleWebViews.readKey(t, index, fail));
-    if (keys.length > Resources.webViewKeysLimit || new Set(keys.map(t => t.name)).size !== keys.length)
+    const keys = ModuleWebViews.readKeys(top, Resources.keysField, fail);
+    const loadingKeys = ModuleWebViews.readKeys(top, Resources.loadingKeysField, fail);
+    const all = [...keys, ...loadingKeys];
+    if (all.length > Resources.webViewKeysLimit || new Set(all.map(t => t.name)).size !== all.length)
       throw fail(Resources.webViewKeysInvalid);
     for (const [isMac, platform] of [[false, Resources.webViewStandardPlatforms], [true, Resources.webViewMacPlatform]] as const) {
-      const forms = keys.flatMap(t => (isMac ? t.macKeys : t.keys).map(u => WebViewKeys.formOn(u, isMac)));
+      const forms = all.flatMap(t => (isMac ? t.macKeys : t.keys).map(u => WebViewKeys.formOn(u, isMac)));
       if (new Set(forms).size !== forms.length)
         throw fail(Resources.formatWebViewKeyRepeated(platform));
     }
-    return { methods, events, keys, ...windows };
+    return { methods, events, keys, ...windows, ...loadingKeys.length > 0 ? { loadingKeys } : {} };
   }
 
-  private static readKey(value: unknown, index: number, fail: (problem: string) => BuildException): IWebViewKeyJson {
-    const record = ModuleWebViews.readRecord(value, Resources.webViewKeyFields, fail, Resources.formatWebViewKeyInvalid(index));
+  private static readKeys(top: ReadonlyMap<string, unknown>, field: string, fail: (problem: string) => BuildException): readonly IWebViewKeyJson[] {
+    return top.has(field) ? ModuleWebViews.readArray(top.get(field), fail, field).map((t, index) => ModuleWebViews.readKey(t, field, index, fail)) : [];
+  }
+
+  private static readKey(value: unknown, field: string, index: number, fail: (problem: string) => BuildException): IWebViewKeyJson {
+    const record = ModuleWebViews.readRecord(value, Resources.webViewKeyFields, fail, Resources.formatWebViewKeyInvalid(field, index));
     const name = record.get(Resources.nameField);
     if (!Object.isString(name) || !Resources.camelCaseNamePattern.test(name))
-      throw fail(Resources.formatWebViewKeyNameInvalid(index));
-    const keys = ModuleWebViews.readChords(record.get(Resources.keysField), Resources.formatMemberPath(name, Resources.keysField), false, fail);
+      throw fail(Resources.formatWebViewKeyNameInvalid(field, index));
+    const isLoadingKey = field === Resources.loadingKeysField;
+    const keys = ModuleWebViews.readChords(record.get(Resources.keysField), Resources.formatMemberPath(name, Resources.keysField), false, isLoadingKey, fail);
     const macKeys = ModuleWebViews.readChords(
       record.has(Resources.macKeysField) ? record.get(Resources.macKeysField) : keys,
       Resources.formatMemberPath(name, record.has(Resources.macKeysField) ? Resources.macKeysField : Resources.keysField),
       true,
+      isLoadingKey,
       fail);
     return { name, keys, macKeys };
   }
 
-  private static readChords(value: unknown, where: string, isMac: boolean, fail: (problem: string) => BuildException): readonly string[] {
+  private static readChords(value: unknown, where: string, isMac: boolean, isLoadingKey: boolean, fail: (problem: string) => BuildException): readonly string[] {
     const chords: readonly string[] = Array.isArray(value) ? value.filter(t => Object.isString(t)) : [];
     if (!Array.isArray(value) || value.length === 0 || value.length > Resources.webViewChordsLimit || chords.length !== value.length)
       throw fail(Resources.formatWebViewChordsInvalid(where));
@@ -81,7 +89,7 @@ export class ModuleWebViews {
       const form = WebViewKeys.formOn(text, isMac);
       if (Object.isNull(form))
         throw fail(Resources.formatWebViewKeyUnknown(where, text));
-      if (WebViewKeys.isTyping(form) || refused.includes(form))
+      if ((WebViewKeys.isTyping(form) && !(isLoadingKey && WebViewKeys.isEscape(form))) || refused.includes(form))
         throw fail(Resources.formatWebViewKeyRefused(where, text, platform));
     }
     return chords;
