@@ -541,9 +541,10 @@ export class WindowPartHostService implements IWindowPartHost {
     }
     const isReconnect = this.isLayoutLoaded;
     this.startOpens = this.pendingOpens.splice(0);
-    const restore = (pending: PendingDocument): void => this.opener.restore(pending.moduleId, pending.name, pending.instance, pending.heading, pending.isPreview);
-    const restoreEarly = (pending: PendingDocument): void => pending.isEarly ? restore(pending) : this.openPending(pending);
-    let openAtStart: (pending: PendingDocument) => void = !isReconnect ? t => this.openPending(t) : Object.isNull(report) ? restore : restoreEarly;
+    const restoreEarly = (pending: PendingDocument): void => pending.isEarly
+      ? this.opener.restore(pending.moduleId, pending.name, pending.instance, pending.heading, pending.isPreview)
+      : this.openPending(pending);
+    let openAtStart: (pending: PendingDocument) => void = isReconnect ? restoreEarly : t => this.openPending(t);
     try {
       await Promise.allSettled(this.posting);
       this.refresh();
