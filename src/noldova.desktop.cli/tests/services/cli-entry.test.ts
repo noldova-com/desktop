@@ -73,14 +73,14 @@ export class CliEntryTests {
     const output = new PassThrough({ encoding: "utf8" });
     const error = new PassThrough({ encoding: "utf8" });
     const exited: string[] = [];
-    const exit: Pick<NodeJS.Process, "exitCode"> & { exit(): void } = { exitCode: undefined, exit: () => void exited.push(String(output.read() ?? String.empty)) };
+    const exit: Pick<NodeJS.Process, "exitCode"> & { exit(): void } = { exitCode: undefined, exit: () => void exited.push(String(output.read(output.readableLength) ?? String.empty)) };
     output.write("Result.\n");
 
     await CliEntry.settleAsync(Promise.resolve(4), output, error, exit);
 
     Assert.areEqual(4, exit.exitCode);
     Assert.areEqual(JSON.stringify(["Result.\n"]), JSON.stringify(exited));
-    Assert.isNull(error.read());
+    Assert.isNull(error.read(error.readableLength));
   }
 
   @TestMethod
@@ -94,6 +94,6 @@ export class CliEntryTests {
 
     Assert.areEqual(1, exit.exitCode);
     Assert.areEqual(1, exits);
-    Assert.isTrue(String(error.read()).startsWith("RangeError: The run broke."));
+    Assert.isTrue(String(error.read(error.readableLength)).startsWith("RangeError: The run broke."));
   }
 }

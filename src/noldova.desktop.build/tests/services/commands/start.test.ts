@@ -36,7 +36,7 @@ export class StartTests {
     Assert.areEqual(`sample-app ${app} --inspect notes`, runner.ran.join("|"));
     Assert.areEqual(folder.path, runner.folders.at(-1));
     Assert.areEqual(JSON.stringify({ SAMPLE: "kept" }), JSON.stringify(runner.environments.at(-1)));
-    Assert.areEqual("Preparing the Sample App development binary...\n", String(report.read()));
+    Assert.areEqual("Preparing the Sample App development binary...\n", String(report.read(report.readableLength)));
   }
 
   @TestMethod
