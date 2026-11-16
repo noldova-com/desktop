@@ -1194,8 +1194,10 @@ export interface IWebViewHandle {
   /**
    * Reports the view's events: its state, failed loads, refused navigations
    * and requests, a crash, a cleared profile, the person's declared keys, each
-   * zoom change and each search's result, and `Closed` when the main
-   * process ends it. No event comes after the part closes the view itself.
+   * zoom change, each search's result, each change of the page's icon as a
+   * `Favicon` event whose `image` is a `data:image/png` URL or null, and
+   * `Closed` when the main process ends it. No event comes after the part
+   * closes the view itself.
    *
    * @param listener Receives each event.
    * @returns The release.

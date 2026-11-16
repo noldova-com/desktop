@@ -107,6 +107,7 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 | `Key` | The name of a key the module declares, which the person pressed in the view; only the window part gets it. |
 | `Zoom` | The view's new zoom `factor`; only the window part gets it. |
 | `Found` | A finished search's `matches` and its 1-based `active` match, 0 when none; only the window part gets it. |
+| `Favicon` | The page's icon as an `image`, a `data:image/png` URL of at most 64 by 64 pixels and 16 KB, or null when the page has none or none of its first four icons can be read; sent when the icon changes, after a navigation or when the page changes it, and only the window part gets it. The host fetches each icon itself, in the view's profile and without following a redirect, and only from an `http` or `https` origin the view allows, at an address that passes the view's own checks, so a loopback or private address must be a local entry; it reads at most 1 MB within 10 seconds, stops a read when the page navigates, names another icon, stops loading without one or the view closes, and the page's isolated world decodes and scales the bytes the host passes it, whose PNG the host checks is at most 64 by 64 pixels. |
 | `State` | The address, the title, whether it is loading, and `canGoBack` and `canGoForward`; sent whenever any of them changes. |
 | `LoadFailed` | The address, the engine's code and its description. |
 | `NavigationRefused` | The address, its origin, and whether a redirect led there. |

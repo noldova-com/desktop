@@ -8,6 +8,7 @@
 
 import { once } from "node:events";
 import { createServer, type Server } from "node:http";
+import { crc32, deflateSync } from "node:zlib";
 
 import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
@@ -23,6 +24,7 @@ import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 
 const host = "127.0.0.1";
 const titles = new Map([["/first", "First page"], ["/second", "Second page"]]);
+const iconRequests: string[] = [];
 const keysPage = "<!doctype html><title>Loading</title><p>Keys</p><script>const keys = []; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Keys\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"keydown\", event => { keys.push(event.key); document.title = [\"Keys\", ...keys].join(\" \"); });</script>";
 const typePage = "<!doctype html><title>Loading</title><p>Type</p><input><script>const field = document.querySelector(\"input\"); const keys = []; let painted = false; let typed = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Type\", field.value, ...keys, blurs].join(\" \").trim(); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); field.addEventListener(\"input\", () => { typed = true; show(); }); field.addEventListener(\"blur\", () => { blurs += typed ? 1 : 0; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); }); field.focus();</script>";
 const formPage = "<!doctype html><title>Form</title><body style=\"margin:0\"><input style=\"position:fixed;top:0\"><div style=\"height:5000px\"></div><script>const field = document.querySelector(\"input\"); field.focus();</script></body>";
@@ -31,6 +33,56 @@ const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
+
+function png(side: number): Buffer {
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const check = Buffer.alloc(4);
+    check.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, check]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(side, 0);
+  header.writeUInt32BE(side, 4);
+  header.writeUInt8(8, 8);
+  header.writeUInt8(2, 9);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(Buffer.alloc((side * 3 + 1) * side))), chunk("IEND", Buffer.alloc(0))]);
+}
+
+function ico(): Buffer {
+  const image = Buffer.alloc(48);
+  image.writeUInt32LE(40, 0);
+  image.writeInt32LE(1, 4);
+  image.writeInt32LE(2, 8);
+  image.writeUInt16LE(1, 12);
+  image.writeUInt16LE(32, 14);
+  image.writeUInt32LE(0xff3366cc, 40);
+  const header = Buffer.alloc(22);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(1, 4);
+  header.writeUInt8(1, 6);
+  header.writeUInt8(1, 7);
+  header.writeUInt16LE(1, 10);
+  header.writeUInt16LE(32, 12);
+  header.writeUInt32LE(image.length, 14);
+  header.writeUInt32LE(header.length, 18);
+  return Buffer.concat([header, image]);
+}
+
+function iconPage(title: string, ...icons: string[]): string {
+  return `<!doctype html><title>${title}</title>${icons.map(t => `<link rel="icon" href="${t}">`).join(String.empty)}<p>${title}</p>`;
+}
+
+function readIconSizeAsync(window: Page): Promise<string> {
+  return view(window, 0).evaluate(async element => {
+    const image = new Image();
+    image.src = element.getAttribute("data-icon") ?? String.empty;
+    await image.decode();
+    return `${image.naturalWidth}x${image.naturalHeight}`;
+  });
+}
 
 function view(window: Page, index: number): Locator {
   return window.locator(`[data-fixture-content=pages-view-${index}]`);
@@ -237,6 +289,44 @@ async function startServerAsync(): Promise<Server> {
     }
     if (request.url === "/opener") {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(openerPage);
+      return;
+    }
+    if (request.url === "/large.png" || request.url === "/small.png") {
+      iconRequests.push(`${request.headers.host ?? String.empty}${request.url}`);
+      response.writeHead(200, { "Content-Type": "image/png" }).end(png(request.url === "/large.png" ? 128 : 16));
+      return;
+    }
+    if (request.url === "/icon.ico") {
+      iconRequests.push(request.url);
+      response.writeHead(200, { "Content-Type": "image/x-icon" }).end(ico());
+      return;
+    }
+    if (request.url === "/huge.png") {
+      iconRequests.push(request.url);
+      const icon = png(16);
+      response.writeHead(200, { "Content-Type": "image/png" }).end(Buffer.concat([icon, Buffer.alloc(1_048_577 - icon.length)]));
+      return;
+    }
+    if (request.url === "/moved.png") {
+      iconRequests.push(request.url);
+      response.writeHead(302, { Location: "/small.png" }).end();
+      return;
+    }
+    if (request.url === "/missing.png") {
+      iconRequests.push(request.url);
+      response.writeHead(404, { "Content-Type": "image/png" }).end(png(16));
+      return;
+    }
+    if (request.url?.startsWith("/icon-of?") === true) {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(iconPage("Icon page", request.url.slice("/icon-of?".length)));
+      return;
+    }
+    if (request.url === "/icon") {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(iconPage("Icon page", "/large.png"));
+      return;
+    }
+    if (request.url?.startsWith("/foreign-icon?") === true) {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(iconPage("Foreign icon page", `${decodeURIComponent(request.url.slice("/foreign-icon?".length))}/small.png`, "/small.png"));
       return;
     }
     const title = titles.get(request.url ?? String.empty);
@@ -620,6 +710,76 @@ test.describe("web views", () => {
       await expect(view(window, 0)).toHaveAttribute("data-found", "2 2");
       await pressInFirstViewAsync(mainProcess, "F7", ["shift"]);
       await expect(view(window, 0)).toHaveAttribute("data-found", "0 0", { timeout: 5_000 });
+      await expect(window.locator("[data-fixture-content=pages-failure]")).toHaveText(String.empty);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view reports its page's icon to the window part, scaled to at most 64 pixels, again when the page changes it, none for a page without one, and never fetches an icon from an origin it doesn't allow", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const port = portOf(server);
+      const origin = `http://${host}:${port}`;
+      const otherSite = `http://localhost:${port}`;
+      iconRequests.length = 0;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/icon` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveAttribute("data-icons", "png ");
+      expect(await readIconSizeAsync(window)).toBe("64x64");
+
+      await mainProcess.application.evaluate(({ webContents }) => webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id)[0]
+        ?.executeJavaScript("document.querySelector(\"link\").href = \"/small.png\""));
+      await expect(view(window, 0)).toHaveAttribute("data-icons", "png png ");
+      expect(await readIconSizeAsync(window)).toBe("16x16");
+
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveAttribute("data-icons", "png png none ");
+
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/foreign-icon?${encodeURIComponent(otherSite)}` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveAttribute("data-icons", "png png none png ");
+      expect(await readIconSizeAsync(window)).toBe("16x16");
+      expect(iconRequests.filter(t => t.startsWith("localhost"))).toEqual([]);
+      await expect(window.locator("[data-fixture-content=pages-failure]")).toHaveText(String.empty);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view decodes an ICO icon, and reports none for an icon over 1 MB, one that redirects, without following it, or one whose answer is a failure", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      iconRequests.length = 0;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      const shown: string[] = [];
+
+      for (const icon of ["/huge.png", "/moved.png", "/missing.png"]) {
+        expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/icon-of?/icon.ico` })).toEqual({ kind: "Started", origin: null });
+        shown.push("png");
+        await expect(view(window, 0)).toHaveAttribute("data-icons", `${shown.join(" ")} `);
+        expect(await readIconSizeAsync(window)).toBe("1x1");
+        expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/icon-of?${icon}` })).toEqual({ kind: "Started", origin: null });
+        shown.push("none");
+        await expect(view(window, 0)).toHaveAttribute("data-icons", `${shown.join(" ")} `);
+      }
+
+      expect(iconRequests.filter(t => t !== "/icon.ico")).toEqual(["/huge.png", "/moved.png", "/missing.png"]);
       await expect(window.locator("[data-fixture-content=pages-failure]")).toHaveText(String.empty);
     }
     finally {
