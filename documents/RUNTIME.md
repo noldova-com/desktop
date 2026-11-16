@@ -26,7 +26,7 @@ What a module declares and contributes is in [MODULES.md](MODULES.md); the windo
   Its folder is the person's alone: on Windows the runtime replaces the folder's permissions with the person's, and on macOS and Linux it sets mode `0700`.
   On macOS it also reads the access back and refuses to start when an access control entry, such as one inherited from a parent folder, still opens the folder to another account; it never removes such an entry, which whoever set it owns.
   Every line after the folder's own must read as an entry, so a line in another form refuses the folder, and so does a folder marked as having entries when none is read.
-  It doesn't yet detect a macOS volume mounted with ownership ignored, where mode `0700` and the entries keep no account out.
+  It refuses as well a folder on a volume mounted with ownership ignored, where every account acts as the owner of every file, and names the volume, which it reads with `statfs` through its POSIX addon.
   Binding to loopback alone is not authentication.
 - The window gets neither the token nor the socket; the main process speaks for it.
 - The token keeps out other clients, not other programs running as the same person.

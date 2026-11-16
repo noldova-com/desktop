@@ -13,6 +13,7 @@ import { TestBed } from "@angular/core/testing";
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonValue } from "@noldova/context.json";
 import { ModuleState, type ModuleStatus, NotificationPost, NotificationSeverity, QualifiedName, type SettingOption, SettingScope, WebViewPane } from "@noldova/desktop.protocol";
+import { FileNotOpenedException as ExportedFileNotOpenedException } from "@noldova/desktop.window";
 import { LinkGesture } from "@noldova/ui.components.angular";
 
 import { ModulesComponent } from "../../../src/app/components/modules/modules.component";
@@ -1645,8 +1646,8 @@ describe("WindowPartHostService", () => {
     const refusal = await host.openFileAsync("/home/ada/run.sh").catch((error: unknown) => error);
 
     expect(bridge.openedFiles).toEqual(["/home/ada/notes.md", "/home/ada/run.sh"]);
-    expect([refusal instanceof FileNotOpenedException, FailureFixture.of(refusal, Error).message])
-      .toEqual([true, "Noldova Desktop Sample didn't open the file: only documents and text files open, such as .pdf, .docx, .txt or .md; any other file, a program or a script included, never opens."]);
+    expect([refusal instanceof FileNotOpenedException, refusal instanceof ExportedFileNotOpenedException && refusal.reason, FailureFixture.of(refusal, Error).message])
+      .toEqual([true, bridge.openRefusal, "Noldova Desktop Sample didn't open the file: only documents and text files open, such as .pdf, .docx, .txt or .md; any other file, a program or a script included, never opens."]);
   });
 
   it("opens a window part's web view through the window's web views, which refuse a pane that isn't open", async () => {
