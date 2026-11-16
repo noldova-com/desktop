@@ -11,6 +11,7 @@ import type { Signal, Type } from "@angular/core";
 import type { JsonObject, JsonValue } from "@noldova/context.json";
 import type { AgentControlState, NotificationPost, SettingEntry, SettingOption, SettingScope } from "@noldova/desktop.protocol";
 
+import type { DockSide } from "../enums/dock-side.js";
 import type { FileSaveOutcome } from "../enums/file-save-outcome.js";
 import type { CommandContribution } from "../models/command-contribution.js";
 import type { DocumentContribution } from "../models/document-contribution.js";
@@ -86,6 +87,7 @@ export interface IWindowPartContext {
   showView(name: string): void;
   hideViewDock(name: string, instance?: string): void;
   growViewDock(name: string, minimum: number, instance?: string): () => void;
+  viewDockOf(name: string, instance?: string): Signal<DockSide | null>;
   onViewClosed(name: string, listener: (instance: string) => void): () => void;
   showInDialogAsync(name: string, options?: IViewDialogOptions): Promise<void>;
   openBelowWindowRowAsync<T>(load: () => Promise<Type<T>>): Promise<IWindowPalette<T> | null>;

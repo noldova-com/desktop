@@ -13,6 +13,7 @@ import { ArgumentException, ArgumentOutOfRangeException } from "@noldova/context
 import type { JsonObject, JsonValue } from "@noldova/context.json";
 import { type AgentControlState, FileGrant, type NotificationPost, type SettingEntry, type SettingOption, type SettingScope, type WebViewPane } from "@noldova/desktop.protocol";
 
+import type { DockSide } from "../enums/dock-side.js";
 import { FileSaveOutcome } from "../enums/file-save-outcome.js";
 import { CommandAlreadyRegisteredException } from "../exceptions/command-already-registered.exception.js";
 import { CommandNotDeclaredException } from "../exceptions/command-not-declared.exception.js";
@@ -66,6 +67,7 @@ import { Resources } from "../../resources.js";
 
 export class WindowPartContext implements IWindowPartContext {
   private static readonly ignore: () => void = () => undefined;
+  private static readonly noDock: Signal<DockSide | null> = signal<DockSide | null>(null).asReadonly();
 
   private readonly host: IWindowPartHost;
   private readonly owners: readonly string[];
@@ -475,6 +477,14 @@ export class WindowPartContext implements IWindowPartContext {
     const release = this.host.growViewDock(name, instance ?? null, minimum);
     this.subscriptions.push(release);
     return release;
+  }
+
+  public viewDockOf(name: string, instance?: string): Signal<DockSide | null> {
+    if (Object.isUndefined(instance))
+      this.requirePlainView(name);
+    else
+      this.requireInstance(name, instance);
+    return this.isWithdrawn ? WindowPartContext.noDock : this.host.viewDockOf(name, instance ?? null);
   }
 
   public onViewClosed(name: string, listener: (instance: string) => void): () => void {
