@@ -96,6 +96,7 @@ jobs:
         timeout-minutes: 10
         env:
           npm_config_ignore_scripts: 'true'
+          PLAYWRIGHT_DOWNLOAD_HOST: https://download.invalid
         run: npm run build:install
 
       - name: Install Electron
