@@ -85,11 +85,11 @@ describe("SearchPaletteComponent", () => {
     return ["chat.chats/chat.0", "chat.messages/chat.broken", "desktop.commands/desktop.1"].every(t => !Object.isNull(host.querySelector(`[data-item='${t}']`)));
   }
 
-  async function renderAsync(): Promise<ComponentFixture<SearchPaletteComponent>> {
+  async function renderAsync(isReady: (host: HTMLElement) => boolean = host => !Object.isNull(host.querySelector("[role=option]"))): Promise<ComponentFixture<SearchPaletteComponent>> {
     const fixture = TestBed.createComponent(SearchPaletteComponent);
     DomFixture.host(fixture).style.width = "40rem";
     fixture.detectChanges();
-    await settle(fixture, host => !Object.isNull(host.querySelector("[role=option]")));
+    await settle(fixture, isReady);
     return fixture;
   }
 
@@ -141,7 +141,7 @@ describe("SearchPaletteComponent", () => {
     const exact = new SearchSourceContribution("chat.exact", "Exact", "exact", "In Exact", null, "chat",
       () => Promise.resolve([]), () => Promise.resolve(new SearchAnswer([result("chat.more", "Terminal notes")], 1500)));
     TestBed.overrideProvider(SearchService, { useValue: { placeholder: signal("Search chats"), createSession: () => new SearchSession([capped, exact], "desktop.commands", () => undefined) } });
-    const fixture = await renderAsync();
+    const fixture = await renderAsync(t => t.querySelectorAll(".nol-search-filter").length === 3);
     const host = DomFixture.host(fixture);
     await typeAsync(fixture, "term", t => !Object.isNull(t.querySelector("[data-item='chat.exact/chat.more']")));
 
