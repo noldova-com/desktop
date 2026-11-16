@@ -25,6 +25,9 @@ export class DeclarationConsumerCheck implements ICheck {
 
   public async runAsync(): Promise<boolean> {
     const folder = this.layout.root;
-    return await this.runner.runAsync(process.execPath, [TypeScriptCompiler.locate(folder), ...Resources.declarationConsumerProjectArguments], folder) === Resources.successExitCode;
+    let passed = true;
+    for (const project of Resources.declarationConsumerProjects)
+      passed = await this.runner.runAsync(process.execPath, [TypeScriptCompiler.locate(folder), Resources.projectOption, project], folder) === Resources.successExitCode && passed;
+    return passed;
   }
 }

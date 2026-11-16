@@ -4,13 +4,12 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": [
-      "ES2023"
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
     ],
     "strict": true,
     "skipLibCheck": false,
     "noEmit": true
-  },
-  "files": [
-    "consumer.mts"
-  ]
+  }
 }
