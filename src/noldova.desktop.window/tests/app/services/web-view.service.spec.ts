@@ -25,6 +25,7 @@ import type { WebViewHandle } from "../../../src/app/models/web-view-handle";
 import { CommandService } from "../../../src/app/services/command.service";
 import { LayoutService } from "../../../src/app/services/layout.service";
 import { LiveViewService } from "../../../src/app/services/live-view.service";
+import { PaneKeysService } from "../../../src/app/services/pane-keys.service";
 import { TabDragService } from "../../../src/app/services/tab-drag.service";
 import { WebViewService } from "../../../src/app/services/web-view.service";
 import { WindowPartHostService } from "../../../src/app/services/window-part-host.service";
@@ -140,6 +141,16 @@ describe("WebViewService", () => {
     expect(closedPane).toBeInstanceOf(WebViewNotOpenedException);
     expect(refused).toBeInstanceOf(WebViewNotOpenedException);
     expect(bridge.webViewCalls).toEqual(["open notes {\"name\":\"notes.note\",\"instance\":\"plan\"} workspace-1", "open notes {\"name\":\"notes.note\",\"instance\":\"plan\"} workspace-1"]);
+  });
+
+  it("tells which keys each open view's pane declares, until the view closes", async () => {
+    bridge.openedViewKeys = ["Mod+L", "F6"];
+    const handle = await openAsync();
+    const panes = TestBed.inject(PaneKeysService);
+    const open = panes.keys().map(([module, key]) => `${module} ${key.text}`);
+    service.close(handle);
+
+    expect([open, panes.keys()]).toEqual([["notes Mod+L", "notes F6"], []]);
   });
 
   it("refuses a view the main process opened with no partition, and closes it", async () => {

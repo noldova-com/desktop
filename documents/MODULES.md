@@ -46,7 +46,7 @@ A module declares itself in `module.json` at its folder's root, with exactly the
 | `noldovaDesktop` | Optional for now: the Noldova Desktop versions it accepts, `>=<lowest version> <first version refused>`, such as `>=0.0.70 <0.1.0`, as [Noldova Desktop versions](#noldova-desktop-versions) says. |
 | `platforms` | Optional: the platforms it runs on, at least one, each once: `windows`, `macos` or `linux`; without it, the module runs on every platform. |
 | `pseudoTerminals` | Optional: `true` when its runtime part starts programs in pseudo-terminals, as [RUNTIME.md](RUNTIME.md#programs-modules-start) says; only a module with a runtime part declares it, and the runtime refuses a pseudo-terminal to a module that doesn't. |
-| `contributes` | The names it registers, by kind: `methods`, `events`, `commands`, `notifications`, `views`, `documents`, `placeholders`, `statusBarItems`, `topBarActions`, `menus`, `themes`, `settings`, `settingScopes`, `settingsPages`, `cliCommands` and `tools`. |
+| `contributes` | The names it registers, by kind: `methods`, `events`, `commands`, `notifications`, `views`, `documents`, `placeholders`, `statusBarItems`, `topBarActions`, `menus`, `themes`, `settings`, `settingScopes`, `settingsPages`, `cliCommands` and `tools`, and `formerNames`, the names its commands and documents had before, as [Former names](#former-names) says. |
 
 - A module that contributes settings defines them in `settings.json`, menus in `menus.json`, and command-line commands in `cli.json`, each beside `module.json`.
   A module that opens web views declares them, and the debugging calls its runtime part sends them, in `webViews.json` beside `module.json`, as [WEB-VIEWS.md](WEB-VIEWS.md#the-relay) says.
@@ -82,8 +82,9 @@ A module accepts a range of Noldova Desktop versions, so an app moves to a new N
 - **Its peers:** its package's peer on each of Noldova Desktop's packages, and its window part package's, names that same range.
   Its peers on context's packages and the kit may also be ranges of that form, which the app's installed version must be within.
   The build refuses a Noldova Desktop peer at another range, or at an exact version, in a module that names `noldovaDesktop`, and a ranged Noldova Desktop peer in one that doesn't.
-- **What a release writes:** the lowest version is the Noldova Desktop version the module builds and tests against, its own exact development pin; the first refused is the next version that may break modules, the next minor while Noldova Desktop is below 1.0, such as `<0.1.0` for any 0.0.x, and the next major from 1.0.
-  A module raises its lowest version only when it starts to use something newer.
+- **What a release writes:** the lowest version is the module's exact development pin, the one Noldova Desktop version its root `package.json` pins its Noldova Desktop packages to and it builds and tests against; the first refused is the next version that may break modules, the next minor while Noldova Desktop is below 1.0, such as `<0.1.0` for any 0.0.x, and the next major from 1.0.
+  So the lowest version moves with the pin: a module that moves its pin to a newer Noldova Desktop raises its lowest version to it in the same change, and the `module-range` command refuses a range whose lowest version isn't the pin.
+- **CI tests both ends:** the module's own CI builds and tests it at its pin, the range's lowest version, and the reusable "Module range" workflow builds and tests it at the newest published version inside the range.
 - **The build** refuses a module whose range doesn't include the app's Noldova Desktop, the version of `@noldova/desktop.runtime` it builds with, naming the module, its range and that version, and writes that version to `declarations.json` as `noldovaDesktop`.
 - **The runtime** checks again before it runs any of the module's code: a module whose range doesn't include the app's Noldova Desktop fails, with a cause that names both, which the Modules document and the runtime's log show, and the modules that depend on it are blocked.
 - **For now,** a module that names no `noldovaDesktop` keeps one exact version for each Noldova Desktop peer, as before; the release after the modules have moved refuses a module without it.
@@ -304,7 +305,7 @@ Noldova Desktop registers its own entries, such as the default theme, through th
 
 | Mechanism | A module contributes | Noldova Desktop |
 |---|---|---|
-| Views | Content for a panel, in a dock or in the middle, with its title and icon, a badge, a mark that it is working and a mark that it waits for the person; a view with instances, such as a terminal, opens a tab for each instance, titles them, may give each a breadcrumb it changes while the instance is open, and hears when the person closes one, with buttons from one of its menu places in their tab row; the module shows a view without instances, hides the dock that holds one of its view tabs, and reads which dock holds one, the bottom, a side or none. | Docks, splits, hides and restores it, as [WINDOW.md](WINDOW.md#workspace) says, and shows an instance's title and breadcrumb in the window row while its tab is the document area's active tab. |
+| Views | Content for a panel, in a dock or in the middle, with its title and icon, a badge, a mark that it is working and a mark that it waits for the person; a view with instances, such as a terminal, opens a tab for each instance, titles them, may give each a breadcrumb it changes while the instance is open, and hears when the person closes one, with buttons from one of its menu places in their tab row; the module shows a view without instances, hides the dock that holds one of its view tabs, and reads which dock holds one, the bottom, a side or none; a view adds the places it shows, such as a list's items or a pane's pages, to Back and Forward with `recordPlace`, hears through `onPlaceShown` when Back or Forward reaches one, and takes out one it no longer has with `forgetPlace`. | Docks, splits, hides and restores it, as [WINDOW.md](WINDOW.md#workspace) says, and shows an instance's title and breadcrumb in the window row while its tab is the document area's active tab; keeps a view's places in Back and Forward with the documents, shows the view before telling it which place to show, and drops its places when its part deactivates, as [WINDOW.md](WINDOW.md#keys-and-menus) says. |
 | Documents | Content for a tab in the middle, with a title and a breadcrumb, with a glyph before it if the module gives one, that it may change while the document is open, and on its tab an image, such as a favicon, with a glyph in its place, a status glyph, a marker with its tooltip and the accent underline with its reason, a mark that it is working, which shows the spinner before the title, and a mark that it waits for the person; the module opens one right after another of its open instances, such as a page opened from another page, hears when the person closes one of its document tabs, lists the open ones, and forgets a document whose subject is gone. | Opens, arranges and restores its tabs, shows a document's title and breadcrumb in the window row while its tab is the document area's active tab, and steps back and forward through the documents shown, opening a closed one again until its module forgets it. |
 | Placeholder | Content the middle shows while no document is open, such as a start page. | Shows it in the document group while no document is open, as [WINDOW.md](WINDOW.md#workspace) says, and refuses a second one. |
 | Commands | Named actions with a title, an optional icon and an optional default key, from its window or runtime part. | Runs them by name with optional JSON arguments, from keys, menus, toolbars, the top bar, the status bar and command search. |
@@ -333,10 +334,30 @@ Noldova Desktop registers its own entries, such as the default theme, through th
 - A module's command has at most one default key, the same on every platform.
 - Keys go to commands in this order: the person's bindings, Noldova Desktop's default keys, then the modules' default keys in module order, a module's runtime commands before its window commands.
   The first keeps the key, and Settings shows every refused command as a collision.
-- In one of a module's web views the app's shortcuts go first too, and the keys the module declares for the pane in `webViews.json` come after them, as [WEB-VIEWS.md](WEB-VIEWS.md#keys-from-a-view) says.
+- In one of a module's web views, the keys the module declares for the pane in `webViews.json` go first, and the app's shortcuts come after them, as [WEB-VIEWS.md](WEB-VIEWS.md#keys-from-a-view) says.
 - A window part marks an element that keeps the Ctrl keys, such as a terminal, with `nolKeepsCtrlKeys`, and asks its context's `findWindowCommand` which command the window would run for a key; what the window does with such keys is in [WINDOW.md](WINDOW.md#keys-and-menus).
 - A window part reads the key that runs a command with its context's `keyOf`, a signal of the key's platform label, such as `⌥⌘N` on macOS and `Ctrl+Alt+N` elsewhere, and its `aria-keyshortcuts` form, such as `Alt+Meta+N` and `Control+Alt+N`, or of `null` while the command has none; it follows the person's bindings as they change.
-- The person's bindings are the shared setting `desktop.keyBindings`, from a command's name to its key or to `null`; a binding for an absent command is kept until it returns.
+- The person's bindings are the shared setting `desktop.keyBindings`, from a command's name to its key or to `null`; a binding for an absent command is kept until it returns, and one for a renamed command's former name moves to it, as [Former names](#former-names) says.
+
+### Former names
+
+- A module that renames a command or a document lists, in `contributes.formerNames`, the names it had before, by its name now:
+
+  ```json
+  "contributes": {
+    "commands": ["notes.create"],
+    "documents": ["notes.page"],
+    "formerNames": { "notes.create": ["notes.add"], "notes.page": ["notes.sheet"] }
+  }
+  ```
+
+- A former name is any qualified name but the shell's or another reserved id's, so a command or document that moved from another module keeps what the person kept for it; it names only one of the module's own commands and documents, and never the name itself.
+- When the runtime starts, a binding in `desktop.keyBindings` for a command's former name moves to the command and the former name's entry goes, in one write; a binding the person already set for the command wins, and the former one goes.
+  A binding whose key the command can't hold, such as a key the shell keeps for itself, stays under the former name.
+  A binding for a former name that no module in the build declares stays as it is.
+- A tab the saved layout holds under a document's former name reopens as that document, with its instance, title and place, and the layout saves it under the new name; when the layout already holds that document's tab, the former one stays as it is.
+- A module keeps a former name as long as it wants old bindings and tabs carried over, since a person may return from any earlier version.
+- The build refuses a former name that two modules or two of a module's names claim, or that is a name a module contributes in the build.
 
 ### Menus and toolbars
 
@@ -352,6 +373,8 @@ Noldova Desktop registers its own entries, such as the default theme, through th
 - A row whose command doesn't apply to its arguments is left out; a row whose command isn't registered shows disabled.
 - A view with instances, or a document, may show one of the module's plain menu places in the tab row of each group that holds its tabs, with `{ "tabGroup": "<group id>" }` merged into each item's arguments, submenus included, and, for a document's place, `"document"` and `"instance"` while the group's active tab is one of the module's own documents; the place is never a toolbar, so it stays out of the toolbar band and the Toolbars list.
 - A view with instances, or a document, may declare its tabs renamable in place (`isRenamable`); the window part hears each kept title through `onTabRenamed`, an empty one meaning its automatic title, and owns the name it applies.
+- A view or document of the module, with instances or without, closes the view dialog it shows in through its window part's `closeDialog`, with its name and, to close only one instance's, the instance, such as after an action that leads elsewhere; the focus returns as when the person closes the dialog, or goes to the tab of a document the module opened or activated since the dialog showed.
+  The call does nothing while the view shows in a tab, or the dialog shows something else or nothing, so a view never needs to know where it shows.
 
 ### Settings and their scopes
 

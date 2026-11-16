@@ -11,7 +11,7 @@ import { Injectable } from "@angular/core";
 import { ClipboardWriter } from "@noldova/ui.components.angular";
 import { nameof } from "@noldova/context.core";
 import { type JsonObject, JsonReader, type JsonValue } from "@noldova/context.json";
-import { AppShortcut, AppShortcutList, type EditAction, FailureCode, FileGrantsDiscard, type IKeyStroke, type KeyChord, ShellMethods, type WebViewAction, WebViewEvent, WebViewInfo, WebViewNavigation, type WebViewPane, type WindowAction } from "@noldova/desktop.protocol";
+import { AppShortcut, AppShortcutList, type EditAction, FailureCode, FileGrantsDiscard, type IKeyStroke, KeyChord, ShellMethods, type WebViewAction, WebViewEvent, WebViewInfo, WebViewNavigation, type WebViewPane, type WindowAction } from "@noldova/desktop.protocol";
 
 import { FileSaveOutcome } from "../enums/file-save-outcome.js";
 import type { QuitChoice } from "../enums/quit-choice.js";
@@ -317,8 +317,9 @@ export class PreloadBridgeService extends ClipboardWriter {
     const json = JsonReader.fromValue(answer);
     const view = WebViewInfo.fromJson(json.readObject(Resources.webViewViewField).toJson());
     const partition = json.readString(Resources.webViewPartitionField);
+    const keys = json.hasField(Resources.webViewKeysField) ? json.readStringArray(Resources.webViewKeysField).map(t => KeyChord.parse(t)) : [];
     if (!String.isNullOrWhitespace(partition))
-      return { view, partition };
+      return { view, partition, keys };
     this.bridge.closeWebView(moduleId, view.id);
     return null;
   }

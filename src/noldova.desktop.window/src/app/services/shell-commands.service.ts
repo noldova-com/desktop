@@ -39,6 +39,7 @@ import { PreloadBridgeService } from "./preload-bridge.service.js";
 import { EditTargetService } from "./edit-target.service.js";
 import { LinkService } from "./link.service.js";
 import { LayoutService } from "./layout.service.js";
+import { RegionFocusService } from "./region-focus.service.js";
 import { SettingsPageService } from "./settings-page.service.js";
 import { SupportService } from "./support.service.js";
 import { TabFocusService } from "./tab-focus.service.js";
@@ -62,6 +63,7 @@ export class ShellCommandsService {
   private readonly instances: ViewInstancesService = inject(ViewInstancesService);
   private readonly tabFocus: TabFocusService = inject(TabFocusService);
   private readonly renames: TabRenameService = inject(TabRenameService);
+  private readonly regions: RegionFocusService = inject(RegionFocusService);
   private readonly settingsPages: SettingsPageService = inject(SettingsPageService);
   private readonly updates: UpdateService = inject(UpdateService);
   private readonly support: SupportService = inject(SupportService);
@@ -103,6 +105,10 @@ export class ShellCommandsService {
     new CommandContribution(Resources.focusNextGroupCommand, Resources.focusNextGroupTitle, Resources.focusNextGroupGlyph, null, () => this.done(() => this.focusGroup(1)), () => this.focusable().length > 1),
     new CommandContribution(Resources.focusPreviousGroupCommand, Resources.focusPreviousGroupTitle, Resources.focusPreviousGroupGlyph, null, () => this.done(() => this.focusGroup(-1)),
       () => this.focusable().length > 1),
+    new CommandContribution(Resources.focusNextRegionCommand, Resources.focusNextRegionTitle, Resources.focusNextRegionGlyph, null, () => this.done(() => this.regions.move(1)),
+      () => this.regions.hasStops()),
+    new CommandContribution(Resources.focusPreviousRegionCommand, Resources.focusPreviousRegionTitle, Resources.focusPreviousRegionGlyph, null, () => this.done(() => this.regions.move(-1)),
+      () => this.regions.hasStops()),
     ...Object.values(DockSide).map(side => new CommandContribution(Resources.toggleDockCommands[side], Resources.toggleDockTitles[side], Resources.hideDockGlyphs[side], null,
       () => this.done(() => this.layout.toggleDock(side)), () => true, () => this.layout.layout().dock(side).isExpanded && !this.layout.geometry().closedSides.has(side))),
     ...Object.values(EditAction).map(action => new CommandContribution(Resources.editCommands[action], Resources.editTitles[action], Resources.editGlyphs[action], null,
@@ -211,7 +217,7 @@ export class ShellCommandsService {
   }
 
   public keys(platform: string): readonly (readonly [KeyChord, string])[] {
-    return [...ShellKeys.list(platform), ...ShellKeys.pageFirst(platform)];
+    return [...ShellKeys.list(platform), ...ShellKeys.declarable(platform), ...ShellKeys.pageFirst(platform)];
   }
 
   public pageFirstKeys(platform: string): readonly KeyChord[] {

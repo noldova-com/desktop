@@ -27,7 +27,7 @@ export class ModuleWebViewsTests {
 
   private static readonly NO_PRODUCT: string = "The root package.json must declare desktop.product.\n";
   private static readonly FILE: string = "node_modules/@noldova/sample/webViews.json ";
-  private static readonly REFUSED: string = "it needs Mod, Ctrl or Alt, or a function key, and it must not be a key that editing, the operating system or Noldova Desktop holds.\n";
+  private static readonly REFUSED: string = "it needs Mod, Ctrl or Alt, or a function key, or is Escape among the loading keys, and it must not be a key that editing, the operating system or Noldova Desktop holds.\n";
 
   @TestMethod
   @TestData("[{\"name\":\"reload\",\"keys\":[\"Mod+R\",\"F5\"],\"macKeys\":[\"Mod+R\"]},{\"name\":\"newTab\",\"keys\":[\"Mod+T\"]}]")
@@ -64,7 +64,7 @@ export class ModuleWebViewsTests {
   @TestData("[{\"name\":\"reload\",\"keys\":[\"Mod+Ctrl+R\"]}]", "gives reload.keys Mod+Ctrl+R, which is not a key in Noldova Desktop's format, such as Mod+R or F5.")
   @TestData("[{\"name\":\"reload\",\"keys\":[\"Hyper+R\"]}]", "gives reload.keys Hyper+R, which is not a key in Noldova Desktop's format, such as Mod+R or F5.")
   @TestData("[{\"name\":\"reload\",\"keys\":[\"Mod+Mod+R\"]}]", "gives reload.keys Mod+Mod+R, which is not a key in Noldova Desktop's format, such as Mod+R or F5.")
-  @TestData("[{\"name\":\"reload\",\"keys\":[\"Mod+R\"]},{\"name\":\"reload\",\"keys\":[\"F5\"]}]", "must name each of its keys once, with at most 32 names.")
+  @TestData("[{\"name\":\"reload\",\"keys\":[\"Mod+R\"]},{\"name\":\"reload\",\"keys\":[\"F5\"]}]", "must name each of its keys and loading keys once, with at most 32 names in all.")
   @TestData("[{\"name\":\"reload\",\"keys\":[\"Mod+R\",\"Ctrl+R\"],\"macKeys\":[\"Mod+R\"]}]", "gives a key more than once on Windows and Linux.")
   @TestData("[{\"name\":\"reload\",\"keys\":[\"Mod+R\"]},{\"name\":\"refresh\",\"keys\":[\"F5\"],\"macKeys\":[\"Mod+R\"]}]", "gives a key more than once on macOS.")
   public refusesKeysThatAreNotWellFormed(keys: string, problem: string): Promise<void> {
@@ -74,7 +74,34 @@ export class ModuleWebViewsTests {
   @TestMethod
   public refusesMoreThanThirtyTwoNames(): Promise<void> {
     const keys = Array.from({ length: 33 }, (_, index) => ({ name: `key${index}`, keys: [index < 24 ? `F${index + 1}` : `Mod+Shift+F${index - 23}`] }));
-    return ModuleWebViewsTests.assertOutputAsync({ keys }, `${ModuleWebViewsTests.FILE}must name each of its keys once, with at most 32 names.\n`);
+    return ModuleWebViewsTests.assertOutputAsync({ keys }, `${ModuleWebViewsTests.FILE}must name each of its keys and loading keys once, with at most 32 names in all.\n`);
+  }
+
+  @TestMethod
+  @TestData("[{\"name\":\"focusAddress\",\"keys\":[\"Mod+L\"]}]", "[{\"name\":\"stop\",\"keys\":[\"Escape\"]}]")
+  @TestData("[]", "[{\"name\":\"stop\",\"keys\":[\"Escape\",\"F6\"],\"macKeys\":[\"Shift+Escape\"]}]")
+  @TestData("[{\"name\":\"regions\",\"keys\":[\"F6\",\"Shift+F6\"]}]", "[]")
+  public acceptsLoadingKeysWithEscapeAndF6AmongTheKeys(keys: string, loadingKeys: string): Promise<void> {
+    return ModuleWebViewsTests.assertOutputAsync({ keys: JSON.parse(keys), loadingKeys: JSON.parse(loadingKeys) }, ModuleWebViewsTests.NO_PRODUCT);
+  }
+
+  @TestMethod
+  @TestData("[{\"name\":\"stop\",\"keys\":[\"Mod+R\"]}]", "[{\"name\":\"stop\",\"keys\":[\"Escape\"]}]", "must name each of its keys and loading keys once, with at most 32 names in all.")
+  @TestData("[{\"name\":\"reload\",\"keys\":[\"F5\"]}]", "[{\"name\":\"stop\",\"keys\":[\"Escape\",\"F5\"]}]", "gives a key more than once on Windows and Linux.")
+  @TestData("[]", "[\"stop\"]", "must describe loadingKeys[0] with a name, its keys and optionally its macOS keys.")
+  @TestData("[]", "[{\"name\":\"Stop\",\"keys\":[\"Escape\"]}]", "must name loadingKeys[0] with a lowercase letter followed by letters and digits.")
+  @TestData("[]", "{}", "must list its loadingKeys as an array.")
+  public refusesALoadingKeyThatRepeatsAKeyOrIsNotWellFormed(keys: string, loadingKeys: string, problem: string): Promise<void> {
+    return ModuleWebViewsTests.assertOutputAsync({ keys: JSON.parse(keys), loadingKeys: JSON.parse(loadingKeys) }, `${ModuleWebViewsTests.FILE}${problem}\n`);
+  }
+
+  @TestMethod
+  @TestData("Enter", "Windows and Linux")
+  @TestData("Mod+Escape", "Windows and Linux")
+  @TestData("Mod+Shift+Period", "Windows and Linux")
+  public refusesALoadingKeyThatIsTypingOtherThanEscapeOrHeld(key: string, platform: string): Promise<void> {
+    return ModuleWebViewsTests.assertOutputAsync({ loadingKeys: [{ name: "stop", keys: [key] }] },
+      `${ModuleWebViewsTests.FILE}gives stop.keys ${key}, which cannot be declared on ${platform}: ${ModuleWebViewsTests.REFUSED}`);
   }
 
   @TestMethod
@@ -94,7 +121,7 @@ export class ModuleWebViewsTests {
 
   @TestMethod
   public refusesAnUnknownField(): Promise<void> {
-    return ModuleWebViewsTests.assertOutputAsync({ popups: true }, `${ModuleWebViewsTests.FILE}must be an object with optional methods, events, keys and newWindows.\n`);
+    return ModuleWebViewsTests.assertOutputAsync({ popups: true }, `${ModuleWebViewsTests.FILE}must be an object with optional methods, events, keys, newWindows and loadingKeys.\n`);
   }
 
   @TestMethod

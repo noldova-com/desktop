@@ -24,7 +24,7 @@ import { DomFixture } from "../../../fixtures/dom.fixture";
 import { ModuleStatusFixture } from "../../../fixtures/module-status.fixture";
 import { WindowPartContextHostFixture } from "../../../fixtures/window-part-context-host.fixture";
 
-const injected: { context: unknown; shown: boolean | null }[] = [];
+const injected: { context: unknown; shown: boolean | null; isActiveDocument: boolean }[] = [];
 
 @Component({
   selector: "nol-spec-account-page",
@@ -33,7 +33,7 @@ const injected: { context: unknown; shown: boolean | null }[] = [];
 class FakeAccountComponent {
   public constructor() {
     const shown: Signal<boolean> = inject(WindowPartTokens.shown);
-    injected.push({ context: inject(WindowPartTokens.context), shown: shown() });
+    injected.push({ context: inject(WindowPartTokens.context), shown: shown(), isActiveDocument: inject(WindowPartTokens.activeDocument)() });
   }
 }
 
@@ -77,6 +77,7 @@ describe("SettingsPageHostComponent", () => {
     expect(injected).toHaveLength(1);
     expect(injected[0]?.context).toBe(context);
     expect(injected[0]?.shown).toBe(true);
+    expect(injected[0]?.isActiveDocument).toBe(false);
     expect(errors).toEqual([]);
   });
 

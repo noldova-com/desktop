@@ -64,6 +64,7 @@ import { SettingsPageEntry } from "../models/settings/settings-page-entry.js";
 import type { StartupState } from "../models/startup-state.js";
 import type { ViewBadge } from "../models/view-badge.js";
 import type { ViewContribution } from "../models/view-contribution.js";
+import type { ViewPlace } from "../models/view-place.js";
 import { WindowPartActivation } from "../models/window-part-activation.js";
 import { WindowPartContext } from "../models/window-part-context.js";
 import type { WindowPartSource } from "../models/window-part-source.js";
@@ -266,7 +267,7 @@ export class WindowPartHostService implements IWindowPartHost {
   }
 
   public openWebViewAsync(context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string): Promise<IWebViewHandle> {
-    return this.webViews.openAsync(moduleId, pane, tab, profileKey, this.createPartInjector(context));
+    return this.webViews.openAsync(moduleId, pane, tab, profileKey, this.createPartInjector(context, computed(() => tab.equals(this.layout.layout().documents.active))));
   }
 
   public chooseFolderAsync(): Promise<string | null> {
@@ -358,6 +359,10 @@ export class WindowPartHostService implements IWindowPartHost {
     this.changeView(new PendingViewChange(moduleId, this.activatingModules.has(moduleId), null, () => this.instances.close(name, instance)));
   }
 
+  public closeDialog(name: string, instance: string | null): void {
+    this.viewDialogs.closeShowing(name, instance);
+  }
+
   public showView(moduleId: string, name: string): void {
     this.changeView(new PendingViewChange(moduleId, this.activatingModules.has(moduleId), null, () => this.instances.show(new ViewTab(name))));
   }
@@ -378,13 +383,25 @@ export class WindowPartHostService implements IWindowPartHost {
     return this.instances.onClosed(name, listener);
   }
 
+  public recordPlace(place: ViewPlace): void {
+    this.history.recordPlace(place);
+  }
+
+  public forgetPlace(place: ViewPlace): void {
+    this.history.forgetPlace(place);
+  }
+
+  public onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void {
+    return this.history.onPlaceShown(view, listener);
+  }
+
   public async showInDialogAsync(name: string, instance: string | null, title: string | null): Promise<void> {
     const tab = this.layout.registry().hasDocument(name) ? new DocumentTab(name, instance ?? undefined) : new ViewTab(name, instance ?? undefined);
     await this.viewDialogs.showAsync(tab, title);
   }
 
   public openBelowWindowRow<T>(context: IWindowPartContext, component: Type<T>): IWindowPalette<T> | null {
-    return this.overlays.open(component, this.createPartInjector(context), Resources.windowPalettePaneClass);
+    return this.overlays.open(component, this.createPartInjector(context, signal(false).asReadonly()), Resources.windowPalettePaneClass);
   }
 
   public declaresDynamicMenuGroup(moduleId: string, group: string): boolean {
@@ -492,12 +509,13 @@ export class WindowPartHostService implements IWindowPartHost {
       new Set(this.activations.flatMap(t => t.context.documents.filter(u => u.isRenamable).map(u => u.name)))));
   }
 
-  private createPartInjector(context: IWindowPartContext): Injector {
+  private createPartInjector(context: IWindowPartContext, isActiveDocument: Signal<boolean>): Injector {
     return Injector.create({
       providers: [
         { provide: WindowPartTokens.context, useValue: context },
         { provide: WindowPartTokens.contentPadding, useValue: new ContentPaddingRef() },
-        { provide: WindowPartTokens.shown, useValue: signal(true).asReadonly() }
+        { provide: WindowPartTokens.shown, useValue: signal(true).asReadonly() },
+        { provide: WindowPartTokens.activeDocument, useValue: isActiveDocument }
       ],
       parent: this.injector
     });
@@ -876,6 +894,7 @@ export class WindowPartHostService implements IWindowPartHost {
       this.activatingModules.delete(status.id);
       this.activations.splice(this.activations.indexOf(activation), 1);
       this.labels.dropLooks(t => WindowPartHostService.owns(activation.context, t));
+      this.history.dropPlaces(t => WindowPartHostService.owns(activation.context, new ViewTab(t)));
       activation.context.withdraw();
       this.dropPending(status.id);
       if (RuntimeDisconnectedException.isIn(error))
@@ -891,6 +910,7 @@ export class WindowPartHostService implements IWindowPartHost {
   private async deactivateAsync(activations: readonly WindowPartActivation[]): Promise<void> {
     for (const activation of [...activations].reverse()) {
       this.liveViews.destroy(t => WindowPartHostService.owns(activation.context, t));
+      this.history.dropPlaces(t => WindowPartHostService.owns(activation.context, new ViewTab(t)));
       this.activations.splice(this.activations.indexOf(activation), 1);
       this.changedModules.add(activation.context.moduleId);
       try {
@@ -901,6 +921,7 @@ export class WindowPartHostService implements IWindowPartHost {
       }
       finally {
         this.labels.dropLooks(t => WindowPartHostService.owns(activation.context, t));
+        this.history.dropPlaces(t => WindowPartHostService.owns(activation.context, new ViewTab(t)));
         activation.context.withdraw();
         this.dropPending(activation.context.moduleId);
         this.announceWithdrawn(t => t === activation.context.moduleId);

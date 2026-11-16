@@ -43,6 +43,7 @@ export class Resources {
   public static readonly switchSettingField: string = "switchSetting";
   public static readonly platformsField: string = "platforms";
   public static readonly noldovaDesktopField: string = "noldovaDesktop";
+  public static readonly formerNamesField: string = "formerNames";
   public static readonly formatVersionField: string = "formatVersion";
   public static readonly modulesField: string = "modules";
   public static readonly modulePlatforms: ReadonlyMap<string, string> = new Map([["win32", "windows"], ["darwin", "macos"], ["linux", "linux"]]);

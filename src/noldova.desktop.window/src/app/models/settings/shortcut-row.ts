@@ -14,8 +14,9 @@ export class ShortcutRow {
   public readonly hasKey: boolean;
   public readonly isModified: boolean;
   public readonly collision: string | null;
+  public readonly paneNote: string | null;
 
-  public constructor(name: string, title: string, owner: string, key: string, hasKey: boolean, isModified: boolean, collision: string | null) {
+  public constructor(name: string, title: string, owner: string, key: string, hasKey: boolean, isModified: boolean, collision: string | null, paneNote: string | null) {
     this.name = name;
     this.title = title;
     this.owner = owner;
@@ -23,5 +24,6 @@ export class ShortcutRow {
     this.hasKey = hasKey;
     this.isModified = isModified;
     this.collision = collision;
+    this.paneNote = paneNote;
   }
 }

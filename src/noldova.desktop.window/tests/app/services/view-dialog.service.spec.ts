@@ -261,6 +261,73 @@ describe("ViewDialogService", () => {
     expect(shownAfter).toEqual([plan.key, plan.key, plan.key]);
   });
 
+  it("closes when its module asks to close its view or document, by name or by name and instance, gone from the page with focus back where it came from", async () => {
+    const draft = new DocumentTab(plan.name, "draft");
+    const view = dialogs.showAsync(search);
+    await vi.waitFor(() => expect(document.activeElement?.classList.contains("nol-test-query")).toBe(true));
+    dialogs.closeShowing(search.name, null);
+    await view;
+    await vi.waitFor(() => expect(document.activeElement).toBe(opener));
+    const afterView = [document.querySelector("nol-view-dialog"), container(), dialogs.shown()];
+
+    const note = dialogs.showAsync(draft);
+    await vi.waitFor(() => expect(document.querySelector(".nol-test-note")).not.toBeNull());
+    dialogs.closeShowing(draft.name, draft.instance ?? null);
+    await note;
+    await vi.waitFor(() => expect(document.activeElement).toBe(opener));
+
+    expect([...afterView, document.querySelector("nol-view-dialog"), container(), dialogs.shown()]).toEqual([null, null, null, null, null, null]);
+  });
+
+  it("returns a view or document shown from its tab to that tab, active again, when its module asks to close it", async () => {
+    const layout = TestBed.inject(LayoutService);
+    layout.activate(plan);
+    TestBed.tick();
+    const shown = dialogs.showAsync(plan);
+    await vi.waitFor(() => expect(document.querySelector(".nol-test-note")).not.toBeNull());
+    const during = [layout.layout().isOpen(plan), layout.hidden()?.key];
+
+    dialogs.closeShowing(plan.name, plan.instance ?? null);
+    await shown;
+
+    expect([...during, layout.layout().isOpen(plan), layout.hidden(), layout.layout().groupOf(plan)?.active?.equals(plan)]).toEqual([true, plan.key, true, null, true]);
+  });
+
+  it("focuses the tab of a document its module opened just before it asked to close the dialog", async () => {
+    const layout = TestBed.inject(LayoutService);
+    const tabElement = document.createElement("button");
+    tabElement.dataset["tabKey"] = LayoutFixture.todo.key;
+    document.body.append(tabElement);
+    const shown = dialogs.showAsync(plan);
+    await vi.waitFor(() => expect(document.querySelector(".nol-test-note")).not.toBeNull());
+
+    layout.openDocument(LayoutFixture.todo);
+    dialogs.closeShowing(plan.name, null);
+    await shown;
+    TestBed.tick();
+    await vi.waitFor(() => expect(document.activeElement).toBe(tabElement));
+    tabElement.remove();
+
+    expect([layout.layout().isOpen(LayoutFixture.todo), layout.layout().isOpen(plan), dialogs.shown()]).toEqual([true, true, null]);
+  });
+
+  it("stays open when its module asks to close a view or document in a tab, another one or another instance, and does nothing with no dialog open", async () => {
+    const draft = new DocumentTab(plan.name, "draft");
+    dialogs.closeShowing(search.name, null);
+    const idle = dialogs.shown();
+    const shown = dialogs.showAsync(draft);
+    await vi.waitFor(() => expect(document.querySelector(".nol-test-note")).not.toBeNull());
+
+    for (const [name, instance] of [[plan.name, plan.instance ?? null], [search.name, null], [LayoutFixture.files.name, null]] as const)
+      dialogs.closeShowing(name, instance);
+    TestBed.tick();
+    const kept = [dialogs.shown()?.key, Object.isNull(document.querySelector("nol-view-dialog")), Object.isNull(container()), TestBed.inject(LayoutService).layout().isOpen(plan)];
+    dialogs.close();
+    await shown;
+
+    expect([idle, ...kept]).toEqual([null, draft.key, false, false, true]);
+  });
+
   it("focuses the tab it came from when the control that opened it is gone, and leaves focus where it returned otherwise", async () => {
     const tabElement = document.createElement("button");
     tabElement.dataset["tabKey"] = plan.key;

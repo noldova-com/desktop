@@ -2452,6 +2452,35 @@ export interface IWindowPartContext {
   closeView(name: string, instance: string): void;
 
   /**
+   * Closes the view dialog while it shows one of the module's views or
+   * documents, with instances or without, such as after an action of the view
+   * leads elsewhere: the dialog closes as when the person closes it, its view
+   * returns to its tab if it came from one, and the focus returns where the
+   * person's close returns it, or goes to the tab of a document the module
+   * opened or activated since the dialog showed, as in the example below.
+   * Nothing happens while the view or document
+   * shows in a tab, or the dialog shows something else or nothing, so a view
+   * never needs to know whether it shows in a dialog: it asks to close the
+   * dialog either way.
+   *
+   * @param name The view's or document's name.
+   * @param instance The instance the dialog must show for it to close; any
+   * instance of the name when omitted.
+   * @throws Error synchronously when the name belongs to another module or is
+   * not one of the module's views or documents, or the instance is blank.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function startChat(context: IWindowPartContext, person: string): void {
+   *   context.openDocument("chat.conversation", person, person);
+   *   context.closeDialog("chat.people");
+   * }
+   * ```
+   */
+  closeDialog(name: string, instance?: string): void;
+
+  /**
    * Shows one of the part's views without instances, such as a bottom
    * panel, and moves the focus into it, as choosing its tab with the
    * pointer does: to the element it last held there, else its first
@@ -2606,6 +2635,78 @@ export interface IWindowPartContext {
   onViewClosed(name: string, listener: (instance: string) => void): () => void;
 
   /**
+   * Adds a place the view shows, such as a list's item or a pane's page, to
+   * Back and Forward, after the entry the person is on: the same history as
+   * the documents shown in the middle, whose entries ahead it drops and whose
+   * 50-entry limit it shares. A place equal to the entry the person is on is
+   * ignored, so a view can record each place it shows, including one it shows
+   * because Back or Forward reached it. While the part is inactive, the call
+   * does nothing.
+   *
+   * @param view The view's name, the module's.
+   * @param place The place, a string the module chooses that is not blank,
+   * such as an item's id or a page's address; the same view, instance and
+   * place make the same place.
+   * @param instance The view's instance, given for a view with instances and
+   * left out for one without.
+   * @throws Error synchronously when the view belongs to another module, is
+   * not a registered view, gets an instance it doesn't have or lacks one it
+   * has, or the place or instance is blank.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function showNote(context: IWindowPartContext, id: string): void {
+   *   context.recordPlace("notes.list", id);
+   * }
+   * ```
+   */
+  recordPlace(view: string, place: string, instance?: string): void;
+
+  /**
+   * Takes a place the module no longer has out of Back and Forward, such as
+   * a deleted item. While the part is inactive, the call does nothing; the
+   * window drops a module's places when its part deactivates.
+   *
+   * @param view The view's name, the module's.
+   * @param place The place, as {@link recordPlace} gave it.
+   * @param instance The view's instance, as {@link recordPlace} gave it.
+   * @throws Error synchronously as {@link recordPlace} does.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function deleteNote(context: IWindowPartContext, id: string): void {
+   *   context.forgetPlace("notes.list", id);
+   * }
+   * ```
+   */
+  forgetPlace(view: string, place: string, instance?: string): void;
+
+  /**
+   * Listens for Back or Forward reaching one of the view's places. The window
+   * shows the view first, the instance's tab or the view in its dock, and
+   * then calls each listener with the place to show. Back and Forward skip a
+   * place whose view has no listener or whose instance's tab is closed.
+   *
+   * @param view The view's name, the module's.
+   * @param listener Called with the place and the instance it was recorded
+   * for, or null for a view without instances.
+   * @returns A function that removes the listener.
+   * @throws Error synchronously when the view belongs to another module or
+   * is not a registered view.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function followHistory(context: IWindowPartContext, show: (id: string) => void): () => void {
+   *   return context.onPlaceShown("notes.list", show);
+   * }
+   * ```
+   */
+  onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void;
+
+  /**
    * Shows a view or document in a large modal dialog. One already open in a
    * tab moves into the dialog and returns when it closes.
    *
@@ -2629,8 +2730,8 @@ export interface IWindowPartContext {
   /**
    * Opens a palette just under the window row, centred across the window, as
    * the command search opens: the part's component, created with its
-   * {@link WindowPartTokens}, with `shown` true and a content padding of its
-   * own. The window shows one palette at a time.
+   * {@link WindowPartTokens}, with `shown` true, `activeDocument` false and a
+   * content padding of its own. The window shows one palette at a time.
    *
    * @param load Loads the palette's component.
    * @returns The palette, or null when the window shows no window row,
@@ -4448,6 +4549,20 @@ export declare class WindowPartTokens {
    * such as timers, while it is hidden.
    */
   public static readonly shown: InjectionToken<Signal<boolean>>;
+
+  /**
+   * Whether the page the component is shown on is the window's active
+   * document: the active tab of the document group the person last worked in.
+   * @remarks With documents side by side in several groups, each is shown,
+   * and only the active group's active tab is the active document. The signal
+   * changes as the active document moves between groups, by pointer, by
+   * keyboard or as a saved layout restores, so a module that keeps one current
+   * item for the window, such as a record another view highlights, follows it.
+   * A view's page is the active document only while its tab is the active tab
+   * of that group; a settings page, a placeholder and a palette never are, and
+   * a web view's layer is while the tab its view is in is the active document.
+   */
+  public static readonly activeDocument: InjectionToken<Signal<boolean>>;
 }
 
 /**

@@ -84,11 +84,15 @@ export interface IWindowPartContext {
   openView(name: string, instance: string, title: string, options?: IViewInstanceOptions): void;
   updateView(name: string, instance: string, update: IViewUpdate): void;
   closeView(name: string, instance: string): void;
+  closeDialog(name: string, instance?: string): void;
   showView(name: string): void;
   hideViewDock(name: string, instance?: string): void;
   growViewDock(name: string, minimum: number, instance?: string): () => void;
   viewDockOf(name: string, instance?: string): Signal<DockSide | null>;
   onViewClosed(name: string, listener: (instance: string) => void): () => void;
+  recordPlace(view: string, place: string, instance?: string): void;
+  forgetPlace(view: string, place: string, instance?: string): void;
+  onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void;
   showInDialogAsync(name: string, options?: IViewDialogOptions): Promise<void>;
   openBelowWindowRowAsync<T>(load: () => Promise<Type<T>>): Promise<IWindowPalette<T> | null>;
   log(message: string): void;

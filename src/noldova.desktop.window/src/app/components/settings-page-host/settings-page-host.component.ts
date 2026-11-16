@@ -44,7 +44,8 @@ export class SettingsPageHostComponent {
   });
   protected readonly loaded: Signal<Type<unknown> | null> = computed(() => this.component.hasValue() ? this.component.value() : null);
   protected readonly pageInjector: Signal<Injector> = computed(() => Injector.create({
-    providers: [{ provide: WindowPartTokens.context, useValue: this.entry().context }, { provide: WindowPartTokens.shown, useValue: signal(true).asReadonly() }],
+    providers: [{ provide: WindowPartTokens.context, useValue: this.entry().context }, { provide: WindowPartTokens.shown, useValue: signal(true).asReadonly() },
+      { provide: WindowPartTokens.activeDocument, useValue: signal(false).asReadonly() }],
     parent: this.injector
   }));
   protected readonly failure: Signal<ModuleFailure | null> = computed(() => {

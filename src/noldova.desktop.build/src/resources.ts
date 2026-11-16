@@ -695,6 +695,8 @@ export class Resources {
   public static readonly defaultField: string = "default";
   public static readonly keysField: string = "keys";
   public static readonly macKeysField: string = "macKeys";
+  public static readonly loadingKeysField: string = "loadingKeys";
+  public static readonly escapeKey: string = "Escape";
   public static readonly newWindowsField: string = "newWindows";
   public static readonly parametersField: string = "parameters";
   public static readonly valuesField: string = "values";
@@ -770,6 +772,8 @@ export class Resources {
   public static readonly moduleDisplayNameMissing: string = "must have a display name";
   public static readonly moduleDescriptionMissing: string = "must have a description";
   public static readonly moduleContributesNotObject: string = "must list its contributions as an object";
+  public static readonly moduleFormerNamesNotObject: string = "must give its former names as an object from a command's or a document's name to the names it had before";
+  public static readonly formerNamesField: string = "formerNames";
   public static readonly modulePlaceholderRepeated: string = "declares more than one placeholder, and a window shows one";
   public static readonly modulePlaceholderWithoutWindow: string = "declares a placeholder without a window part, which registers it";
   public static readonly moduleSettingsPagesWithoutWindow: string = "declares settings pages without a window part, which registers them";
@@ -913,7 +917,7 @@ export class Resources {
     "Network.setRequestInterception", "Network.continueInterceptedRequest"
   ];
   public static readonly webViewRefusedDomains: readonly string[] = ["Target", "Browser", "Fetch", "Security"];
-  public static readonly webViewFields: readonly string[] = [Resources.methodsKind, Resources.eventsKind, Resources.keysField, Resources.newWindowsField];
+  public static readonly webViewFields: readonly string[] = [Resources.methodsKind, Resources.eventsKind, Resources.keysField, Resources.newWindowsField, Resources.loadingKeysField];
   public static readonly webViewMethodFields: readonly string[] = [Resources.nameField, Resources.parametersField];
   public static readonly webViewKeyFields: readonly string[] = [Resources.nameField, Resources.keysField, Resources.macKeysField];
   public static readonly webViewRuleFields: readonly string[] = [
@@ -922,12 +926,12 @@ export class Resources {
   public static readonly webViewStandardPlatforms: string = "Windows and Linux";
   public static readonly webViewMacPlatform: string = "macOS";
   public static readonly webViewFileInvalid: string =
-    `must be an object with optional ${Resources.methodsKind}, ${Resources.eventsKind}, ${Resources.keysField} and ${Resources.newWindowsField}`;
+    `must be an object with optional ${Resources.methodsKind}, ${Resources.eventsKind}, ${Resources.keysField}, ${Resources.newWindowsField} and ${Resources.loadingKeysField}`;
   public static readonly webViewMethodRepeated: string = "names a method more than once";
   public static readonly webViewEventsInvalid: string =
     "must list its events once each as a debugging protocol domain, a dot and a name, such as Page.loadEventFired";
   public static readonly webViewNewWindowsNotBoolean: string = `must say ${Resources.newWindowsField} as true or false`;
-  public static readonly webViewKeysInvalid: string = `must name each of its keys once, with at most ${Resources.webViewKeysLimit} names`;
+  public static readonly webViewKeysInvalid: string = `must name each of its keys and loading keys once, with at most ${Resources.webViewKeysLimit} names in all`;
   public static readonly modulePackageFixturesFolder: string = `${Resources.moduleFixtureFolder}/packages`;
   public static readonly modulesSourceFolder: string = `${Resources.sourceFolder}/modules`;
   public static readonly angularCorePackage: string = "@angular/core";
@@ -1086,6 +1090,7 @@ export class Resources {
   public static readonly optionalTargetArchitecture: string = Resources.architectureArm64;
   public static readonly publishedVersionsVariable: string = "PUBLISHED_VERSIONS";
   public static readonly moduleRangeNoOutputFile: string = `${Resources.githubOutputVariable} names no file for the step's range and version outputs.`;
+  public static readonly moduleRangeNoPin: string = `The root ${Resources.packageManifestFileName} pins no Noldova Desktop package to one exact version, the version a module builds and tests against.`;
   public static readonly moduleRangeNoPublished: string = `${Resources.publishedVersionsVariable} holds no list of versions as npm view's JSON gives it.`;
   public static readonly feedSkipVariable: string = "SKIP_FEED_CHECK";
   public static readonly feedVersionVariable: string = "FEED_VERSION";
@@ -1360,6 +1365,7 @@ export class Resources {
   public static readonly manifestVersionField: string = "version";
   public static readonly manifestDependenciesField: string = "dependencies";
   public static readonly manifestOptionalDependenciesField: string = "optionalDependencies";
+  public static readonly manifestDevDependenciesField: string = "devDependencies";
   public static readonly manifestFilesField: string = "files";
   public static readonly manifestExportsField: string = "exports";
   public static readonly manifestCommitField: string = "gitHead";
@@ -2877,12 +2883,12 @@ export class Resources {
     return `gives a key more than once on ${platform}`;
   }
 
-  public static formatWebViewKeyInvalid(index: number): string {
-    return `must describe ${Resources.keysField}[${index}] with a name, its keys and optionally its macOS keys`;
+  public static formatWebViewKeyInvalid(field: string, index: number): string {
+    return `must describe ${field}[${index}] with a name, its keys and optionally its macOS keys`;
   }
 
-  public static formatWebViewKeyNameInvalid(index: number): string {
-    return `must name ${Resources.keysField}[${index}] with a lowercase letter followed by letters and digits`;
+  public static formatWebViewKeyNameInvalid(field: string, index: number): string {
+    return `must name ${field}[${index}] with a lowercase letter followed by letters and digits`;
   }
 
   public static formatWebViewChordsInvalid(where: string): string {
@@ -2894,7 +2900,7 @@ export class Resources {
   }
 
   public static formatWebViewKeyRefused(where: string, text: string, platform: string): string {
-    return `gives ${where} ${text}, which cannot be declared on ${platform}: it needs Mod, Ctrl or Alt, or a function key, and it must not be a key that editing, the operating system or Noldova Desktop holds`;
+    return `gives ${where} ${text}, which cannot be declared on ${platform}: it needs Mod, Ctrl or Alt, or a function key, or is Escape among the loading keys, and it must not be a key that editing, the operating system or Noldova Desktop holds`;
   }
 
   public static formatWebViewMethodInvalid(index: number): string {
@@ -2963,6 +2969,26 @@ export class Resources {
 
   public static formatCatalogPermissionsModuleInvalid(name: unknown): string {
     return `The root ${Resources.packageManifestFileName}'s ${Resources.desktopField}.${Resources.productField}.${Resources.permissionsModuleField} must be the id of a module in ${Resources.modulesListSection}, not ${JSON.stringify(name)}.`;
+  }
+
+  public static formatModuleFormerNamesUndeclared(name: string): string {
+    return `gives former names for "${name}", which isn't one of its commands or documents`;
+  }
+
+  public static formatModuleFormerNamesInvalid(name: string): string {
+    return `must give "${name}" its former names as a list of different qualified names, such as "notes.add", none of them its own name`;
+  }
+
+  public static formatModuleFormerNamesReserved(name: string, former: string): string {
+    return `gives "${name}" the former name "${former}", which belongs to the shell or a reserved id: ${Resources.moduleReservedIds.join(", ")}`;
+  }
+
+  public static formatCatalogFormerNamesRepeated(repeated: readonly (readonly [string, readonly string[]])[]): string {
+    return `Former names repeat in the build, and a former name moves to one command or document: ${repeated.map(([name, files]) => Resources.formatNameInFile(name, files.join(", "))).join("; ")}.`;
+  }
+
+  public static formatCatalogFormerNamesCurrent(current: readonly (readonly [string, readonly string[]])[]): string {
+    return `Former names are names a module contributes in the build: ${current.map(([name, files]) => Resources.formatNameInFile(name, files.join(", "))).join("; ")}.`;
   }
 
   public static formatContributionPlace(file: string, kind: string): string {
@@ -3202,6 +3228,16 @@ export class Resources {
 
   public static formatModuleRangeNotFollowing(file: string, range: string, minimum: string, following: string): string {
     return `${file}'s ${Resources.noldovaDesktopField} is ${range}, but a range from ${minimum} ends below the next version that may break modules: ${following}.`;
+  }
+
+  public static formatModuleRangePinNotExact(name: string, version: string): string {
+    return `The root ${Resources.packageManifestFileName} names ${name} at ${version}, not at one exact version; `
+      + `a module pins each Noldova Desktop package to the exact version its range starts at, as MODULES.md's "Noldova Desktop versions" says.`;
+  }
+
+  public static formatModuleRangeNotPin(file: string, range: string, name: string, pin: string): string {
+    return `${file}'s ${Resources.noldovaDesktopField} is ${range}, but the root ${Resources.packageManifestFileName} pins ${name} at ${pin}; `
+      + `the range's lowest version is the module's exact development pin, as MODULES.md's "Noldova Desktop versions" says.`;
   }
 
   public static formatModuleRangeNoneInside(file: string, range: string): string {

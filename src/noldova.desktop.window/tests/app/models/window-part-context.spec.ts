@@ -492,6 +492,20 @@ describe("WindowPartContext", () => {
     expect(host.viewListeners.size).toBe(0);
   });
 
+  it("closes the dialog showing its own view or document through the host, with or without an instance, refusing another module's name, an undeclared one and a blank instance, and not once withdrawn", () => {
+    context.closeDialog("notes.list");
+    context.closeDialog("notes.note", "2");
+
+    expect(() => context.closeDialog("clock.face")).toThrowError(WindowPartAccessException);
+    expect(() => context.closeDialog("notes.other")).toThrowError("The module notes does not declare the view or document notes.other.");
+    expect(() => context.closeDialog("notes.list", " ")).toThrowError(ArgumentException);
+    const asked = [...host.calls];
+    context.withdraw();
+    const withdrawn = host.calls.length;
+    context.closeDialog("notes.list");
+    expect([asked, host.calls.length]).toEqual([["closeDialog notes.list -", "closeDialog notes.note 2"], withdrawn]);
+  });
+
   it("shows its own view without instances and hides its dock through the host, refusing an instance for it and another module's view", () => {
     context.registerView(view("notes.list"));
 
@@ -635,6 +649,62 @@ describe("WindowPartContext", () => {
 
     expect(heard).toEqual(["1", "still 1", "still 3"]);
     expect(host.viewListeners.size).toBe(0);
+  });
+
+  describe("with places", () => {
+    let part: WindowPartContext;
+
+    beforeEach(() => {
+      part = new WindowPartContext(new WindowPartSource("notes", [], ["notes.list", "notes.panel"], [], [], [], [], [], () => Promise.reject<IWindowPart>(new Error("unused"))), host);
+      part.registerView(instanceView());
+      part.registerView(view("notes.panel"));
+      host.calls.length = 0;
+    });
+
+    it("records and forgets its own views' places through the host, with the instance only for a view with instances", () => {
+      part.recordPlace("notes.panel", "note-1");
+      part.recordPlace("notes.list", "/home", "1");
+      part.forgetPlace("notes.panel", "note-1");
+      part.forgetPlace("notes.list", "/home", "1");
+
+      expect(host.calls).toEqual(["place notes.panel - note-1", "place notes.list 1 /home", "forget place notes.panel - note-1", "forget place notes.list 1 /home"]);
+    });
+
+    it("hears Back and Forward reach its own views' places until it stops listening or is withdrawn", () => {
+      const heard: string[] = [];
+      const tell = (name: string, place: string, instance: string | null): void => {
+        for (const [view, listener] of [...host.placeListeners])
+          if (view === name)
+            listener(place, instance);
+      };
+      const stop = part.onPlaceShown("notes.panel", (place, instance) => heard.push(`${place} ${instance ?? "-"}`));
+      part.onPlaceShown("notes.list", (place, instance) => heard.push(`list ${place} ${instance ?? "-"}`));
+      tell("notes.panel", "note-1", null);
+      tell("notes.list", "/home", "1");
+      stop();
+      tell("notes.panel", "note-2", null);
+      part.withdraw();
+      tell("notes.list", "/tmp", "1");
+
+      expect(heard).toEqual(["note-1 -", "list /home 1"]);
+      expect(host.placeListeners.size).toBe(0);
+    });
+
+    it("refuses a place of another module's view, of a view it has not registered, with a wrong instance or blank", () => {
+      const listen = (name: string): (() => void) => part.onPlaceShown(name, () => undefined);
+
+      expect(() => context.recordPlace("notes.list", "note-1")).toThrowError("The module notes does not declare the view without instances notes.list.");
+      expect(() => part.recordPlace("clock.face", "note-1")).toThrowError(WindowPartAccessException);
+      expect(() => part.recordPlace("notes.panel", "note-1", "1")).toThrowError("The module notes does not declare the view with instances notes.panel.");
+      expect(() => part.recordPlace("notes.list", "/home")).toThrowError("The module notes does not declare the view without instances notes.list.");
+      expect(() => part.recordPlace("notes.list", "/home", " ")).toThrowError("An instance is a string that is not blank.");
+      expect(() => part.recordPlace("notes.panel", " ")).toThrowError("A place is a string that is not blank.");
+      expect(() => part.forgetPlace("notes.list", String.empty, "1")).toThrowError("A place is a string that is not blank.");
+      expect(() => part.forgetPlace("clock.face", "note-1")).toThrowError(WindowPartAccessException);
+      expect(() => listen("clock.face")).toThrowError(WindowPartAccessException);
+      expect(() => context.onPlaceShown("notes.list", () => undefined)).toThrowError("The module notes does not declare the view notes.list.");
+      expect([host.calls, host.placeListeners.size]).toEqual([[], 0]);
+    });
   });
 
   it("hears the person closing its own document's tabs until it stops listening or is withdrawn, and refuses another module's or an undeclared document", () => {
@@ -1147,6 +1217,7 @@ describe("WindowPartContext", () => {
     ["markWorking", t => t.markWorking("notes.note", "1"), () => 0],
     ["markWaiting", t => t.markWaiting("notes.note", "1"), () => 0],
     ["onViewClosed", t => t.onViewClosed("notes.list", () => undefined), () => host.viewListeners.size],
+    ["onPlaceShown", t => t.onPlaceShown("notes.list", () => undefined), () => host.placeListeners.size],
     ["onDocumentClosed", t => t.onDocumentClosed("notes.note", () => undefined), () => host.documentListeners.size],
     ["onTabRenamed", t => t.onTabRenamed("notes.note", () => undefined), () => host.renameListeners.size],
     ["onEvent", t => t.onEvent("tasks.changed", () => undefined), () => host.listeners.size],
@@ -1194,6 +1265,8 @@ describe("WindowPartContext", () => {
       ["updateView", t => t.updateView("notes.list", "1", { title: "Shell 2" })],
       ["closeView", t => t.closeView("notes.list", "1")],
       ["showView", t => t.showView("notes.panel")],
+      ["recordPlace", t => t.recordPlace("notes.panel", "note-1")],
+      ["forgetPlace with an instance", t => t.forgetPlace("notes.list", "/home", "1")],
       ["hideViewDock", t => t.hideViewDock("notes.panel")],
       ["hideViewDock with an instance", t => t.hideViewDock("notes.list", "1")],
       ["growViewDock and its release", t => t.growViewDock("notes.list", 20, "1")()],

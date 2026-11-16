@@ -115,6 +115,38 @@ describe("LayoutReader", () => {
     expect(failure({ ...unnamed, activeDocuments: "second" }).path).toBe("$.activeDocuments");
   });
 
+  it("reads a tab saved under a document's former name as that document in its place, unless the layout already holds the document's tab", () => {
+    const formerNames = new Map([["notes.sheet", "notes.note"], ["notes.page", "notes.note"]]);
+    const middle = {
+      axis: "Horizontal",
+      children: [
+        { tabs: [{ document: "notes.sheet", instance: "plan" }, { view: "git.changes" }, { document: "notes.page", instance: "list" }, { document: "notes.page", instance: "plan" }], active: 0, documents: true, weight: 0.5 },
+        { tabs: [{ document: "notes.note", instance: "todo" }, { document: "notes.sheet", instance: "todo" }], active: 1, documents: true, weight: 0.5 }
+      ]
+    };
+    const layout = LayoutReader.read(saved({}, middle), formerNames);
+
+    expect(layout.groups.map(t => t.tabs.map(tab => tab.key))).toEqual([
+      ["document/notes.note/plan", "view/git.changes", "document/notes.note/list", "document/notes.page/plan"],
+      ["document/notes.note/todo", "document/notes.sheet/todo"]
+    ]);
+    expect(layout.documents.active).toEqual(plan);
+    expect(LayoutReader.read(saved({}, middle))).toEqual(LayoutReader.read(saved({}, middle), new Map()));
+    expect(LayoutReader.read(saved({}, middle)).groups.flatMap(t => t.tabs).map(t => t.key)).toContain("document/notes.sheet/plan");
+  });
+
+  it("reads the saved titles of tabs under a document's former name as the document's titles, and none when the layout has no titles", () => {
+    const formerNames = new Map([["notes.sheet", "notes.note"]]);
+    const middle = { tabs: [{ document: "notes.sheet", instance: "plan" }, { document: "notes.note", instance: "todo" }, { document: "notes.sheet", instance: "todo" }], active: 0, documents: true };
+    const titles = { "document/notes.sheet/plan": "Plan", "document/notes.sheet/todo": "Old todo", "document/notes.note/todo": "Todo" };
+
+    expect([...LayoutReader.readTitles({ ...saved({}, middle), titles }, formerNames)]).toEqual([
+      ["document/notes.note/plan", "Plan"], ["document/notes.sheet/todo", "Old todo"], ["document/notes.note/todo", "Todo"]
+    ]);
+    expect([...LayoutReader.readTitles({ ...saved({}, middle), titles })].map(([key]) => key)).toEqual(Object.keys(titles));
+    expect(LayoutReader.readTitles(saved({}, middle), formerNames).size).toBe(0);
+  });
+
   it("reads a group marked as not the documents group as a view group", () => {
     expect(LayoutReader.read(saved({ Left: dock({ ...group({ view: "files.tree" }), documents: false }) })).dock(DockSide.Left).root)
       .toEqual(new TabGroup(1, [files], files));

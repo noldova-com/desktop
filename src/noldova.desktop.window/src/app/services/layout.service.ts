@@ -17,6 +17,7 @@ import { DockSide } from "../enums/dock-side.js";
 import { DockStyle } from "../enums/dock-style.js";
 import { StartupStateKind } from "../enums/startup-state-kind.js";
 import type { ILayoutStore } from "../interfaces/i-layout-store.js";
+import { BuildTokens } from "../models/build-tokens.js";
 import { DockYield } from "../models/layout/dock-yield.js";
 import { DocumentTab } from "../models/layout/document-tab.js";
 import type { DropTarget } from "../models/layout/drop-target.js";
@@ -45,6 +46,7 @@ export class LayoutService {
   private readonly startup: StartupService = inject(StartupService);
   private readonly settings: SettingsService = inject(SettingsService);
   private readonly labels: TabLabelService = inject(TabLabelService);
+  private readonly formerDocumentNames: ReadonlyMap<string, string> = new Map(inject(BuildTokens.sources).flatMap(t => t.formerDocumentNames));
   private readonly registryState: WritableSignal<ViewRegistry> = signal(ViewRegistry.createEmpty());
   private readonly layoutState: WritableSignal<Layout> = signal(Layout.createDefault(this.registryState()));
   private readonly width: WritableSignal<number> = signal(0);
@@ -306,7 +308,7 @@ export class LayoutService {
 
   private read(saved: unknown): readonly [Layout, ReadonlyMap<string, string>] | null {
     try {
-      return [LayoutReader.read(saved), LayoutReader.readTitles(saved)];
+      return [LayoutReader.read(saved, this.formerDocumentNames), LayoutReader.readTitles(saved, this.formerDocumentNames)];
     }
     catch (error) {
       if (!(error instanceof JsonException))
