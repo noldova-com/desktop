@@ -239,10 +239,12 @@ jobs:
             }).join("; ")')
           echo "tested=$tested" >> "$GITHUB_OUTPUT"
           if [ -n "$tested" ]; then
-            echo "The run tests these @noldova packages at versions other than the root package-lock.json's: $tested." >> "$GITHUB_STEP_SUMMARY"
+            said="The run tests these @noldova packages at versions other than the root package-lock.json's: $tested."
           else
-            echo "The run tests every @noldova package at the version the root package-lock.json locks." >> "$GITHUB_STEP_SUMMARY"
+            said="The run tests every @noldova package at the version the root package-lock.json locks."
           fi
+          echo "$said"
+          echo "$said" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Test
         run: ${{ inputs.test }}
