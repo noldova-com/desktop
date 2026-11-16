@@ -944,6 +944,7 @@ export class Resources {
   public static readonly peerTokenFunction: "peerToken" = "peerToken";
   public static readonly readProcessPathFunction: "readProcessPath" = "readProcessPath";
   public static readonly readEnvironmentFunction: "readEnvironment" = "readEnvironment";
+  public static readonly readVolumeFunction: "readVolume" = "readVolume";
   public static readonly readResponsibleProcessIdFunction: "readResponsibleProcessId" = "readResponsibleProcessId";
   public static readonly disclaimSystemFunction: string = "responsibility_spawnattrs_setdisclaim";
   public static readonly responsibleSystemFunction: string = "responsibility_get_pid_responsible_for_pid";
@@ -1320,6 +1321,10 @@ export class Resources {
 
   public static formatFolderNotPrivate(folder: string, access: string): string {
     return `The folder ${folder} is still open to others: ${access}`;
+  }
+
+  public static formatOwnershipIgnored(volume: string): string {
+    return `the volume ${volume} is mounted with ownership ignored, so every account acts as the owner of its files`;
   }
 
   public static formatCommandFailed(command: string, output: string): string {
