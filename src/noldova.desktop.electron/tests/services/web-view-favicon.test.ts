@@ -7,6 +7,7 @@
  */
 
 import "@noldova/context.core";
+import { mock } from "node:test";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { WebViewFavicon } from "../../src/services/web-view-favicon.js";
 import { WebViewFaviconResources } from "../../src/services/web-view-favicon.resources.js";
@@ -278,12 +279,7 @@ export class WebViewFaviconTests {
     const harness = new FaviconHarness();
     const values = [FaviconHarness.png(24, 65), FaviconHarness.png(24, 64, 65), FaviconHarness.png(24, 0, 1), FaviconHarness.png(24, 1, 0),
       FaviconHarness.png(24, 1, 1, "IDAT"), FaviconHarness.png(24).slice(0, 28), Buffer.alloc(24).toString("base64"), "A".repeat(21_849)];
-    const pattern = WebViewFaviconResources.base64Pattern;
-    const tested: string[] = [];
-    pattern.test = value => {
-      tested.push(value);
-      return RegExp.prototype.test.call(pattern, value);
-    };
+    const testing = mock.method(WebViewFaviconResources.base64Pattern, "test");
     try {
       for (const value of values) {
         harness.decodeTo(FaviconHarness.png(24, 64));
@@ -293,8 +289,9 @@ export class WebViewFaviconTests {
       }
     }
     finally {
-      Reflect.deleteProperty(pattern, "test");
+      testing.mock.restore();
     }
+    const tested = testing.mock.calls.map(t => t.arguments[0]);
 
     Assert.areEqual(Array(values.length).fill(`${"data:image/png;base64,".length + 32},null`).join(","), harness.describe());
     Assert.isFalse(tested.includes(values[values.length - 1] ?? String.empty));
