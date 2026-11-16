@@ -290,14 +290,15 @@ describe("ShortcutsComponent", () => {
       panes.add("1", "browser", [KeyChord.parse("Mod+Alt+N"), KeyChord.parse("F6")]);
       panes.add("2", "browser", [KeyChord.parse("Mod+Alt+N")]);
       await renderAsync(platform);
-      const note = DomFixture.one(row("notes.newNote"), ".nol-shortcut-pane");
+      const paneNote = "[id^='nol-shortcut-pane-note-']";
+      const note = DomFixture.one(row("notes.newNote"), paneNote);
       const id = DomFixture.one(row("notes.newNote"), ".nol-shortcut-name");
       const [noteBox, keyBox] = [note.getBoundingClientRect(), keyOf("notes.newNote").getBoundingClientRect()];
       const style = (element: Element): string[] => ["font-size", "line-height", "color"].map(t => getComputedStyle(element).getPropertyValue(t));
       const described = keyOf("notes.newNote").getAttribute("aria-describedby")?.split(" ").map(t => document.getElementById(t)?.textContent?.trim());
 
       expect([note.textContent?.trim(), described]).toEqual([`browser takes ${label} in its pages`, [`browser takes ${label} in its pages`]]);
-      expect([row("clock.tick").querySelector(".nol-shortcut-pane"), keyOf("clock.tick").getAttribute("aria-describedby")]).toEqual([null, null]);
+      expect([row("clock.tick").querySelector(paneNote), keyOf("clock.tick").getAttribute("aria-describedby")]).toEqual([null, null]);
       expect([noteBox.left - keyBox.left, noteBox.top >= keyBox.bottom, noteBox.width > 0]).toEqual([0, true, true]);
       expect(style(note)).toEqual(style(id));
     });

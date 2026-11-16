@@ -83,6 +83,7 @@ While a view has focus, the person's presses go to its page, except the keys the
   3. Any other key reaches the page.
 - A declared key wins only in the module's own views: in the pane's toolbar the window part handles its keys itself, and anywhere else in the window the app's command keeps the key; Keyboard shortcuts says so on the command's row, as [WINDOW.md](WINDOW.md#settings-and-modules) says.
 - A loading key, such as `Escape` for a browser's Stop, reaches the pane only while the view's page loads, from the engine's start of a load to its end, and reaches the page the rest of the time, so a page's own use of the key, such as closing its dialog, keeps working once it has loaded.
+  Keyboard shortcuts notes only the keys in `keys`: a loading key gets no note on a command's row, since the pane takes it only for the moments a page loads.
 - F6 and Shift+F6 move the focus through the window's regions, the view and the rest of its pane, such as its toolbar, as two stops, as [WINDOW.md](WINDOW.md#workspace) says; pressed in a view, they run those commands at step 2, unless the module declares one of them, which then takes it from the region cycle inside its views.
 - A held key that repeats stays from the page, and only its first press runs the command or sends the event.
 - The `Key` event reaches the window part alone, through `handle.subscribe`, since a press belongs to the pane on screen; the runtime's `onViewEvent` never reports one.

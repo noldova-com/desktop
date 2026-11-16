@@ -438,7 +438,7 @@ test.describe("web views", () => {
     }
   });
 
-  test("F6 pressed in a module's web view moves the window's focus out of the view to the next region, and Shift+F6 brings it back into the view", async ({ mainProcess }) => {
+  test("F6 pressed in a module's web view moves the window's focus out of the view to the next region, the status bar after the view's group, and Shift+F6 brings it back into the view", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const server = await startServerAsync();
     try {
@@ -453,15 +453,19 @@ test.describe("web views", () => {
       await expect(view(window, 0)).toHaveText("Keys");
       const focus = (): Promise<string> => window.evaluate(() => {
         const active = document.activeElement;
-        if (active?.classList.contains("nol-web-view-guest") === true)
+        if (active === null)
+          return "none";
+        if (active.classList.contains("nol-web-view-guest"))
           return "view";
-        return active?.closest(".nol-web-view") === null ? "outside" : "inside";
+        if (active.closest(".nol-web-view") !== null)
+          return "inside";
+        return active.closest("nol-status-bar") === null ? active.tagName : "status bar";
       });
       await window.evaluate(() => [...document.querySelectorAll<HTMLElement>(".nol-web-view-guest")].find(t => t.checkVisibility({ visibilityProperty: true }))?.focus());
       await expect.poll(focus).toBe("view");
 
       await pressInFirstViewAsync(mainProcess, "F6");
-      await expect.poll(focus).toBe("outside");
+      await expect.poll(focus).toBe("status bar");
       await window.keyboard.press("Shift+F6");
       await expect.poll(focus).toBe("view");
     }
