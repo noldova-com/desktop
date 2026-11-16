@@ -24,18 +24,17 @@ defaults:
 jobs:
   versions:
     name: Versions
-    if: github.ref == 'refs/heads/main'
     uses: noldova-com/.github/.github/workflows/versions.yml@7930c8dcf906cccb753aa7559220ac2b139c89aa # v2.34.0
     permissions: {}
 
   end-to-end:
     name: End-to-end specs
     needs: versions
-    if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/end-to-end-specs.yml
     permissions:
       contents: read
     with:
+      shards: 1
       targets: ${{ format('[{0}"target":"Linux x64","system":"linux","runner":{1}{2},{0}"target":"Windows x64","system":"windows","runner":{3}{2}]', '{', toJSON(needs.versions.outputs.runs-on-linux-x64), '}', toJSON(needs.versions.outputs.runs-on-windows-x64)) }}
 
   report:
