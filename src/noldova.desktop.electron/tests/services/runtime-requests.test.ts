@@ -136,7 +136,7 @@ export class RuntimeRequestsTests {
 
     Assert.areEqual(JSON.stringify(["Unauthorized", "InvalidMessage", "InvalidMessage", "InvalidMessage", "Unauthorized", "Unauthorized"]), JSON.stringify(answers));
     Assert.areEqual(JSON.stringify(["desktop.readWindowBounds"]), JSON.stringify(connection.calls.filter(t => !["desktop.work", "desktop.notifications", "desktop.readSetting", "desktop.agentControl", "desktop.appWindowsChanged",
-      "desktop.appShortcutsChanged", "desktop.mainWindowChanged"].includes(t))));
+      "desktop.appShortcutsChanged", "desktop.mainWindowChanged", "desktop.readWebViewBlockedPorts", "desktop.webViewPortsBlocked"].includes(t))));
   }
 
   @TestMethod

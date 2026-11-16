@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+/// <reference types="node" />
+
 import type { EventEmitter } from "node:events";
 import type { Readable, Writable } from "node:stream";
 

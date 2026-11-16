@@ -426,9 +426,8 @@ export class Resources {
   public static readonly stageNoticeSeparator: string = `\n${"-".repeat(Resources.stageNoticeRuleWidth)}\n\n`;
   public static readonly stageUnreachableRegistry: string = "http://127.0.0.1:9/";
   public static readonly stageOverridesInvalid: string = "The root package.json's overrides must be an object, as npm reads them.";
-  public static readonly stageOverrideConflictMarker: string = "code EOVERRIDE";
-  public static readonly stageOverrideAdvice: string = "\nThe stage installs each shipped package from its archive as a direct dependency, and npm refuses a top-level override of a direct dependency; "
-    + "write the override nested under the dependent it is for, as { \"<dependent>\": { \"<package>\": \"<version>\" } }.";
+  public static readonly stageOverrideReferencePrefix: string = "$";
+  public static readonly stageOverrideSelfKey: string = ".";
   public static readonly stageInstallArguments: readonly string[] = [
     "install", "--offline", "--no-save", "--no-package-lock", "--omit=dev", "--legacy-peer-deps", "--ignore-scripts", "--no-audit", "--no-fund", "--loglevel=error",
     `--registry=${Resources.stageUnreachableRegistry}`, "--cache"
@@ -1150,6 +1149,8 @@ export class Resources {
   public static readonly commonJsScope: string = `${JSON.stringify({ type: "commonjs" })}\n`;
   public static readonly builderSegments: readonly string[] = [Resources.nodeModulesFolder, "electron-builder", "cli.js"];
   public static readonly builderOptions: readonly string[] = ["--publish", "never", "--config"];
+  public static readonly diskImageDetachFailure: string = "Unable to detach device cleanly";
+  public static readonly builderDetachRetry: string = "electron-builder could not detach the disk image it was making while macOS still held its volume; building the packages again, once.\n";
   public static readonly builderVariables: ReadonlySet<string> = new Set([
     "PATH", "PATHEXT", "COMSPEC", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS",
     "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA", "USER", "USERNAME", "LOGNAME",
@@ -3010,6 +3011,10 @@ export class Resources {
     return `${subject} needs ${peer} ${String(needed)}, a range that doesn't end at the next major after ${minimum}; an Angular peer takes ${Resources.angularPeerRangeForm}, since only a new Angular major may break a module.`;
   }
 
+  public static formatCatalogOrganizationPeerRange(subject: string, peer: string, needed: unknown, minimum: string): string {
+    return `${subject} needs ${peer} ${String(needed)}, a range that doesn't end at the first version refused after ${minimum}, the next minor below 1.0.0 and the next major from it; a peer on another of the organization's packages takes ${Resources.versionRangeForm}.`;
+  }
+
   public static formatCatalogCoreRangeUnnamed(subject: string, peer: string, needed: unknown, file: string): string {
     return `${subject} needs ${peer} ${String(needed)}, a range, but ${file} names no ${Resources.noldovaDesktopField}; a module that accepts a range of Noldova Desktop versions names it there, and each of Noldova Desktop's packages it peers on takes that same range.`;
   }
@@ -3019,7 +3024,7 @@ export class Resources {
   }
 
   public static formatCatalogPeerMismatch(subject: string, peer: string, needed: unknown, holder: string, version: string | null): string {
-    return `${subject} needs ${peer} ${String(needed)}, but ${holder} ${version ?? "none"}; a peer names one exact version, such as 1.2.3, or, for Noldova Desktop's, context's and the kit's packages, a range of the form ${Resources.versionRangeForm}, and, for Angular's packages in a window part, ${Resources.angularPeerRangeForm}.`;
+    return `${subject} needs ${peer} ${String(needed)}, but ${holder} ${version ?? "none"}; a peer names one exact version, such as 1.2.3, or, for the organization's packages, a range of the form ${Resources.versionRangeForm}, and, for Angular's packages in a window part, ${Resources.angularPeerRangeForm}.`;
   }
 
   public static formatCatalogOutsideRange(id: string, version: string, range: string): string {

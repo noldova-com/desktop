@@ -23,9 +23,12 @@ import {
   ToolRegistry,
   type ToolSession
 } from "@noldova/desktop.runtime";
+import { ShellEvents, WebViewBlockedPorts } from "@noldova/desktop.protocol";
 
+import { EventRegistry as SourceEventRegistry } from "../../../src/services/registry/event-registry.js";
 import { ToolEndpoint } from "../../../src/services/tools/tool-endpoint.js";
 import { ToolRegistry as SourceToolRegistry } from "../../../src/services/tools/tool-registry.js";
+import { WebViewCenter } from "../../../src/services/web-views/web-view-center.js";
 import { EventSinkFixture } from "../../fixtures/event-sink.fixture.js";
 import { ModuleContextFixture } from "../../fixtures/module-context.fixture.js";
 import { SettingsFixture } from "../../fixtures/settings.fixture.js";
@@ -198,6 +201,46 @@ export class ToolEndpointTests {
   }
 
   @TestMethod
+  public async givesItsAddressOnlyOnceTheMainProcessAcknowledgesItsPortAndUnblocksThePortOnlyOnceItHasClosed(): Promise<void> {
+    const [center, sink] = ToolEndpointTests.createCenter();
+    const opening = ToolEndpoint.openAsync(ToolEndpointTests.answer([]), () => false, { write: () => undefined }, new AbortController().signal, () => undefined, center);
+    await WaitFixture.untilAsync(() => sink.sent.length === 1, 10_000);
+    const blocked = WebViewBlockedPorts.fromJson(sink.sent[0]?.[0].payload);
+
+    const isPendingBeforeTheAcknowledgement = await WaitFixture.isPendingAsync(opening);
+    center.answerPorts(7, blocked);
+    const endpoint = await opening;
+    endpoint[Symbol.dispose]();
+    const listsRightAfterClosing = sink.sent.length;
+    await WaitFixture.untilAsync(() => sink.sent.length === 2, 10_000);
+    const acceptsOnceUnblocked = await ToolEndpointTests.connectAsync(ToolEndpointTests.LOOPBACK, Number(new URL(endpoint.url).port));
+
+    Assert.isTrue(isPendingBeforeTheAcknowledgement);
+    Assert.areEqual(`http://127.0.0.1:${blocked.ports.join(",")}/`, endpoint.url);
+    Assert.areEqual(1, listsRightAfterClosing);
+    Assert.areEqual("[]", JSON.stringify(WebViewBlockedPorts.fromJson(sink.sent[1]?.[0].payload).ports));
+    Assert.isFalse(acceptsOnceUnblocked);
+  }
+
+  @TestMethod
+  public async failsToOpenAndUnblocksItsPortOnceClosedWhenItsPartStopsBeforeTheMainProcessAcknowledges(): Promise<void> {
+    const [center, sink] = ToolEndpointTests.createCenter();
+    const stopping = new AbortController();
+    const opening = ToolEndpoint.openAsync(ToolEndpointTests.answer([]), () => false, { write: () => undefined }, stopping.signal, () => undefined, center);
+    await WaitFixture.untilAsync(() => sink.sent.length === 1, 10_000);
+    const port = WebViewBlockedPorts.fromJson(sink.sent[0]?.[0].payload).ports.join(",");
+
+    stopping.abort();
+    const failure = await Assert.throwsAsync(() => opening, ToolEndpointException);
+    await WaitFixture.untilAsync(() => sink.sent.length === 2, 10_000);
+    const acceptsOnceUnblocked = await ToolEndpointTests.connectAsync(ToolEndpointTests.LOOPBACK, Number(port));
+
+    Assert.areEqual("The tool endpoint is closed.", failure.message);
+    Assert.areEqual("[]", JSON.stringify(WebViewBlockedPorts.fromJson(sink.sent[1]?.[0].payload).ports));
+    Assert.isFalse(acceptsOnceUnblocked);
+  }
+
+  @TestMethod
   public async answersAHandlerFailureWith500AndLogsItWithoutTheToken(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     const diagnostics = new TextOutputFixture();
@@ -268,7 +311,7 @@ export class ToolEndpointTests {
         request.resume();
         return Promise.resolve();
       }
-    }, t => t === session, { write: () => undefined }, new AbortController().signal, () => undefined,
+    }, t => t === session, { write: () => undefined }, new AbortController().signal, () => undefined, new WebViewCenter(new TextOutputFixture()),
     { headersTimeout: 100, requestTimeout: 200, connectionsCheckingInterval: 20, maxHeaderSize: 16 * 1024, maxConnections: 64 });
     const port = Number(new URL(endpoint.url).port);
     const head = `POST / HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nAuthorization: Bearer ${endpoint.admit(session)}\r\nContent-Length: 10\r\n`;
@@ -291,7 +334,7 @@ export class ToolEndpointTests {
         response.end();
         return Promise.resolve();
       }
-    }, t => t === session, { write: () => undefined }, new AbortController().signal, () => undefined,
+    }, t => t === session, { write: () => undefined }, new AbortController().signal, () => undefined, new WebViewCenter(new TextOutputFixture()),
     { headersTimeout: 10_000, requestTimeout: 30_000, connectionsCheckingInterval: 1_000, maxHeaderSize: 16 * 1024, maxConnections: 1 });
     const port = Number(new URL(endpoint.url).port);
     const held = connect({ host: ToolEndpointTests.LOOPBACK, port });
@@ -336,6 +379,14 @@ export class ToolEndpointTests {
   private static create(settings: SettingsFixture, tools: ToolRegistry = new ToolRegistry(), diagnostics: TextOutputFixture = new TextOutputFixture()): ModuleContext {
     return ModuleContextFixture.create(
       settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry(), undefined, undefined, undefined, diagnostics, undefined, tools);
+  }
+
+  private static createCenter(): [WebViewCenter, EventSinkFixture] {
+    const sink = new EventSinkFixture();
+    const events = new SourceEventRegistry(sink);
+    const center = new WebViewCenter(new TextOutputFixture(), events.declare(ShellEvents.webViewCommand), events.declare(ShellEvents.webViewBlockedPorts));
+    center.check(7);
+    return [center, sink];
   }
 
   private static answer(seen: ToolSession[]): IToolEndpointHandler {

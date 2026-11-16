@@ -26,13 +26,13 @@ What a module declares and contributes is in [MODULES.md](MODULES.md); the windo
   Its folder is the person's alone: on Windows the runtime replaces the folder's permissions with the person's, and on macOS and Linux it sets mode `0700`.
   On macOS it also reads the access back and refuses to start when an access control entry, such as one inherited from a parent folder, still opens the folder to another account; it never removes such an entry, which whoever set it owns.
   Every line after the folder's own must read as an entry, so a line in another form refuses the folder, and so does a folder marked as having entries when none is read.
-  It doesn't yet detect a macOS volume mounted with ownership ignored, where mode `0700` and the entries keep no account out.
+  It refuses as well a folder on a volume mounted with ownership ignored, where every account acts as the owner of every file, and names the volume, which it reads with `statfs` through its POSIX addon.
   Binding to loopback alone is not authentication.
 - The window gets neither the token nor the socket; the main process speaks for it.
 - The token keeps out other clients, not other programs running as the same person.
 - A part tells the main process's requests apart with `context.client === ShellClients.mainProcess`; what that proves differs by platform, as below.
   When a client of the runtime's own build names itself so, the runtime finds the connection's process, from the Unix socket's peer on macOS and Linux and from the loopback connection's owner in the TCP table on Windows.
-  It answers the handshake only when that process didn't start with `ELECTRON_RUN_AS_NODE` and, on macOS and Windows, runs the runtime's own program file.
+  It answers the handshake only when that process didn't start with `ELECTRON_RUN_AS_NODE` and runs the runtime's own program file, or on Linux a program and an `app.asar` with the runtime's own content.
   Otherwise it answers `Unauthorized` with its handover and writes the refusal to its diagnostics; like another build's client, the connection may then only stop the runtime.
   So the same build's main process run from another copy of the program, such as one moved to Applications from a disk image while its runtime still runs from the image, stops that runtime and starts its own; a second refusal fails with a message.
   No other name is checked, and neither is another build's client.
@@ -42,9 +42,16 @@ What a module declares and contributes is in [MODULES.md](MODULES.md); the windo
 - **Windows:** the runtime reads the process that owns the loopback connection in the TCP table and refuses it when it started after the connection was made, so a later process given that process id doesn't pass.
   The environment it reads is the process's live one.
   A script the app's program runs in Node mode can delete `ELECTRON_RUN_AS_NODE` from that environment before it connects, so on Windows the check doesn't keep the app's program in Node mode out until the runtime gets its own program and the `runAsNode` fuse is turned off.
-- **Linux:** the runtime accepts the name without a program check for now: any program running as the person that didn't start with `ELECTRON_RUN_AS_NODE`, such as a plain `node` script, can connect as the main process.
-  An AppImage's main process and its runtime run from different mounts, so the same program is another file, and comparing the files' contents added 0.5 to 3.4 seconds to the main window's first connect.
-  Without an `app.asar` check, which Electron doesn't make on Linux, a program check alone would let the app's program run on another `app.asar` through anyway.
+- **Linux:** the runtime reads the process id from the socket's peer credentials through its native addon, and the process's start time from `/proc/<pid>/stat`, as it accepts the connection, before any message; it reads the start time again with the environment and after its checks, and refuses the connection when it changed, so a later process given that process id doesn't pass.
+  A process that connects and then runs the app's program with `execve` keeps its process id, its start time and the connection, so it passes as that program; Linux gives no value that changes with `execve`, as macOS's audit token does.
+  Likewise, a filesystem the person mounts and serves themselves, such as their own read-only FUSE mount, can serve other content for the same file after the check, while the runtime keeps the digest it read, so the read-only rule below doesn't keep a changed `app.asar` from such a mount out.
+  The program, opened through `/proc/<pid>/exe` and refused when that link names a deleted file, passes when it is the runtime's own file by device and inode, as in a Debian install; otherwise it must have the same size and SHA-256 digest, as the main process of an AppImage has, which runs from another mount of the image than its runtime.
+  Electron makes no `app.asar` check on Linux, and it reads `app.asar` through a descriptor it keeps open rather than by mapping it, so the runtime lists the process's descriptors in `/proc/<pid>/fd` and takes those that name `resources/app.asar` beside the process's program: they must name exactly one file, none of them deleted, that is the runtime's own `app.asar` beside its own program by device and inode, or one with the same size and digest that the runtime opened through the descriptor.
+  Such a copy passes only from a filesystem mounted read-only, by its superblock's options in `/proc/self/mountinfo`, as each FUSE mount of an AppImage is, since a writable copy could be replaced after the check.
+  When the runtime itself runs from a writable folder, as an AppImage does with `APPIMAGE_EXTRACT_AND_RUN` or without FUSE, a writable copy passes too: whoever can replace that copy can replace the runtime's own files as well, so a read-only copy would add nothing.
+  A process that holds no such descriptor passes only where the runtime has no `app.asar` beside its program, as in development.
+  A runtime started from an AppImage reads its own program and `app.asar` as it starts, so a connect reads only the other process's files: on a Linux test machine with 8 cores, the sample app's 229 MB program took 163 to 257 ms and its 16 MB `app.asar` 15 to 30 ms through the AppImage's mount.
+  The runtime keeps those digests for a file on a read-only filesystem by device, inode, size and modification time, so a later connect from the same mount reads nothing; a Debian install's main process reads nothing either.
 - On every platform, code injected into the main process, or a debugger attached to it, passes the check; on macOS and Linux so does native code that rewrites the process's starting environment.
 
 ## Messages

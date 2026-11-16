@@ -22,12 +22,14 @@ import {
   type WebViewDeclaration,
   type WebViewInfo
 } from "@noldova/desktop.protocol";
+import type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
+import type { IWindowNavigation } from "../interfaces/i-window-navigation.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 import { CaughtFailure } from "../models/caught-failure.js";
 import type { WebViewHistory } from "../models/web-view-history.js";
@@ -384,7 +386,8 @@ export class OpenWebView {
       if (this.isBound(guest))
         this.noteInput(input.type);
     });
-    guest.on(Resources.willFrameNavigateEvent, (event, url, isMainFrame) => this.judgeFrame(guest, event, url, isMainFrame));
+    guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
+    guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
     guest.on(Resources.willAttachWebviewEvent, event => this.prevent(guest, event, Resources.nestedViewRequest));
     guest.on(Resources.beforeInputEvent, (event, input) => {
       if (this.isBound(guest))
@@ -408,7 +411,7 @@ export class OpenWebView {
           this.reportState();
       });
     guest.on(Resources.didFailLoadEvent, (_event, code, description, url, isMainFrame) => {
-      if (this.isBound(guest) && isMainFrame && code !== Resources.webViewAbortedLoadCode)
+      if (this.isBound(guest) && isMainFrame && code !== Resources.webViewAbortedLoadCode && !OpenWebView.isSourceDocument(url))
         this.emit(WebViewEventKind.LoadFailed, { [Resources.addressField]: url, [Resources.codeField]: code, [Resources.descriptionField]: description });
     });
     guest.on(Resources.renderProcessGoneEvent, () => {
@@ -623,14 +626,19 @@ export class OpenWebView {
     return addresses.length > 0 && addresses.every(t => this.check.allowsConnection(url, this.allowed, t));
   }
 
-  private judgeFrame(guest: IWebViewContents, event: IPreventableEvent, url: string, isMainFrame: boolean): void {
+  private judgeFrame(guest: IWebViewContents, navigation: IFrameNavigation): void {
     if (!this.isBound(guest))
-      return event.preventDefault();
-    if (this.check.allowsNavigation(url, this.allowed, !isMainFrame))
+      return navigation.preventDefault();
+    if (this.check.allowsNavigation(navigation.url, this.allowed, !navigation.isMainFrame))
       return;
-    event.preventDefault();
-    if (isMainFrame)
-      this.emitRefusedNavigation(url, false);
+    navigation.preventDefault();
+    if (navigation.isMainFrame)
+      this.emitRefusedNavigation(navigation.url, false);
+  }
+
+  private noteStart(guest: IWebViewContents, navigation: IWindowNavigation): void {
+    if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument && OpenWebView.isSourceDocument(navigation.url))
+      this.emitRefusedNavigation(navigation.url, false);
   }
 
   private askForWindow(details: IWindowOpenDetails): void {
@@ -878,6 +886,11 @@ export class OpenWebView {
 
   private static ended(): JsonObject {
     return { [OpenWebViewResources.isEndedField]: true };
+  }
+
+  private static isSourceDocument(url: string): boolean {
+    const parsed = URL.parse(url);
+    return parsed?.protocol === Resources.aboutScheme && parsed.pathname === Resources.sourceDocumentPath;
   }
 
   private static originOf(url: string): string {

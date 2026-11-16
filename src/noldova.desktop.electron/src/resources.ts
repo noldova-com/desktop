@@ -194,6 +194,8 @@ export class Resources {
   public static readonly webViewZoneSeparator: string = "%";
   public static readonly blankPage: string = "about:blank";
   public static readonly sourceDocument: string = "about:srcdoc";
+  public static readonly sourceDocumentPath: string = "srcdoc";
+  public static readonly aboutScheme: string = "about:";
   public static readonly webViewPartitionPrefix: string = "persist:";
   public static readonly webViewPartitionSeparator: string = ".";
   public static readonly webViewsPerPane: number = 32;
@@ -1058,6 +1060,14 @@ export class Resources {
 
   public static formatFileFilterName(extensions: readonly string[]): string {
     return extensions.map(t => `*.${t}`).join(", ");
+  }
+
+  public static formatWebViewPortsUnread(reason: string): string {
+    return `The runtime's blocked loopback ports could not be read, so web views refuse every loopback address: ${reason}`;
+  }
+
+  public static formatWebViewPortsInvalid(reason: string): string {
+    return `The runtime sent blocked loopback ports that are not valid, so they were not acknowledged: ${reason}`;
   }
 
   public static formatWebViewsUnreadable(reason: string): string {

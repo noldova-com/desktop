@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 import "@noldova/context.core";
 import { type JsonObject, JsonReader, type JsonValue } from "@noldova/context.json";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
-import { Event, ShellEvents, WebViewAction, WebViewCommand, WebViewDeclaration } from "@noldova/desktop.protocol";
+import { Event, Failure, FailureCode, Response, ShellEvents, WebViewAction, WebViewCommand, WebViewDeclaration } from "@noldova/desktop.protocol";
 
 import { WebViewHost } from "../../src/services/web-view-host.js";
 import { WebViewOriginCheck } from "../../src/services/web-view-origin-check.js";
@@ -572,6 +572,85 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async refusesEveryLoopbackPortUntilTheRuntimesBlockedPortsArriveThenRefusesThemEvenWhenAllowedAndAcknowledgesEachNewerList(): Promise<void> {
+    const [first, second] = [new FakeRuntimeConnection(), new FakeRuntimeConnection()];
+    const read = Promise.withResolvers<Response>();
+    first.deferred.set("desktop.readWebViewBlockedPorts", () => read.promise);
+    second.answers.set("desktop.readWebViewBlockedPorts", Response.success("r", { serial: 1, ports: [4700] }));
+    const launcher = new FakeRuntimeLauncher(first, second);
+    const [electron] = await WebViewHostTests.startWithAsync(launcher);
+    await WebViewHostTests.openAsync(electron);
+    await this.commandAsync(launcher, first, WebViewAction.SetAllowedOrigins, "1", ["http://127.0.0.1:4600", "http://127.0.0.1:4700"]);
+    const passes = (): string => WebViewHostTests.loopbackPasses(electron, [4600, 4700]);
+
+    const beforeTheList = passes();
+    read.resolve(Response.success("r", { serial: 2, ports: [4600] }));
+    await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(first).length === 1);
+    const fromTheRead = passes();
+    launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 3, ports: [4700] }));
+    await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(first).length === 2);
+    const fromTheEvent = passes();
+    launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 1, ports: [] }));
+    await setImmediate();
+    const afterAnOlderList = passes();
+    launcher.listener?.onDisconnected(null);
+    await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(second).length === 1);
+    const fromTheNextRuntime = passes();
+
+    Assert.areEqual("false,false|false,true|true,false|true,false|true,false", [beforeTheList, fromTheRead, fromTheEvent, afterAnOlderList, fromTheNextRuntime].join("|"));
+    Assert.areEqual("{\"serial\":2,\"ports\":[4600]},{\"serial\":3,\"ports\":[4700]}", WebViewHostTests.portAcknowledgements(first).join(","));
+    Assert.areEqual("{\"serial\":1,\"ports\":[4700]}", WebViewHostTests.portAcknowledgements(second).join(","));
+  }
+
+  @TestMethod
+  public async takesBlockedPortsOnlyFromTheConnectedRuntimeSoTheNextRuntimeAfterAnUpdateHasItsOwnApplied(): Promise<void> {
+    const [first, second] = [new FakeRuntimeConnection(), new FakeRuntimeConnection()];
+    const read = Promise.withResolvers<Response>();
+    first.deferred.set("desktop.readWebViewBlockedPorts", () => read.promise);
+    second.answers.set("desktop.readWebViewBlockedPorts", Response.success("r", { serial: 1, ports: [4700] }));
+    const launcher = new FakeRuntimeLauncher(first, second);
+    const [electron] = await WebViewHostTests.startWithAsync(launcher);
+    await WebViewHostTests.openAsync(electron);
+    await this.commandAsync(launcher, first, WebViewAction.SetAllowedOrigins, "1", ["http://127.0.0.1:4600", "http://127.0.0.1:4700"]);
+    const passes = (): string => WebViewHostTests.loopbackPasses(electron, [4600, 4700]);
+
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 5, ports: [4600] }));
+    await setImmediate();
+    const whileUpdating = passes();
+    launcher.listener?.onDisconnected(null);
+    await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(second).length === 1);
+    const fromTheNextRuntime = passes();
+    read.resolve(Response.success("r", { serial: 9, ports: [4600] }));
+    await setImmediate();
+    const afterTheOldRuntimesLateAnswer = passes();
+
+    Assert.areEqual("false,false|true,false|true,false", [whileUpdating, fromTheNextRuntime, afterTheOldRuntimesLateAnswer].join("|"));
+    Assert.areEqual(0, WebViewHostTests.portAcknowledgements(first).length);
+    Assert.areEqual("{\"serial\":1,\"ports\":[4700]}", WebViewHostTests.portAcknowledgements(second).join(","));
+  }
+
+  @TestMethod
+  public async keepsRefusingEveryLoopbackPortAndLogsBlockedPortsItCannotReadOrThatAreNotValid(): Promise<void> {
+    const [failing, empty] = [new FakeRuntimeConnection(), new FakeRuntimeConnection()];
+    failing.answers.set("desktop.readWebViewBlockedPorts", Response.failure("r", new Failure(FailureCode.Internal, "The runtime is busy.")));
+    empty.answers.set("desktop.readWebViewBlockedPorts", Response.success("r", null));
+    const launcher = new FakeRuntimeLauncher(failing);
+    const [electron, process] = await WebViewHostTests.startWithAsync(launcher);
+    const [, emptyProcess] = await WebViewHostTests.startWithAsync(new FakeRuntimeLauncher(empty));
+    await WebViewHostTests.openAsync(electron);
+    await this.commandAsync(launcher, failing, WebViewAction.SetAllowedOrigins, "1", ["http://127.0.0.1:4700"]);
+    launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 2, ports: [0] }));
+    await Condition.waitAsync(() => MainProcessStartFixture.readErrors(process, "The runtime sent blocked loopback ports that are not valid, so they were not acknowledged: ").length === 1);
+    await Condition.waitAsync(() => MainProcessStartFixture.readErrors(emptyProcess, "The runtime's blocked loopback ports could not be read").length === 1);
+
+    Assert.areEqual("false", WebViewHostTests.loopbackPasses(electron, [4700]));
+    Assert.areEqual(0, WebViewHostTests.portAcknowledgements(failing).length);
+    Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The runtime's blocked loopback ports could not be read, so web views refuse every loopback address: The runtime is busy.").length);
+    Assert.areEqual(1, MainProcessStartFixture.readErrors(emptyProcess, "The runtime's blocked loopback ports could not be read, so web views refuse every loopback address: null").length);
+  }
+
+  @TestMethod
   public async logsARefusedPageLoadWhoseWebContentsBelongToNoViewItOpenedButNoOtherRefusal(): Promise<void> {
     const [electron, , , process] = await WebViewHostTests.startAsync();
     await WebViewHostTests.openAsync(electron);
@@ -674,8 +753,8 @@ export class WebViewHostTests {
         calledBack += 1;
       }),
       contents.prevent("will-attach-webview"),
-      contents.prevent("will-frame-navigate", "https://example.net/", true),
-      contents.prevent("will-frame-navigate", "about:srcdoc", false)
+      contents.navigateFrame("https://example.net/", true),
+      contents.navigateFrame("about:srcdoc", false)
     ];
     contents.debugger.receive("Page.fileChooserOpened", { frameId: "f", mode: "selectSingle" });
 
@@ -1456,6 +1535,22 @@ export class WebViewHostTests {
     process.webViews = new Map(Object.entries(declarations));
     const electron = await MainProcessStartFixture.startReadyAsync(platform, launcher, fake, new FakeDeviceIdentity(), process);
     return [electron, launcher, connection, process];
+  }
+
+  private static async startWithAsync(launcher: FakeRuntimeLauncher): Promise<[FakeElectron, FakeMainProcessEnvironment]> {
+    const process = new FakeMainProcessEnvironment("linux");
+    process.webViews = new Map([["browser", WebViewHostTests.DECLARATION]]);
+    return [await MainProcessStartFixture.startReadyAsync("linux", launcher, new FakeElectron(), new FakeDeviceIdentity(), process), process];
+  }
+
+  private static loopbackPasses(electron: FakeElectron, ports: readonly number[]): string {
+    const contentsId = WebViewHostTests.view(electron, 0).contents.id;
+    const session = electron.webViews.session(WebViewHostTests.PARTITION);
+    return ports.map(t => session.request({ id: t, url: `http://127.0.0.1:${t}/a.png`, webContentsId: contentsId, resourceType: "image" })).join(",");
+  }
+
+  private static portAcknowledgements(connection: FakeRuntimeConnection): string[] {
+    return connection.payloads.filter((_, index) => connection.calls[index] === "desktop.webViewPortsBlocked").map(t => JSON.stringify(t));
   }
 
   private static async openAsync(electron: FakeElectron, pane: JsonObject = WebViewHostTests.PANE, profileKey: unknown = "workspace-1", module: string = "browser",

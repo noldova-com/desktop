@@ -8,6 +8,7 @@
 
 import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 import "@noldova/context.core";
 
@@ -19,13 +20,13 @@ export class HeldReadFixture implements Disposable {
     ["EIO", "i/o error"]
   ]);
 
-  private readonly readFile: typeof fs.readFile = fs.readFile;
+  private readonly restore: () => void;
 
   public attempts: number = 0;
 
   public constructor(target: string, codes: readonly string[]) {
-    const readFile = this.readFile;
-    fs.readFile = ((...values: Parameters<typeof fs.readFile>): Promise<string | Buffer> => {
+    const readFile = fs.readFile;
+    const reading = mock.method(fs, "readFile", (...values: Parameters<typeof fs.readFile>): Promise<string | Buffer> => {
       const [file] = values;
       if (String(file) !== target)
         return readFile(...values);
@@ -33,12 +34,13 @@ export class HeldReadFixture implements Disposable {
       return Object.isUndefined(code)
         ? readFile(...values)
         : Promise.reject(Object.assign(new Error(`${code}: ${HeldReadFixture.MESSAGES.get(code) ?? code}, open '${target}'`), { code }));
-    }) as typeof fs.readFile;
+    });
+    this.restore = () => reading.mock.restore();
     syncBuiltinESMExports();
   }
 
   public [Symbol.dispose](): void {
-    fs.readFile = this.readFile;
+    this.restore();
     syncBuiltinESMExports();
   }
 }

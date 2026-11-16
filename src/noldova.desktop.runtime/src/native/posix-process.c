@@ -38,6 +38,8 @@
 #include <libproc.h>
 #include <mach/message.h>
 #include <spawn.h>
+#include <sys/mount.h>
+#include <sys/param.h>
 #include <sys/proc_info.h>
 #include <sys/sysctl.h>
 #include <sys/un.h>
@@ -743,6 +745,36 @@ static napi_value read_environment(napi_env env, napi_callback_info info) {
   free(arguments);
   return result;
 }
+
+static napi_value read_volume(napi_env env, napi_callback_info info) {
+  size_t count = 1;
+  napi_value value;
+  napi_value result;
+  napi_value item;
+  struct statfs volume;
+  char *folder;
+  int error;
+  if (napi_get_cb_info(env, info, &count, &value, NULL, NULL) != napi_ok)
+    return fail(env);
+  if (count < 1) {
+    napi_throw_type_error(env, NULL, "The POSIX process addon expects strings.");
+    return NULL;
+  }
+  folder = read_string(env, value);
+  if (folder == NULL)
+    return NULL;
+  error = statfs(folder, &volume) == 0 ? 0 : errno;
+  free(folder);
+  if (error != 0)
+    return fail_system(env, "statfs", error);
+  if (napi_create_array_with_length(env, 2, &result) != napi_ok
+      || napi_create_string_utf8(env, volume.f_mntonname, NAPI_AUTO_LENGTH, &item) != napi_ok
+      || napi_set_element(env, result, 0, item) != napi_ok
+      || napi_get_boolean(env, (volume.f_flags & MNT_IGNORE_OWNERSHIP) != 0, &item) != napi_ok
+      || napi_set_element(env, result, 1, item) != napi_ok)
+    return fail(env);
+  return result;
+}
 #endif
 
 static bool export_function(napi_env env, napi_value exports, const char *name, napi_callback callback) {
@@ -765,7 +797,8 @@ NAPI_MODULE_INIT() {
   if (!export_function(env, exports, "peerToken", peer_token)
       || !export_function(env, exports, "readProcessPath", read_process_path)
       || !export_function(env, exports, "readResponsibleProcessId", read_responsible_process_id)
-      || !export_function(env, exports, "readEnvironment", read_environment))
+      || !export_function(env, exports, "readEnvironment", read_environment)
+      || !export_function(env, exports, "readVolume", read_volume))
     return fail(env);
 #endif
   return exports;

@@ -153,6 +153,27 @@ export class WebViewOriginCheckTests {
   }
 
   @TestMethod
+  public readsTheBlockedPortsAtEachCheckAndRefusesEveryLoopbackPortWhileTheyAreUnknown(): void {
+    let ports: ReadonlySet<number> | null = null;
+    const check = new WebViewOriginCheck(["https://local.test:4600"], () => ports);
+    const allowed = ["http://127.0.0.1:4600", "http://127.0.0.1:4700", "https://local.test:4600", "https://example.com"];
+    const judge = (): string => [
+      check.allowsRequest("http://127.0.0.1:4600/", allowed),
+      check.allowsRequest("http://127.0.0.1:4700/", allowed),
+      check.allowsConnection("https://local.test:4600/", allowed, "127.0.0.1"),
+      check.allowsConnection("http://127.0.0.1:4700/", allowed, "127.0.0.1"),
+      check.allowsRequest("https://example.com/", allowed)
+    ].join(",");
+
+    const unknown = judge();
+    ports = new Set([4600]);
+    const known = judge();
+    ports = new Set();
+
+    Assert.areEqual("false,false,false,false,true|false,true,false,true,true|true,true,true,true,true", [unknown, known, judge()].join("|"));
+  }
+
+  @TestMethod
   public refusesARequestWhoseAddressIsUnknown(): void {
     Assert.isFalse(new WebViewOriginCheck().allowsConnection("https://example.com/", WebViewOriginCheckTests.ALLOWED, null));
   }

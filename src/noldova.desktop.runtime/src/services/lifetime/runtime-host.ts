@@ -96,9 +96,11 @@ import { SettingsReadMethod } from "../settings/settings-read-method.js";
 import { SettingsService } from "../settings/settings.service.js";
 import { ShellSettings } from "../settings/shell-settings.js";
 import { AgentControl } from "../tools/agent-control.js";
+import { ReadWebViewBlockedPortsMethod } from "../web-views/read-web-view-blocked-ports-method.js";
 import { WebViewAnsweredMethod } from "../web-views/web-view-answered-method.js";
 import { WebViewCenter } from "../web-views/web-view-center.js";
 import { WebViewEventsMethod } from "../web-views/web-view-events-method.js";
+import { WebViewPortsBlockedMethod } from "../web-views/web-view-ports-blocked-method.js";
 import { WindowStateReadMethod } from "../window-state/window-state-read-method.js";
 import { WindowStateStore } from "../window-state/window-state-store.js";
 import { WindowStateWriteMethod } from "../window-state/window-state-write-method.js";
@@ -182,7 +184,7 @@ export class RuntimeHost implements IIdleParticipant {
       options.serverSettings,
       () => this.clientsChanged(),
       log.diagnostics,
-      MainProcessCheck.create(platform));
+      MainProcessCheck.create(platform, process.execPath, environment));
     this.events = new EventRegistry(this.server);
     this.publisher = new DiscoveryPublisher(lock, FolderProtectorFactory.create(platform, new SystemCommand(), environment));
     this.idle = new IdleMonitor(options.idleGraceMilliseconds, this);
@@ -190,7 +192,7 @@ export class RuntimeHost implements IIdleParticipant {
     const commandsChanged = this.events.declare(ShellEvents.commandsChanged);
     this.programsEvent = this.events.declare(ShellEvents.programsChanged);
     this.commands = new CommandRegistry(t => commandsChanged.publish(t.toJson()));
-    this.webViews = new WebViewCenter(log.diagnostics, this.events.declare(ShellEvents.webViewCommand));
+    this.webViews = new WebViewCenter(log.diagnostics, this.events.declare(ShellEvents.webViewCommand), this.events.declare(ShellEvents.webViewBlockedPorts));
     this.grants = new FileGrantTable(lock.dataDirectory.stagedFolder, this.server.closures);
     this.secrets = new MachineSecretBackend(this.events.declare(ShellEvents.secretCommand));
     const appSurface = new AppSurface(this.server.closures, process.platform, log.diagnostics);
@@ -214,6 +216,8 @@ export class RuntimeHost implements IIdleParticipant {
     this.methods.register(ShellMethods.mainWindow, new MainWindowMethod(appSurface));
     this.methods.register(ShellMethods.webViewAnswered, new WebViewAnsweredMethod(this.webViews));
     this.methods.register(ShellMethods.webViewEvents, new WebViewEventsMethod(this.webViews));
+    this.methods.register(ShellMethods.readWebViewBlockedPorts, new ReadWebViewBlockedPortsMethod(this.webViews));
+    this.methods.register(ShellMethods.webViewPortsBlocked, new WebViewPortsBlockedMethod(this.webViews));
     this.methods.register(ShellMethods.grantFile, new GrantFileMethod(this.grants));
     this.methods.register(ShellMethods.discardFileGrants, new DiscardFileGrantsMethod(this.grants));
     this.methods.register(ShellMethods.endFileGrants, new EndFileGrantsMethod(this.grants));
@@ -348,6 +352,8 @@ export class RuntimeHost implements IIdleParticipant {
     if (!Object.isNull(this.database) && !Object.isNull(this.settings))
       await this.activateModulesAsync(this.database, this.settings);
     const endpoint = await this.listenAsync(platform);
+    if (!Object.isNull(endpoint.port))
+      this.webViews.blockPort(endpoint.port);
     const discovery = new RuntimeDiscovery(
       endpoint.toString(),
       this.token.value,

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+/// <reference types="node" />
+
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { EventEmitter } from "node:events";
 import type { BigIntStats, RmOptions } from "node:fs";
@@ -20,7 +22,7 @@ import type { JsonObject, JsonValue } from "@noldova/context.json";
 import type {
   AppShortcut, AppShortcutList, AppWindow, AppWindowList, BuildIdentity, CommandInfo, CommandList, Event, Failure, FailureCode, FileGrant, KeyChord, MainWindow, ModuleStatus, ModuleStatusList, Notification, NotificationList, NotificationPost, PreShellData, ProgramStatus, ProgramStatusList, QualifiedName, Response,
   RunningWork, RuntimeHandover, SettingChange, SettingDefinition, SettingEntry, SettingKey, SettingScope, SettingValue, SettingsSnapshot, StopPolicy, UpdateProcess, WebViewAction,
-  WebViewAnswered, WebViewDeclaration, WebViewEvent, WebViewEvents, WebViewFailure, WebViewInfo, WebViewNavigation, WorkReport
+  WebViewAnswered, WebViewBlockedPorts, WebViewDeclaration, WebViewEvent, WebViewEvents, WebViewFailure, WebViewInfo, WebViewNavigation, WorkReport
 } from "@noldova/desktop.protocol";
 
 /**
@@ -2445,7 +2447,8 @@ export declare class FolderProtectorFactory {
    * @param command Runs Windows' system tools, or `ls` on macOS.
    * @param environment Supplies `SystemRoot` on Windows.
    * @returns A {@link WindowsFolderProtector} for `win32`, a
-   * {@link MacFolderProtector} for `darwin`, otherwise a
+   * {@link MacFolderProtector} for `darwin` that reads the folder's volume
+   * through the runtime's POSIX addon, otherwise a
    * {@link PosixFolderProtector}.
    * @example
    * ```ts
@@ -2458,39 +2461,51 @@ export declare class FolderProtectorFactory {
 }
 
 /**
- * Restricts a folder to the current user on macOS: it sets POSIX permissions
- * (`0700`) and reads the folder's access back, refusing a folder that an
- * access control entry, such as one inherited from its parent, still opens to
- * anyone else. It never removes such an entry; whoever set it decides.
+ * Restricts a folder to the current user on macOS: it refuses a folder on a
+ * volume mounted with ownership ignored, where every account acts as the
+ * owner, then sets POSIX permissions (`0700`) and reads the folder's access
+ * back, refusing a folder that an access control entry, such as one inherited
+ * from its parent, still opens to anyone else. It never removes such an entry
+ * and never changes how a volume is mounted; whoever did decides.
  */
 export declare class MacFolderProtector implements IFolderProtector {
   /**
    * Creates the protector.
    *
    * @param command Runs `/bin/ls`.
+   * @param addon The runtime's POSIX addon, which reads the folder's volume
+   * with `readVolume`.
    * @param user The current user's short name; the process's user by
    * default.
    * @example
    * ```ts
-   * import { MacFolderProtector, SystemCommand } from "@noldova/desktop.runtime";
+   * import { MacFolderProtector, NativeAddon, SystemCommand, type IPosixProcessAddon } from "@noldova/desktop.runtime";
    *
-   * export const protector: MacFolderProtector = new MacFolderProtector(new SystemCommand());
+   * export const protector: MacFolderProtector = new MacFolderProtector(new SystemCommand(),
+   *   new NativeAddon<IPosixProcessAddon>(NativeAddon.locate("posix-process.node"), ["readVolume"]));
    * ```
    */
-  public constructor(command: SystemCommand, user?: string);
+  public constructor(command: SystemCommand, addon: NativeAddon<IPosixProcessAddon>, user?: string);
 
   /**
-   * Sets the folder's mode to `0700` and reads its access back with
-   * `ls -led`. The folder passes when its mode is `drwx------` and every line
-   * after the folder's own is an access control entry that denies something or
-   * allows only the current user. A line in another form, or a mode marked `+`
-   * with no entry, refuses the folder.
+   * Reads the folder's volume, then sets the folder's mode to `0700` and reads
+   * its access back with `ls -led`. A volume mounted with ownership ignored
+   * refuses the folder before anything changes. The folder passes when its
+   * mode is `drwx------` and every line after the folder's own is an access
+   * control entry that denies something or allows only the current user. A
+   * line in another form, or a mode marked `+` with no entry, refuses the
+   * folder.
    *
    * @param folder The absolute path of an existing folder.
    * @returns A promise that resolves once only the current user has access.
    * @throws {SystemCommandException} The promise rejects when `ls` fails, or
    * the folder is still open to anyone else, for example through an inherited
-   * entry; the message holds the listing.
+   * entry, when the message holds the listing, or on a volume mounted with
+   * ownership ignored, when the message names the volume.
+   * @throws {AddonLoadException} The promise rejects when the addon is missing,
+   * fails to load, lacks `readVolume` or returns something other than a volume.
+   * @throws {Error} The promise rejects with the addon's error when the system
+   * cannot read the folder's volume.
    * @example
    * ```ts
    * import type { MacFolderProtector } from "@noldova/desktop.runtime";
@@ -5812,6 +5827,24 @@ export interface IPosixProcessAddon {
    * ```
    */
   readEnvironment?(processId: number): unknown;
+
+  /**
+   * Reads the volume that holds a folder with `statfs`; macOS builds only.
+   *
+   * @param folder The folder.
+   * @returns The volume's mount point and whether it is mounted with
+   * ownership ignored, as `[mountPoint, isOwnershipIgnored]`.
+   * @throws {Error} When `statfs` fails, with its `errno` and `syscall`.
+   * @example
+   * ```ts
+   * import type { IPosixProcessAddon } from "@noldova/desktop.runtime";
+   *
+   * export function readVolume(addon: IPosixProcessAddon): unknown {
+   *   return addon.readVolume?.("/Users/person");
+   * }
+   * ```
+   */
+  readVolume?(folder: string): unknown;
 }
 
 /**
@@ -10868,6 +10901,28 @@ export interface IEventSink {
  * Tells whether a connection comes from the app's main process, for the {@link RuntimeServer}'s handshake of a client named `ShellClients.mainProcess`.
  */
 export interface IMainProcessCheck {
+  /**
+   * Reads, when the server accepts a connection and before any of its messages, what the later check compares against; on Linux, the start
+   * time of the connecting process, so that a process that later gets the same process id doesn't pass. A failure is kept and rejects the check.
+   *
+   * @param socket The connection, just accepted.
+   * @example
+   * ```ts
+   * import type { Socket } from "node:net";
+   *
+   * import type { IMainProcessCheck } from "@noldova/desktop.runtime";
+   *
+   * const accepted = new WeakSet<Socket>();
+   *
+   * export const acceptedOnly: IMainProcessCheck = {
+   *   accept: socket => accepted.add(socket),
+   *   isMainProcessAsync: socket => Promise.resolve(accepted.has(socket)),
+   *   isSameSender: socket => accepted.has(socket)
+   * };
+   * ```
+   */
+  accept?(socket: Socket): void;
+
   /**
    * Checks the process at the other end of a connection.
    *
@@ -16374,17 +16429,20 @@ export declare class WebViewCenter {
    * the main process can't give.
    * @param channel The `desktop.webViewCommand` event the calls go out on; with
    * none, no main process is ever reached.
+   * @param portsChannel The `desktop.webViewBlockedPorts` event each change of
+   * the blocked loopback ports goes out on; with none, a block waits for no
+   * acknowledgement.
    * @example
    * ```ts
    * import { ShellEvents } from "@noldova/desktop.protocol";
    * import { type EventRegistry, WebViewCenter } from "@noldova/desktop.runtime";
    *
    * export function createCenter(events: EventRegistry): WebViewCenter {
-   *   return new WebViewCenter(process.stderr, events.declare(ShellEvents.webViewCommand));
+   *   return new WebViewCenter(process.stderr, events.declare(ShellEvents.webViewCommand), events.declare(ShellEvents.webViewBlockedPorts));
    * }
    * ```
    */
-  public constructor(diagnostics: Writable, channel?: EventChannel | null);
+  public constructor(diagnostics: Writable, channel?: EventChannel | null, portsChannel?: EventChannel | null);
 
   /**
    * Starts a module's mirror, listing its open views when a main process is
@@ -16436,6 +16494,56 @@ export declare class WebViewCenter {
    * @param answered The answer.
    */
   public answer(connection: number, answered: WebViewAnswered): void;
+
+  /**
+   * Adds a loopback port that no web view may reach, such as the runtime's own
+   * endpoint or a tool endpoint's, and sends the new list to the connected main
+   * process.
+   *
+   * @param port The port.
+   * @returns The new list's serial, which {@link WebViewCenter.waitForPortsAsync}
+   * takes.
+   */
+  public blockPort(port: number): number;
+
+  /**
+   * Waits until the connected main process acknowledges a list at least as new
+   * as a serial, so that its web views refuse the ports in it; it settles at once
+   * when no main process is connected, since no web view is open then, and when
+   * the main process goes.
+   *
+   * @param serial The serial {@link WebViewCenter.blockPort} returned.
+   * @param signal Stops the wait.
+   * @returns A promise that settles once the list is acknowledged.
+   * @throws {Error} The promise rejects with the signal's reason when the signal
+   * aborts.
+   */
+  public waitForPortsAsync(serial: number, signal: AbortSignal): Promise<void>;
+
+  /**
+   * Removes a loopback port once its endpoint has closed, and sends the new list
+   * to the connected main process; a port it doesn't hold changes nothing.
+   *
+   * @param port The port.
+   */
+  public unblockPort(port: number): void;
+
+  /**
+   * Reads the blocked loopback ports for the connected main process.
+   *
+   * @param connection The connection that asks.
+   * @returns The list, or `null` for any connection but the main process's.
+   */
+  public readPorts(connection: number): WebViewBlockedPorts | null;
+
+  /**
+   * Settles every wait the main process's acknowledgement covers, when it came
+   * on the main process's connection; any other is ignored.
+   *
+   * @param connection The connection the acknowledgement came on.
+   * @param blocked The list the main process acknowledges.
+   */
+  public answerPorts(connection: number, blocked: WebViewBlockedPorts): void;
 
   /**
    * Passes a batch of events on to their modules, when it came from the
