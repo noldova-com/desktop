@@ -771,6 +771,45 @@ test.describe("web views", () => {
     }
   });
 
+  test("a module's web view refuses its page's own link, location, form and meta refresh and an allowed frame's target=\"_top\" link to an origin it doesn't allow, stays at its page, and reports NavigationRefused for each", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const port = portOf(server);
+      const origin = `http://${host}:${port}`;
+      const outside = `http://localhost:${port}/second`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      const id = await view(window, 0).getAttribute("data-view");
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("First page");
+
+      expect(await runInFirstViewAsync(mainProcess, `void Object.assign(document.body.appendChild(document.createElement("a")), { href: ${JSON.stringify(outside)} }).click()`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} NavigationRefused`).length).toBe(1);
+      expect(await runInFirstViewAsync(mainProcess, `void (location.href = ${JSON.stringify(outside)})`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} NavigationRefused`).length).toBe(2);
+      expect(await runInFirstViewAsync(mainProcess, `void Object.assign(document.body.appendChild(document.createElement("form")), { action: ${JSON.stringify(outside)}, method: "get" }).submit()`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} NavigationRefused`).length).toBe(3);
+      expect(await runInFirstViewAsync(mainProcess, `void document.head.appendChild(Object.assign(document.createElement("meta"), { httpEquiv: "refresh", content: ${JSON.stringify(`0;url=${outside}`)} }))`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} NavigationRefused`).length).toBe(4);
+      expect(await runInFirstViewAsync(mainProcess, `new Promise(resolve => { const frame = document.createElement("iframe"); frame.src = ${JSON.stringify(`${origin}/second`)}; frame.addEventListener("load", resolve); document.body.append(frame); })`)).toBe(true);
+      expect(await readFirstViewAsync(mainProcess, "document.querySelector(\"iframe\").contentDocument.title")).toBe("Second page");
+      expect(await runInFirstViewAsync(mainProcess, `void Object.assign(document.querySelector("iframe").contentDocument.body.appendChild(document.createElement("a")), { href: ${JSON.stringify(outside)}, target: "_top" }).click()`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} NavigationRefused`).length).toBe(5);
+
+      await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
+      await expect(view(window, 0)).toHaveText("First page");
+      expect(await eventsAsync(window)).not.toContain(`${id} LoadFailed`);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
   test("a module's web view loads a frame's about:srcdoc, and its page's own top-level about:srcdoc, which the engine refuses itself with its error page, is reported as NavigationRefused without a LoadFailed", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const server = await startServerAsync();

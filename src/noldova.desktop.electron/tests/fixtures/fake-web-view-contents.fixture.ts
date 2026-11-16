@@ -10,6 +10,7 @@ import "@noldova/context.core";
 import type { WindowOpenHandlerResponse } from "electron";
 import { type IWebViewContents, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
 
+import { FakeFrameNavigation } from "./fake-frame-navigation.fixture.js";
 import { FakePreventableEvent } from "./fake-preventable-event.fixture.js";
 import { FakeWebViewDebugger } from "./fake-web-view-debugger.fixture.js";
 import { ListenerRegistry } from "./listener-registry.fixture.js";
@@ -164,6 +165,12 @@ export class FakeWebViewContents implements IWebViewContents {
     const preventable = new FakePreventableEvent();
     this.listeners.emit(event, preventable, ...values);
     return preventable.isPrevented;
+  }
+
+  public navigateFrame(url: string, isMainFrame: boolean): boolean {
+    const navigation = new FakeFrameNavigation(url, isMainFrame);
+    this.listeners.emit("will-frame-navigate", navigation, url, false, isMainFrame);
+    return navigation.isPrevented;
   }
 
   public openWindow(url: string, referrer: string = String.empty): WindowOpenHandlerResponse | undefined {
