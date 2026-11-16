@@ -75,6 +75,35 @@ export class WebViewDeclarationTests {
   }
 
   @TestMethod
+  public findsALoadingKeyOnlyWhileThePageLoadsAndPinsItsWireForm(): void {
+    const json = "{\"methods\":[],\"events\":[],\"keys\":[{\"name\":\"reload\",\"keys\":[\"Mod+R\"],\"macKeys\":[\"Mod+R\"]}],\"loadingKeys\":[{\"name\":\"stop\",\"keys\":[\"Escape\"],\"macKeys\":[\"Escape\"]}]}";
+    const declaration = WebViewDeclaration.fromJson(JsonReader.parse(json).toJson());
+    const escape = { key: "Escape", code: "Escape", ctrlKey: false, altKey: false, shiftKey: false, metaKey: false };
+    const reload = { key: "r", code: "KeyR", ctrlKey: true, altKey: false, shiftKey: false, metaKey: false };
+
+    Assert.areEqual(json, JSON.stringify(declaration.toJson()));
+    Assert.areEqual("stop|null|stop", `${declaration.findKey(escape, "win32", true)}|${declaration.findKey(escape, "win32")}|${declaration.findKey(escape, "darwin", true)}`);
+    Assert.areEqual("reload|reload", `${declaration.findKey(reload, "linux", true)}|${declaration.findKey(reload, "linux", false)}`);
+    Assert.isTrue(declaration.loadingKeys.every(t => t.isLoadingKey));
+    Assert.areEqual(0, WebViewDeclaration.fromJson({}).loadingKeys.length);
+  }
+
+  @TestMethod
+  public refusesALoadingKeyThatRepeatsAKeysNameOrKeyAndAnEscapeAmongTheKeys(): void {
+    const key = (name: string, text: string, isLoadingKey: boolean = false): WebViewKey => new WebViewKey(name, [KeyChord.parse(text)], undefined, isLoadingKey);
+    const many = Array.from({ length: 32 }, (_, index) => key(`key${index}`, index < 24 ? `F${index + 1}` : `Mod+Shift+F${index - 23}`));
+
+    Assert.areEqual("loadingKeys", Assert.throws(() => new WebViewDeclaration([], [], [key("stop", "Mod+R")], false, [key("stop", "Escape", true)]), ArgumentException).parameterName);
+    Assert.areEqual("loadingKeys", Assert.throws(() => new WebViewDeclaration([], [], [key("reload", "F5")], false, [key("stop", "F5", true)]), ArgumentException).parameterName);
+    Assert.areEqual("loadingKeys", Assert.throws(() => new WebViewDeclaration([], [], many, false, [key("stop", "Escape", true)]), ArgumentException).parameterName);
+    Assert.areEqual("keys", Assert.throws(() => new WebViewDeclaration([], [], [key("stop", "Escape", true)]), ArgumentException).parameterName);
+    Assert.areEqual("keys", Assert.throws(() => new WebViewDeclaration([], [], [key("reload", "F5"), key("reload", "Mod+R")], false, [key("stop", "Escape", true)]), ArgumentException).parameterName);
+    Assert.areEqual(1, new WebViewDeclaration([], [], many.slice(0, 31), false, [key("stop", "Escape", true)]).loadingKeys.length);
+    Assert.areEqual("$.loadingKeys.0.keys", Assert.throws(() => WebViewDeclaration.fromJson({ loadingKeys: [{ name: "stop", keys: ["Enter"] }] }), JsonException).path);
+    Assert.areEqual("$.keys.0.keys", Assert.throws(() => WebViewDeclaration.fromJson({ keys: [{ name: "stop", keys: ["Escape"] }] }), JsonException).path);
+  }
+
+  @TestMethod
   public refusesARepeatedKeyNameAKeyTwiceOnOnePlatformAndMoreThanThirtyTwoNames(): void {
     const key = (name: string, keys: readonly string[], macKeys: readonly string[] = keys): WebViewKey =>
       new WebViewKey(name, keys.map(t => KeyChord.parse(t)), macKeys.map(t => KeyChord.parse(t)));

@@ -788,9 +788,8 @@ export class OpenWebView {
     const relayKey = this.relayKeys.find(t => OpenWebView.isSameStroke(t, stroke));
     if (!Object.isUndefined(relayKey))
       return this.forgetRelayKey(relayKey);
-    const isShortcut = this.isShortcut(stroke);
-    const name = isShortcut ? null : this.declaration.findKey(stroke, this.platform);
-    if (!isShortcut && Object.isNull(name))
+    const name = this.declaration.findKey(stroke, this.platform, this.guest?.isLoading() ?? false);
+    if (Object.isNull(name) && !this.isShortcut(stroke))
       return this.judgeZoomKey(event, stroke);
     event.preventDefault();
     if (input.isAutoRepeat)

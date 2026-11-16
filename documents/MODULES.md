@@ -333,7 +333,7 @@ Noldova Desktop registers its own entries, such as the default theme, through th
 - A module's command has at most one default key, the same on every platform.
 - Keys go to commands in this order: the person's bindings, Noldova Desktop's default keys, then the modules' default keys in module order, a module's runtime commands before its window commands.
   The first keeps the key, and Settings shows every refused command as a collision.
-- In one of a module's web views the app's shortcuts go first too, and the keys the module declares for the pane in `webViews.json` come after them, as [WEB-VIEWS.md](WEB-VIEWS.md#keys-from-a-view) says.
+- In one of a module's web views, the keys the module declares for the pane in `webViews.json` go first, and the app's shortcuts come after them, as [WEB-VIEWS.md](WEB-VIEWS.md#keys-from-a-view) says.
 - A window part marks an element that keeps the Ctrl keys, such as a terminal, with `nolKeepsCtrlKeys`, and asks its context's `findWindowCommand` which command the window would run for a key; what the window does with such keys is in [WINDOW.md](WINDOW.md#keys-and-menus).
 - A window part reads the key that runs a command with its context's `keyOf`, a signal of the key's platform label, such as `⌥⌘N` on macOS and `Ctrl+Alt+N` elsewhere, and its `aria-keyshortcuts` form, such as `Alt+Meta+N` and `Control+Alt+N`, or of `null` while the command has none; it follows the person's bindings as they change.
 - The person's bindings are the shared setting `desktop.keyBindings`, from a command's name to its key or to `null`; a binding for an absent command is kept until it returns.

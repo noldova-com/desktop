@@ -6,9 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { WebViewInfo } from "@noldova/desktop.protocol";
+import type { KeyChord, WebViewInfo } from "@noldova/desktop.protocol";
 
 export interface IOpenedWebView {
   readonly view: WebViewInfo;
   readonly partition: string;
+  readonly keys: readonly KeyChord[];
 }

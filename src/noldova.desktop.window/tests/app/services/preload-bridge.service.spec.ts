@@ -636,6 +636,9 @@ describe("PreloadBridgeService", () => {
     const events: string[] = [];
 
     const opened = await service.openWebViewAsync("notes", pane, "workspace-1");
+    bridge.openedViewKeys = ["Mod+L", "F6"];
+    const withKeys = await service.openWebViewAsync("notes", pane, "workspace-1");
+    bridge.openedViewKeys = undefined;
     bridge.webViewPartition = "";
     const blank = await service.openWebViewAsync("notes", pane, "workspace-1");
     bridge.webViewPartition = 7;
@@ -659,8 +662,9 @@ describe("PreloadBridgeService", () => {
     bridge.publishWebViewEvent({ module: "notes", view: "1", kind: "Closed" });
 
     expect([opened?.view.id, opened?.view.module, opened?.view.pane.equals(pane), opened?.view.profileKey, opened?.partition]).toEqual(["1", "notes", true, "workspace-1", "persist:notes.workspace-1"]);
+    expect([opened?.keys, withKeys?.keys.map(t => t.text)]).toEqual([[], ["Mod+L", "F6"]]);
     expect([blank, notText instanceof Error, refused]).toEqual([null, true, null]);
-    expect(opens.filter(t => !t.startsWith("open"))).toEqual(["close notes 2"]);
+    expect(opens.filter(t => !t.startsWith("open"))).toEqual(["close notes 3"]);
     expect(attached).toEqual([true, false, false, false, false]);
     expect([navigation?.kind, ...unknown]).toEqual([WebViewNavigationKind.Started, null, null]);
     expect(bridge.webViewKeys).toEqual([["Mod+K", "Mod+Shift+P"]]);

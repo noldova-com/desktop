@@ -98,6 +98,7 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   public readonly appShortcuts: JsonObject[] = [];
   public isWebViewOpened: boolean = true;
   public webViewPartition: unknown = "persist:notes.workspace-1";
+  public openedViewKeys: unknown = undefined;
   public webViewAttached: Promise<unknown> = Promise.resolve({ isAttached: true });
   public webViewAnswer: unknown = { kind: "Started" };
   public webViewZoom: unknown = 1;
@@ -418,7 +419,7 @@ export class PreloadBridgeFixture implements IPreloadBridge {
     if (!this.isWebViewOpened)
       return Promise.resolve(null);
     this.webViewCount += 1;
-    return Promise.resolve({ view: { id: String(this.webViewCount), module: moduleId, pane, profileKey }, partition: this.webViewPartition });
+    return Promise.resolve({ view: { id: String(this.webViewCount), module: moduleId, pane, profileKey }, partition: this.webViewPartition, ...Object.isUndefined(this.openedViewKeys) ? {} : { keys: this.openedViewKeys } });
   }
 
   public attachWebView(moduleId: string, view: string, contentsId: number): Promise<unknown> {
