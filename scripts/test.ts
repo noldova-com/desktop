@@ -14,6 +14,7 @@ import "@noldova/context.core";
 import { AngularTestProject } from "./angular/angular-test-project.ts";
 import { AngularTestCheck } from "./checks/angular-test-check.ts";
 import { CommentCheck } from "./checks/comment-check.ts";
+import { DeclarationConsumerCheck } from "./checks/declaration-consumer-check.ts";
 import { DeclaredDependencyCheck } from "./checks/declared-dependency-check.ts";
 import { DependencyPinCheck } from "./checks/dependency-pin-check.ts";
 import { DocumentCheck } from "./checks/document-check.ts";
@@ -255,7 +256,8 @@ export class Test {
       new ScriptTestCheck(this.root, this.runner),
       new ApiDeclarationCheck(this.root, new ApiCatalog(this.root, packages, new BuildLayout(this.root), angular, [])),
       new AngularTestCheck(angular, flaky),
-      new WindowNodeLoadCheck(new BuildLayout(this.root), this.runner)
+      new WindowNodeLoadCheck(new BuildLayout(this.root), this.runner),
+      new DeclarationConsumerCheck(new BuildLayout(this.root), this.runner)
     ];
     return [reading, building];
   }
