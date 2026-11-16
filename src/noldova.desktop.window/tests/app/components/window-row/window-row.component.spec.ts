@@ -510,6 +510,8 @@ describe("WindowRowComponent", () => {
     await settle(fixture);
     const dialog = TestBed.inject(DialogService).open(OpenDialogComponent, ".inside");
     const backdrop = DomFixture.one(document, ".nol-dialog-backdrop");
+    await vi.waitFor(() => expect(backdrop.classList.contains("cdk-overlay-backdrop-showing")).toBe(true));
+    await fadeAsync(backdrop);
     await settle(fixture);
     const shown = [backdrop.classList.contains("cdk-overlay-backdrop-showing"), backdrop.getAnimations().length];
     const before = bridge.changes.length;
