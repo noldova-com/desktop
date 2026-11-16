@@ -228,6 +228,9 @@ The file is an object with four optional fields: `methods`, each `{ "name": "<Do
 - The origin check runs on every navigation, whoever starts it, history and redirects included, and on every request of the profile, of every kind.
   An address passes only when its origin is one of the view's allowed origins.
   An address on the machine itself or its local network passes only when the allowed origins name it exactly, and the module takes such origins only from the app's settings.
+- A loopback address never passes on a port of the app's own endpoints, the runtime's TCP endpoint and every module's tool endpoint, even when the allowed origins name it.
+  The runtime sends those ports to the main process on each change, and gives a tool endpoint's address to anyone only after the main process has acknowledged its port; it takes a port off the list only after its endpoint has closed.
+  A runtime endpoint on a Unix socket has no port, and a view can't reach a socket, so it isn't listed.
 - The app's shortcuts reach the window when the person presses them in a view, and the keys the module declares reach its window part, as [Keys from a view](#keys-from-a-view) says.
 
 ## Limits
@@ -249,6 +252,7 @@ The file is an object with four optional fields: `methods`, each `{ "name": "<Do
 ## What fails closed
 
 - An address the check can't judge is refused.
+- While the main process doesn't know the app's endpoint ports, before the runtime answers them, after a failed read or once the runtime has gone, every loopback port is refused.
 - A page's own top-level `about:srcdoc`, by a link or by `location`, never reaches the check: the engine refuses it itself, loads nothing, and shows its own error page in place of the page; the host reports it as `NavigationRefused`, without a `LoadFailed`.
   A frame's `about:srcdoc` loads.
 - A view the host can't open, for a module without `webViews.json`, a pane it doesn't own or a full pane, isn't opened, and `openAsync` fails; the pane shows that no view is available.

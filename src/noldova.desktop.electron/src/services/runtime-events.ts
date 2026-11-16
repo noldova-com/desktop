@@ -33,6 +33,10 @@ export class RuntimeEvents {
       this.owners.answerWebView(event.payload);
       return;
     }
+    if (event.name.text === ShellEvents.webViewBlockedPorts.text) {
+      this.owners.blockWebViewPorts(event.payload);
+      return;
+    }
     if (event.name.text === ShellEvents.secretCommand.text) {
       void this.owners.secrets.answerAsync(event.payload);
       return;

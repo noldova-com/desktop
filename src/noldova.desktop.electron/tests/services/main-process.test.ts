@@ -1642,7 +1642,7 @@ export class MainProcessTests {
     electron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), MainProcessStartFixture.APPEARANCE);
     await Condition.waitAsync(() => window.isShown);
 
-    Assert.areEqual("desktop.agentControl,desktop.readSetting", connection.calls.filter(t => !t.startsWith("desktop.app") && t !== "desktop.mainWindowChanged").join(","));
+    Assert.areEqual("desktop.agentControl,desktop.readSetting", connection.calls.filter(t => !t.startsWith("desktop.app") && !["desktop.mainWindowChanged", "desktop.readWebViewBlockedPorts", "desktop.webViewPortsBlocked"].includes(t)).join(","));
     Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "This device's identity could not be read, so window bounds are not kept:").length);
   }
 

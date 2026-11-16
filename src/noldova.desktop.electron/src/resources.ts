@@ -1062,6 +1062,14 @@ export class Resources {
     return extensions.map(t => `*.${t}`).join(", ");
   }
 
+  public static formatWebViewPortsUnread(reason: string): string {
+    return `The runtime's blocked loopback ports could not be read, so web views refuse every loopback address: ${reason}`;
+  }
+
+  public static formatWebViewPortsInvalid(reason: string): string {
+    return `The runtime sent blocked loopback ports that are not valid, so they were not acknowledged: ${reason}`;
+  }
+
   public static formatWebViewsUnreadable(reason: string): string {
     return `The modules' web view declarations could not be read, so no web view opens: ${reason}`;
   }

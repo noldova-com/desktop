@@ -10,6 +10,7 @@ import type { JsonObject } from "@noldova/context.json";
 
 import { NotContributedException } from "../../exceptions/not-contributed.exception.js";
 import type { IModuleLog } from "../../interfaces/i-module-log.js";
+import type { IPortBlocker } from "../../interfaces/i-port-blocker.js";
 import type { IToolDescriptor } from "../../interfaces/i-tool-descriptor.js";
 import type { IToolEndpoint } from "../../interfaces/i-tool-endpoint.js";
 import type { IToolEndpointHandler } from "../../interfaces/i-tool-endpoint-handler.js";
@@ -29,14 +30,16 @@ export class ModuleTools implements IToolsContext {
   private readonly log: IModuleLog;
   private readonly registrations: Disposable[];
   private readonly stopping: AbortSignal;
+  private readonly blocker: IPortBlocker;
   private readonly sessions: WeakSet<ToolSession> = new WeakSet();
 
-  public constructor(declaration: ModuleDeclaration, registry: ToolRegistry, log: IModuleLog, registrations: Disposable[], stopping: AbortSignal) {
+  public constructor(declaration: ModuleDeclaration, registry: ToolRegistry, log: IModuleLog, registrations: Disposable[], stopping: AbortSignal, blocker: IPortBlocker) {
     this.declaration = declaration;
     this.registry = registry;
     this.log = log;
     this.registrations = registrations;
     this.stopping = stopping;
+    this.blocker = blocker;
   }
 
   public get isStopped(): boolean {
@@ -61,7 +64,7 @@ export class ModuleTools implements IToolsContext {
   }
 
   public openEndpointAsync(handler: IToolEndpointHandler): Promise<IToolEndpoint> {
-    return ToolEndpoint.openAsync(handler, t => this.sessions.has(t) && this.registry.isOpen(t), this.log, this.stopping, t => this.registrations.push(t));
+    return ToolEndpoint.openAsync(handler, t => this.sessions.has(t) && this.registry.isOpen(t), this.log, this.stopping, t => this.registrations.push(t), this.blocker);
   }
 
   public onSessionEnded(listener: (session: string) => void): Registration {

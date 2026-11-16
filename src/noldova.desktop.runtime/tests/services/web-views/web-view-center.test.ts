@@ -13,7 +13,7 @@ import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonObject, JsonValue } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import {
-  QualifiedName, Request, type Response, ShellEvents, ShellMethods, WebViewAction, WebViewAnswered, WebViewEvent, WebViewEventKind, WebViewEvents, WebViewFailure, WebViewFailureKind
+  QualifiedName, Request, type Response, ShellEvents, ShellMethods, WebViewAction, WebViewAnswered, WebViewBlockedPorts, WebViewEvent, WebViewEventKind, WebViewEvents, WebViewFailure, WebViewFailureKind
 } from "@noldova/desktop.protocol";
 import { EventRegistry, RuntimeBuild, WebViewCenter, WebViewFailureException } from "@noldova/desktop.runtime";
 
@@ -22,6 +22,7 @@ import type { RawConnectionFixture } from "../../fixtures/raw-connection.fixture
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
 import { UpdateBarrierFixture } from "../../fixtures/update-barrier.fixture.js";
+import { WaitFixture } from "../../fixtures/wait.fixture.js";
 
 @TestClass
 export class WebViewCenterTests {
@@ -142,6 +143,55 @@ export class WebViewCenterTests {
     Assert.areEqual("4 Opened", heard.join(","));
     Assert.isTrue(diagnostics.text.startsWith("The runtime could not list the web views of the module notes: "));
     Assert.areEqual(1, diagnostics.text.split("\n").length - 1);
+  }
+
+  @TestMethod
+  public async sendsEachChangeOfTheBlockedPortsToTheMainProcessAndWaitsOnlyForItsAcknowledgementThatCoversTheChange(): Promise<void> {
+    const sink = new EventSinkFixture();
+    const events = new EventRegistry(sink);
+    const center = new WebViewCenter(new TextOutputFixture(), events.declare(ShellEvents.webViewCommand), events.declare(ShellEvents.webViewBlockedPorts));
+    const signal = new AbortController().signal;
+
+    await center.waitForPortsAsync(center.blockPort(4600), signal);
+    center.check(7);
+    const read = [center.readPorts(7)?.toJson() ?? null, center.readPorts(8)];
+    const waiting = center.waitForPortsAsync(center.blockPort(4700), signal);
+    center.answerPorts(8, new WebViewBlockedPorts(2, [4600, 4700]));
+    center.answerPorts(7, new WebViewBlockedPorts(1, [4600]));
+    await yieldTurn();
+    const isPendingBeforeItsAcknowledgement = await WaitFixture.isPendingAsync(waiting);
+    center.answerPorts(7, new WebViewBlockedPorts(2, [4600, 4700]));
+    await waiting;
+    center.unblockPort(4600);
+    center.unblockPort(4600);
+
+    Assert.areEqual("[{\"serial\":1,\"ports\":[4600]},null]", JSON.stringify(read));
+    Assert.isTrue(isPendingBeforeItsAcknowledgement);
+    Assert.areEqual("7 desktop.webViewBlockedPorts {\"serial\":2,\"ports\":[4600,4700]}\n7 desktop.webViewBlockedPorts {\"serial\":3,\"ports\":[4700]}",
+      WebViewCenterTests.format(sink));
+  }
+
+  @TestMethod
+  public async settlesAPortWaitWhenTheMainProcessGoesOrWithoutAPortsChannelAndRejectsOneWhoseSignalAborts(): Promise<void> {
+    const events = new EventRegistry(new EventSinkFixture());
+    const center = new WebViewCenter(new TextOutputFixture(), events.declare(ShellEvents.webViewCommand), events.declare(ShellEvents.webViewBlockedPorts));
+    const [unchanneled] = WebViewCenterTests.create();
+    const stopping = new AbortController();
+    center.check(7);
+    unchanneled.check(7);
+
+    const whileConnected = center.waitForPortsAsync(center.blockPort(4600), new AbortController().signal);
+    center.check(null);
+    await whileConnected;
+    await unchanneled.waitForPortsAsync(unchanneled.blockPort(4600), stopping.signal);
+    center.check(9);
+    const aborted = center.waitForPortsAsync(center.blockPort(4700), stopping.signal);
+    stopping.abort(new Error("The runtime is stopping."));
+    const failures = [await Assert.throwsAsync(() => aborted, Error), await Assert.throwsAsync(() => center.waitForPortsAsync(1, stopping.signal), Error)];
+    center.answerPorts(9, new WebViewBlockedPorts(5, []));
+
+    Assert.areEqual("The runtime is stopping.,The runtime is stopping.", failures.map(t => t.message).join(","));
+    Assert.areEqual("[4600,4700]", JSON.stringify(center.readPorts(9)?.ports));
   }
 
   private static create(): [WebViewCenter, EventSinkFixture, TextOutputFixture] {

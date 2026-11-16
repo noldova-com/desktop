@@ -23,4 +23,5 @@ export class ShellEvents {
   public static readonly webViewCommand: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.webViewCommandMember);
   public static readonly secretCommand: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.secretCommandMember);
   public static readonly agentControlChanged: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.agentControlChangedMember);
+  public static readonly webViewBlockedPorts: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.webViewBlockedPortsMember);
 }

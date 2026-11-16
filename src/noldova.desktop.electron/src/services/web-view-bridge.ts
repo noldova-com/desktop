@@ -7,7 +7,7 @@
  */
 
 import { JsonException, type JsonValue } from "@noldova/context.json";
-import { type IKeyStroke, ShellMethods, WebViewCommand, type WebViewDeclaration, type WebViewEvent } from "@noldova/desktop.protocol";
+import { type IKeyStroke, ShellMethods, WebViewBlockedPorts, WebViewCommand, type WebViewDeclaration, type WebViewEvent } from "@noldova/desktop.protocol";
 
 import type { IMainProcessEnvironment } from "../interfaces/i-main-process-environment.js";
 import type { IMainProcessOptions } from "../interfaces/i-main-process-options.js";
@@ -26,6 +26,9 @@ export class WebViewBridge {
   private readonly runtime: RuntimeCaller;
   private readonly log: MainProcessLog;
   private declarations: Promise<ReadonlyMap<string, WebViewDeclaration>> | undefined;
+  private blockedPorts: ReadonlySet<number> | null = null;
+  private blockedSerial: number = -1;
+  private connection: object | null = null;
 
   public constructor(options: IMainProcessOptions, windows: WindowRegistry, runtime: RuntimeCaller, isReady: () => boolean) {
     this.process = options.process;
@@ -33,7 +36,7 @@ export class WebViewBridge {
     this.runtime = runtime;
     this.log = options.log;
     this.declarations = undefined;
-    this.host = new WebViewHost(options.electron.webViews, new WebViewOriginCheck(), () => this.readDeclarationsAsync(), options.settings.platform,
+    this.host = new WebViewHost(options.electron.webViews, new WebViewOriginCheck([], () => this.blockedPorts), () => this.readDeclarationsAsync(), options.settings.platform,
       (windowId, event) => this.sendEvent(windowId, event), (windowId, stroke) => this.sendShortcut(windowId, stroke),
       (windowId, input) => this.windows.sendTo(windowId, Resources.webViewInputChannel, input), isReady,
       t => void runtime.callAsync(ShellMethods.webViewEvents, t.toJson()), t => options.log.write(t));
@@ -50,6 +53,44 @@ export class WebViewBridge {
     }
     const answer = await this.host.commandAsync(command);
     await this.runtime.callAsync(ShellMethods.webViewAnswered, answer.toJson());
+  }
+
+  public async connectAsync(): Promise<void> {
+    const connection = {};
+    this.connection = connection;
+    const response = await this.runtime.callAsync(ShellMethods.readWebViewBlockedPorts, null);
+    if (this.connection !== connection)
+      return;
+    const payload = response.payload ?? null;
+    if (response.hasFailed || Object.isNull(payload)) {
+      this.log.write(Resources.formatWebViewPortsUnread(response.failure?.message ?? String(null)));
+      return;
+    }
+    await this.blockPortsAsync(payload);
+  }
+
+  public disconnect(): void {
+    this.connection = null;
+    this.blockedPorts = null;
+    this.blockedSerial = -1;
+  }
+
+  public async blockPortsAsync(payload: JsonValue): Promise<void> {
+    if (Object.isNull(this.connection))
+      return;
+    let blocked: WebViewBlockedPorts;
+    try {
+      blocked = WebViewBlockedPorts.fromJson(payload);
+    }
+    catch (error) {
+      this.log.write(Resources.formatWebViewPortsInvalid(CaughtFailure.expect(error, JsonException).message));
+      return;
+    }
+    if (blocked.serial <= this.blockedSerial)
+      return;
+    this.blockedPorts = new Set(blocked.ports);
+    this.blockedSerial = blocked.serial;
+    await this.runtime.callAsync(ShellMethods.webViewPortsBlocked, blocked.toJson());
   }
 
   private sendEvent(windowId: number, event: WebViewEvent): void {
