@@ -311,7 +311,7 @@ The time is the higher of the latest Linux and macOS runs, the sum of the file's
 | `tests/services/client/runtime-launcher.test.ts` | 24.2 s | 43 tests, nearly each starting a real runtime process and stopping it, some two of them for a takeover or a handover. |
 | `tests/services/process/posix-process-ender.test.ts` | 23.5 s | 34 tests start and end real programs; one waits out a 1 s grace before the kill. |
 | `tests/services/process/process-supervisor.test.ts` | 20.7 s | 46 tests start and end real programs and real pseudo-terminals. |
-| `tests/services/process/windows-process-ender.test.ts` | 11.6 s | 19 tests start and end real programs. |
+| `tests/services/process/windows-process-ender.test.ts` | 6.4 s | 19 tests start and end real programs. |
 | `tests/services/runtime-entry.test.ts` | 6.1 s | One test waits out the runtime's 5 s takeover time while another holder owns the data directory without publishing discovery. |
 | `tests/services/environment/login-shell-environment.test.ts` | 4.2 s | Real login shells read profiles under a real file-system watch; one waits out a 1.5 s limit for a shell that never answers. |
 | `tests/services/ownership/ownership-lock.test.ts` | 3.3 s | Real processes race for the data directory's lock, and one owner is killed so the lock passes on. |
@@ -351,7 +351,8 @@ The Test waits check refuses a fixed pause in any test file this table doesn't l
 | `src/noldova.desktop.electron/tests/e2e/fixtures/modules/clock/runtime/src/runtime-part.ts` | Between bounded attempts to rename the fixture module's stopped marker into place while Windows still holds the target open. |
 | `src/noldova.desktop.electron/tests/fixtures/wait.fixture.ts` | Between checks of a polled condition, until the test's limit. |
 | `src/noldova.desktop.runtime/tests/fixtures/rename-retry.fixture.ts` | Between bounded attempts to rename a test's file into place while Windows still holds the target open, as the runtime's FileRenamer retries. |
-| `src/noldova.desktop.runtime/tests/fixtures/virtual-time.fixture.ts` | It replaces the timers' `setTimeout` with a virtual clock, so a test can check a sum of waits without waiting them out; each replaced wait yields once through the real `setTimeout` for 0 ms, so the code under test still runs in order. |
+| `src/noldova.desktop.runtime/tests/fixtures/virtual-time.fixture.test.ts` | Its waits run on the virtual clock it tests, so they end at once. |
+| `src/noldova.desktop.runtime/tests/fixtures/virtual-time.fixture.ts` | It replaces the timers' `setTimeout` with a virtual clock, so a test can check how long an action's waits take without waiting them out: the clock moves to each pending wait's deadline in turn, earliest first, and an aborted wait leaves it; each step yields once through the real `setTimeout` for 0 ms, so the code under test still runs in order. |
 | `src/noldova.desktop.runtime/tests/fixtures/wait.fixture.ts` | Between checks of a polled condition, until the test's limit. |
 | `src/noldova.desktop.runtime/tests/services/client/runtime-launcher.test.ts` | A runtime publishes itself 600 ms after the launcher starts, so the launcher's wait past its own timeout is tested; an older runtime releases its data directory 3 s after it is asked to stop, past a 2 s launch timeout, so the launcher's longer wait for it is tested; and a started runtime exits 400 ms after it starts, after the 200 ms launch timeout, so the launcher is tested to report the exit and not only the timeout. |
 | `src/noldova.desktop.runtime/tests/services/lifetime/runtime-host.test.ts` | Another holder releases the data directory, or publishes discovery, 200 ms after the runtime starts, so the runtime's wait for either is tested. |
