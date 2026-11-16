@@ -13,6 +13,7 @@ import { TestBed } from "@angular/core/testing";
 import type { JsonObject, JsonValue } from "@noldova/context.json";
 import { type AgentControlState, type NotificationPost, QualifiedName, type SettingChange, SettingEntry, type SettingOption, type SettingScope, type WebViewPane } from "@noldova/desktop.protocol";
 
+import type { DockSide } from "../../src/app/enums/dock-side";
 import { FileSaveOutcome } from "../../src/app/enums/file-save-outcome";
 import type { ISelectionSource } from "../../src/app/interfaces/i-selection-source";
 import type { ICommandKey } from "../../src/app/interfaces/i-command-key";
@@ -38,6 +39,7 @@ import { WebViewHandleFixture } from "./web-view-handle.fixture";
 export class WindowPartContextHostFixture implements IWindowPartHost {
   public readonly calls: string[] = [];
   public readonly keys: WritableSignal<ICommandKey | null> = signal(null);
+  public readonly docks: WritableSignal<DockSide | null> = signal(null);
   public readonly looks: (readonly [string, IDocumentUpdate])[] = [];
   public readonly agentControl: WritableSignal<AgentControlState | null> = signal(null);
   public platform: string = "linux";
@@ -141,6 +143,11 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
   public growViewDock(name: string, instance: string | null, minimum: number): () => void {
     this.calls.push(`growViewDock ${name} ${instance ?? "-"} ${minimum}`);
     return () => this.calls.push(`releaseViewDock ${name} ${instance ?? "-"}`);
+  }
+
+  public viewDockOf(name: string, instance: string | null): Signal<DockSide | null> {
+    this.calls.push(`viewDockOf ${name} ${instance ?? "-"}`);
+    return this.docks;
   }
 
   public onViewClosed(name: string, listener: (instance: string) => void): () => void {
