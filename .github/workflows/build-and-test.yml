@@ -33,7 +33,7 @@ jobs:
 
   build-and-test:
     name: Build and test
-    uses: noldova-com/.github/.github/workflows/build-and-test.yml@c70ab354a32e3fda877952225f43318f68335837 # trial
+    uses: noldova-com/.github/.github/workflows/build-and-test.yml@e5c4428cb6bf84ea0fdda5bd7184bdfffd800bda # trial
     permissions:
       contents: read
       packages: read
