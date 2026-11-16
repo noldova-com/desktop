@@ -13,7 +13,7 @@ LICENSE file in the root directory of this source tree.
       (mousedown)="$event.preventDefault()" (click)="choose(filter)">
       <span>{{ filter.label }}</span>
       @if (filter.count !== null) {
-        <span class="nol-search-filter-count">{{ filter.count }}</span>
+        <span class="nol-search-filter-count">{{ filter.count }}{{ filter.isCapped ? resources.cappedCountMark : "" }}</span>
       }
     </button>
   }
