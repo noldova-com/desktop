@@ -18,7 +18,7 @@ export class KeyBindingMoves {
   private constructor() {
   }
 
-  public static move(settings: SettingsService, declarations: readonly ModuleDeclaration[]): void {
+  public static move(settings: Pick<SettingsService, "read" | "write">, declarations: readonly ModuleDeclaration[]): void {
     const renames = new Map(declarations.flatMap(t => t.listContributions(Resources.commandsKind).flatMap(u => (t.formerNames.get(u) ?? []).map(v => [v, u] as const))));
     const key = new SettingKey(ShellSettings.keyBindings);
     const entries = Object.entries(JsonReader.fromValue(settings.read(key)).toJson());
