@@ -8762,7 +8762,7 @@ export declare class FeedSource {
    */
   public readonly channelFile: string;
   /**
-   * The package the updater downloads, `<product>-<platform>-<arch>.<ext>`.
+   * The name the updater keeps its downloaded package under, `<product>-<platform>-<arch>.<ext>`.
    */
   public readonly packageFile: string;
   /**
@@ -8774,24 +8774,33 @@ export declare class FeedSource {
    * given another.
    */
   public readonly timeout: (milliseconds: number) => AbortSignal;
+  /**
+   * Names the package of a version as the update information lists it and the feed serves it,
+   * `<product>-<version>-<platform>-<arch>.<ext>` for a source {@link FeedSource.create} makes.
+   */
+  public readonly formatReleasedFile: (version: string) => string;
 
   /**
    * Creates the source.
    *
    * @param feed The feed's URL, ending in `/`.
    * @param channelFile The update information's file.
-   * @param packageFile The package the updater downloads.
+   * @param packageFile The name the updater keeps its downloaded package under.
    * @param fetchAsync Fetches a URL anonymously, following redirects, until the signal aborts; the signal aborts when the
    * feed hasn't answered with the whole information file within 30 seconds.
    * @param timeout Gives the signal that aborts a fetch after the milliseconds it takes; `AbortSignal.timeout` by default.
+   * @param formatReleasedFile Names the package of the version the update information names, as it lists it; by default
+   * `packageFile` for every version.
    * @example
    * ```ts
    * import { FeedSource } from "@noldova/desktop.electron";
    *
-   * export const source: FeedSource = new FeedSource("http://127.0.0.1:8080/", "latest-linux-x64.yml", "Noldova Desktop Sample-linux-x64.AppImage", (url, signal) => fetch(url, { signal }));
+   * export const source: FeedSource = new FeedSource("http://127.0.0.1:8080/", "latest-linux-x64.yml", "Noldova Desktop Sample-linux-x64.AppImage", (url, signal) => fetch(url, { signal }),
+   *   undefined, version => `Noldova Desktop Sample-${version}-linux-x64.AppImage`);
    * ```
    */
-  public constructor(feed: string, channelFile: string, packageFile: string, fetchAsync: (url: string, signal: AbortSignal) => Promise<IFeedResponse>, timeout?: (milliseconds: number) => AbortSignal);
+  public constructor(feed: string, channelFile: string, packageFile: string, fetchAsync: (url: string, signal: AbortSignal) => Promise<IFeedResponse>, timeout?: (milliseconds: number) => AbortSignal,
+    formatReleasedFile?: (version: string) => string);
 
   /**
    * Creates the source of a platform and processor: Windows' installer, macOS's ZIP or Linux's AppImage, or its Debian

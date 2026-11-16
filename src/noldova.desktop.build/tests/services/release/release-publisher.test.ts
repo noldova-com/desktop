@@ -33,7 +33,7 @@ export class ReleasePublisherTests {
   private static readonly TAG: string = "v1.2.3";
   private static readonly PAUSE: number = 10_000;
   private static readonly SEPARATE: Readonly<Record<string, string>> = { RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_TAG_PREFIX: "sample-app-" };
-  private static readonly FILES: readonly (readonly [string, Buffer])[] = [["Sample App-linux-x64.AppImage", Buffer.from("the package")], ["latest-linux-x64.yml", Buffer.from("version: 1.2.3\n")]];
+  private static readonly FILES: readonly (readonly [string, Buffer])[] = [["Sample App-1.2.3-linux-x64.AppImage", Buffer.from("the package")], ["latest-linux-x64.yml", Buffer.from("version: 1.2.3\n")]];
 
   @TestMethod
   public async createsADraftUploadsEveryFileTagsTheRevisionAndPublishesItAsync(): Promise<void> {
@@ -45,7 +45,7 @@ export class ReleasePublisherTests {
     Assert.areEqual(`Creating the draft release ${ReleasePublisherTests.TAG} for ${ReleasePublisherTests.REVISION}.\n`
       + `Published ${ReleasePublisherTests.TAG} from ${ReleasePublisherTests.REVISION} with 2 files.\n`, output);
     Assert.isFalse(release?.isDraft ?? true);
-    Assert.areEqual("Sample App-linux-x64.AppImage,latest-linux-x64.yml", release?.assets.map(t => t.name).join());
+    Assert.areEqual("Sample App-1.2.3-linux-x64.AppImage,latest-linux-x64.yml", release?.assets.map(t => t.name).join());
     Assert.areEqual(ReleasePublisherTests.REVISION, github.tags.get(ReleasePublisherTests.TAG));
     Assert.isTrue(github.requests.some(t => t.includes("--raw-field body=The notes.") && t.includes("--field draft=true")), github.requests.join("\n"));
     Assert.isTrue(github.requests.some(t => t.includes("--raw-field make_latest=true --field draft=false")), github.requests.join("\n"));
@@ -134,7 +134,7 @@ export class ReleasePublisherTests {
 
     const error = await Assert.throwsAsync(() => ReleasePublisherTests.publishAsync(github), BuildException);
 
-    Assert.areEqual(`Sample App-linux-x64.AppImage on GitHub has 15 bytes and ${GitHubReleasesFixture.digest(Buffer.from("another package"))}, `
+    Assert.areEqual(`Sample App-1.2.3-linux-x64.AppImage on GitHub has 15 bytes and ${GitHubReleasesFixture.digest(Buffer.from("another package"))}, `
       + `but the built file has ${built.size} bytes and sha256:${built.sha256}. A release's files are never replaced.`, error.message);
   }
 
@@ -173,7 +173,7 @@ export class ReleasePublisherTests {
 
       const output = await PausedTimersFixture.withoutPausesAsync(() => ReleasePublisherTests.publishAsync(github), ReleasePublisherTests.PAUSE);
 
-      Assert.isTrue(output.includes("Uploading Sample App-linux-x64.AppImage failed on attempt 1 of 3: "), output);
+      Assert.isTrue(output.includes("Uploading Sample App-1.2.3-linux-x64.AppImage failed on attempt 1 of 3: "), output);
       Assert.isTrue(output.endsWith("with 2 files.\n"), output);
     }
   }
@@ -196,7 +196,7 @@ export class ReleasePublisherTests {
 
     const error = await Assert.throwsAsync(() => ReleasePublisherTests.publishAsync(github), BuildException);
 
-    Assert.areEqual("Sample App-linux-x64.AppImage is still not uploaded after 3 attempts.", error.message);
+    Assert.areEqual("Sample App-1.2.3-linux-x64.AppImage is still not uploaded after 3 attempts.", error.message);
     Assert.areEqual(3, github.requests.filter(t => t.startsWith("release upload")).length);
   }
 

@@ -95,14 +95,15 @@ export class UpdateFeedFixture {
   public async publishAsync(version: string, contents: Buffer): Promise<string> {
     const source = UpdateFeedFixture.source;
     const sha512 = UpdateFeedFixture.sha512(contents);
-    await writeFile(path.join(this.folder, source.packageFile), contents);
+    const file = source.formatReleasedFile(version);
+    await writeFile(path.join(this.folder, file), contents);
     await writeFile(path.join(this.folder, source.channelFile), [
       `version: ${version}`,
       "files:",
-      `  - url: ${source.packageFile}`,
+      `  - url: ${file}`,
       `    sha512: ${sha512}`,
       `    size: ${contents.length}`,
-      `path: ${source.packageFile}`,
+      `path: ${file}`,
       `sha512: ${sha512}`,
       `releaseDate: '${UpdateFeedFixture.RELEASE_DATE}'`,
       String.empty

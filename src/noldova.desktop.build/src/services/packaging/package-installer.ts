@@ -35,9 +35,9 @@ export class PackageInstaller {
     this.environment = environment;
   }
 
-  public async installAsync(target: PackageTarget, product: ProductIdentity, folder: string): Promise<InstalledPackage> {
+  public async installAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<InstalledPackage> {
     const output = new PackageLayout(this.root).output;
-    const locate = (extension: string): string => path.join(output, target.formatFileName(product.name, extension));
+    const locate = (extension: string): string => path.join(output, target.formatFileName(product.name, version, extension));
     switch (target.platform) {
       case Resources.windowsTarget:
         return this.installWindowsAsync(locate(Resources.installerTarget), product, folder);

@@ -195,12 +195,12 @@ export class PackageInstallerTests {
       });
       const installer = new PackageInstaller(folder, runner, { LOCALAPPDATA: path.dirname(path.dirname(installFolder)), systemroot: "C:\\Windows", psmodulepath: "D:\\Modules" });
 
-      const installed = await installer.installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, folder);
+      const installed = await installer.installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder);
 
       const program = path.join(installFolder, "Sample App.exe");
       Assert.areEqual(JSON.stringify(new InstalledPackage(program, program, path.join(installFolder, "resources"), path.join(installFolder, "bin", "sample-app.cmd"))),
         JSON.stringify(installed));
-      Assert.areEqual("Sample App-windows-x64.exe /S", runner.calls.join("|"));
+      Assert.areEqual("Sample App-1.2.3-windows-x64.exe /S", runner.calls.join("|"));
       Assert.areEqual("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules;D:\\Modules", runner.environment?.["PSModulePath"]);
       Assert.isUndefined(runner.environment?.["psmodulepath"]);
     });
@@ -215,7 +215,7 @@ export class PackageInstallerTests {
         return new ProcessResult(0, String.empty, String.empty);
       });
 
-      const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, folder),
+      const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
         BuildException);
 
       Assert.areEqual(`The installed package has no ${path.join(installFolder, "bin", "sample-app.cmd")}, ${path.join(installFolder, "ffmpeg.dll")}.`, error.message);
@@ -226,14 +226,14 @@ export class PackageInstallerTests {
   @TestMethod
   public async describesWhatAnInstallerThatTimedOutLeft(): Promise<void> {
     await PackageInstallerTests.withFolderAsync(async (folder, installFolder, installer) => {
-      const timeout = new ProcessTimeoutException("Sample App-windows-x64.exe", 120000);
+      const timeout = new ProcessTimeoutException("Sample App-1.2.3-windows-x64.exe", 120000);
       const runner = new ScriptedRunner(async () => {
         await PackageInstallerTests.writeAsync(path.join(installFolder, "resources", "app.asar"), "asar");
         await PackageInstallerTests.writeAsync(path.join(installFolder, "Sample App.exe"), "app");
         throw timeout;
       });
 
-      const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, folder),
+      const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
         BuildException);
 
       Assert.areEqual(`${timeout.message}\n${installFolder} held 2 files when the installer was stopped:\nSample App.exe: 3 bytes\n${path.join("resources", "app.asar")}: 4 bytes`,
@@ -245,10 +245,10 @@ export class PackageInstallerTests {
   @TestMethod
   public async saysWhenAnInstallerThatTimedOutCreatedNothing(): Promise<void> {
     await PackageInstallerTests.withFolderAsync(async (folder, installFolder, installer) => {
-      const timeout = new ProcessTimeoutException("Sample App-windows-x64.exe", 120000);
+      const timeout = new ProcessTimeoutException("Sample App-1.2.3-windows-x64.exe", 120000);
       const runner = new ScriptedRunner(() => Promise.reject(timeout));
 
-      const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, folder),
+      const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
         BuildException);
 
       Assert.areEqual(`${timeout.message}\nThe installer had not created ${installFolder}.`, error.message);
@@ -260,10 +260,10 @@ export class PackageInstallerTests {
     await PackageInstallerTests.withFolderAsync(async (folder, _installFolder, installer) => {
       const runner = new ScriptedRunner(() => Promise.resolve(new ProcessResult(2, String.empty, "The installer failed.")));
 
-      const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "arm64"), PackageInstallerTests.PRODUCT, folder),
+      const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "arm64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
         BuildException);
 
-      Assert.areEqual("Sample App-windows-arm64.exe /S failed with exit code 2:\nThe installer failed.", error.message);
+      Assert.areEqual("Sample App-1.2.3-windows-arm64.exe /S failed with exit code 2:\nThe installer failed.", error.message);
     });
   }
 
@@ -294,10 +294,10 @@ export class PackageInstallerTests {
           await PackageInstallerTests.writeAsync(path.join(application, "Contents", "MacOS", "Sample App"), "app");
         return new ProcessResult(0, String.empty, String.empty);
       });
-      const image = path.join(folder, "_build", "package", "out", "Sample App-macos-arm64.dmg");
+      const image = path.join(folder, "_build", "package", "out", "Sample App-1.2.3-macos-arm64.dmg");
       const mount = path.join(folder, "mount");
 
-      const installed = await new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "arm64"), PackageInstallerTests.PRODUCT, folder);
+      const installed = await new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "arm64"), PackageInstallerTests.PRODUCT, "1.2.3", folder);
 
       const program = path.join(application, "Contents", "MacOS", "Sample App");
       Assert.areEqual(JSON.stringify(new InstalledPackage(program, program, path.join(application, "Contents", "Resources"), null)), JSON.stringify(installed));
@@ -311,7 +311,7 @@ export class PackageInstallerTests {
     await PackageInstallerTests.withFolderAsync(async folder => {
       const runner = new ScriptedRunner(command => Promise.resolve(new ProcessResult(command === "ditto" ? 1 : 0, String.empty, "ditto: No space left on device")));
 
-      const error = await Assert.throwsAsync(() => new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "x64"), PackageInstallerTests.PRODUCT, folder),
+      const error = await Assert.throwsAsync(() => new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
         BuildException);
 
       Assert.isTrue(error.message.startsWith("ditto "), error.message);
@@ -325,7 +325,7 @@ export class PackageInstallerTests {
       const runner = new ScriptedRunner((command, commandArguments) => Promise.resolve(new ProcessResult(command === "ditto" || commandArguments[0] === "detach" ? 1 : 0,
         String.empty, `${command} failed`)));
 
-      const error = await Assert.throwsAsync(() => new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "x64"), PackageInstallerTests.PRODUCT, folder),
+      const error = await Assert.throwsAsync(() => new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
         BuildException);
 
       Assert.isTrue(error.message.includes("ditto failed"), error.message);
@@ -340,7 +340,7 @@ export class PackageInstallerTests {
     await PackageInstallerTests.withFolderAsync(async folder => {
       const runner = new ScriptedRunner(() => Promise.resolve(new ProcessResult(0, String.empty, String.empty)));
 
-      const error = await Assert.throwsAsync(() => new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "arm64"), PackageInstallerTests.PRODUCT, folder),
+      const error = await Assert.throwsAsync(() => new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "arm64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
         BuildException);
 
       Assert.areEqual(`The installed package has no ${path.join(folder, "Sample App.app", "Contents", "MacOS", "Sample App")}.`, error.message);
@@ -350,7 +350,7 @@ export class PackageInstallerTests {
   @TestMethod
   public async extractsTheLinuxAppImageAfterMakingItExecutable(): Promise<void> {
     await PackageInstallerTests.withFolderAsync(async folder => {
-      const image = path.join(folder, "_build", "package", "out", "Sample App-linux-x64.AppImage");
+      const image = path.join(folder, "_build", "package", "out", "Sample App-1.2.3-linux-x64.AppImage");
       await PackageInstallerTests.writeAsync(image, "image");
       const extracted = path.join(folder, "squashfs-root");
       const runner = new ScriptedRunner(async () => {
@@ -358,10 +358,10 @@ export class PackageInstallerTests {
         return new ProcessResult(0, String.empty, String.empty);
       });
 
-      const installed = await new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("linux", "x64"), PackageInstallerTests.PRODUCT, folder);
+      const installed = await new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("linux", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder);
 
       Assert.areEqual(JSON.stringify(new InstalledPackage(image, path.join(extracted, "sample-app"), path.join(extracted, "resources"), null)), JSON.stringify(installed));
-      Assert.areEqual("Sample App-linux-x64.AppImage --appimage-extract", runner.calls.join("|"));
+      Assert.areEqual("Sample App-1.2.3-linux-x64.AppImage --appimage-extract", runner.calls.join("|"));
     });
   }
 

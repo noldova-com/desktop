@@ -48,17 +48,18 @@ export class FeedProvider extends Provider<UpdateInfo> {
       throw new UpdateFeedRedirectedException();
     const info = FeedProvider.parse(await FeedProvider.reach(response.text()), this.source.channelFile, url);
     FeedProvider.check(info);
-    if (Object.isUndefined(FeedProvider.findPackage(info, this.source.packageFile)))
+    if (Object.isUndefined(FeedProvider.findPackage(info, this.source.formatReleasedFile(info.version))))
       throw new UpdateInfoInvalidException();
     this.base = url;
     return info;
   }
 
   public resolveFiles(updateInfo: UpdateInfo): ResolvedUpdateFileInfo[] {
-    const file = FeedProvider.findPackage(updateInfo, this.source.packageFile);
+    const name = this.source.formatReleasedFile(updateInfo.version);
+    const file = FeedProvider.findPackage(updateInfo, name);
     if (Object.isUndefined(this.base) || Object.isUndefined(file))
       throw new UpdateInfoInvalidException();
-    return [{ url: new URL(this.source.packageFile, this.base), info: file }];
+    return [{ url: new URL(name, this.base), info: file }];
   }
 
   private static async reach<T>(operation: Promise<T>): Promise<T> {

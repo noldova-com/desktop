@@ -1773,6 +1773,10 @@ export class Resources {
     return `${productName}-${platform}-${architecture}.${extension}`;
   }
 
+  public static formatReleasedPackageFile(productName: string, version: string, platform: string, architecture: string, extension: string): string {
+    return `${productName}-${version}-${platform}-${architecture}.${extension}`;
+  }
+
   public static formatUpdateCacheFolder(slug: string, installationId: string): string {
     return `${slug}${Resources.updateCacheSuffix}${installationId}`;
   }

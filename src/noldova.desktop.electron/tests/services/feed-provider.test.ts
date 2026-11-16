@@ -27,10 +27,10 @@ export class FeedProviderTests {
   private static readonly INFO: string = [
     "version: 1.3.0",
     "files:",
-    "  - url: Noldova Desktop Sample-linux-x64.AppImage",
+    "  - url: Noldova Desktop Sample-1.3.0-linux-x64.AppImage",
     "    sha512: c2hh",
     "    size: 1024",
-    "path: Noldova Desktop Sample-linux-x64.AppImage",
+    "path: Noldova Desktop Sample-1.3.0-linux-x64.AppImage",
     "sha512: c2hh",
     "releaseDate: '2026-10-06T00:00:00.000Z'"
   ].join("\n");
@@ -44,7 +44,7 @@ export class FeedProviderTests {
       Assert.areEqual(JSON.stringify([`${FeedProviderTests.FEED}latest-linux-x64.yml`]), JSON.stringify(requested));
       Assert.areEqual("1.3.0", info.version);
       Assert.areEqual(1, files.length);
-      Assert.areEqual("https://objects.github.test/releases/v1.3.0/Noldova%20Desktop%20Sample-linux-x64.AppImage", files[0]?.url.href);
+      Assert.areEqual("https://objects.github.test/releases/v1.3.0/Noldova%20Desktop%20Sample-1.3.0-linux-x64.AppImage", files[0]?.url.href);
       Assert.areEqual("c2hh", files[0]?.info.sha512);
     });
   }
@@ -54,7 +54,7 @@ export class FeedProviderTests {
     return FeedProviderTests.withAnswerAsync({ ok: true, status: 200, url: String.empty, text: () => Promise.resolve(FeedProviderTests.INFO) }, async provider => {
       const files = provider.resolveFiles(await provider.getLatestVersion());
 
-      Assert.areEqual(`${FeedProviderTests.FEED}Noldova%20Desktop%20Sample-linux-x64.AppImage`, files[0]?.url.href);
+      Assert.areEqual(`${FeedProviderTests.FEED}Noldova%20Desktop%20Sample-1.3.0-linux-x64.AppImage`, files[0]?.url.href);
     });
   }
 
@@ -165,12 +165,14 @@ export class FeedProviderTests {
       "version: 1.3.0",
       "version: 13\nfiles: []",
       "version: 1.3.0\nfiles: []",
-      "version: 1.3.0\nfiles:\n  - Noldova Desktop Sample-linux-x64.AppImage",
-      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-linux-arm64.AppImage\n    sha512: c2hh\n    size: 1024",
-      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-linux-x64.AppImage\n    size: 1024",
-      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-linux-x64.AppImage\n    sha512: ''\n    size: 1024",
-      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-linux-x64.AppImage\n    sha512: c2hh\n    size: 10.5",
-      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-linux-x64.AppImage\n    sha512: c2hh\n    size: 0"
+      "version: 1.3.0\nfiles:\n  - Noldova Desktop Sample-1.3.0-linux-x64.AppImage",
+      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-1.3.0-linux-arm64.AppImage\n    sha512: c2hh\n    size: 1024",
+      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-linux-x64.AppImage\n    sha512: c2hh\n    size: 1024",
+      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-1.2.0-linux-x64.AppImage\n    sha512: c2hh\n    size: 1024",
+      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-1.3.0-linux-x64.AppImage\n    size: 1024",
+      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-1.3.0-linux-x64.AppImage\n    sha512: ''\n    size: 1024",
+      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-1.3.0-linux-x64.AppImage\n    sha512: c2hh\n    size: 10.5",
+      "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-1.3.0-linux-x64.AppImage\n    sha512: c2hh\n    size: 0"
     ];
 
     for (const text of texts)
@@ -182,7 +184,7 @@ export class FeedProviderTests {
   @TestMethod
   public givesNoPackageBeforeAReadOrForInformationWithoutIt(): Promise<void> {
     return FeedProviderTests.withAnswerAsync({ ok: true, status: 200, url: FeedProviderTests.RELEASE, text: () => Promise.resolve(FeedProviderTests.INFO) }, async provider => {
-      const other: UpdateInfo = { version: "1.3.0", files: [], path: "Noldova Desktop Sample-linux-x64.AppImage", sha512: "c2hh", releaseDate: "2026-10-06T00:00:00.000Z" };
+      const other: UpdateInfo = { version: "1.3.0", files: [], path: "Noldova Desktop Sample-1.3.0-linux-x64.AppImage", sha512: "c2hh", releaseDate: "2026-10-06T00:00:00.000Z" };
 
       const before = Assert.throws(() => provider.resolveFiles(other), UpdateInfoInvalidException);
       await provider.getLatestVersion();
@@ -231,7 +233,7 @@ export class FeedProviderTests {
     const source = new FeedSource(FeedProviderTests.FEED, "latest-linux-x64.yml", "Noldova Desktop Sample-linux-x64.AppImage", url => {
       requested.push(url);
       return Promise.resolve(response);
-    });
+    }, undefined, t => `Noldova Desktop Sample-${t}-linux-x64.AppImage`);
     await run(new FeedProvider({ source }, null, FeedProviderTests.OPTIONS), requested);
   }
 }

@@ -87,7 +87,7 @@ export class WindowsSigningTests {
     const output = await mkdtemp(path.join(tmpdir(), "windows-signing-"));
     try {
       const program = path.join(output, "win-arm64-unpacked", "Sample App.exe");
-      const installer = path.join(output, "Sample App-windows-arm64.exe");
+      const installer = path.join(output, "Sample App-1.2.3-windows-arm64.exe");
       await mkdir(path.dirname(program), { recursive: true });
       await writeFile(program, String.empty);
       const runner = new SigningRunner();
