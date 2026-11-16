@@ -321,6 +321,7 @@ The time is the higher of the latest Linux and macOS runs, the sum of the file's
 | `tests/services/process/process-supervisor.test.ts` | 20.7 s | 46 tests start and end real programs and real pseudo-terminals. |
 | `tests/services/process/windows-process-ender.test.ts` | 6.4 s | 19 tests start and end real programs. |
 | `tests/services/runtime-entry.test.ts` | 6.1 s | One test waits out the runtime's 5 s takeover time while another holder owns the data directory without publishing discovery. |
+| `tests/services/discovery/mac-folder-protector.test.ts` | 5.7 s | On macOS, one test creates a real disk image and attaches it with ownership ignored, then detaches it. |
 | `tests/services/environment/login-shell-environment.test.ts` | 4.2 s | Real login shells read profiles under a real file-system watch; one waits out a 1.5 s limit for a shell that never answers. |
 | `tests/services/ownership/ownership-lock.test.ts` | 3.3 s | Real processes race for the data directory's lock, and one owner is killed so the lock passes on. |
 | `tests/services/modules/module-host.test.ts` | 3.2 s | 34 tests activate modules, most on a fresh SQLite database; one ends real programs that ignore the first signal, after the grace. |
