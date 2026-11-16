@@ -194,6 +194,8 @@ export class Resources {
   public static readonly webViewZoneSeparator: string = "%";
   public static readonly blankPage: string = "about:blank";
   public static readonly sourceDocument: string = "about:srcdoc";
+  public static readonly sourceDocumentPath: string = "srcdoc";
+  public static readonly aboutScheme: string = "about:";
   public static readonly webViewPartitionPrefix: string = "persist:";
   public static readonly webViewPartitionSeparator: string = ".";
   public static readonly webViewsPerPane: number = 32;
