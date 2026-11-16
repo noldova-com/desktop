@@ -40,11 +40,12 @@ export class RuntimeLog {
     });
   }
 
-  public static async openAsync(lock: OwnershipLock, ownStartLogName: string | null, now?: () => Date, error: Writable = process.stderr, homeFolder: string = homedir()): Promise<RuntimeLog> {
+  public static async openAsync(lock: OwnershipLock, ownStartLogName: string | null, now?: () => Date, error: Writable = process.stderr, homeFolder: string = homedir(),
+    writeWait: number = Resources.logWriteWaitMilliseconds): Promise<RuntimeLog> {
     lock.requireHeld();
     const directory = lock.dataDirectory;
     await mkdir(directory.logsFolder, { recursive: true });
-    const file = new LogFile(directory.runtimeLog, directory.previousRuntimeLog, new DiagnosticRedactor(homeFolder, [ProductInfo.current.name]), now);
+    const file = new LogFile(directory.runtimeLog, directory.previousRuntimeLog, new DiagnosticRedactor(homeFolder, [ProductInfo.current.name]), now, Resources.logSizeLimit, writeWait);
     file.open();
     const log = new RuntimeLog(file, error);
     const stale = (await readdir(directory.logsFolder)).filter(t => Resources.startLogNamePattern.test(t) && t !== ownStartLogName);

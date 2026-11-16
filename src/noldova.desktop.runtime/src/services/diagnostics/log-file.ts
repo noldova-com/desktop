@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { appendFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, fstatSync, openSync, readSync, renameSync, writeFileSync } from "node:fs";
 import { appendFile } from "node:fs/promises";
 
 import "@noldova/context.core";
@@ -15,6 +15,7 @@ import { SystemErrorCode } from "../../models/system-error-code.js";
 import { Resources } from "../../resources.js";
 import type { DiagnosticRedactor } from "./diagnostic-redactor.js";
 import { LogBatch } from "./log-batch.js";
+import { LogWrite } from "./log-write.js";
 
 export class LogFile {
   private readonly file: string;
@@ -22,23 +23,27 @@ export class LogFile {
   private readonly redactor: DiagnosticRedactor;
   private readonly now: () => Date;
   private readonly limit: number;
+  private readonly writeWait: number;
   private readonly queue: LogBatch[] = [];
   private readonly pause: Int32Array = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
   private writing: Promise<void> | null = null;
+  private written: LogWrite | null = null;
   private size: number = 0;
-  private end: number = 0;
+  private landed: number = 0;
 
   public constructor(
     file: string,
     previousFile: string,
     redactor: DiagnosticRedactor,
     now: () => Date = () => new Date(),
-    limit: number = Resources.logSizeLimit) {
+    limit: number = Resources.logSizeLimit,
+    writeWait: number = Resources.logWriteWaitMilliseconds) {
     this.file = file;
     this.previousFile = previousFile;
     this.redactor = redactor;
     this.now = now;
     this.limit = limit;
+    this.writeWait = writeWait;
   }
 
   public format(text: string): string {
@@ -65,7 +70,7 @@ export class LogFile {
 
     appendFileSync(this.file, line, { mode: Resources.privateFileMode });
     this.size += length;
-    this.end += length;
+    this.landed += length;
   }
 
   public appendAsync(line: string): Promise<void> {
@@ -82,14 +87,14 @@ export class LogFile {
   }
 
   public flush(): void {
-    if (!Object.isNull(this.writing))
-      this.waitForWrite();
+    if (!Object.isNull(this.written))
+      this.waitForWrite(this.written);
     for (const batch of this.queue.splice(0)) {
       try {
         if (batch.isRollOver)
           this.rollOver();
         appendFileSync(this.file, batch.text, { mode: Resources.privateFileMode });
-        this.end += Buffer.byteLength(batch.text);
+        this.landed += Buffer.byteLength(batch.text);
         batch.resolve();
       }
       catch (failure) {
@@ -114,10 +119,15 @@ export class LogFile {
         taken.reject(failure);
         continue;
       }
-      this.end += Buffer.byteLength(taken.text);
-      this.writing = appendFile(this.file, taken.text, { mode: Resources.privateFileMode })
-        .then(() => taken.resolve(), (failure: unknown) => taken.reject(failure))
+      const text = Buffer.from(taken.text, Resources.utf8Encoding);
+      this.written = new LogWrite(text, this.landed);
+      this.writing = appendFile(this.file, text, { mode: Resources.privateFileMode })
+        .then(() => {
+          this.landed += text.length;
+          taken.resolve();
+        }, (failure: unknown) => taken.reject(failure))
         .finally(() => {
+          this.written = null;
           this.writing = null;
           this.drain();
         });
@@ -131,21 +141,29 @@ export class LogFile {
   private rollOver(): void {
     this.replacePrevious();
     writeFileSync(this.file, String.empty, { mode: Resources.privateFileMode });
-    this.end = 0;
+    this.landed = 0;
   }
 
-  private waitForWrite(): void {
-    const deadline = Date.now() + Resources.logWriteWaitMilliseconds;
-    while (Date.now() < deadline && this.readSize() < this.end)
+  private waitForWrite(write: LogWrite): void {
+    const deadline = Date.now() + this.writeWait;
+    while (!this.hasLanded(write) && Date.now() < deadline)
       Atomics.wait(this.pause, 0, 0, Resources.logWriteWaitPause);
   }
 
-  private readSize(): number {
+  private hasLanded(write: LogWrite): boolean {
     try {
-      return statSync(this.file).size;
+      const handle = openSync(this.file, Resources.readFlag);
+      try {
+        const tail = Buffer.alloc(Math.max(0, fstatSync(handle).size - write.from));
+        readSync(handle, tail, 0, tail.length, write.from);
+        return tail.includes(write.text);
+      }
+      finally {
+        closeSync(handle);
+      }
     }
     catch {
-      return this.end;
+      return true;
     }
   }
 

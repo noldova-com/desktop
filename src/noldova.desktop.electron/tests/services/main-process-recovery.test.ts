@@ -161,6 +161,7 @@ export class MainProcessRecoveryTests {
 
     Assert.isTrue(failed.log.lines[2]?.startsWith("The main process could not stop its watchers and helper programs before it quit: Error: The tray could not be removed.\n") === true,
       failed.log.lines.join("\n"));
+    Assert.areEqual(JSON.stringify([failed.log.lines]), JSON.stringify(failed.log.flushed));
     Assert.areEqual(JSON.stringify(["exit 0"]), JSON.stringify(failed.app.calls));
   }
 

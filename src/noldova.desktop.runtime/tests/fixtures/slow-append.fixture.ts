@@ -16,7 +16,6 @@ export class SlowAppendFixture implements Disposable {
   private static readonly WRITER: string = [
     "const { appendFileSync } = require('node:fs');",
     "const { workerData } = require('node:worker_threads');",
-    "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, workerData.delay);",
     "appendFileSync(workerData.file, workerData.text);"
   ].join("\n");
 
@@ -25,15 +24,15 @@ export class SlowAppendFixture implements Disposable {
 
   public calls: number = 0;
 
-  public constructor(delay: number | null) {
+  public constructor(isHeld: boolean) {
     const appendFile = this.appendFile;
     fs.appendFile = ((...values: Parameters<typeof fs.appendFile>): Promise<void> => {
       if (this.calls++ > 0)
         return appendFile(...values);
       const [file, text] = values;
-      return Object.isNull(delay)
+      return isHeld
         ? this.held.promise.then(() => appendFile(...values))
-        : SlowAppendFixture.writeOnWorkerAsync(String(file), String(text), delay);
+        : SlowAppendFixture.writeOnWorkerAsync(String(file), String(text));
     }) as typeof fs.appendFile;
     syncBuiltinESMExports();
   }
@@ -47,9 +46,9 @@ export class SlowAppendFixture implements Disposable {
     syncBuiltinESMExports();
   }
 
-  private static writeOnWorkerAsync(file: string, text: string, delay: number): Promise<void> {
+  private static writeOnWorkerAsync(file: string, text: string): Promise<void> {
     const written = Promise.withResolvers<void>();
-    const worker = new Worker(SlowAppendFixture.WRITER, { eval: true, workerData: { file, text, delay } });
+    const worker = new Worker(SlowAppendFixture.WRITER, { eval: true, workerData: { file, text } });
     worker.once("error", written.reject);
     worker.once("exit", () => written.resolve());
     return written.promise;

@@ -23,6 +23,7 @@ import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
 export class RuntimeLogTests {
   private static readonly OWN: string = "start-11111111-2222-4333-8444-555555555555.log";
   private static readonly STALE: string = "start-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.log";
+  private static readonly WRITE_WAIT: number = 60_000;
   private static readonly STAMP: string = "2026-10-02T23:40:01.250Z";
 
   @TestMethod
@@ -245,7 +246,7 @@ export class RuntimeLogTests {
   }
 
   private static openAsync(lock: OwnershipLock, ownStartLogName: string | null): Promise<RuntimeLog> {
-    return RuntimeLog.openAsync(lock, ownStartLogName, () => new Date(RuntimeLogTests.STAMP));
+    return RuntimeLog.openAsync(lock, ownStartLogName, () => new Date(RuntimeLogTests.STAMP), process.stderr, homedir(), RuntimeLogTests.WRITE_WAIT);
   }
 
   private static async runAsync(test: (lock: OwnershipLock) => Promise<void>): Promise<void> {

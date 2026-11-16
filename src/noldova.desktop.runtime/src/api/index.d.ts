@@ -1813,6 +1813,7 @@ export declare class LogFile {
    * @param redactor Redacts every record.
    * @param now Returns the time to stamp a record with; the current time by default.
    * @param limit The most bytes the file holds, 1 MiB by default. A record is cut to a quarter of it.
+   * @param writeWait The most milliseconds a line written at once waits for a write already under way to land, so that it lands after it; 2 seconds by default.
    * @example
    * ```ts
    * import { homedir } from "node:os";
@@ -1822,7 +1823,7 @@ export declare class LogFile {
    * export const log: LogFile = new LogFile("/data/logs/app.log", "/data/logs/app.previous.log", new DiagnosticRedactor(homedir()));
    * ```
    */
-  public constructor(file: string, previousFile: string, redactor: DiagnosticRedactor, now?: () => Date, limit?: number);
+  public constructor(file: string, previousFile: string, redactor: DiagnosticRedactor, now?: () => Date, limit?: number, writeWait?: number);
 
   /**
    * Stamps and redacts a record.
@@ -1893,8 +1894,9 @@ export declare class LogFile {
 
   /**
    * Writes the lines still waiting at once, in order, as when the process is about to end. A write already under way
-   * is given up to 2 seconds to land first, so the lines keep their order. Each waiting line's promise settles as it is
-   * written or fails.
+   * is given up to the write wait, 2 seconds by default, to land first, so the lines keep their order; it has landed once
+   * its text is in the file past what this log had written before it, whatever another process appended meanwhile, or once the file can't be read. Each
+   * waiting line's promise settles as it is written or fails.
    *
    * @example
    * ```ts
@@ -10430,6 +10432,7 @@ export declare class RuntimeLog {
    * @param now Returns the time to stamp a line with; the current time by default.
    * @param error Receives the report when the log can no longer be written; standard error by default.
    * @param homeFolder The home folder the log redacts, with its user name; the current user's by default.
+   * @param writeWait The most milliseconds a line written at once waits for a diagnostic already being written to land; 2 seconds by default.
    * @returns A promise of the open log.
    * @throws {OwnershipReleasedException} Rejected when the ownership was released.
    * @example
@@ -10443,7 +10446,7 @@ export declare class RuntimeLog {
    * }
    * ```
    */
-  public static openAsync(lock: OwnershipLock, ownStartLogName: string | null, now?: () => Date, error?: Writable, homeFolder?: string): Promise<RuntimeLog>;
+  public static openAsync(lock: OwnershipLock, ownStartLogName: string | null, now?: () => Date, error?: Writable, homeFolder?: string, writeWait?: number): Promise<RuntimeLog>;
 
   /**
    * Writes one line at once, as when the process is about to end, after the diagnostics still waiting; nothing is written after the log closes. When a line cannot be written, the failure is reported once on the error stream and nothing more is written to the log.

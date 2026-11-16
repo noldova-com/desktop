@@ -6,8 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { readFileSync } from "node:fs";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { appendFileSync, readFileSync } from "node:fs";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -22,7 +22,7 @@ export class LogFileTests {
   private static readonly MOMENT: Date = new Date("2026-10-02T23:40:01.250Z");
   private static readonly STAMP: string = "2026-10-02T23:40:01.250Z";
   private static readonly LIMIT: number = 160;
-  private static readonly SLOW_WRITE: number = 100;
+  private static readonly WRITE_WAIT: number = 60_000;
 
   @TestMethod
   public stampsRedactsAndEndsEveryRecord(): void {
@@ -57,7 +57,7 @@ export class LogFileTests {
 
   @TestMethod
   public becomesThePreviousFileInsteadOfPassingItsLimit(): Promise<void> {
-    return LogFileTests.runAsync(async (log, file, previous) => {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
       const lines = Array.from({ length: 9 }, (_, i) => log.format(`record ${i + 1}`));
       Assert.areEqual(34, lines[0]?.length);
       log.open();
@@ -74,7 +74,7 @@ export class LogFileTests {
 
   @TestMethod
   public keepsTheFileAndThrowsWhenThePreviousCannotBeReplaced(): Promise<void> {
-    return LogFileTests.runAsync(async (log, file, previous) => {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
       const lines = Array.from({ length: 5 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
       for (const line of lines.slice(0, 4))
@@ -90,7 +90,7 @@ export class LogFileTests {
 
   @TestMethod
   public replacesTheExistingFileWhenOpened(): Promise<void> {
-    return LogFileTests.runAsync(async (log, file, previous) => {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
       await writeFile(previous, "oldest\n");
       await writeFile(file, "older\n");
 
@@ -103,7 +103,7 @@ export class LogFileTests {
 
   @TestMethod
   public writesLinesInTheOrderTheyWereAppendedWithoutWaitingForTheDisk(): Promise<void> {
-    return LogFileTests.runAsync(async (log, file) => {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
       const lines = Array.from({ length: 3 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
 
@@ -116,7 +116,7 @@ export class LogFileTests {
 
   @TestMethod
   public losesNoWaitingLineWhenTheFileBecomesThePreviousFile(): Promise<void> {
-    return LogFileTests.runAsync(async (log, file, previous) => {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
       const lines = Array.from({ length: 9 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
 
@@ -131,10 +131,10 @@ export class LogFileTests {
 
   @TestMethod
   public writesALineAtOnceAfterTheLinesBeforeItEvenWhileOneIsBeingWritten(): Promise<void> {
-    return LogFileTests.runAsync(async (log, file) => {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
       const lines = Array.from({ length: 3 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
-      using slow = new SlowAppendFixture(LogFileTests.SLOW_WRITE);
+      using slow = new SlowAppendFixture(false);
 
       const written = [log.appendAsync(lines[0] ?? String.empty), log.appendAsync(lines[1] ?? String.empty)];
       log.append(lines[2] ?? String.empty);
@@ -149,12 +149,70 @@ export class LogFileTests {
 
   @TestMethod
   public writesALineAtOnceWhenTheLineBeingWrittenDoesNotLandInTime(): Promise<void> {
-    return LogFileTests.runAsync(async (log, file) => {
+    return LogFileTests.runAsync(0, async (log, file) => {
       const lines = Array.from({ length: 2 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
-      using held = new SlowAppendFixture(null);
+      using held = new SlowAppendFixture(true);
 
       const first = log.appendAsync(lines[0] ?? String.empty);
+      log.append(lines[1] ?? String.empty);
+      const atOnce = readFileSync(file, "utf8");
+      held.release();
+      await first;
+
+      Assert.areEqual(lines[1], atOnce);
+      Assert.areEqual(`${lines[1]}${lines[0]}`, await readFile(file, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public waitsForTheLineBeingWrittenThoughAnotherProcessAppendedToTheFile(): Promise<void> {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
+      const lines = Array.from({ length: 2 }, (_, i) => log.format(`record ${i + 1}`));
+      const shared = "Another main process was refused the lock and wrote this.\n";
+      log.open();
+      appendFileSync(file, shared);
+      using slow = new SlowAppendFixture(false);
+
+      const first = log.appendAsync(lines[0] ?? String.empty);
+      log.append(lines[1] ?? String.empty);
+      const atOnce = readFileSync(file, "utf8");
+      await first;
+
+      Assert.areEqual(1, slow.calls);
+      Assert.areEqual(`${shared}${lines.join(String.empty)}`, atOnce);
+    });
+  }
+
+  @TestMethod
+  public keepsTheOrderAfterALineItCouldNotWrite(): Promise<void> {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
+      const lines = Array.from({ length: 3 }, (_, i) => log.format(`record ${i + 1}`));
+
+      await mkdir(file);
+      await Assert.throwsAsync(() => log.appendAsync(lines[0] ?? String.empty), Error);
+      await rm(file, { recursive: true });
+      await writeFile(file, String.empty);
+      using slow = new SlowAppendFixture(false);
+      const second = log.appendAsync(lines[1] ?? String.empty);
+      log.append(lines[2] ?? String.empty);
+      const atOnce = readFileSync(file, "utf8");
+      await second;
+
+      Assert.areEqual(1, slow.calls);
+      Assert.areEqual(lines.slice(1).join(String.empty), atOnce);
+    });
+  }
+
+  @TestMethod
+  public writesALineAtOnceWhenTheFileIsGoneWhileALineIsBeingWritten(): Promise<void> {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
+      const lines = Array.from({ length: 2 }, (_, i) => log.format(`record ${i + 1}`));
+      log.open();
+      using held = new SlowAppendFixture(true);
+
+      const first = log.appendAsync(lines[0] ?? String.empty);
+      await rm(file);
       log.append(lines[1] ?? String.empty);
       const atOnce = readFileSync(file, "utf8");
       held.release();
@@ -181,7 +239,7 @@ export class LogFileTests {
 
   @TestMethod
   public rejectsTheWaitingLinesWhenThePreviousCannotBeReplacedAndKeepsTheFile(): Promise<void> {
-    return LogFileTests.runAsync(async (log, file, previous) => {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
       const lines = Array.from({ length: 5 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
       await Promise.all(lines.slice(0, 4).map(t => log.appendAsync(t)));
@@ -195,10 +253,10 @@ export class LogFileTests {
 
   @TestMethod
   public settlesEachWaitingLineWhenWritingThemAtOnce(): Promise<void> {
-    return LogFileTests.runAsync(async (log, file, previous) => {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
       const lines = Array.from({ length: 5 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
-      using slow = new SlowAppendFixture(LogFileTests.SLOW_WRITE);
+      using slow = new SlowAppendFixture(false);
       const written = lines.map(t => log.appendAsync(t));
       await mkdir(path.join(previous, "held"), { recursive: true });
 
@@ -211,10 +269,10 @@ export class LogFileTests {
     });
   }
 
-  private static async runAsync(test: (log: LogFile, file: string, previous: string) => Promise<void>): Promise<void> {
+  private static async runAsync(writeWait: number, test: (log: LogFile, file: string, previous: string) => Promise<void>): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
     const file = path.join(folder.path, "app.log");
     const previous = path.join(folder.path, "app.previous.log");
-    await test(new LogFile(file, previous, new DiagnosticRedactor("/home/person"), () => LogFileTests.MOMENT, LogFileTests.LIMIT), file, previous);
+    await test(new LogFile(file, previous, new DiagnosticRedactor("/home/person"), () => LogFileTests.MOMENT, LogFileTests.LIMIT, writeWait), file, previous);
   }
 }

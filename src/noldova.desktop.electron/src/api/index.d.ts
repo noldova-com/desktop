@@ -4477,6 +4477,22 @@ export interface IMainProcessLog {
    * ```
    */
   write(text: string): void;
+
+  /**
+   * Writes every line still waiting at once, before the main process exits.
+   *
+   * @example
+   * ```ts
+   * import type { IMainProcessLog } from "@noldova/desktop.electron";
+   *
+   * export function recordAndExit(log: IMainProcessLog, exit: () => void): void {
+   *   log.write("The main process is exiting.");
+   *   log.flush();
+   *   exit();
+   * }
+   * ```
+   */
+  flush(): void;
 }
 
 /**
