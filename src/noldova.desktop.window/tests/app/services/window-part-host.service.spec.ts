@@ -1431,6 +1431,38 @@ describe("WindowPartHostService", () => {
     expect([isOpen, layout.layout().documents.active]).toEqual([false, note("1")]);
   });
 
+  it("drops a part's places from Back and Forward when it deactivates, so its next activation can't reach them", async () => {
+    const heard: string[] = [];
+    let activations = 0;
+    const part = new WindowPartFixture("notes", log, t => {
+      t.registerView(new ViewContribution("notes.list", "Notes", "sticky_note_2", DockSide.Left, true, load));
+      t.registerDocument(new DocumentContribution("notes.note", load));
+      t.onPlaceShown("notes.list", u => heard.push(u));
+      activations += 1;
+      if (activations > 1)
+        return;
+      t.recordPlace("notes.list", "note-0");
+      t.forgetPlace("notes.list", "note-0");
+      t.recordPlace("notes.list", "note-1");
+    });
+    const { host, layout } = start([source("notes", part)], [status("notes")]);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+    const history = TestBed.inject(DocumentHistoryService);
+    host.openDocument("notes", "notes.note", "1", new DocumentHeading("Note 1"), false);
+    await vi.waitFor(() => expect(layout.layout().documents.active).toEqual(new DocumentTab("notes.note", "1")));
+    TestBed.tick();
+    const before = history.canGoBack();
+
+    bridge.publishStartup({ kind: "Ready", details: [] });
+    bridge.publishStartup({ kind: "Connecting", details: [] });
+    bridge.publishStartup({ kind: "Ready", details: [] });
+    await vi.waitFor(() => expect(host.generation()).toBe(2));
+    TestBed.tick();
+    history.go(-1);
+
+    expect([before, history.canGoBack(), activations, heard]).toEqual([true, false, 2, []]);
+  });
+
   it("forgets a document a part forgets before the layout loads, so Back and Forward can't reach it though the saved layout showed it", async () => {
     const note = (instance: string): DocumentTab => new DocumentTab("notes.note", instance);
     const saved = Layout.createDefault(new ViewRegistry([], [])).openDocument(note("0")).openDocument(note("1"));

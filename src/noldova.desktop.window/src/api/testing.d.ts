@@ -814,6 +814,55 @@ export declare class FakeWindowPartContext extends Fake<IWindowPartContext> impl
   public readonly onViewClosed: IWindowPartContext["onViewClosed"];
 
   /**
+   * Stands in for {@link IWindowPartContext.recordPlace}. Records each call,
+   * which {@link Fake.callsOf} reads, and calls the answer that
+   * {@link Fake.answer} gives; while unanswered, it only records the call.
+   *
+   * @example
+   * ```ts
+   * import type { FakeWindowPartContext } from "@noldova/desktop.window/testing";
+   *
+   * export function recordedPlaces(fake: FakeWindowPartContext): readonly (readonly unknown[])[] {
+   *   return fake.callsOf("recordPlace");
+   * }
+   * ```
+   */
+  public readonly recordPlace: IWindowPartContext["recordPlace"];
+
+  /**
+   * Stands in for {@link IWindowPartContext.forgetPlace}. Records each call,
+   * which {@link Fake.callsOf} reads, and calls the answer that
+   * {@link Fake.answer} gives; while unanswered, it only records the call.
+   *
+   * @example
+   * ```ts
+   * import type { FakeWindowPartContext } from "@noldova/desktop.window/testing";
+   *
+   * export function forgottenPlaces(fake: FakeWindowPartContext): readonly (readonly unknown[])[] {
+   *   return fake.callsOf("forgetPlace");
+   * }
+   * ```
+   */
+  public readonly forgetPlace: IWindowPartContext["forgetPlace"];
+
+  /**
+   * Stands in for {@link IWindowPartContext.onPlaceShown}. Records each
+   * listener, which {@link FakeWindowPartContext.raisePlaceShown} calls and
+   * {@link Fake.activeCallsOf} lists until the disposer it returns runs; it
+   * takes no answer.
+   *
+   * @example
+   * ```ts
+   * import type { FakeWindowPartContext } from "@noldova/desktop.window/testing";
+   *
+   * export function activeOnPlaceShown(fake: FakeWindowPartContext): number {
+   *   return fake.activeCallsOf("onPlaceShown").length;
+   * }
+   * ```
+   */
+  public readonly onPlaceShown: IWindowPartContext["onPlaceShown"];
+
+  /**
    * Stands in for {@link IWindowPartContext.showInDialogAsync}. Records each
    * call, which {@link Fake.callsOf} reads, and returns what the answer that
    * {@link Fake.answer} gives returns; while unanswered, the promise it returns
@@ -1416,6 +1465,33 @@ export declare class FakeWindowPartContext extends Fake<IWindowPartContext> impl
    * ```
    */
   public raiseViewClosed(name: string, instance: string): void;
+
+  /**
+   * Tells each listener of {@link IWindowPartContext.onPlaceShown} for the
+   * view that Back or Forward reached one of its places.
+   *
+   * As Noldova Desktop's own dispatch does, it calls each listener in place when
+   * the call starts: one that an earlier one removes during the call is still
+   * called, and one that throws stops no other: {@link Fake.errors} keeps what
+   * it threw, where Noldova Desktop reports it in a place a test can't read.
+   *
+   * @param view The view's name.
+   *
+   * @param place The place reached.
+   *
+   * @param instance The view's instance the place was recorded for; null,
+   * the default, for a view without instances.
+   *
+   * @example
+   * ```ts
+   * import { FakeWindowPartContext } from "@noldova/desktop.window/testing";
+   *
+   * export function goBackToNote(context: FakeWindowPartContext): void {
+   *   context.raisePlaceShown("notes.list", "note-1");
+   * }
+   * ```
+   */
+  public raisePlaceShown(view: string, place: string, instance?: string | null): void;
 
   /**
    * Tells each listener of {@link IWindowPartContext.onEvent} for the event

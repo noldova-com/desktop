@@ -2606,6 +2606,78 @@ export interface IWindowPartContext {
   onViewClosed(name: string, listener: (instance: string) => void): () => void;
 
   /**
+   * Adds a place the view shows, such as a list's item or a pane's page, to
+   * Back and Forward, after the entry the person is on: the same history as
+   * the documents shown in the middle, whose entries ahead it drops and whose
+   * 50-entry limit it shares. A place equal to the entry the person is on is
+   * ignored, so a view can record each place it shows, including one it shows
+   * because Back or Forward reached it. While the part is inactive, the call
+   * does nothing.
+   *
+   * @param view The view's name, the module's.
+   * @param place The place, a string the module chooses that is not blank,
+   * such as an item's id or a page's address; the same view, instance and
+   * place make the same place.
+   * @param instance The view's instance, given for a view with instances and
+   * left out for one without.
+   * @throws Error synchronously when the view belongs to another module, is
+   * not a registered view, gets an instance it doesn't have or lacks one it
+   * has, or the place or instance is blank.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function showNote(context: IWindowPartContext, id: string): void {
+   *   context.recordPlace("notes.list", id);
+   * }
+   * ```
+   */
+  recordPlace(view: string, place: string, instance?: string): void;
+
+  /**
+   * Takes a place the module no longer has out of Back and Forward, such as
+   * a deleted item. While the part is inactive, the call does nothing; the
+   * window drops a module's places when its part deactivates.
+   *
+   * @param view The view's name, the module's.
+   * @param place The place, as {@link recordPlace} gave it.
+   * @param instance The view's instance, as {@link recordPlace} gave it.
+   * @throws Error synchronously as {@link recordPlace} does.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function deleteNote(context: IWindowPartContext, id: string): void {
+   *   context.forgetPlace("notes.list", id);
+   * }
+   * ```
+   */
+  forgetPlace(view: string, place: string, instance?: string): void;
+
+  /**
+   * Listens for Back or Forward reaching one of the view's places. The window
+   * shows the view first, the instance's tab or the view in its dock, and
+   * then calls each listener with the place to show. Back and Forward skip a
+   * place whose view has no listener or whose instance's tab is closed.
+   *
+   * @param view The view's name, the module's.
+   * @param listener Called with the place and the instance it was recorded
+   * for, or null for a view without instances.
+   * @returns A function that removes the listener.
+   * @throws Error synchronously when the view belongs to another module or
+   * is not a registered view.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function followHistory(context: IWindowPartContext, show: (id: string) => void): () => void {
+   *   return context.onPlaceShown("notes.list", show);
+   * }
+   * ```
+   */
+  onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void;
+
+  /**
    * Shows a view or document in a large modal dialog. One already open in a
    * tab moves into the dialog and returns when it closes.
    *

@@ -64,6 +64,7 @@ import { SettingsPageEntry } from "../models/settings/settings-page-entry.js";
 import type { StartupState } from "../models/startup-state.js";
 import type { ViewBadge } from "../models/view-badge.js";
 import type { ViewContribution } from "../models/view-contribution.js";
+import type { ViewPlace } from "../models/view-place.js";
 import { WindowPartActivation } from "../models/window-part-activation.js";
 import { WindowPartContext } from "../models/window-part-context.js";
 import type { WindowPartSource } from "../models/window-part-source.js";
@@ -376,6 +377,18 @@ export class WindowPartHostService implements IWindowPartHost {
 
   public onViewClosed(name: string, listener: (instance: string) => void): () => void {
     return this.instances.onClosed(name, listener);
+  }
+
+  public recordPlace(place: ViewPlace): void {
+    this.history.recordPlace(place);
+  }
+
+  public forgetPlace(place: ViewPlace): void {
+    this.history.forgetPlace(place);
+  }
+
+  public onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void {
+    return this.history.onPlaceShown(view, listener);
   }
 
   public async showInDialogAsync(name: string, instance: string | null, title: string | null): Promise<void> {
@@ -901,6 +914,7 @@ export class WindowPartHostService implements IWindowPartHost {
       }
       finally {
         this.labels.dropLooks(t => WindowPartHostService.owns(activation.context, t));
+        this.history.dropPlaces(t => WindowPartHostService.owns(activation.context, new ViewTab(t)));
         activation.context.withdraw();
         this.dropPending(activation.context.moduleId);
         this.announceWithdrawn(t => t === activation.context.moduleId);

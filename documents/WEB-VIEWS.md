@@ -214,7 +214,7 @@ The file is an object with four optional fields: `methods`, each `{ "name": "<Do
 
 - `Mod+Slash`, Show keyboard shortcuts, is a default key a focused page keeps: a pane may declare it, a page gets it while it has the focus, and the shell takes it everywhere else, unless the person binds it to a command.
 - So a pane declares keys of its own, such as reload and new tab, and never Back, Forward or the tab keys, which stay Noldova Desktop's.
-  A pane's pages reach Back and Forward as places the view adds to them, and the tab keys move between the tabs in Noldova Desktop's own tab row, where a browser's pages are tabs.
+  A pane's pages reach Back and Forward as places the view adds to them with `recordPlace`, showing the page `onPlaceShown` names, and the tab keys move between the tabs in Noldova Desktop's own tab row, where a browser's pages are tabs.
   Pages keep `Escape`, a typing key.
 - A declared key the person later binds to a command, or a module's default key, is that command's while it holds the key: the app's shortcuts go first in the view too.
 - The build refuses `webViews.json` in a module without a window part, which opens its views; the hosts read the file again from the declarations and refuse the same methods and keys.

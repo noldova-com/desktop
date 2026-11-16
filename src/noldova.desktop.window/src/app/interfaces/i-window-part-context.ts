@@ -89,6 +89,9 @@ export interface IWindowPartContext {
   growViewDock(name: string, minimum: number, instance?: string): () => void;
   viewDockOf(name: string, instance?: string): Signal<DockSide | null>;
   onViewClosed(name: string, listener: (instance: string) => void): () => void;
+  recordPlace(view: string, place: string, instance?: string): void;
+  forgetPlace(view: string, place: string, instance?: string): void;
+  onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void;
   showInDialogAsync(name: string, options?: IViewDialogOptions): Promise<void>;
   openBelowWindowRowAsync<T>(load: () => Promise<Type<T>>): Promise<IWindowPalette<T> | null>;
   log(message: string): void;

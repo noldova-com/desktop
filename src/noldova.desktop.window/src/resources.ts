@@ -886,6 +886,7 @@ export class Resources {
   public static readonly imageCanvasContext: "2d" = "2d";
   public static readonly causeSeparator: string = "\nCaused by: ";
   public static readonly invalidInstance: string = "An instance is a string that is not blank.";
+  public static readonly invalidPlace: string = "A place is a string that is not blank.";
   public static readonly settingsRowTitleInvalid: string = "A settings row's title is a string that is not blank.";
   public static readonly settingsRowsRepeated: string = "A page's settings rows each have their own id.";
   public static readonly invalidBounds: string = "Bounds need finite coordinates and a width and height that are not negative.";
