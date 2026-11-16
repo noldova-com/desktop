@@ -13,4 +13,5 @@ import type { PeerProcess } from "../models/peer-process.js";
 export interface IPeerProcessApi {
   readAsync(socket: Socket): Promise<PeerProcess | null>;
   readSender(socket: Socket): string | null;
+  readStart(socket: Socket): string | null;
 }

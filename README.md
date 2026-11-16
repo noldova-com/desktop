@@ -132,6 +132,7 @@ The repository's own tooling lives in the root `scripts/`, as in context, and im
 `npm test` runs the same build as its Packages check, which reuses what is current, and its Package tests and coverage check runs every package's tests through `@noldova/context.testing`.
 Those tests run as four processes side by side, each in its own temporary folder, one for each of the runners' four cores: Runtime's `services/process` and `services/client` tests with every other Runtime test that patches Node.js's `fs` module or a `process` global, Runtime's other tests with Electron's, Cli's, and the other packages'.
 Each process runs two suites, each with one limit per test that only bounds a hang, and no test sets a limit of its own: every test but the `Packaging` category's has 40 s, and then the `Packaging` category's tests have 90 s.
+The runtime's log file and runtime log tests give a line written at once 60 s to wait for a write under way, above that 40 s, so a wait that would never end fails its test at the limit rather than passing late; the two values must stay in that order.
 Each limit is at least three times the slowest test of its suite in this change's runs on the four targets, whose highest were 12.2 s for the other tests and 26.3 s for the `Packaging` category's, both on macOS x64; the runner prints each suite's ten slowest tests after its summary, so a later run shows how close a suite comes to its limit.
 `NOLDOVA_TEST_TIMEOUT_MILLISECONDS` and `NOLDOVA_TEST_PACKAGING_TIMEOUT_MILLISECONDS` set the two limits for the runner's own specs only.
 So a patch that a timed-out test leaves in force can reach only the tests that patch too, never a test that relies on the real module.
@@ -241,6 +242,7 @@ The reusable "Module range" workflow, `.github/workflows/module-range.yml`, chec
 - It installs the module with `npm ci`, then, in each installed folder whose `package.json` names a Noldova Desktop package, installs every Noldova Desktop package that folder names at the chosen version, and the kit and context's packages it names at the versions Noldova Desktop's packages pin at that version, without saving, the root first; it reads those pins only from desktop.build, the Noldova Desktop packages the module names and their Noldova Desktop dependencies, so it moves only what the module uses; it fails when a folder doesn't hold the version it asked for.
 - It then runs the module's build, which type-checks it, and its tests: `npm run build` and `npm test`, unless the caller names other commands.
 - On a nightly run, the caller's `schedule` event, a failure opens an issue titled "The module fails on the newest Noldova Desktop in its range" in the module's repository, or comments on the open one, with the run's link, the range and the version.
+  When the run tested an `@noldova` package at a version other than the one the root `package-lock.json` locks, such as a peer the caller's build moved, the issue also names each such package with its version, read from the root `node_modules` after the build, leaving out the packages whose `package.json` the module's repository holds; every run whose build ran writes that list to its log and its summary.
 
 A module calls it on its pull requests and every night, with its `module.json` folder, and a runner when it needs one other than the organization's Linux x64 runner, and grants the issue permission the report needs:
 
@@ -321,6 +323,7 @@ The time is the higher of the latest Linux and macOS runs, the sum of the file's
 | `tests/services/process/process-supervisor.test.ts` | 20.7 s | 46 tests start and end real programs and real pseudo-terminals. |
 | `tests/services/process/windows-process-ender.test.ts` | 6.4 s | 19 tests start and end real programs. |
 | `tests/services/runtime-entry.test.ts` | 6.1 s | One test waits out the runtime's 5 s takeover time while another holder owns the data directory without publishing discovery. |
+| `tests/services/discovery/mac-folder-protector.test.ts` | 5.7 s | On macOS, one test creates a real disk image and attaches it with ownership ignored, then detaches it. |
 | `tests/services/environment/login-shell-environment.test.ts` | 4.2 s | Real login shells read profiles under a real file-system watch; one waits out a 1.5 s limit for a shell that never answers. |
 | `tests/services/ownership/ownership-lock.test.ts` | 3.3 s | Real processes race for the data directory's lock, and one owner is killed so the lock passes on. |
 | `tests/services/modules/module-host.test.ts` | 3.2 s | 34 tests activate modules, most on a fresh SQLite database; one ends real programs that ignore the first signal, after the grace. |

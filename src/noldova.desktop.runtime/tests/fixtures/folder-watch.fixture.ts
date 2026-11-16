@@ -8,20 +8,22 @@
 
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
+import { mock } from "node:test";
 
 export class FolderWatchFixture implements Disposable {
-  private readonly watch: typeof fs.watch = fs.watch;
+  private readonly restore: () => void;
   private readonly watchers: fs.FSWatcher[] = [];
 
   public constructor(folder: string) {
-    const watch = this.watch;
-    fs.watch = ((...values: Parameters<typeof fs.watch>): fs.FSWatcher => {
+    const watch = fs.watch;
+    const watching = mock.method(fs, "watch", (...values: Parameters<typeof fs.watch>): fs.FSWatcher => {
       const watcher = watch(...values);
       const [target] = values;
       if (String(target) === folder)
         this.watchers.push(watcher);
       return watcher;
-    }) as typeof fs.watch;
+    });
+    this.restore = () => watching.mock.restore();
     syncBuiltinESMExports();
   }
 
@@ -41,7 +43,7 @@ export class FolderWatchFixture implements Disposable {
   }
 
   public [Symbol.dispose](): void {
-    fs.watch = this.watch;
+    this.restore();
     syncBuiltinESMExports();
   }
 }

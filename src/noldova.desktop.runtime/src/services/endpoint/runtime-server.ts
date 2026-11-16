@@ -299,6 +299,7 @@ export class RuntimeServer implements IEventSink {
   }
 
   private accept(socket: Socket): void {
+    this.mainProcessCheck.accept?.(socket);
     const session = new ClientSession(socket, this.nextConnection++, this.settings.maximumFrameLength, this.listener);
     this.sessions.add(session);
     const timer = setTimeout(() => {

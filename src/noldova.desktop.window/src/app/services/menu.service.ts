@@ -100,6 +100,6 @@ export class MenuService {
     if (Object.isNull(place) || rows.length === 0)
       return [];
     const checked = rows.find(t => !t.isSubmenu && t.isChecked);
-    return [new SubmenuRow(place.name, checked?.title ?? place.title, place.icon, context)];
+    return [new SubmenuRow(place.name, checked?.title ?? place.title, checked?.icon ?? place.icon, context)];
   }
 }

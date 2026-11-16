@@ -15,9 +15,13 @@ import path from "node:path";
 import "@noldova/context.core";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 
+import { RuntimeException } from "@noldova/desktop.runtime";
+
 import type { IPeerProcessApi } from "../../../src/interfaces/i-peer-process-api.js";
 import { PeerProcess } from "../../../src/models/peer-process.js";
+import { LinuxProgramIdentity } from "../../../src/services/endpoint/linux-program-identity.js";
 import { MainProcessCheck } from "../../../src/services/endpoint/main-process-check.js";
+import { LinuxProcessFolderFixture } from "../../fixtures/linux-process-folder.fixture.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { SocketFolderFixture } from "../../fixtures/socket-folder.fixture.js";
 import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.js";
@@ -27,7 +31,6 @@ export class MainProcessCheckTests {
   private static readonly SOCKET: Socket = new Socket();
 
   @TestMethod
-  @TestData("linux")
   @TestData("darwin")
   @TestData("win32")
   public async acceptsAPeerRunningTheSameProgramFileWithoutRunAsNode(platform: string): Promise<void> {
@@ -54,8 +57,8 @@ export class MainProcessCheckTests {
 
   @TestMethod
   public async refusesAConnectionWhosePeerIsNotReadAndRejectsOneThatFailsToRead(): Promise<void> {
-    const unread: IPeerProcessApi = { readAsync: () => Promise.resolve(null), readSender: () => null };
-    const failing: IPeerProcessApi = { readAsync: () => Promise.reject(new Error("Not read.")), readSender: () => null };
+    const unread: IPeerProcessApi = { readAsync: () => Promise.resolve(null), readSender: () => null, readStart: () => null };
+    const failing: IPeerProcessApi = { readAsync: () => Promise.reject(new Error("Not read.")), readSender: () => null, readStart: () => null };
     const check = new MainProcessCheck(unread, "linux");
 
     Assert.isFalse(await check.isMainProcessAsync(MainProcessCheckTests.SOCKET));
@@ -68,7 +71,7 @@ export class MainProcessCheckTests {
     await using folder = await TemporaryFolderFixture.createAsync();
     const program = await MainProcessCheckTests.writeAsync(folder.path, "program", "app");
     let sender: string | null = "4120:3";
-    const peers: IPeerProcessApi = { readAsync: () => Promise.resolve(new PeerProcess(program, [], "4120:3")), readSender: () => sender };
+    const peers: IPeerProcessApi = { readAsync: () => Promise.resolve(new PeerProcess(program, [], "4120:3")), readSender: () => sender, readStart: () => null };
     const check = new MainProcessCheck(peers, "darwin", program);
     const unchecked = new Socket();
     const before = check.isSameSender(MainProcessCheckTests.SOCKET);
@@ -84,13 +87,11 @@ export class MainProcessCheckTests {
   }
 
   @TestMethod
-  @TestData("linux")
-  @TestData("win32")
-  public async keepsAnAcceptedConnectionWhereThePlatformNamesNoSender(platform: string): Promise<void> {
+  public async keepsAnAcceptedConnectionWhereThePlatformNamesNoSender(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
     const program = await MainProcessCheckTests.writeAsync(folder.path, "program", "app");
-    const check = new MainProcessCheck(MainProcessCheckTests.peers(program), platform, program);
-    const refused = new MainProcessCheck(MainProcessCheckTests.peers(program, ["ELECTRON_RUN_AS_NODE=1"]), platform, program);
+    const check = new MainProcessCheck(MainProcessCheckTests.peers(program), "win32", program);
+    const refused = new MainProcessCheck(MainProcessCheckTests.peers(program, ["ELECTRON_RUN_AS_NODE=1"]), "win32", program);
 
     Assert.isTrue(await check.isMainProcessAsync(MainProcessCheckTests.SOCKET));
     Assert.isFalse(await refused.isMainProcessAsync(MainProcessCheckTests.SOCKET));
@@ -99,13 +100,53 @@ export class MainProcessCheckTests {
   }
 
   @TestMethod
-  public async acceptsAnotherProgramOnLinuxWithoutLookingAtIt(): Promise<void> {
+  public async checksTheStartTimeTheProgramAndTheAppArchiveOnLinux(): Promise<void> {
+    await using proc = await LinuxProcessFolderFixture.createAsync();
+    const [program, archive] = await proc.writeAppAsync("own", "app");
+    const [node] = await proc.writeAppAsync("node", null, "node");
+    const identity = new LinuxProgramIdentity(program, proc.path, proc.readLink);
+    const main = await proc.writePeerAsync(program, [archive]);
+    const check = (peer: PeerProcess, start: () => string | null = () => peer.startTime): MainProcessCheck => {
+      const checked = new MainProcessCheck({ readAsync: () => Promise.resolve(peer), readSender: () => null, readStart: start }, "linux", program, identity);
+      checked.accept(MainProcessCheckTests.SOCKET);
+      return checked;
+    };
+    const accepted = check(main);
+
+    Assert.isTrue(await accepted.isMainProcessAsync(MainProcessCheckTests.SOCKET));
+    Assert.isTrue(accepted.isSameSender(MainProcessCheckTests.SOCKET));
+    Assert.isFalse(await new MainProcessCheck({ readAsync: () => Promise.resolve(main), readSender: () => null, readStart: () => main.startTime }, "linux", program, identity)
+      .isMainProcessAsync(MainProcessCheckTests.SOCKET));
+    Assert.isFalse(await check(main, () => "99001").isMainProcessAsync(MainProcessCheckTests.SOCKET));
+    Assert.isFalse(await check(main, () => null).isMainProcessAsync(MainProcessCheckTests.SOCKET));
+    Assert.isFalse(await check(await proc.writePeerAsync(node, [archive])).isMainProcessAsync(MainProcessCheckTests.SOCKET));
+    Assert.isFalse(await check(await proc.writePeerAsync(program)).isMainProcessAsync(MainProcessCheckTests.SOCKET));
+    Assert.isFalse(await check(new PeerProcess(main.program, ["ELECTRON_RUN_AS_NODE=1"], null, main.processId, main.startTime)).isMainProcessAsync(MainProcessCheckTests.SOCKET));
+  }
+
+  @TestMethod
+  public async rejectsTheCheckWhenTheStartTimeFailedToReadAtAccept(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
     const program = await MainProcessCheckTests.writeAsync(folder.path, "program", "app");
-    const other = await MainProcessCheckTests.writeAsync(folder.path, "other", "another app");
+    const failure = new Error("Not read.");
+    const check = (platform: string, start: () => string | null): MainProcessCheck => {
+      const checked = new MainProcessCheck({ ...MainProcessCheckTests.peers(program), readStart: start }, platform, program);
+      checked.accept(MainProcessCheckTests.SOCKET);
+      return checked;
+    };
+    const failed = check("linux", () => {
+      throw failure;
+    });
+    const thrownText = check("linux", () => {
+      throw "not read";
+    });
+    const elsewhere = check("darwin", () => {
+      throw failure;
+    });
 
-    Assert.isTrue(await new MainProcessCheck(MainProcessCheckTests.peers(other), "linux", program).isMainProcessAsync(MainProcessCheckTests.SOCKET));
-    Assert.isTrue(await new MainProcessCheck(MainProcessCheckTests.peers(path.join(folder.path, "gone")), "linux", program).isMainProcessAsync(MainProcessCheckTests.SOCKET));
+    Assert.isTrue(failure === await Assert.throwsAsync(() => failed.isMainProcessAsync(MainProcessCheckTests.SOCKET), Error));
+    await Assert.throwsAsync(() => thrownText.isMainProcessAsync(MainProcessCheckTests.SOCKET), RuntimeException);
+    Assert.isTrue(await elsewhere.isMainProcessAsync(MainProcessCheckTests.SOCKET));
   }
 
   @TestMethod
@@ -139,6 +180,7 @@ export class MainProcessCheckTests {
   @TestData("win32")
   public createsTheCheckForEachPlatform(platform: string): void {
     Assert.isInstanceOf(MainProcessCheck.create(platform), MainProcessCheck);
+    Assert.isInstanceOf(MainProcessCheck.create(platform, process.execPath, { APPIMAGE: "/home/person/Noldova.AppImage" }), MainProcessCheck);
   }
 
   @TestMethod
@@ -148,7 +190,7 @@ export class MainProcessCheckTests {
     const other = await MainProcessCheckTests.writeAsync(folder.path, "other", "another app");
 
     Assert.isTrue(await MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "a.sock") }, {}, MainProcessCheck.create()));
-    Assert.isTrue(await MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "b.sock") }, {}, MainProcessCheck.create("linux", other)));
+    Assert.isFalse(await MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "b.sock") }, {}, MainProcessCheck.create("linux", other)));
     Assert.isFalse(await MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "c.sock") }, { ELECTRON_RUN_AS_NODE: "1" }, MainProcessCheck.create()));
   }
 
@@ -178,7 +220,7 @@ export class MainProcessCheckTests {
   }
 
   private static peers(program: string, environment: readonly string[] = []): IPeerProcessApi {
-    return { readAsync: () => Promise.resolve(new PeerProcess(program, environment)), readSender: () => null };
+    return { readAsync: () => Promise.resolve(new PeerProcess(program, environment)), readSender: () => null, readStart: () => null };
   }
 
   private static async writeAsync(folder: string, name: string, content: string): Promise<string> {
@@ -207,6 +249,7 @@ export class MainProcessCheckTests {
     const child = spawn(program, ["-e", `require("node:net").connect(${JSON.stringify(address)}); setTimeout(() => undefined, 30000);`],
       { env: environment, stdio: "ignore", windowsHide: true });
     const socket = await accepted.promise;
+    check.accept(socket);
     try {
       const isMainProcess = await check.isMainProcessAsync(socket);
       Assert.areEqual(isMainProcess, check.isSameSender(socket));
