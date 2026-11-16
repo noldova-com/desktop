@@ -72,16 +72,18 @@ export class DependencyPinCheck implements ICheck {
         continue;
       }
       findings.push(...section === DependencyPinCheckResources.peerSection
-        ? DependencyPinCheck.validatePeers(file, entries, pins)
+        ? DependencyPinCheck.validatePeers(file, manifest[Resources.nameField], entries, pins)
         : DependencyPinCheck.validateEntries(file, section, entries, section === DependencyPinCheckResources.overridesSection, section));
     }
     return findings;
   }
 
-  private static validatePeers(file: string, entries: JsonObject, pins: ReadonlyMap<string, string>): readonly string[] {
+  private static validatePeers(file: string, packageName: JsonValue | undefined, entries: JsonObject, pins: ReadonlyMap<string, string>): readonly string[] {
     const ranged = Object.entries(entries).filter((t): t is [string, string] => DependencyPinCheck.isFoundation(t[0]) && Object.isString(t[1]));
-    const exact = Object.fromEntries(Object.entries(entries).filter(([name]) => !ranged.some(t => t[0] === name)));
-    return [...DependencyPinCheck.validateEntries(file, DependencyPinCheckResources.peerSection, exact, false, DependencyPinCheckResources.peerSection), ...ranged.flatMap(([name, value]) => {
+    const siblings = Object.entries(entries).filter((t): t is [string, string] => Object.isString(packageName) && PackageNaming.isSiblingPeer(packageName, t[0]) && Object.isString(t[1]));
+    const exact = Object.fromEntries(Object.entries(entries).filter(([name]) => !ranged.some(t => t[0] === name) && !siblings.some(t => t[0] === name)));
+    return [...DependencyPinCheck.validateEntries(file, DependencyPinCheckResources.peerSection, exact, false, DependencyPinCheckResources.peerSection),
+      ...siblings.filter(t => t[1] !== BuildResources.packagePeerRangePlaceholder).map(([name, value]) => DependencyPinCheckResources.formatOwnPeer(file, name, value, BuildResources.packagePeerRangePlaceholder)), ...ranged.flatMap(([name, value]) => {
       const range = VersionRange.parse(value);
       const pin = pins.get(name);
       if (Object.isNull(range) || !range.isFollowing())
