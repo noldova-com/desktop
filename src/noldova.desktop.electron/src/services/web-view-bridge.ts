@@ -56,11 +56,12 @@ export class WebViewBridge {
 
   public async connectAsync(): Promise<void> {
     const response = await this.runtime.callAsync(ShellMethods.readWebViewBlockedPorts, null);
-    if (!Object.isNull(response.failure) || Object.isNull(response.payload)) {
+    const payload = response.payload ?? null;
+    if (response.hasFailed || Object.isNull(payload)) {
       this.log.write(Resources.formatWebViewPortsUnread(response.failure?.message ?? String(null)));
       return;
     }
-    await this.blockPortsAsync(response.payload);
+    await this.blockPortsAsync(payload);
   }
 
   public disconnect(): void {
