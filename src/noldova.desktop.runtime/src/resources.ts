@@ -967,6 +967,22 @@ export class Resources {
   public static readonly executableLink: string = "exe";
   public static readonly environmentSeparator: string = "\0";
   public static readonly runAsNodeVariable: string = "ELECTRON_RUN_AS_NODE";
+  public static readonly mapsFile: string = "maps";
+  public static readonly ownProcessFolder: string = "self";
+  public static readonly processStartField: number = 19;
+  public static readonly processStartPattern: RegExp = /^[0-9]+$/u;
+  public static readonly mappedFilePattern: RegExp = /^\S+\s+\S+\s+\S+\s+([0-9a-f]+):([0-9a-f]+)\s+([0-9]+)\s+(.+)$/u;
+  public static readonly hexNumberPrefix: string = "0x";
+  public static readonly deletedMappingSuffix: string = " (deleted)";
+  public static readonly appArchiveName: string = "app.asar";
+  public static readonly deviceMajorLowMask: bigint = 0xfffn;
+  public static readonly deviceMinorLowMask: bigint = 0xffn;
+  public static readonly deviceMajorLowShift: bigint = 8n;
+  public static readonly deviceMajorHighShift: bigint = 32n;
+  public static readonly deviceMinorHighShift: bigint = 12n;
+  public static readonly programDigestAlgorithm: string = "sha256";
+  public static readonly programDigestRanges: number = 8;
+  public static readonly programDigestChunkBytes: number = 1 << 20;
   public static readonly senderSeparator: string = ":";
   public static readonly windowsAddonFunctions: readonly (keyof IWindowsProcessAddon)[] = [
     Resources.listProcessesFunction,
@@ -1790,6 +1806,14 @@ export class Resources {
 
   public static formatEnvironmentNameInvalid(name: string): string {
     return `${JSON.stringify(name)} is not an environment variable's name.`;
+  }
+
+  public static formatOwnArchiveUnusable(maps: string, count: number): string {
+    return `The runtime can't tell its own app.asar: ${maps} maps ${count} app.asar files, or one that was deleted.`;
+  }
+
+  public static formatOwnFileChanged(file: string): string {
+    return `The runtime's own ${file} changed since the runtime read its device and inode.`;
   }
 
   public static formatProgramNotFound(program: string): string {

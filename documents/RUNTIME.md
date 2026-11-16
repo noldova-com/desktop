@@ -32,7 +32,7 @@ What a module declares and contributes is in [MODULES.md](MODULES.md); the windo
 - The token keeps out other clients, not other programs running as the same person.
 - A part tells the main process's requests apart with `context.client === ShellClients.mainProcess`; what that proves differs by platform, as below.
   When a client of the runtime's own build names itself so, the runtime finds the connection's process, from the Unix socket's peer on macOS and Linux and from the loopback connection's owner in the TCP table on Windows.
-  It answers the handshake only when that process didn't start with `ELECTRON_RUN_AS_NODE` and, on macOS and Windows, runs the runtime's own program file.
+  It answers the handshake only when that process didn't start with `ELECTRON_RUN_AS_NODE` and runs the runtime's own program file, or on Linux a program and an `app.asar` with the runtime's own content.
   Otherwise it answers `Unauthorized` with its handover and writes the refusal to its diagnostics; like another build's client, the connection may then only stop the runtime.
   So the same build's main process run from another copy of the program, such as one moved to Applications from a disk image while its runtime still runs from the image, stops that runtime and starts its own; a second refusal fails with a message.
   No other name is checked, and neither is another build's client.
@@ -42,9 +42,11 @@ What a module declares and contributes is in [MODULES.md](MODULES.md); the windo
 - **Windows:** the runtime reads the process that owns the loopback connection in the TCP table and refuses it when it started after the connection was made, so a later process given that process id doesn't pass.
   The environment it reads is the process's live one.
   A script the app's program runs in Node mode can delete `ELECTRON_RUN_AS_NODE` from that environment before it connects, so on Windows the check doesn't keep the app's program in Node mode out until the runtime gets its own program and the `runAsNode` fuse is turned off.
-- **Linux:** the runtime accepts the name without a program check for now: any program running as the person that didn't start with `ELECTRON_RUN_AS_NODE`, such as a plain `node` script, can connect as the main process.
-  An AppImage's main process and its runtime run from different mounts, so the same program is another file, and comparing the files' contents added 0.5 to 3.4 seconds to the main window's first connect.
-  Without an `app.asar` check, which Electron doesn't make on Linux, a program check alone would let the app's program run on another `app.asar` through anyway.
+- **Linux:** the runtime reads the process's start time from `/proc/<pid>/stat` before it reads the environment and again after its checks, and refuses the connection when it changed, so a later process given that process id doesn't pass.
+  The program, opened through `/proc/<pid>/exe`, passes when it is the runtime's own file by device and inode, as in a Debian install; otherwise it must have the same size and SHA-256 digest, as the main process of an AppImage has, which runs from another mount of the image than its runtime.
+  Electron makes no `app.asar` check on Linux, so the runtime also reads the `app.asar` files the process maps, from `/proc/<pid>/maps`, since a process can drop a file it opened but not a mapping: it must map exactly one, not deleted, that is the runtime's own by the device and inode the map lists, or the file at the map's path, still at that device and inode, with the same size and digest as the runtime's own.
+  A process that maps no `app.asar` passes only where the runtime maps none, as in development.
+  A runtime started from an AppImage reads its own program and `app.asar` as it starts, so a connect reads only the other process's files: on a Linux test machine with 8 cores, the sample app's 229 MB program took 163 to 257 ms and its 16 MB `app.asar` 15 to 30 ms through the AppImage's mount, and a Debian install's main process reads nothing.
 - On every platform, code injected into the main process, or a debugger attached to it, passes the check; on macOS and Linux so does native code that rewrites the process's starting environment.
 
 ## Messages

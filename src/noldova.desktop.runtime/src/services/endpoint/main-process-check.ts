@@ -16,6 +16,7 @@ import type { IPeerProcessApi } from "../../interfaces/i-peer-process-api.js";
 import { Resources } from "../../resources.js";
 import { PosixPeerProcessApi } from "../process/posix-peer-process-api.js";
 import { WindowsPeerProcessApi } from "../process/windows-peer-process-api.js";
+import { LinuxProgramIdentity } from "./linux-program-identity.js";
 
 export class MainProcessCheck implements IMainProcessCheck {
   private static readonly RUN_AS_NODE: string = `${Resources.runAsNodeVariable}${Resources.environmentEntrySeparator}`;
@@ -23,17 +24,22 @@ export class MainProcessCheck implements IMainProcessCheck {
   private readonly peers: IPeerProcessApi;
   private readonly platform: string;
   private readonly program: string;
+  private readonly identity: LinuxProgramIdentity;
   private readonly senders: WeakMap<Socket, string | null> = new WeakMap();
 
-  public constructor(peers: IPeerProcessApi, platform: string = process.platform, program: string = process.execPath) {
+  public constructor(peers: IPeerProcessApi, platform: string = process.platform, program: string = process.execPath, identity: LinuxProgramIdentity = new LinuxProgramIdentity(program)) {
     this.peers = peers;
     this.platform = platform;
     this.program = program;
+    this.identity = identity;
   }
 
-  public static create(platform: string = process.platform, program: string = process.execPath): MainProcessCheck {
+  public static create(platform: string = process.platform, program: string = process.execPath, environment: NodeJS.ProcessEnv = process.env): MainProcessCheck {
     const peers = platform === Resources.windowsPlatform ? WindowsPeerProcessApi.create() : PosixPeerProcessApi.create(platform);
-    return new MainProcessCheck(peers, platform, program);
+    const identity = new LinuxProgramIdentity(program);
+    if (platform === Resources.linuxPlatform && !Object.isUndefined(environment[Resources.appImageVariable]))
+      identity.prepare();
+    return new MainProcessCheck(peers, platform, program, identity);
   }
 
   private static isRunAsNode(entry: string): boolean {
@@ -43,7 +49,7 @@ export class MainProcessCheck implements IMainProcessCheck {
   public async isMainProcessAsync(socket: Socket): Promise<boolean> {
     const peer = await this.peers.readAsync(socket);
     if (Object.isNull(peer) || peer.environment.some(t => MainProcessCheck.isRunAsNode(t))
-      || (this.platform !== Resources.linuxPlatform && !await this.isSameFileAsync(peer.program)))
+      || !await (this.platform === Resources.linuxPlatform ? this.identity.isSameAsync(peer) : this.isSameFileAsync(peer.program)))
       return false;
     this.senders.set(socket, peer.sender);
     return true;

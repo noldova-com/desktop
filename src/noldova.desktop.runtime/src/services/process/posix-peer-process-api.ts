@@ -19,6 +19,7 @@ import type { IPosixProcessAddon } from "../../interfaces/i-posix-process-addon.
 import { PeerProcess } from "../../models/peer-process.js";
 import { Resources } from "../../resources.js";
 import { NativeAddon } from "../native/native-addon.js";
+import { LinuxProcessStart } from "./linux-process-start.js";
 
 export class PosixPeerProcessApi implements IPeerProcessApi {
   private readonly addon: NativeAddon<IPosixProcessAddon>;
@@ -63,8 +64,9 @@ export class PosixPeerProcessApi implements IPeerProcessApi {
     if (Object.isNull(processId))
       return null;
     const folder = path.posix.join(this.processFolder, String(processId));
+    const startTime = await LinuxProcessStart.readAsync(this.processFolder, processId);
     const environment = await readFile(path.posix.join(folder, Resources.environmentFile), Resources.utf8Encoding);
-    return new PeerProcess(path.posix.join(folder, Resources.executableLink), environment.split(Resources.environmentSeparator).filter(t => t.length > 0));
+    return new PeerProcess(path.posix.join(folder, Resources.executableLink), environment.split(Resources.environmentSeparator).filter(t => t.length > 0), null, processId, startTime);
   }
 
   public readSender(socket: Socket): string | null {
