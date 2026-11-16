@@ -674,8 +674,8 @@ export class WebViewHostTests {
         calledBack += 1;
       }),
       contents.prevent("will-attach-webview"),
-      contents.prevent("will-frame-navigate", "https://example.net/", true),
-      contents.prevent("will-frame-navigate", "about:srcdoc", false)
+      contents.navigateFrame("https://example.net/", true),
+      contents.navigateFrame("about:srcdoc", false)
     ];
     contents.debugger.receive("Page.fileChooserOpened", { frameId: "f", mode: "selectSingle" });
 
