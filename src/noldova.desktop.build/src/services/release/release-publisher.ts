@@ -22,7 +22,7 @@ import type { PackageDigest } from "../../models/release/package-digest.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { ReleaseFile } from "../../models/release/release-file.ts";
 import { ReleaseTag } from "./release-tag.ts";
-import type { ReleaseVersion } from "../../models/release/release-version.ts";
+import type { ReleaseRequest } from "../../models/release/release-request.ts";
 import { Resources } from "../../resources.ts";
 
 export class ReleasePublisher {
@@ -34,39 +34,41 @@ export class ReleasePublisher {
     this.output = output;
   }
 
-  public async publishAsync(version: ReleaseVersion, revision: string, folder: string, files: readonly ReleaseFile[], notes: string): Promise<void> {
+  public async publishAsync(request: ReleaseRequest, folder: string, files: readonly ReleaseFile[], notes: string): Promise<void> {
+    const { tag, revision } = request;
     const digests = new Map(files.map(t => [t.name, t.digest]));
-    const releases = (await this.api.readPagesAsync(Resources.githubReleasesPath)).map((t, index) => GitHubRelease.read(t, Resources.formatGitHubReleasesContext(index))).filter(t => t.tag === version.tag);
+    const releases = (await this.api.readPagesAsync(Resources.githubReleasesPath)).map((t, index) => GitHubRelease.read(t, Resources.formatGitHubReleasesContext(index))).filter(t => t.tag === tag);
     if (releases.length > 1)
-      throw new BuildException(Resources.formatReleaseTagShared(releases.length, version.tag));
+      throw new BuildException(Resources.formatReleaseTagShared(releases.length, tag));
     const existing = releases.at(0);
     if (!Object.isUndefined(existing) && !existing.isDraft) {
       ReleasePublisher.requireComplete(existing, digests);
-      await this.requireTagAsync(version.tag, revision);
-      this.output.write(Resources.formatReleaseAlreadyPublished(version.tag));
+      await this.requireTagAsync(request);
+      this.output.write(Resources.formatReleaseAlreadyPublished(tag));
       return;
     }
 
-    const draft = existing ?? await this.createDraftAsync(version, revision, notes);
-    if (draft.target !== revision)
-      throw new BuildException(Resources.formatDraftForOtherRevision(version.tag, draft.target, revision));
+    const draft = existing ?? await this.createDraftAsync(request, notes);
+    if (!request.isSeparate && draft.target !== revision)
+      throw new BuildException(Resources.formatDraftForOtherRevision(tag, draft.target, revision));
     for (const [name, digest] of digests)
       await this.uploadAsync(draft, name, path.join(folder, name), digest);
     ReleasePublisher.requireComplete(await this.readAsync(draft.id), digests);
-    await this.createTagAsync(version.tag, revision);
+    if (!request.isSeparate)
+      await this.createTagAsync(tag, revision);
     const published = GitHubRelease.read(await this.api.sendAsync(Resources.httpPatchMethod, Resources.formatGitHubReleasePath(draft.id), [[Resources.githubMakeLatestField, Resources.releaseMakeLatestValue]], [[Resources.githubDraftField, false]]),
       Resources.publishedReleaseContext);
     if (published.isDraft)
-      throw new BuildException(Resources.formatReleaseKeptDraft(version.tag));
+      throw new BuildException(Resources.formatReleaseKeptDraft(tag));
     try {
       ReleasePublisher.requireComplete(published, digests);
-      await this.requireTagAsync(version.tag, revision);
+      await this.requireTagAsync(request);
     }
     catch (error) {
-      throw new BuildException(Resources.formatReleaseCheckFailed(version.tag, String(error)),
+      throw new BuildException(Resources.formatReleaseCheckFailed(tag, String(error)),
         new ExceptionOptions(error));
     }
-    this.output.write(Resources.formatReleasePublished(version.tag, revision, digests.size));
+    this.output.write(Resources.formatReleasePublished(tag, revision, digests.size));
   }
 
   private static isTransient(error: unknown): error is GitHubRequestException | ProcessTimeoutException {
@@ -94,11 +96,15 @@ export class ReleasePublisher {
       throw new BuildException(Resources.formatReleaseAssetsDiffer(release.tag, missing, unexpected));
   }
 
-  private async createDraftAsync(version: ReleaseVersion, revision: string, notes: string): Promise<GitHubRelease> {
-    ReleaseTag.requireAt(version.tag, await ReleaseTag.readCommitAsync(this.api, version.tag), revision);
-    this.output.write(Resources.formatDraftCreating(version.tag, revision));
+  private async createDraftAsync(request: ReleaseRequest, notes: string): Promise<GitHubRelease> {
+    const tagged = await ReleaseTag.readCommitAsync(this.api, request.tag);
+    if (request.isSeparate && !Object.isNull(tagged))
+      throw new BuildException(Resources.formatReleaseTagTaken(request.tag, request.repository));
+    ReleaseTag.requireAt(request.tag, tagged, request.revision);
+    this.output.write(Resources.formatDraftCreating(request.tag, request.revision));
+    const target: readonly (readonly [string, string])[] = request.isSeparate ? [] : [[Resources.githubTargetCommitishField, request.revision]];
     return GitHubRelease.read(await this.api.sendAsync(Resources.httpPostMethod, Resources.githubReleasesPath,
-      [[Resources.githubTagNameField, version.tag], [Resources.githubTargetCommitishField, revision], [Resources.githubNameField, version.text], [Resources.githubBodyField, notes]],
+      [[Resources.githubTagNameField, request.tag], ...target, [Resources.githubNameField, request.isSeparate ? request.tag : request.version.text], [Resources.githubBodyField, notes]],
       [[Resources.githubDraftField, true]]), Resources.newReleaseContext);
   }
 
@@ -152,9 +158,11 @@ export class ReleasePublisher {
     }
   }
 
-  private async requireTagAsync(tag: string, revision: string): Promise<void> {
-    const commit = await ReleaseTag.readCommitAsync(this.api, tag);
-    if (commit !== revision)
-      throw new BuildException(Resources.formatTagPointsElsewhere(tag, commit, revision));
+  private async requireTagAsync(request: ReleaseRequest): Promise<void> {
+    const commit = await ReleaseTag.readCommitAsync(this.api, request.tag);
+    if (request.isSeparate && Object.isNull(commit))
+      throw new BuildException(Resources.formatReleaseTagMissing(request.tag, request.repository));
+    if (!request.isSeparate && commit !== request.revision)
+      throw new BuildException(Resources.formatTagPointsElsewhere(request.tag, commit, request.revision));
   }
 }

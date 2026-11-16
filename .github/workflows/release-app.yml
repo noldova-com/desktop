@@ -65,6 +65,14 @@ on:
         description: The internal update feed's HTTPS URL, which internal-feed needs.
         type: string
         default: ''
+      release-repository:
+        description: The repository, as owner/name, whose releases the release publishes in, such as one shared by several apps; empty publishes in this repository. Another repository's release is tagged there by GitHub at its default branch, and its notes name this repository's commit.
+        type: string
+        default: ''
+      release-tag-prefix:
+        description: What the release's tag starts with before its version, v or lowercase words ending in -v such as app-v; empty is v. In a shared release-repository, only releases under this prefix count as this app's.
+        type: string
+        default: ''
       skip-feed-check:
         description: True skips the update feed check after the release publishes, for an app whose releases its installed copies can't read yet.
         type: boolean
@@ -346,7 +354,9 @@ jobs:
         working-directory: ${{ inputs.app-folder }}
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
+          RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}
         run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" release-check
@@ -491,7 +501,9 @@ jobs:
         working-directory: ${{ inputs.app-folder }}
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
+          RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}
           RELEASE_FOLDER: ${{ github.workspace }}/_build/release
@@ -553,7 +565,9 @@ jobs:
         timeout-minutes: 10
         working-directory: ${{ inputs.app-folder }}
         env:
-          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
+          RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}
           RELEASE_FOLDER: ${{ github.workspace }}/_build/release
@@ -649,7 +663,7 @@ jobs:
         timeout-minutes: 25
         env:
           SKIP_FEED_CHECK: ${{ inputs.skip-feed-check }}
-          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
           FEED_URL: ${{ needs.check.outputs.product-feed }}
           FEED_VERSION: ${{ inputs.version }}
           RELEASE_TARGETS: ${{ needs.check.outputs.release-targets }}

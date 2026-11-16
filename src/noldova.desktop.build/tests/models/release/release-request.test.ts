@@ -25,12 +25,44 @@ export class ReleaseRequestTests {
   }
 
   @TestMethod
+  public publishesFromItsOwnRepositoryAsVAndAVersionWhenNoSourceOrPrefixIsSet(): void {
+    const request = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_SOURCE_REPOSITORY: "", RELEASE_TAG_PREFIX: "" });
+    const same = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_SOURCE_REPOSITORY: "Example/Sample-App" });
+
+    Assert.areEqual("example/sample-app,v1.2.3,false,false", [request.sourceRepository, request.tag, request.isSeparate, same.isSeparate].join());
+  }
+
+  @TestMethod
+  public publishesInAnotherRepositoryUnderItsOwnTagPrefix(): void {
+    const request = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_REPOSITORY: "example/downloads", RELEASE_SOURCE_REPOSITORY: "example/sample-app", RELEASE_TAG_PREFIX: "sample-app-v" });
+
+    Assert.areEqual("example/downloads,example/sample-app,sample-app-v1.2.3,true", [request.repository, request.sourceRepository, request.tag, request.isSeparate].join());
+    Assert.areEqual("true,false,false", [request.ownsTag("sample-app-v0.0.1"), request.ownsTag("other-app-v0.0.1"), request.ownsTag("v0.0.1")].join());
+  }
+
+  @TestMethod
+  public readsATagUnderItsPrefixAndRefusesAnyOther(): void {
+    const request = ReleaseRequest.read(ReleaseRequestTests.REQUEST);
+    const prefixed = ReleaseRequest.read({ ...ReleaseRequestTests.REQUEST, RELEASE_TAG_PREFIX: "sample-app-v" });
+
+    Assert.areEqual("0.0.2,0.0.3", [request.parseTag("v0.0.2", "The latest release").text, prefixed.parseTag("sample-app-v0.0.3", "The latest release").text].join());
+    Assert.areEqual("The latest release must be a tag such as v0.0.2, not \"0.0.2\".", Assert.throws(() => request.parseTag("0.0.2", "The latest release"), BuildException).message);
+    Assert.areEqual("The latest release must be a plain version such as 0.0.2, not \"next\".", Assert.throws(() => request.parseTag("vnext", "The latest release"), BuildException).message);
+    Assert.areEqual("The latest release must be a tag such as sample-app-v0.0.2, not \"v0.0.2\".",
+      Assert.throws(() => prefixed.parseTag("v0.0.2", "The latest release"), BuildException).message);
+  }
+
+  @TestMethod
   public refusesARepositoryVersionOrRevisionItCannotUse(): void {
     const cases: readonly (readonly [Readonly<Record<string, string>>, string])[] = [
       [{ RELEASE_REPOSITORY: "sample-app" }, "RELEASE_REPOSITORY must name a repository as owner/name, not \"sample-app\"."],
       [{ RELEASE_REPOSITORY: "example/.." }, "RELEASE_REPOSITORY must name a repository as owner/name, not \"example/..\"."],
       [{ RELEASE_VERSION: "1.2" }, "RELEASE_VERSION must be a plain version such as 0.0.2, not \"1.2\"."],
-      [{ RELEASE_REVISION: "0123456" }, "RELEASE_REVISION must be a full commit SHA of 40 lowercase hexadecimal digits, not \"0123456\"."]
+      [{ RELEASE_REVISION: "0123456" }, "RELEASE_REVISION must be a full commit SHA of 40 lowercase hexadecimal digits, not \"0123456\"."],
+      [{ RELEASE_SOURCE_REPOSITORY: "sample-app" }, "RELEASE_SOURCE_REPOSITORY must name a repository as owner/name, not \"sample-app\"."],
+      [{ RELEASE_TAG_PREFIX: "sample-app-" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in -v, such as app-v, not \"sample-app-\"."],
+      [{ RELEASE_TAG_PREFIX: "Sample-v" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in -v, such as app-v, not \"Sample-v\"."],
+      [{ RELEASE_TAG_PREFIX: "-v" }, "RELEASE_TAG_PREFIX must be v, or lowercase words joined by dashes and ending in -v, such as app-v, not \"-v\"."]
     ];
 
     for (const [fields, message] of cases)

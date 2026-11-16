@@ -26,6 +26,13 @@ export class ReleaseCheckTests {
   private static readonly OTHER: string = "fedcba9876543210fedcba9876543210fedcba98";
   private static readonly FORK: string = "someone/sample-fork";
   private static readonly OWN_FEED: string = "https://counted.example.test/";
+  private static readonly SEPARATE: NodeJS.ProcessEnv = {
+    RELEASE_REPOSITORY: "example/downloads",
+    RELEASE_SOURCE_REPOSITORY: "example/sample-app",
+    RELEASE_TAG_PREFIX: "sample-app-v",
+    RELEASE_VERSION: "1.2.3",
+    RELEASE_REVISION: ReleaseCheckTests.REVISION
+  };
 
   @TestMethod
   public async checksANewVersionOnMainWhoseRunPassedAndWritesItsOutputsAsync(): Promise<void> {
@@ -93,6 +100,44 @@ export class ReleaseCheckTests {
     Assert.areEqual("The root manifest's version is 1.2.3, not 1.2.4; raise it on main first.\n", other.output);
     Assert.areEqual("1.2.3 is not newer than the highest release, 1.3.0.\n", older.output);
     Assert.areEqual("1,1", [other.exitCode, older.exitCode].join());
+  }
+
+  @TestMethod
+  public async checksARevisionInItsSourceAndTheVersionAgainstItsOwnTagsInAnotherRepositoryAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync({ updateFeed: ReleaseCheckTests.OWN_FEED });
+    const github = ReleaseCheckTests.passing();
+    github.addRelease("other-app-v9.0.0", ReleaseCheckTests.OTHER, false);
+    github.addRelease("v9.0.0", ReleaseCheckTests.OTHER, false);
+    github.addRelease("sample-app-v1.2.2", ReleaseCheckTests.OTHER, false);
+    const released = ReleaseCheckTests.passing();
+    released.addRelease("sample-app-v1.3.0", ReleaseCheckTests.OTHER, false);
+
+    const result = await ReleaseCheckTests.runAsync(app.path, github, ReleaseCheckTests.SEPARATE);
+    const older = await ReleaseCheckTests.runAsync(app.path, released, ReleaseCheckTests.SEPARATE);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.areEqual(`sample-app-v1.2.3 of example/downloads from ${ReleaseCheckTests.REVISION}: the version is new, the revision is on main `
+      + "and its Build and test run there passed. Signed platforms: none.\n", result.output);
+    Assert.areEqual("1.2.3 is not newer than the highest release, 1.3.0.\n", older.output);
+    const asked = github.requests.map(t => (t.split(" ").find(u => u.startsWith("repos/")) ?? String.empty).split(/[/?]/u).slice(1, 4).join("/"));
+    Assert.areEqual("example/downloads/releases,example/downloads/git,example/sample-app/compare,example/sample-app/actions", [...new Set(asked)].join());
+  }
+
+  @TestMethod
+  public async refusesAnotherRepositoryForAProductWithoutAFeedOrWhereItsTagExistsAsync(): Promise<void> {
+    await using unnamed = await InstalledAppFixture.createAsync();
+    await using named = await InstalledAppFixture.createAsync({ updateFeed: ReleaseCheckTests.OWN_FEED });
+    const tagged = ReleaseCheckTests.passing();
+    tagged.tags.set("sample-app-v1.2.3", ReleaseCheckTests.REVISION);
+
+    const feedless = await ReleaseCheckTests.runAsync(unnamed.path, ReleaseCheckTests.passing(), ReleaseCheckTests.SEPARATE);
+    const taken = await ReleaseCheckTests.runAsync(named.path, tagged, ReleaseCheckTests.SEPARATE);
+
+    Assert.areEqual("The release publishes in example/downloads, not in its source repository example/sample-app, so product.json must name its updateFeed: "
+      + "the latest release of example/downloads may be another app's.\n", feedless.output);
+    Assert.areEqual("The tag sample-app-v1.2.3 already exists in example/downloads, which isn't the source repository, so it can't be this release's own; this release needs a new version.\n",
+      taken.output);
+    Assert.areEqual("1,1", [feedless.exitCode, taken.exitCode].join());
   }
 
   @TestMethod

@@ -9,25 +9,27 @@
 import type { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
-import type { ReleaseVersion } from "../../models/release/release-version.ts";
+import type { ReleaseRequest } from "../../models/release/release-request.ts";
 import { Resources } from "../../resources.ts";
 
 export class ReleaseNotes {
-  public static compose(product: ProductIdentity, targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[], repository: string,
-    version: ReleaseVersion, runUrl: string): string {
+  public static compose(product: ProductIdentity, targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[], request: ReleaseRequest,
+    runUrl: string): string {
     if (!URL.canParse(runUrl) || new URL(runUrl).protocol !== Resources.secureProtocol)
       throw new BuildException(Resources.formatReleaseRunInvalid(runUrl));
     const name = product.name;
     const ciOnly = targets.filter(t => !supported.some(u => u.id === t.id));
     const paragraphs = [
-      Resources.formatReleaseSummary(name, version.text, ReleaseNotes.formatTargets(targets), ReleaseNotes.describeSigning(signed)),
+      Resources.formatReleaseSummary(name, request.version.text, ReleaseNotes.formatTargets(targets), ReleaseNotes.describeSigning(signed)),
       supported.length === 0
         ? Resources.releaseNoneSupported
         : Resources.formatReleaseSupported(ReleaseNotes.formatTargets(supported), ciOnly.length === 0 ? null : ReleaseNotes.formatTargets(ciOnly)),
       Resources.formatReleaseRunCheck(runUrl)
     ];
-    if (!product.isReleaseRepository(repository))
-      paragraphs.unshift(Resources.formatUnsignedTestRelease(name, repository));
+    if (request.isSeparate)
+      paragraphs.push(Resources.formatReleaseSource(request.sourceRepository, request.revision));
+    if (!product.isReleaseRepository(request.repository))
+      paragraphs.unshift(Resources.formatUnsignedTestRelease(name, request.repository));
     return paragraphs.join(Resources.paragraphSeparator);
   }
 
