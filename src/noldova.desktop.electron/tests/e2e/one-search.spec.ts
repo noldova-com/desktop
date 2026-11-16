@@ -119,8 +119,14 @@ test.describe("search", () => {
 
     test("keeps a narrow field unshifted in its group when the row has no room to centre it", async ({ mainProcess }) => {
       const window = mainProcess.window;
-      await layOutAsync(mainProcess, 900);
       await expect(searchField(window)).toBeVisible();
+      const narrow = await window.locator("nol-window-row .nol-window-row-middle").evaluate(t => {
+        const style = getComputedStyle(t);
+        const room = t.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        const field = 27.5 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+        return Math.round(innerWidth - room + field / 2);
+      });
+      await layOutAsync(mainProcess, narrow);
       const shown = await searchField(window).evaluate(t => {
         const middle = t.closest(".nol-window-row-middle");
         if (middle === null)
