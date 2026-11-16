@@ -114,6 +114,7 @@ describe("TabContentComponent", () => {
     showView: () => undefined,
     hideViewDock: () => undefined,
     growViewDock: () => () => undefined,
+    viewDockOf: () => signal(null),
     onViewClosed: () => () => undefined,
     showInDialogAsync: () => Promise.resolve(),
     openBelowWindowRow: () => null,

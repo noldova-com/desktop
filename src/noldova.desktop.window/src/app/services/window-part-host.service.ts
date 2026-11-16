@@ -370,6 +370,10 @@ export class WindowPartHostService implements IWindowPartHost {
     return this.growth.grow(new ViewTab(name, instance ?? undefined), minimum);
   }
 
+  public viewDockOf(name: string, instance: string | null): Signal<DockSide | null> {
+    return this.instances.dockOf(new ViewTab(name, instance ?? undefined));
+  }
+
   public onViewClosed(name: string, listener: (instance: string) => void): () => void {
     return this.instances.onClosed(name, listener);
   }

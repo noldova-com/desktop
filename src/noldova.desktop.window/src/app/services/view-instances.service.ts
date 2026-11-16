@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ErrorHandler, Injectable, effect, inject } from "@angular/core";
+import { ErrorHandler, Injectable, type Signal, computed, effect, inject } from "@angular/core";
 
 import "@noldova/context.core";
 
@@ -99,6 +99,10 @@ export class ViewInstancesService {
     const side = this.sideOf(tab);
     if (!Object.isNull(side))
       this.layout.hideDock(side);
+  }
+
+  public dockOf(tab: ViewTab): Signal<DockSide | null> {
+    return computed(() => this.sideOf(tab));
   }
 
   public onClosed(name: string, listener: (instance: string) => void): () => void {

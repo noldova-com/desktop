@@ -40,6 +40,7 @@ import { SettingsPageContribution } from "../../../src/app/models/settings-page-
 import { DocumentHeading } from "../../../src/app/models/document-heading";
 import { DocumentTab } from "../../../src/app/models/layout/document-tab";
 import { Layout } from "../../../src/app/models/layout/layout";
+import { SideDropTarget } from "../../../src/app/models/layout/side-drop-target";
 import { TabDropTarget } from "../../../src/app/models/layout/tab-drop-target";
 import { TabLabel } from "../../../src/app/models/layout/tab-label";
 import { ViewRegistry } from "../../../src/app/models/layout/view-registry";
@@ -897,6 +898,30 @@ describe("WindowPartHostService", () => {
 
     expect([shown, hidden, again]).toEqual([[panel, true], false, true]);
     expect([layout.layout().dock(DockSide.Bottom).isExpanded, layout.layout().isOpen(panel), layout.layout().isOpen(shell), errors]).toEqual([false, true, true, []]);
+  });
+
+  it("reads the dock that holds a part's view tab, with its instance or without, as the person moves it", async () => {
+    const panel = new ViewTab("terminal.panel");
+    const shell = new ViewTab("terminal.shell", "1");
+    const terminal = new WindowPartFixture("terminal", log, t => {
+      t.registerView(new ViewContribution("terminal.panel", "Terminal", "terminal", DockSide.Bottom, false, load));
+      t.registerView(new ViewContribution("terminal.shell", "Terminal", "terminal", DockSide.Bottom, false, load, undefined, { hasInstances: true }));
+      t.showView("terminal.panel");
+    });
+    const { host, layout } = start([source("terminal", terminal, [], ["terminal.panel", "terminal.shell"])], [status("terminal")]);
+    layout.setMetrics(LayoutMetricsFixture.standard);
+    layout.setViewport(120, 60);
+    await vi.waitFor(() => expect(layout.layout().isOpen(panel)).toBe(true));
+    const panelDock = host.viewDockOf("terminal.panel", null);
+    const shellDock = host.viewDockOf("terminal.shell", "1");
+    const before = [panelDock(), shellDock()];
+
+    host.openView("terminal", "terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    const opened = shellDock();
+    layout.place(panel, new SideDropTarget(DockSide.Right));
+    layout.place(shell, new TabDropTarget(layout.layout().documents.id, 0));
+
+    expect([before, opened, panelDock(), shellDock(), errors]).toEqual([[DockSide.Bottom, null], DockSide.Bottom, DockSide.Right, null, []]);
   });
 
   it("asks the dock growth for a part's view tab, with its instance or without, until the part releases it", () => {

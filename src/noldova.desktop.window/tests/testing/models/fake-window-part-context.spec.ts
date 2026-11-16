@@ -64,6 +64,7 @@ const MEMBERS: Readonly<Record<keyof IWindowPartContext, FakeMember<IWindowPartC
   showView: ["told", t => t.showView("terminal.session")],
   hideViewDock: ["told", t => t.hideViewDock("terminal.session")],
   growViewDock: ["tracked", t => t.growViewDock("terminal.session", 10)],
+  viewDockOf: ["answered", t => t.viewDockOf("terminal.session", "1")],
   onViewClosed: ["listened", t => t.onViewClosed("terminal.session", () => undefined)],
   showInDialogAsync: ["answered", t => t.showInDialogAsync("notes.list")],
   log: ["told", t => t.log("Saved.")],
