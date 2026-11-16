@@ -82,6 +82,8 @@ export class Resources {
   public static readonly clearSelection: "clearSelection" = "clearSelection";
   public static readonly foundInPageEvent: "found-in-page" = "found-in-page";
   public static readonly zoomChangedEvent: "zoom-changed" = "zoom-changed";
+  public static readonly pageFaviconUpdatedEvent: "page-favicon-updated" = "page-favicon-updated";
+  public static readonly imageField: string = "image";
   public static readonly factorField: string = "factor";
   public static readonly matchesField: string = "matches";
   public static readonly activeField: string = "active";

@@ -36,6 +36,7 @@ import type { WebViewHistory } from "../models/web-view-history.js";
 import { Resources } from "../resources.js";
 import { OpenWebViewResources } from "./open-web-view.resources.js";
 import { WebViewEventCut } from "./web-view-event-cut.js";
+import { WebViewFavicon } from "./web-view-favicon.js";
 import { WebViewKeyInput } from "./web-view-key-input.js";
 import type { WebViewOriginCheck } from "./web-view-origin-check.js";
 
@@ -57,6 +58,7 @@ export class OpenWebView {
   private readonly relayKeys: IKeyStroke[] = [];
   private readonly finds: Map<number, (found: JsonObject | null) => void> = new Map();
   private readonly navigations: ((answer: JsonObject | null) => void)[] = [];
+  private readonly favicon: WebViewFavicon;
   private windowRequests: readonly number[] = [];
   private lastInput: number | undefined;
   private relayedInputs: number = 0;
@@ -118,6 +120,7 @@ export class OpenWebView {
     this.pendingUrl = undefined;
     this.committedUrl = undefined;
     this.search = undefined;
+    this.favicon = new WebViewFavicon(session, check, () => this.allowed, waitAsync, t => this.emit(WebViewEventKind.Favicon, { [Resources.imageField]: t }));
   }
 
   public get contents(): IWebViewContents | null {
@@ -299,6 +302,10 @@ export class OpenWebView {
     return allows;
   }
 
+  public allowsIconRequest(url: string): boolean {
+    return this.favicon.allowsRequest(url);
+  }
+
   public noteRedirect(redirect: IWebViewRedirect): void {
     this.redirects.add(redirect.id);
     const ip = redirect.ip ?? String.empty;
@@ -424,6 +431,15 @@ export class OpenWebView {
       this.noteCommitted(guest);
       this.endFind();
       this.restoreZoom();
+      this.favicon.noteNavigation();
+    });
+    guest.on(Resources.didStopLoadingEvent, () => {
+      if (this.isBound(guest))
+        this.favicon.noteStop();
+    });
+    guest.on(Resources.pageFaviconUpdatedEvent, (_event, favicons) => {
+      if (this.isBound(guest))
+        void this.favicon.updateAsync(guest, favicons);
     });
     guest.on(Resources.didNavigateInPageEvent, () => {
       if (this.isBound(guest))

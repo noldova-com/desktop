@@ -3501,6 +3501,15 @@ export interface IWebViewContents {
    * @returns Electron's own return value, which the main process does not use.
    */
   on(event: "zoom-changed", listener: (event: unknown, direction: string) => void): unknown;
+
+  /**
+   * Listens for the page naming its icons, after a navigation or when it changes them.
+   *
+   * @param event The event's name.
+   * @param listener Receives Electron's event and the icons' addresses, in the page's order.
+   * @returns Electron's own return value, which the main process does not use.
+   */
+  on(event: "page-favicon-updated", listener: (event: unknown, favicons: string[]) => void): unknown;
 }
 
 /**
@@ -3665,6 +3674,23 @@ export interface IWebViewSession {
    * ```
    */
   resolveHostAsync(host: string): Promise<readonly string[]>;
+
+  /**
+   * Fetches a page's icon in the session, with its cookies and cache, without following a redirect; the session's own request checks still judge the request.
+   *
+   * @param url The icon's address.
+   * @param byteLimit The most bytes it reads.
+   * @returns The icon's bytes, or null when the answer isn't a success or holds more than `byteLimit` bytes; it rejects when the request fails.
+   * @example
+   * ```ts
+   * import type { IWebViewSession } from "@noldova/desktop.electron";
+   *
+   * export function readIconAsync(session: IWebViewSession): Promise<Uint8Array | null> {
+   *   return session.readIconAsync("https://example.com/favicon.ico", 1_048_576);
+   * }
+   * ```
+   */
+  readIconAsync(url: string, byteLimit: number): Promise<Uint8Array | null>;
 
   /**
    * Clears the session's cookies, storage and cache.

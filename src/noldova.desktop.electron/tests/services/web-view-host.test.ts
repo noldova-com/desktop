@@ -33,6 +33,7 @@ export class WebViewHostTests {
   private static readonly PARTITION: string = "persist:browser.workspace-1";
   private static readonly PANE: JsonObject = { name: "browser.pane" };
   private static readonly ALLOWED: readonly string[] = ["https://example.com", "https://*.example.org"];
+  private static readonly PNG: string = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
   private static readonly DECLARATION: WebViewDeclaration = WebViewDeclaration.fromJson({
     methods: [
       { name: "Page.captureScreenshot", parameters: { format: { values: ["png"] } } },
@@ -569,6 +570,32 @@ export class WebViewHostTests {
     Assert.areEqual("true,true,true,false,false,false,false,false,false,true", passes.join(","));
     Assert.areEqual(JSON.stringify([{ module: "browser", view: "1", kind: "NavigationRefused", details: { address: "https://example.net/", origin: "https://example.net", isRedirect: false } }]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "NavigationRefused")));
+  }
+
+  @TestMethod
+  public async fetchesAPagesIconThroughItsProfileLettingOnlyThatRequestPassWhileItRunsAndReportsItAndAnIconlessPageToTheWindowAlone(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    const contents = WebViewHostTests.view(electron, 0).contents;
+    const session = electron.webViews.session(WebViewHostTests.PARTITION);
+    await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", [...WebViewHostTests.ALLOWED]);
+    session.addresses.set("example.com", ["93.184.215.14"]);
+    session.icons.set("https://example.com/favicon.ico", new Uint8Array([1, 2, 3]));
+    contents.onIsolated = () => Promise.resolve(WebViewHostTests.PNG);
+    const icons = (): readonly unknown[] => WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Favicon").map(t => WebViewHostTests.details(t)["image"]);
+
+    const before = session.request({ id: 1, url: "https://example.com/favicon.ico", resourceType: "other" });
+    contents.emit("page-favicon-updated", {}, ["https://example.com/favicon.ico"]);
+    await Condition.waitAsync(() => icons().length === 1);
+    const after = session.request({ id: 2, url: "https://example.com/favicon.ico", resourceType: "other" });
+    contents.emit("did-navigate");
+    contents.emit("did-stop-loading");
+
+    Assert.areEqual("false,false", [before, after].join(","));
+    Assert.areEqual("https://example.com/favicon.ico allowed", session.iconReads.join(","));
+    Assert.areEqual(JSON.stringify([`data:image/png;base64,${WebViewHostTests.PNG}`, null]), JSON.stringify(icons()));
+    Assert.isFalse(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Favicon"));
   }
 
   @TestMethod

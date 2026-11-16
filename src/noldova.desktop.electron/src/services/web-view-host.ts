@@ -25,6 +25,7 @@ import {
 } from "@noldova/desktop.protocol";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewEngine } from "../interfaces/i-web-view-engine.js";
+import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
 import { Resources } from "../resources.js";
 import { OpenWebView } from "./open-web-view.js";
@@ -33,7 +34,7 @@ import { WebViewOriginCheck } from "./web-view-origin-check.js";
 
 export class WebViewHost {
   private static readonly MOVES: readonly WebViewAction[] = [WebViewAction.Back, WebViewAction.Forward, WebViewAction.Reload, WebViewAction.Stop];
-  private static readonly WINDOW_EVENTS: readonly WebViewEventKind[] = [WebViewEventKind.Key, WebViewEventKind.Zoom, WebViewEventKind.Found];
+  private static readonly WINDOW_EVENTS: readonly WebViewEventKind[] = [WebViewEventKind.Key, WebViewEventKind.Zoom, WebViewEventKind.Found, WebViewEventKind.Favicon];
 
   private readonly engine: IWebViewEngine;
   private readonly check: WebViewOriginCheck;
@@ -275,7 +276,7 @@ export class WebViewHost {
       const open = this.findByContents(request.webContentsId);
       if (Object.isNull(open) && Object.isNumber(request.webContentsId) && !this.closedContents.has(request.webContentsId) && request.resourceType === Resources.mainFrameResource)
         this.log(Resources.formatWebViewPageWithoutView(request.webContentsId, request.url));
-      callback({ cancel: !(open?.allowsRequest(request) ?? false) });
+      callback({ cancel: !(open?.allowsRequest(request) ?? this.allowsIconRequest(partition, request)) });
     });
     session.onBeforeSendHeaders((request, callback) => callback({ cancel: request.requestHeaders?.[Resources.serviceWorkerHeader] === Resources.serviceWorkerScript }));
     session.onBeforeRedirect(redirect => this.findByContents(redirect.webContentsId)?.noteRedirect(redirect));
@@ -295,6 +296,10 @@ export class WebViewHost {
   private find(windowId: number, module: unknown, view: unknown): OpenWebView | null {
     const open = Object.isString(view) ? this.views.get(view) : undefined;
     return !Object.isUndefined(open) && open.windowId === windowId && open.info.module === module ? open : null;
+  }
+
+  private allowsIconRequest(partition: string, request: IWebViewRequest): boolean {
+    return Object.isUndefined(request.webContentsId) && [...this.views.values()].some(t => t.partition === partition && t.allowsIconRequest(request.url));
   }
 
   private findByContents(contentsId: number | null | undefined): OpenWebView | null {

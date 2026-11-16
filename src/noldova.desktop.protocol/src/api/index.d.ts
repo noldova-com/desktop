@@ -559,7 +559,12 @@ export declare enum WebViewEventKind {
   /**
    * A search in the view's page finished; its details are the number of `matches` and the 1-based `active` one, 0 when none. Only the window part gets it.
    */
-  Found = "Found"
+  Found = "Found",
+
+  /**
+   * The page's icon changed; its details are the `image`, a `data:image/png` URL of at most 64 by 64 pixels and 16 KB, or null when the page has none or it can't be read. Only the window part gets it.
+   */
+  Favicon = "Favicon"
 }
 
 /**
