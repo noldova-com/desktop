@@ -32,13 +32,16 @@ describe("failed module request setup", () => {
     expect(printed[0]).toMatch(/^Failed module request at \d{4}-\d\d-\d\dT[\d:.]+Z: net::ERR_[A-Z_]+ http:/u);
   });
 
-  it("prints a module the test server answers with an error status once, with when, its status, its type and its URL", async () => {
+  it("prints a module the test server answers with an error status once, with when, its status, its type and its URL, and not the cancel the browser reports before a later failure", async () => {
     const url = new URL(`/tests/missing-module-${crypto.randomUUID()}.js`, location.origin).href;
+    const later = refusedAt("later");
 
     expect(await failedLoadAsync(url)).toBe("error");
+    expect(await failedLoadAsync(later)).toBe("error");
+    await expect.poll(() => printedFor(later)).toHaveLength(1);
 
-    await expect.poll(() => printedFor(url)).toHaveLength(1);
     const printed = await printedFor(url);
+    expect(printed).toHaveLength(1);
     expect(printed[0]).toMatch(/^Failed module response at \d{4}-\d\d-\d\dT[\d:.]+Z: [45]\d\d /u);
   });
 

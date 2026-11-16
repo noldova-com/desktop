@@ -39,14 +39,27 @@ class FakePage implements IBrowserPage {
     this.emit("response", FakePage.event(url, resourceType, null, status, headers));
   }
 
+  public answerThenCancel(status: number, headers: Record<string, string>): void {
+    const event = FakePage.event(ADDRESS, "script", "net::ERR_ABORTED", status, headers);
+    this.emit("response", event);
+    this.emit("requestfailed", event);
+  }
+
   private emit(name: string, value: BrowserEvent): void {
     for (const listener of this.listeners.get(name) ?? [])
       listener(value);
   }
 
   private static event(url: string, resourceType: string, errorText: string | null, status: number, headers: Record<string, string>): BrowserEvent {
-    const request: IBrowserRequest = { url: () => url, resourceType: () => resourceType, failure: () => Object.isNull(errorText) ? null : { errorText } };
-    return { ...request, status: () => status, headers: () => headers, request: () => request };
+    const event: BrowserEvent = {
+      url: () => url,
+      resourceType: () => resourceType,
+      failure: () => Object.isNull(errorText) ? null : { errorText },
+      status: () => status,
+      headers: () => headers,
+      request: () => event
+    };
+    return event;
   }
 }
 
@@ -90,6 +103,15 @@ describe("FailedModuleRequests", () => {
     page.answer("script", 504, {});
 
     assert.deepEqual(logged, [`Failed module response at ${AT}: 404 text/plain ${ADDRESS}`, `Failed module response at ${AT}: 504 no content type ${ADDRESS}`]);
+  });
+
+  it("prints a module answered with an error status once, though the browser then cancels its request, and still prints a cancel after a response it didn't print", () => {
+    const { page, logged } = watch();
+
+    page.answerThenCancel(404, {});
+    page.answerThenCancel(200, { "content-type": "text/javascript" });
+
+    assert.deepEqual(logged, [`Failed module response at ${AT}: 404 no content type ${ADDRESS}`, `Failed module request at ${AT}: net::ERR_ABORTED ${ADDRESS}`]);
   });
 
   it("prints a module answered with a success whose type the browser won't run as JavaScript", () => {

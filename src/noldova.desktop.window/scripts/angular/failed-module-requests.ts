@@ -28,6 +28,7 @@ export class FailedModuleRequests {
 
   private readonly pages: WeakSet<IBrowserPage> = new WeakSet();
   private readonly lines: string[] = [];
+  private readonly printedResponses: WeakSet<IBrowserRequest> = new WeakSet();
 
   public readonly watch: (context: IBrowserCommandContext) => readonly string[] = context => this.watchPage(context.page, context.project.vitest);
 
@@ -41,7 +42,7 @@ export class FailedModuleRequests {
   }
 
   private recordRequest(request: IBrowserRequest, run: IVitestRun): void {
-    if (request.resourceType() !== FailedModuleRequests.MODULE)
+    if (request.resourceType() !== FailedModuleRequests.MODULE || this.printedResponses.has(request))
       return;
     const failure = request.failure();
     const error = Object.isNull(failure) ? FailedModuleRequests.NO_ERROR : failure.errorText;
@@ -54,8 +55,10 @@ export class FailedModuleRequests {
     const status = response.status();
     const type = response.headers()[FailedModuleRequests.CONTENT_TYPE] ?? FailedModuleRequests.NO_TYPE;
     const isJavaScript = FailedModuleRequests.JAVASCRIPT.has(type.replace(FailedModuleRequests.PARAMETERS, String.empty).trim().toLowerCase());
-    if (status >= FailedModuleRequests.FIRST_ERROR_STATUS || (status < FailedModuleRequests.FIRST_REDIRECT_STATUS && !isJavaScript))
-      this.print(`Failed module response at ${new Date().toISOString()}: ${status} ${type} ${response.url()}`, run);
+    if (status < FailedModuleRequests.FIRST_ERROR_STATUS && (status >= FailedModuleRequests.FIRST_REDIRECT_STATUS || isJavaScript))
+      return;
+    this.printedResponses.add(response.request());
+    this.print(`Failed module response at ${new Date().toISOString()}: ${status} ${type} ${response.url()}`, run);
   }
 
   private print(line: string, run: IVitestRun): void {
