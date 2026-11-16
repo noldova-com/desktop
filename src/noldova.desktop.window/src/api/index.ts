@@ -18,6 +18,7 @@ export { StatusBarItemTone } from "../app/enums/status-bar-item-tone.js";
 export { StatusBarSide } from "../app/enums/status-bar-side.js";
 export { TopBarSide } from "../app/enums/top-bar-side.js";
 export { FileNotOpenedException } from "../app/exceptions/file-not-opened.exception.js";
+export { FileNotShownException } from "../app/exceptions/file-not-shown.exception.js";
 export { RuntimeRequestException } from "../app/exceptions/runtime-request.exception.js";
 export { WindowException } from "../app/exceptions/window.exception.js";
 export type { ICommandKey } from "../app/interfaces/i-command-key.js";

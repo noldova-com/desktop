@@ -214,6 +214,41 @@ export declare class FileNotOpenedException extends WindowException {
 }
 
 /**
+ * The exception {@link IWindowPartContext.showInFolderAsync} rejects with when
+ * the window refuses to show a file in its folder, such as a path no file can
+ * be read at, or a network or device path, so a part tells that refusal apart
+ * from other failures.
+ */
+export declare class FileNotShownException extends WindowException {
+  /**
+   * The exception's name, `FileNotShownException`.
+   */
+  public override readonly name: string;
+
+  /**
+   * Why the file wasn't shown, as the main process gave it, such as that no
+   * file can be read at the path.
+   */
+  public readonly reason: string;
+
+  /**
+   * Creates the exception, for the window to throw.
+   *
+   * @param productName The app's name, which the message starts with.
+   * @param reason Why the file wasn't shown.
+   * @example
+   * ```ts
+   * import { FileNotShownException } from "@noldova/desktop.window";
+   *
+   * export function readRefusal(error: unknown): string | null {
+   *   return error instanceof FileNotShownException ? error.reason : null;
+   * }
+   * ```
+   */
+  public constructor(productName: string, reason: string);
+}
+
+/**
  * The exception {@link IWindowPartContext.requestAsync} rejects with when the
  * runtime refuses or fails the request, so a part reads the failure's code and
  * the details its module's runtime part gave, such as which note was missing.
@@ -2738,9 +2773,9 @@ export interface IWindowPartContext {
    *
    * @param path The file's or folder's absolute path.
    * @returns A promise that settles once the request is handed to the system's
-   * file manager; it rejects, with the reason, when the path is refused.
-   * After the part is withdrawn, it settles at once without checking the path
-   * and shows nothing.
+   * file manager; it rejects with a {@link FileNotShownException}, whose
+   * `reason` says why, when the path is refused. After the part is withdrawn,
+   * it settles at once without checking the path and shows nothing.
    * @example
    * ```ts
    * import type { IWindowPartContext } from "@noldova/desktop.window";
