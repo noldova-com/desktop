@@ -510,7 +510,10 @@ describe("WindowRowComponent", () => {
     await settle(fixture);
     const dialog = TestBed.inject(DialogService).open(OpenDialogComponent, ".inside");
     const backdrop = DomFixture.one(document, ".nol-dialog-backdrop");
+    await vi.waitFor(() => expect(backdrop.classList.contains("cdk-overlay-backdrop-showing")).toBe(true), { timeout: 10_000 });
+    await fadeAsync(backdrop);
     await settle(fixture);
+    const shown = [backdrop.classList.contains("cdk-overlay-backdrop-showing"), backdrop.getAnimations().length];
     const before = bridge.changes.length;
     const other = document.createElement("div");
     document.body.append(other);
@@ -525,8 +528,9 @@ describe("WindowRowComponent", () => {
     other.remove();
     dialog.close();
 
+    expect(shown).toEqual([true, 0]);
     expect([unrelated, bridge.changes.length]).toEqual([before, before + 1]);
-  });
+  }, 20_000);
 
   it("leaves the system's window controls their own colors under a dialog without a backdrop", async () => {
     const bridge = PreloadBridgeFixture.install("win32");
