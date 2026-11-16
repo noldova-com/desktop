@@ -75,8 +75,8 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
     return () => this.listeners.delete(entry);
   }
 
-  public openDocument(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null): void {
-    this.calls.push(`open ${moduleId} ${name} ${instance} ${heading.text}${Object.isNull(heading.icon) ? String.empty : ` ${heading.icon}`}${isPreview ? " as a preview" : String.empty}${Object.isNull(after) ? String.empty : ` after ${after}`}`);
+  public openDocument(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null, activate: boolean): void {
+    this.calls.push(`open ${moduleId} ${name} ${instance} ${heading.text}${Object.isNull(heading.icon) ? String.empty : ` ${heading.icon}`}${isPreview ? " as a preview" : String.empty}${Object.isNull(after) ? String.empty : ` after ${after}`}${activate ? String.empty : " inactive"}`);
   }
 
   public keepDocument(moduleId: string, name: string, instance: string): void {

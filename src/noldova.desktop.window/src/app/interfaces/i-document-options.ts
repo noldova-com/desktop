@@ -19,4 +19,5 @@ export interface IDocumentOptions {
   readonly marker?: IDocumentMarker;
   readonly underline?: string;
   readonly after?: string;
+  readonly activate?: boolean;
 }

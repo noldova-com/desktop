@@ -38,7 +38,7 @@ export interface IWindowPartHost {
 
   onEvent(name: string, listener: (payload: JsonValue) => void): () => void;
 
-  openDocument(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null): void;
+  openDocument(moduleId: string, name: string, instance: string, heading: DocumentHeading, isPreview: boolean, after: string | null, activate: boolean): void;
 
   keepDocument(moduleId: string, name: string, instance: string): void;
 

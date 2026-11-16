@@ -408,6 +408,14 @@ describe("WindowPartContext", () => {
     expect(host.calls).toEqual(["open notes notes.note 2 Note 2 after 1", "open notes notes.note 3 Note 3 as a preview after 2", "open notes notes.note 4 Note 4"]);
   });
 
+  it("asks the host to activate a document unless its options say not to", () => {
+    context.openDocument("notes.note", "1", "Note 1", { activate: false });
+    context.openDocument("notes.note", "2", "Note 2", { activate: true, preview: true });
+    context.openDocument("notes.note", "3", "Note 3", { activate: false, after: "1" });
+
+    expect(host.calls).toEqual(["open notes notes.note 1 Note 1 inactive", "open notes notes.note 2 Note 2 as a preview", "open notes notes.note 3 Note 3 after 1 inactive"]);
+  });
+
   it("gives the host no look once withdrawn", () => {
     context.withdraw();
     context.openDocument("notes.note", "1", "Note 1", { underline: "Shared" });

@@ -307,6 +307,18 @@ export interface IDocumentOptions {
    * is only activated where it is.
    */
   readonly after?: string;
+
+  /**
+   * Whether the document becomes its group's active tab, as when the person
+   * chooses it; true when left out. When false, the document joins its group's
+   * tabs without becoming active, the group stays as it was, and the focus
+   * stays where it is, such as a page an agent opens beside the one the person
+   * reads; an open document stays where it is, behind the active tab. A preview
+   * replaces the group's preview only when that preview isn't the active tab,
+   * which otherwise stays open as an ordinary tab. A document opened into an
+   * empty group still becomes that group's active tab.
+   */
+  readonly activate?: boolean;
 }
 
 /**
@@ -2078,15 +2090,16 @@ export interface IWindowPartContext {
   /**
    * Opens one of the module's documents at the end of the active document
    * group, or right after another of its open instances when
-   * {@link IDocumentOptions.after} names one, or activates it where it is. While the part first activates with a saved
+   * {@link IDocumentOptions.after} names one, or activates it where it is,
+   * unless {@link IDocumentOptions.activate} is false. While the part first activates with a saved
    * layout, the document shows only when the layout holds it. An open document
    * keeps its look, changing only what the options give.
    *
    * @param name The document's name.
    * @param instance Which of the document's instances, such as a note's id.
    * @param title The tab's title.
-   * @param options Whether it opens as a preview, its breadcrumb, its look
-   * and the document it opens after; an ordinary tab with no breadcrumb, at
+   * @param options Whether it opens as a preview, its breadcrumb, its look,
+   * the document it opens after and whether it becomes active; an ordinary, active tab with no breadcrumb, at
    * the end of the active group, when left out.
    * @throws Error synchronously when the document belongs to another module,
    * or the title or a breadcrumb segment is blank.

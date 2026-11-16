@@ -811,6 +811,23 @@ describe("WindowPartHostService", () => {
     expect(layout.layout().documents.tabs).toEqual([note("1"), note("4"), note("3"), note("2")]);
   });
 
+  it("opens a document without activating it when asked, whether asked for during activation or later", async () => {
+    const note = (instance: string): DocumentTab => new DocumentTab("notes.note", instance);
+    const part = new WindowPartFixture("notes", log, t => {
+      t.registerDocument(new DocumentContribution("notes.note", load));
+      t.openDocument("notes.note", "1", "Note 1");
+      t.openDocument("notes.note", "2", "Note 2", { activate: false });
+    });
+    const { host, layout } = start([source("notes", part)], [status("notes")]);
+    await vi.waitFor(() => expect(layout.layout().documents.tabs).toHaveLength(2));
+    const started = [layout.layout().documents.tabs, layout.layout().documents.active];
+
+    host.openDocument("notes", "notes.note", "3", new DocumentHeading("Note 3"), false, "1", false);
+
+    expect(started).toEqual([[note("1"), note("2")], note("1")]);
+    expect([layout.layout().documents.tabs, layout.layout().documents.active]).toEqual([[note("1"), note("3"), note("2")], note("1")]);
+  });
+
   it("changes the heading of a document opened during activation once it opens, and of an open one at once", async () => {
     const note = new DocumentTab("notes.note", "1");
     const part = new WindowPartFixture("notes", log, t => {
