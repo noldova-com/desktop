@@ -511,6 +511,7 @@ describe("WindowRowComponent", () => {
     const dialog = TestBed.inject(DialogService).open(OpenDialogComponent, ".inside");
     const backdrop = DomFixture.one(document, ".nol-dialog-backdrop");
     await settle(fixture);
+    const shown = [backdrop.classList.contains("cdk-overlay-backdrop-showing"), backdrop.getAnimations().length];
     const before = bridge.changes.length;
     const other = document.createElement("div");
     document.body.append(other);
@@ -525,6 +526,7 @@ describe("WindowRowComponent", () => {
     other.remove();
     dialog.close();
 
+    expect(shown).toEqual([true, 0]);
     expect([unrelated, bridge.changes.length]).toEqual([before, before + 1]);
   });
 
