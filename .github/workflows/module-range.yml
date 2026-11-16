@@ -215,11 +215,12 @@ jobs:
           done
 
       - name: Build
+        id: build
         run: ${{ inputs.build }}
 
       - name: Read the @noldova versions the run tests
         id: tested
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
         run: |
           tested=$(node --print '
             const fs = require("node:fs");
