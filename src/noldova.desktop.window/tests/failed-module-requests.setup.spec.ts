@@ -45,16 +45,18 @@ describe("failed module request setup", () => {
     expect(printed[0]).toMatch(/^Failed module response at \d{4}-\d\d-\d\dT[\d:.]+Z: [45]\d\d /u);
   });
 
-  it("prints a module the test server answers with a page rather than JavaScript once, with its status and its type", async () => {
+  it("prints a module the test server answers with a page rather than JavaScript once, with its status and its type, and not the cancel the browser reports before a later failure", async () => {
     const id = crypto.randomUUID();
     const page = new URL(location.href);
     page.searchParams.set("module", id);
-    const printedForPage = async (): Promise<readonly string[]> => (await commands.watchFailedModuleRequests()).filter(t => t.includes(`module=${id}`));
+    const later = refusedAt("later");
 
     expect(await failedLoadAsync(page.href)).toBe("error");
+    expect(await failedLoadAsync(later)).toBe("error");
+    await expect.poll(() => printedFor(later)).toHaveLength(1);
 
-    await expect.poll(printedForPage).toHaveLength(1);
-    const printed = await printedForPage();
+    const printed = (await commands.watchFailedModuleRequests()).filter(t => t.includes(`module=${id}`));
+    expect(printed).toHaveLength(1);
     expect(printed[0]).toMatch(/^Failed module response at \S+: 200 text\/html/u);
   });
 
