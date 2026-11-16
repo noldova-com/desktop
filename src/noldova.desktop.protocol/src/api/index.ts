@@ -98,6 +98,7 @@ export { UpdateReady } from "../models/update-ready.js";
 export { UpdateRequest } from "../models/update-request.js";
 export { UpdateSaved } from "../models/update-saved.js";
 export { WebViewAnswered } from "../models/web-view-answered.js";
+export { WebViewBlockedPorts } from "../models/web-view-blocked-ports.js";
 export { WebViewCommand } from "../models/web-view-command.js";
 export { WebViewDeclaration } from "../models/web-view-declaration.js";
 export { WebViewEvent } from "../models/web-view-event.js";

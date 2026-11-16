@@ -128,6 +128,8 @@ export class Resources {
   public static readonly mutedModulesField: string = "mutedModules";
   public static readonly idsField: string = "ids";
   public static readonly sequenceField: string = "sequence";
+  public static readonly serialField: string = "serial";
+  public static readonly portsField: string = "ports";
   public static readonly moduleField: string = "module";
   public static readonly programField: string = "program";
   public static readonly processIdField: string = "processId";
@@ -157,6 +159,8 @@ export class Resources {
   public static readonly notificationSequenceInvalid: string = "A notification's sequence must be a whole number from 1.";
   public static readonly currentSequenceInvalid: string = "The notifications' sequence must be a whole number from 0.";
   public static readonly workSequenceInvalid: string = "The work's sequence must be a whole number from 0.";
+  public static readonly blockedPortsSerialInvalid: string = "The blocked ports' serial must be a whole number from 0.";
+  public static readonly blockedPortsInvalid: string = "The blocked ports must be a list of distinct whole numbers from 1 to 65535.";
   public static readonly keptForInvalid: string = "The number of other clients a runtime is kept for must be a whole number from 1.";
   public static readonly commandSequenceInvalid: string = "The commands' sequence must be a whole number from 0.";
   public static readonly processIdInvalid: string = "A running program's process id must be a whole number from 1.";
@@ -347,6 +351,9 @@ export class Resources {
   public static readonly webViewCommandMember: string = "webViewCommand";
   public static readonly webViewAnsweredMember: string = "webViewAnswered";
   public static readonly webViewEventsMember: string = "webViewEvents";
+  public static readonly webViewBlockedPortsMember: string = "webViewBlockedPorts";
+  public static readonly webViewPortsBlockedMember: string = "webViewPortsBlocked";
+  public static readonly readWebViewBlockedPortsMember: string = "readWebViewBlockedPorts";
   public static readonly agentControlMember: string = "agentControl";
   public static readonly agentControlChangedMember: string = "agentControlChanged";
   public static readonly saveSecretMember: string = "saveSecret";

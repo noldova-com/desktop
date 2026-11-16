@@ -56,8 +56,10 @@ export class FakeRuntimeConnection implements IRuntimeConnection {
       return Promise.resolve(Response.success("r", { descriptions: [], sequence: 0 }));
     if ([ShellMethods.stop, ShellMethods.updateSaved, ShellMethods.quitAnswered, ShellMethods.windowClosed, ShellMethods.webViewAnswered, ShellMethods.webViewEvents, ShellMethods.runCommand,
       ShellMethods.secretAnswered, ShellMethods.grantFile, ShellMethods.endFileGrants, ShellMethods.discardFileGrants, ShellMethods.appWindowsChanged,
-      ShellMethods.appShortcutsChanged, ShellMethods.mainWindowChanged].some(t => t.text === method.text))
+      ShellMethods.appShortcutsChanged, ShellMethods.mainWindowChanged, ShellMethods.webViewPortsBlocked].some(t => t.text === method.text))
       return Promise.resolve(Response.success("r", null));
+    if (method.text === ShellMethods.readWebViewBlockedPorts.text)
+      return Promise.resolve(Response.success("r", { serial: 1, ports: [] }));
     if (method.text === ShellMethods.agentControl.text)
       return Promise.resolve(Response.success("r", { isStopped: false, isActing: false }));
     if (method.text === ShellMethods.notifications.text)

@@ -71,4 +71,9 @@ export class ShellEventsTests {
   public namesTheAgentControlEvent(): void {
     Assert.areEqual("desktop.agentControlChanged", ShellEvents.agentControlChanged.text);
   }
+
+  @TestMethod
+  public namesTheWebViewBlockedPortsEvent(): void {
+    Assert.areEqual("desktop.webViewBlockedPorts", ShellEvents.webViewBlockedPorts.text);
+  }
 }
