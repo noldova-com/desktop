@@ -4,6 +4,22 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.2
+
+- A window part reads which dock holds one of its view's tabs with `IWindowPartContext.viewDockOf(name, instance?)`, a signal of `DockSide.Bottom`, `DockSide.Left`, `DockSide.Right`, or `null` outside a dock or while the tab isn't open. It follows the tab as it moves, opens and closes, and a hidden dock keeps its side. The testing package's fake context answers it like `keyOf`.
+- `@noldova/desktop.window`'s peer on `@noldova/desktop.protocol` is a range up to the next minor, `>=0.0.2 <0.1.0` for this version, instead of the exact version, so an app may install any protocol of the same minor beside the window.
+- A tab's content stays in the page, hidden and inert, while another tab of its group shows, so a module's web view behind another tab keeps its page and the runtime part's calls on it reach it.
+- A tab moved to another group, a dock or a dialog binds its web view's page again, so the runtime part's calls on it answer as before the move, and the page keeps its form values and scroll position, since the new page restores the old one's history instead of loading its address.
+- `@noldova/desktop.electron` adds what that move uses: `WebViewHistory`, `IWebViewContents.readHistory`, `restoreHistoryAsync` and `executeJavaScriptInIsolatedWorld`, the optional `claim` and `attached` arguments of `IWebViewEngine.watchAttach`, and `IIpcEvent.returnValue`.
+  An app that implements `IWebViewContents` itself adds the three members.
+- A call a module sends through a web view's relay that focuses an element of the page, such as a press, `DOM.focus` or `Runtime.evaluate`, still reaches the page, and the person keeps their focus.
+  The host owns focus emulation, so the relay refuses `Emulation.setFocusEmulationEnabled` with a `WebViewFailureException` of kind `NotAllowed`, and the testing package's fake does the same.
+  A `WebViewFailure` of a kind other than `Protocol` may now carry the host's message naming the rule the call broke, never a code.
+- An open command search lists the commands that arrive or become enabled while it is open, such as at the end of the window's start, without the person typing again.
+- The runtime launcher's wait for the runtime's discovery file also wakes when the folder's entries change and its watch didn't report it, instead of waiting until its limit.
+- `@noldova/desktop.build`'s package smoke waits for the launcher's start log as an event on the file itself, not by polling or through a watch on its folder, which can miss a removal on macOS.
+- The packages are published through npm's trusted publishing, with provenance, so the release stores no token.
+
 ## 0.0.1
 
 - The first published version of Noldova Desktop's packages, `@noldova/desktop.protocol`, `@noldova/desktop.runtime`, `@noldova/desktop.electron`, `@noldova/desktop.window`, `@noldova/desktop.cli` and `@noldova/desktop.build`, which together host an app's modules in a runtime, a main process, a window and a command line, as [documents/ARCHITECTURE.md](documents/ARCHITECTURE.md) says.
