@@ -83,7 +83,7 @@ jobs:
           folder="$RUNNER_TEMP/ms-playwright"
           echo "PLAYWRIGHT_BROWSERS_PATH=$folder" >> "$GITHUB_ENV"
           echo "folder=$folder" >> "$GITHUB_OUTPUT"
-          echo "key=angular-test-browser-$RUNNER_OS-$RUNNER_ARCH-playwright-$version" >> "$GITHUB_OUTPUT"
+          echo "key=control-angular-test-browser-$RUNNER_OS-$RUNNER_ARCH-playwright-$version" >> "$GITHUB_OUTPUT"
 
       - name: Restore the browser for the Angular tests, kept by its Playwright version
         timeout-minutes: 5
