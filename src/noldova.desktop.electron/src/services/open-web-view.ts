@@ -28,6 +28,7 @@ import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
+import type { IWindowNavigation } from "../interfaces/i-window-navigation.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 import { CaughtFailure } from "../models/caught-failure.js";
 import type { WebViewHistory } from "../models/web-view-history.js";
@@ -385,6 +386,7 @@ export class OpenWebView {
         this.noteInput(input.type);
     });
     guest.on(Resources.willFrameNavigateEvent, (event, url, isMainFrame) => this.judgeFrame(guest, event, url, isMainFrame));
+    guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
     guest.on(Resources.willAttachWebviewEvent, event => this.prevent(guest, event, Resources.nestedViewRequest));
     guest.on(Resources.beforeInputEvent, (event, input) => {
       if (this.isBound(guest))
@@ -408,7 +410,7 @@ export class OpenWebView {
           this.reportState();
       });
     guest.on(Resources.didFailLoadEvent, (_event, code, description, url, isMainFrame) => {
-      if (this.isBound(guest) && isMainFrame && code !== Resources.webViewAbortedLoadCode)
+      if (this.isBound(guest) && isMainFrame && code !== Resources.webViewAbortedLoadCode && url !== Resources.sourceDocument)
         this.emit(WebViewEventKind.LoadFailed, { [Resources.addressField]: url, [Resources.codeField]: code, [Resources.descriptionField]: description });
     });
     guest.on(Resources.renderProcessGoneEvent, () => {
@@ -631,6 +633,11 @@ export class OpenWebView {
     event.preventDefault();
     if (isMainFrame)
       this.emitRefusedNavigation(url, false);
+  }
+
+  private noteStart(guest: IWebViewContents, navigation: IWindowNavigation): void {
+    if (this.isBound(guest) && navigation.isMainFrame && navigation.url === Resources.sourceDocument)
+      this.emitRefusedNavigation(navigation.url, false);
   }
 
   private askForWindow(details: IWindowOpenDetails): void {
