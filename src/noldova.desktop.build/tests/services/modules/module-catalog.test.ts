@@ -228,8 +228,9 @@ export class ModuleCatalogTests {
 
   @TestMethod
   public async refusesAPeerOnAnotherOfTheOrganizationsPackagesInARangeOrAtAVersionThatMissesTheInstalledVersion(): Promise<void> {
+    const parts: readonly (readonly [boolean, string, string])[] = [[false, ModuleCatalogTests.SAMPLE, "the app has"], [true, ModuleCatalogTests.WINDOW_SUBJECT, "the app's install has"]];
     for (const needed of [ModuleCatalogTests.LATER_ORGANIZATION_RANGE, ModuleAppFixture.NEEDED])
-      for (const [isWindowPart, subject, holder] of [[false, ModuleCatalogTests.SAMPLE, "the app has"], [true, ModuleCatalogTests.WINDOW_SUBJECT, "the app's install has"]] as const) {
+      for (const [isWindowPart, subject, holder] of parts) {
         await using app = await ModuleCatalogTests.createWithOrganizationPeerAsync(needed, isWindowPart);
 
         const output = await ModuleCatalogTests.runAsync(app);
