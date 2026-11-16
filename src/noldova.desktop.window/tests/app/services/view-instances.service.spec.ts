@@ -322,6 +322,19 @@ describe("ViewInstancesService", () => {
     expect([...sides, dock()]).toEqual([DockSide.Bottom, DockSide.Left, DockSide.Right, null, DockSide.Bottom, null]);
   });
 
+  it("reads the same dock for a view's tab while that dock is hidden, on each side", () => {
+    measure(120, 60);
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    const dock = instances.dockOf(first);
+    const results = [DockSide.Left, DockSide.Right, DockSide.Bottom].map(side => {
+      layout.place(first, new SideDropTarget(side));
+      instances.hideDock(first);
+      return [isShown(side), dock()];
+    });
+
+    expect(results).toEqual([[false, DockSide.Left], [false, DockSide.Right], [false, DockSide.Bottom]]);
+  });
+
   it("reads no dock for a view's tab that is not open yet, and its dock once it opens", () => {
     measure(120, 60);
     const dock = instances.dockOf(files);

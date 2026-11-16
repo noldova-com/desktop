@@ -137,6 +137,8 @@ The Window package keeps a class's own strings, those no other class uses, in a 
 - A window part can ask that one of its view tabs, with instances or without, show at least a length in rem along its dock's axis, such as a terminal that needs a number of rows, until it releases the ask.
   The dock grows once, when the tab's page first shows in a dock shorter than that, by what it lacks and no further than the window allows; a page already long enough grows nothing, and a later resize by the person stands.
   The release puts the dock's earlier size back, unless the person or another ask resized the dock since; a new ask for the same tab takes the place of the one before.
+- A window part can read which dock holds one of its view tabs, with instances or without, as a signal that follows the tab as the person or the part moves, opens or closes it: the bottom dock, the left or the right one, or none while the tab is outside a dock, such as among the documents, or not open.
+  A hidden dock keeps its tabs, so the side stays while it is hidden.
 - A part that loads a snapshot reconciles it with the events that arrive meanwhile, so an old answer never replaces a newer selection.
 
 ## Keys and menus
