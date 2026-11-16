@@ -22,7 +22,7 @@ export class RegionFocusService {
 
   public move(step: number): void {
     const stops = this.stops();
-    const focused = [...this.document.querySelectorAll(Resources.focusedSelector)];
+    const focused = [this.document.activeElement].filter(t => !Object.isNull(t));
     const current = stops.findIndex(t => focused.some(u => t.holds(u)));
     const from = current >= 0 || step > 0 ? current : stops.length;
     const next = (from + step + stops.length) % stops.length;

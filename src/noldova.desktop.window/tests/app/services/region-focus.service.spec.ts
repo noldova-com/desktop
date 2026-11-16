@@ -65,6 +65,19 @@ describe("RegionFocusService", () => {
     expect([fromTab, fromInside, document.activeElement?.id]).toEqual(["page", "notes", "address"]);
   });
 
+  it("moves on from a view whose page holds the focus inside the guest's own tree, as a live web view does", () => {
+    const guest = document.createElement("div");
+    guest.id = "page";
+    guest.className = "nol-web-view-guest";
+    document.getElementById("page")?.replaceWith(guest);
+    const frame = guest.attachShadow({ mode: "open" }).appendChild(document.createElement("iframe"));
+    frame.contentWindow?.focus();
+    const before = document.activeElement?.id;
+    regions.move(1);
+
+    expect([before, document.activeElement?.id]).toEqual(["page", "notes"]);
+  });
+
   it("makes the view a group's only stop when nothing else in the group is in the tab order", () => {
     root.innerHTML = [
       "<nol-tab-group><nol-tab-slot><div class='nol-web-view'><button id='inside'>Inside</button><webview id='page' class='nol-web-view-guest' tabindex='-1'></webview></div>",

@@ -532,12 +532,15 @@ describe("ShellCommandsService", () => {
     const button = region.appendChild(document.createElement("button"));
     button.textContent = "Status";
     const after = names.map(t => enabled(t));
+    await runAsync("desktop.focusNextRegion");
+    const next = document.activeElement;
+    button.blur();
     await runAsync("desktop.focusPreviousRegion");
-    const focused = document.activeElement;
+    const previous = document.activeElement;
     region.remove();
 
     expect(keys).toEqual(["F6 desktop.focusNextRegion", "Shift+F6 desktop.focusPreviousRegion"]);
-    expect([before, after, focused]).toEqual([[false, false], [true, true], button]);
+    expect([before, after, next, previous]).toEqual([[false, false], [true, true], button, button]);
   });
 
   it("moves a view to the next or previous group, which may be a documents group, wrapping around every group", async () => {
