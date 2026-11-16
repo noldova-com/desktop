@@ -81,7 +81,7 @@ After the release, its dependents job calls the organization's shared `update-de
 Each repository the App's installation includes that pins Noldova Desktop's packages exactly at an older version, a module or an app, gets a pull request that moves the pins and refreshes its lock files; the shared workflow's README says how.
 
 Noldova Desktop ships no installers of its own: an app releases its installers by calling `.github/workflows/release-app.yml`, as [documents/BUILD.md](documents/BUILD.md) says, and CI packages Noldova Desktop's own app unsigned through `.github/workflows/package-app.yml`.
-A release builds each ARM64 target whose runner input is not empty; by default that is macOS arm64 when the organization's `versions.yml` names a runner for it.
+A release builds each ARM64 target whose runner input is not empty; by default those are Linux, Windows and macOS arm64, on the runners the organization's `versions.yml` names.
 A failed release runs again whole, as a new run, which builds and checks the archives again.
 
 ## Checks
@@ -93,11 +93,10 @@ Every pull request into `main` must pass both checks before it merges.
 | Check / Linked issue | The organization's shared check, which `.github/workflows/require-linked-issue.yml` calls from its `check` job, named "Check": the PR description has a standalone `Issue: #N`, `Issue #N` or closing reference, such as `Closes #N`, that names an issue in this repository. |
 | All targets | Every target's job and the package job passed, and for a pull request that changes more than documents and the callers of shared workflows, the end-to-end specs on Linux x64, as [End-to-end specs](#end-to-end-specs) says. |
 
-The targets' jobs are the organization's shared build-and-test workflow, v2.34.0, which the `build-and-test` job calls for Linux x64, Windows x64, macOS x64 and macOS arm64, on the runners the shared workflow names; its README says what each step does.
+The targets' jobs are the organization's shared build-and-test workflow, v2.34.0, which the `build-and-test` job calls for Linux, Windows and macOS, each on x64 and arm64, on the runners the shared workflow names; its README says what each step does.
 
 A pull request runs every target whether it is a draft or ready, so a run that starts late never replaces another with a smaller one, and every run but one started by hand reports the required "All targets".
 To run every target on a branch without a pull request, start Build and test by hand on it, from the repository's Actions tab or with `gh workflow run build-and-test.yml -R noldova-com/desktop --ref <branch>`; that run tests the branch as it is, not merged into `main`, and its summary job reports "All targets (by hand)", so it never stands in for the required check.
-Linux and Windows on ARM64 have no CI job for now.
 
 A target's job checks the toolchain against the Node.js and npm versions the root `package.json` pins in `engines` and `packageManager`, and the line endings of every tracked text file.
 It then builds the packages with `npm run build` alone, as ui-components and context do: on a checkout without `node_modules` the build first installs the dependencies with `npm ci --ignore-scripts`, so no dependency's install script runs and node-pty loads from its prebuilds, and it installs Electron's binary and the headless Chromium of the Angular tests itself; it then runs every check with `npm test -- --skip-test-details --skip-coverage-details`, which leaves passed tests and fully covered files out of the log.
