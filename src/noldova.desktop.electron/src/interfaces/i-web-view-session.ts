@@ -20,5 +20,6 @@ export interface IWebViewSession {
   onBeforeRedirect(listener: (redirect: IWebViewRedirect) => void): void;
   on(event: "will-download", listener: (event: IPreventableEvent, url: string, webContentsId: number | null) => void): unknown;
   resolveHostAsync(host: string): Promise<readonly string[]>;
+  readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null>;
   clearStorageDataAsync(): Promise<void>;
 }

@@ -25,6 +25,7 @@ export class WebViewEvent {
   private static readonly OBJECT: (value: unknown) => boolean = t => Object.isPlainObject(t);
   private static readonly COUNT: (value: unknown) => boolean = t => Number.isSafeInteger(t) && Number(t) >= 0;
   private static readonly FACTOR: (value: unknown) => boolean = t => Object.isNumber(t) && t >= Resources.webViewZoomMinimum && t <= Resources.webViewZoomMaximum;
+  private static readonly ICON: (value: unknown) => boolean = t => Object.isNull(t) || (Object.isString(t) && t.length <= Resources.webViewIconLengthLimit && Resources.webViewIconPattern.test(t));
   private static readonly DETAILS: Readonly<Record<WebViewEventKind, ReadonlyMap<string, (value: unknown) => boolean>>> = {
     [WebViewEventKind.Opened]: new Map([[Resources.paneField, WebViewEvent.OBJECT], [Resources.profileKeyField, WebViewEvent.TEXT]]),
     [WebViewEventKind.Closed]: new Map(),
@@ -42,7 +43,8 @@ export class WebViewEvent {
     [WebViewEventKind.Dropped]: new Map([[Resources.countField, WebViewEvent.WHOLE]]),
     [WebViewEventKind.Key]: new Map([[Resources.nameField, WebViewEvent.TEXT]]),
     [WebViewEventKind.Zoom]: new Map([[Resources.factorField, WebViewEvent.FACTOR]]),
-    [WebViewEventKind.Found]: new Map([[Resources.matchesField, WebViewEvent.COUNT], [Resources.activeField, WebViewEvent.COUNT]])
+    [WebViewEventKind.Found]: new Map([[Resources.matchesField, WebViewEvent.COUNT], [Resources.activeField, WebViewEvent.COUNT]]),
+    [WebViewEventKind.Favicon]: new Map([[Resources.imageField, WebViewEvent.ICON]])
   };
 
   public readonly module: string;

@@ -30,7 +30,7 @@ export class PageComponent {
   public readonly instance: InputSignal<string> = input.required<string>();
   public readonly title: InputSignal<string> = input.required<string>();
 
-  protected readonly views: WritableSignal<readonly { id: string; event: string; title: string; keys: string; requests: string; zoom: string; found: string }[]> = signal([]);
+  protected readonly views: WritableSignal<readonly { id: string; event: string; title: string; keys: string; requests: string; zoom: string; found: string; icons: string; icon: string }[]> = signal([]);
   protected readonly failure: WritableSignal<string> = signal(String.empty);
   protected readonly layer: WritableSignal<string> = signal("none");
   private readonly context: IWindowPartContext = inject(WindowPartTokens.context);
@@ -60,7 +60,7 @@ export class PageComponent {
       }
       this.handles.push(handle);
       handle.mount(this.content().nativeElement);
-      this.views.update(t => [...t, { id: handle.id, event: String.empty, title: String.empty, keys: String.empty, requests: String.empty, zoom: String.empty, found: String.empty }]);
+      this.views.update(t => [...t, { id: handle.id, event: String.empty, title: String.empty, keys: String.empty, requests: String.empty, zoom: String.empty, found: String.empty, icons: String.empty, icon: String.empty }]);
       handle.subscribe(t => this.receive(handle.id, t));
     }
     this.handles[0]?.show();
@@ -72,8 +72,13 @@ export class PageComponent {
     const address = event.kind === WebViewEventKind.NewWindowRequested ? String(event.details["address"]) : null;
     const request = Object.isNull(address) ? String.empty : `${address} ${String(event.details["hadRecentInput"])} ${String(event.details["origin"])}\n`;
     const zoom = event.kind === WebViewEventKind.Zoom ? String(event.details["factor"]) : null;
+    const image = event.kind === WebViewEventKind.Favicon ? event.details["image"] : undefined;
+    const icon = Object.isUndefined(image) ? null : Object.isString(image) ? image : String.empty;
     this.views.update(list => list.map(t => t.id === id
-      ? { ...t, event: event.kind, title: title ?? t.title, keys: Object.isNull(key) ? t.keys : `${t.keys}${key} `, requests: `${t.requests}${request}`, zoom: zoom ?? t.zoom }
+      ? {
+        ...t, event: event.kind, title: title ?? t.title, keys: Object.isNull(key) ? t.keys : `${t.keys}${key} `, requests: `${t.requests}${request}`, zoom: zoom ?? t.zoom,
+        icons: Object.isNull(icon) ? t.icons : `${t.icons}${icon === String.empty ? "none" : "png"} `, icon: icon ?? t.icon
+      }
       : t));
     if (!Object.isNull(key) && (PageComponent.SEARCHES.has(key) || PageComponent.STEPS.includes(key)))
       this.findAsync(id, key).catch((error: unknown) => this.failure.set(`The search failed: ${String(error)}`));

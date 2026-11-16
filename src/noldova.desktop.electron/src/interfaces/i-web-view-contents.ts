@@ -58,4 +58,5 @@ export interface IWebViewContents {
   on(event: "login", listener: (event: IPreventableEvent, details: { readonly url: string }, info: unknown, callback: () => void) => void): unknown;
   on(event: "found-in-page", listener: (event: unknown, result: { readonly requestId: number; readonly activeMatchOrdinal: number; readonly matches: number; readonly finalUpdate: boolean }) => void): unknown;
   on(event: "zoom-changed", listener: (event: unknown, direction: string) => void): unknown;
+  on(event: "page-favicon-updated", listener: (event: unknown, favicons: string[]) => void): unknown;
 }
