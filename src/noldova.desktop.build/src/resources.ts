@@ -2969,6 +2969,10 @@ export class Resources {
     return `must give "${name}" its former names as a list of different qualified names, such as "notes.add", none of them its own name`;
   }
 
+  public static formatModuleFormerNamesReserved(name: string, former: string): string {
+    return `gives "${name}" the former name "${former}", which belongs to the shell or a reserved id: ${Resources.moduleReservedIds.join(", ")}`;
+  }
+
   public static formatCatalogFormerNamesRepeated(repeated: readonly (readonly [string, readonly string[]])[]): string {
     return `Former names repeat in the build, and a former name moves to one command or document: ${repeated.map(([name, files]) => Resources.formatNameInFile(name, files.join(", "))).join("; ")}.`;
   }

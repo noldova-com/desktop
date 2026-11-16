@@ -61,6 +61,22 @@ export class KeyBindingMovesTests {
   }
 
   @TestMethod
+  public async keepsABindingUnderItsFormerNameWhenTheCommandCantHoldItsKey(): Promise<void> {
+    const bindings = { "desktop.closeTab": "Mod+Comma", "tasks.run": "Mod+P" };
+    await using settings = await KeyBindingMovesTests.createAsync(bindings);
+    await using alone = await KeyBindingMovesTests.createAsync({ "desktop.closeTab": "Mod+Comma" });
+    const writes = KeyBindingMovesTests.countWrites(alone);
+    const shell = KeyBindingMovesTests.declare("notes", { "notes.create": ["desktop.closeTab"] });
+
+    KeyBindingMoves.move(settings.service, [shell, KeyBindingMovesTests.TASKS]);
+    KeyBindingMoves.move(alone.service, [shell]);
+
+    Assert.areEqual(JSON.stringify({ "desktop.closeTab": "Mod+Comma", "tasks.start": "Mod+P" }), JSON.stringify(settings.service.read(KeyBindingMovesTests.KEY)));
+    Assert.areEqual(JSON.stringify({ "desktop.closeTab": "Mod+Comma" }), JSON.stringify(alone.service.read(KeyBindingMovesTests.KEY)));
+    Assert.areEqual(0, writes.length);
+  }
+
+  @TestMethod
   public async movesABindingOnceThoughTheRuntimeStartsTwice(): Promise<void> {
     await using settings = await KeyBindingMovesTests.createAsync({ "notes.add": "Mod+K" });
     const writes = KeyBindingMovesTests.countWrites(settings);

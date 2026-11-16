@@ -481,6 +481,8 @@ export class ModuleDeclarationTests {
   @TestData("{ \"sample.go\": [\"sample.run\", \"sample.run\"] }", "must give \"sample.go\" its former names as a list of different qualified names, such as \"notes.add\", none of them its own name")
   @TestData("{ \"sample.go\": [\"Sample.Run\"] }", "must give \"sample.go\" its former names as a list of different qualified names, such as \"notes.add\", none of them its own name")
   @TestData("{ \"sample.go\": [7] }", "must give \"sample.go\" its former names as a list of different qualified names, such as \"notes.add\", none of them its own name")
+  @TestData("{ \"sample.go\": [\"sample.run\", \"desktop.closeTab\"] }", "gives \"sample.go\" the former name \"desktop.closeTab\", which belongs to the shell or a reserved id: desktop, status, commands, run, open, quit, help")
+  @TestData("{ \"sample.go\": [\"help.show\"] }", "gives \"sample.go\" the former name \"help.show\", which belongs to the shell or a reserved id: desktop, status, commands, run, open, quit, help")
   public async refusesFormerNamesThatArentAMapFromItsCommandsAndDocumentsToOtherQualifiedNames(formerNames: string, problem: string): Promise<void> {
     await ModuleDeclarationTests.assertOutputAsync(
       { contributes: { commands: ["sample.go"], views: ["sample.face"], formerNames: JSON.parse(formerNames) } }, ["runtime", "window"], `${ModuleDeclarationTests.DECLARATION}${problem}.\n`);

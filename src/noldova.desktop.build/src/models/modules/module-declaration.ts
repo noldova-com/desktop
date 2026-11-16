@@ -331,6 +331,9 @@ export class ModuleDeclaration {
       if (!Array.isArray(formers) || formers.length === 0 || new Set(formers).size < formers.length
         || !formers.every(t => Object.isString(t) && t !== name && Resources.qualifiedNamePattern.test(t)))
         throw fail(Resources.formatModuleFormerNamesInvalid(name));
+      const reserved = formers.map(t => String(t)).find(t => Resources.moduleReservedIds.includes(t.slice(0, t.indexOf("."))));
+      if (!Object.isUndefined(reserved))
+        throw fail(Resources.formatModuleFormerNamesReserved(name, reserved));
       formerNames.set(name, formers.map(t => String(t)));
     }
     return formerNames;

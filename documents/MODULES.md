@@ -350,8 +350,9 @@ Noldova Desktop registers its own entries, such as the default theme, through th
   }
   ```
 
-- A former name is any qualified name, so a command or document that moved from another module keeps what the person kept for it; it names only one of the module's own commands and documents, and never the name itself.
+- A former name is any qualified name but the shell's or another reserved id's, so a command or document that moved from another module keeps what the person kept for it; it names only one of the module's own commands and documents, and never the name itself.
 - When the runtime starts, a binding in `desktop.keyBindings` for a command's former name moves to the command and the former name's entry goes, in one write; a binding the person already set for the command wins, and the former one goes.
+  A binding whose key the command can't hold, such as a key the shell keeps for itself, stays under the former name.
   A binding for a former name that no module in the build declares stays as it is.
 - A tab the saved layout holds under a document's former name reopens as that document, with its instance, title and place, and the layout saves it under the new name; when the layout already holds that document's tab, the former one stays as it is.
 - A module keeps a former name as long as it wants old bindings and tabs carried over, since a person may return from any earlier version.

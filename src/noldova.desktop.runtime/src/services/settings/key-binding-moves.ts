@@ -15,22 +15,20 @@ import type { SettingsService } from "./settings.service.js";
 import { ShellSettings } from "./shell-settings.js";
 
 export class KeyBindingMoves {
-  public static move(settings: Pick<SettingsService, "read" | "write">, declarations: readonly ModuleDeclaration[]): void {
+  public static move(settings: Pick<SettingsService, "define" | "read" | "write">, declarations: readonly ModuleDeclaration[]): void {
     const renames = new Map(declarations.flatMap(t => t.listContributions(Resources.commandsKind).flatMap(u => (t.formerNames.get(u) ?? []).map(v => [v, u] as const))));
     const key = new SettingKey(ShellSettings.keyBindings);
+    const type = settings.define(key.name).type;
     const entries = Object.entries(JsonReader.fromValue(settings.read(key)).toJson());
-    const moving = entries.filter(([name]) => renames.has(name));
-    if (moving.length === 0)
-      return;
-    const kept = entries.filter(([name]) => !renames.has(name));
-    const names = new Set(kept.map(([name]) => name));
-    const moved = moving.flatMap(([name, binding]) => {
+    const bindings = new Map(entries.filter(([name]) => !renames.has(name)));
+    let isMoved = false;
+    for (const [name, binding] of entries.filter(([former]) => renames.has(former))) {
       const command = String(renames.get(name));
-      if (names.has(command))
-        return [];
-      names.add(command);
-      return [[command, binding] as const];
-    });
-    settings.write(new SettingValue(key, Object.fromEntries([...kept, ...moved])));
+      if (!bindings.has(command))
+        bindings.set(type.accepts({ [command]: binding }) ? command : name, binding);
+      isMoved ||= bindings.has(command);
+    }
+    if (isMoved)
+      settings.write(new SettingValue(key, Object.fromEntries(bindings)));
   }
 }
