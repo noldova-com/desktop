@@ -13,7 +13,7 @@ import "@noldova/context.core";
 
 export class PausedReadFixture implements Disposable {
   private readonly readFile: typeof fs.readFile = fs.readFile;
-  private readonly started: PromiseWithResolvers<() => Promise<string | Buffer>> = Promise.withResolvers<() => Promise<string | Buffer>>();
+  private readonly started: PromiseWithResolvers<void> = Promise.withResolvers<void>();
   private readonly paused: PromiseWithResolvers<string | Buffer> = Promise.withResolvers<string | Buffer>();
   private isStarted: boolean = false;
 
@@ -24,7 +24,7 @@ export class PausedReadFixture implements Disposable {
       if (String(target) !== file || this.isStarted)
         return readFile(...values);
       this.isStarted = true;
-      this.started.resolve(() => readFile(...values));
+      this.started.resolve();
       return this.paused.promise;
     }) as typeof fs.readFile;
     syncBuiltinESMExports();
@@ -34,9 +34,8 @@ export class PausedReadFixture implements Disposable {
     await this.started.promise;
   }
 
-  public async releaseAsync(): Promise<void> {
-    const read = await this.started.promise;
-    await read().then(this.paused.resolve, this.paused.reject);
+  public releaseAsMissing(): void {
+    this.paused.reject(Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" }));
   }
 
   public [Symbol.dispose](): void {

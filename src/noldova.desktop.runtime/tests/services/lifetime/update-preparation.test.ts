@@ -283,9 +283,9 @@ export class UpdatePreparationTests {
       using nextWatches = new FolderWatchFixture(installation.folder);
       mainProcess.sendMessages(new Request("main:2", ShellMethods.update, new UpdateRequest(installation.folder).toJson()));
       const [next] = await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
-      await rm(installation.barrierFile);
-      await read.releaseAsync();
+      read.releaseAsMissing();
       const [, whileUpdating] = await fixture.handshakeAsync("held", RuntimeBuild.identity);
+      await rm(installation.barrierFile);
       nextWatches.change("barrier.json", 1);
       await UpdateBarrierFixture.readEventAsync(mainProcess, ShellEvents.updateEnded);
       const [, late] = await fixture.handshakeAsync("late", RuntimeBuild.identity);
