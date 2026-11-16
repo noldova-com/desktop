@@ -18,6 +18,7 @@ import type { IssuedFileGrants } from "../models/issued-file-grants.js";
 import type { Tab } from "../models/layout/tab.js";
 import type { MenuItem } from "../models/menu-item.js";
 import type { ViewBadge } from "../models/view-badge.js";
+import type { ViewPlace } from "../models/view-place.js";
 import type { ICommandKey } from "./i-command-key.js";
 import type { IDocumentUpdate } from "./i-document-update.js";
 import type { IInAppBrowser } from "./i-in-app-browser.js";
@@ -72,6 +73,12 @@ export interface IWindowPartHost {
   viewDockOf(name: string, instance: string | null): Signal<DockSide | null>;
 
   onViewClosed(name: string, listener: (instance: string) => void): () => void;
+
+  recordPlace(place: ViewPlace): void;
+
+  forgetPlace(place: ViewPlace): void;
+
+  onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void;
 
   showInDialogAsync(name: string, instance: string | null, title: string | null): Promise<void>;
 

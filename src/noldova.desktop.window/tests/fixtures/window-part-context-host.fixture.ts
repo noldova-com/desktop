@@ -33,6 +33,7 @@ import { IssuedFileGrants } from "../../src/app/models/issued-file-grants";
 import type { Tab } from "../../src/app/models/layout/tab";
 import type { MenuItem } from "../../src/app/models/menu-item";
 import type { ViewBadge } from "../../src/app/models/view-badge";
+import type { ViewPlace } from "../../src/app/models/view-place";
 import { WindowPalette } from "../../src/app/models/window-palette";
 import { WebViewHandleFixture } from "./web-view-handle.fixture";
 
@@ -57,6 +58,7 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
   public readonly checkedSettings: Set<string> = new Set(["notes.sites"]);
   public readonly checks: Map<string, (value: string) => string | null> = new Map();
   public readonly viewListeners: Set<readonly [string, (instance: string) => void]> = new Set();
+  public readonly placeListeners: Set<readonly [string, (place: string, instance: string | null) => void]> = new Set();
   public readonly documentListeners: Set<readonly [string, (instance: string) => void]> = new Set();
   public readonly renameListeners: Set<readonly [string, (instance: string, title: string) => void]> = new Set();
   public openDocuments: readonly string[] = [];
@@ -152,6 +154,20 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
   public viewDockOf(name: string, instance: string | null): Signal<DockSide | null> {
     this.calls.push(`viewDockOf ${name} ${instance ?? "-"}`);
     return this.docks;
+  }
+
+  public recordPlace(place: ViewPlace): void {
+    this.calls.push(`place ${place.view} ${place.instance ?? "-"} ${place.place}`);
+  }
+
+  public forgetPlace(place: ViewPlace): void {
+    this.calls.push(`forget place ${place.view} ${place.instance ?? "-"} ${place.place}`);
+  }
+
+  public onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void {
+    const entry = [view, listener] as const;
+    this.placeListeners.add(entry);
+    return () => this.placeListeners.delete(entry);
   }
 
   public onViewClosed(name: string, listener: (instance: string) => void): () => void {

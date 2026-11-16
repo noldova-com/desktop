@@ -67,6 +67,9 @@ const MEMBERS: Readonly<Record<keyof IWindowPartContext, FakeMember<IWindowPartC
   growViewDock: ["tracked", t => t.growViewDock("terminal.session", 10)],
   viewDockOf: ["answered", t => t.viewDockOf("terminal.session", "1")],
   onViewClosed: ["listened", t => t.onViewClosed("terminal.session", () => undefined)],
+  recordPlace: ["told", t => t.recordPlace("terminal.session", "/home", "1")],
+  forgetPlace: ["told", t => t.forgetPlace("terminal.session", "/home", "1")],
+  onPlaceShown: ["listened", t => t.onPlaceShown("terminal.session", () => undefined)],
   showInDialogAsync: ["answered", t => t.showInDialogAsync("notes.list")],
   log: ["told", t => t.log("Saved.")],
   openLinkAsync: ["answered", t => t.openLinkAsync("https://example.com")],
@@ -98,6 +101,7 @@ const RAISERS: readonly (readonly [string, string, (context: FakeWindowPartConte
   ["raiseDocumentClosed", "removed|third|fourth", (context, listener) => context.onDocumentClosed("notes.note", listener), context => context.raiseDocumentClosed("notes.note", "1")],
   ["raiseTabRenamed", "removed|third|fourth", (context, listener) => context.onTabRenamed("notes.note", listener), context => context.raiseTabRenamed("notes.note", "1", "Plan")],
   ["raiseViewClosed", "removed|third|fourth", (context, listener) => context.onViewClosed("terminal.session", listener), context => context.raiseViewClosed("terminal.session", "1")],
+  ["raisePlaceShown", "removed|third|fourth", (context, listener) => context.onPlaceShown("notes.list", listener), context => context.raisePlaceShown("notes.list", "note-1")],
   ["raiseEvent", "removed|third", (context, listener) => context.onEvent("git.changed", listener), context => context.raiseEvent("git.changed", null)],
   ["raiseSettingChanged", "removed|third", (context, listener) => context.onSettingChanged("terminal.theme", listener), context => context.raiseSettingChanged("terminal.theme", "dark", null, true)],
   ["raiseDependencyChanged", "third|fourth", (context, listener) => context.onDependencyChanged(listener), context => context.raiseDependencyChanged("git", false)]
@@ -113,6 +117,7 @@ describe("FakeWindowPartContext", () => {
       context.onDocumentClosed("notes.note", t => heard.push(`closed ${t}`)),
       context.onTabRenamed("notes.note", (t, title) => heard.push(`renamed ${t} ${title}`)),
       context.onViewClosed("terminal.session", t => heard.push(`view closed ${t}`)),
+      context.onPlaceShown("terminal.session", (place, instance) => heard.push(`place ${place} ${instance ?? "none"}`)),
       context.onEvent("git.changed", t => heard.push(`event ${JSON.stringify(t)}`)),
       context.onSettingChanged("terminal.theme", (value, scope, isSet) => heard.push(`setting ${JSON.stringify([value, scope, isSet])}`)),
       context.onDependencyChanged((moduleId, isActive) => heard.push(`dependency ${moduleId} ${isActive}`))
@@ -122,6 +127,7 @@ describe("FakeWindowPartContext", () => {
       context.raiseDocumentClosed("notes.note", round);
       context.raiseTabRenamed("notes.note", round, "Plan");
       context.raiseViewClosed("terminal.session", round);
+      context.raisePlaceShown("terminal.session", `/home/${round}`, round);
       context.raiseEvent("git.changed", { round });
       context.raiseSettingChanged("terminal.theme", "dark", null, true);
       context.raiseDependencyChanged("git", false);
@@ -132,7 +138,7 @@ describe("FakeWindowPartContext", () => {
       stop();
     raiseAll("2");
 
-    expect(heard).toEqual(["closed 1", "renamed 1 Plan", "view closed 1", "event {\"round\":\"1\"}", "setting [\"dark\",null,true]", "dependency git false"]);
+    expect(heard).toEqual(["closed 1", "renamed 1 Plan", "view closed 1", "place /home/1 1", "event {\"round\":\"1\"}", "setting [\"dark\",null,true]", "dependency git false"]);
   });
 
   for (const [raiser, expected, listen, raise] of RAISERS)
@@ -166,12 +172,14 @@ describe("FakeWindowPartContext", () => {
     context.onDocumentClosed("notes.other", t => heard.push(t));
     context.onTabRenamed("notes.other", t => heard.push(t));
     context.onViewClosed("terminal.other", t => heard.push(t));
+    context.onPlaceShown("notes.other", t => heard.push(t));
     context.onEvent("git.other", () => heard.push("event"));
     context.onSettingChanged("terminal.other", () => heard.push("setting"));
 
     context.raiseDocumentClosed("notes.note", "1");
     context.raiseTabRenamed("notes.note", "1", "Plan");
     context.raiseViewClosed("terminal.session", "1");
+    context.raisePlaceShown("notes.list", "note-1");
     context.raiseEvent("git.changed", null);
     context.raiseSettingChanged("terminal.theme", "dark", null, true);
 

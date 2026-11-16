@@ -60,6 +60,7 @@ import { TopBarAction } from "./top-bar-action.js";
 import type { TopBarActionContribution } from "./top-bar-action-contribution.js";
 import type { ViewBadge } from "./view-badge.js";
 import type { ViewContribution } from "./view-contribution.js";
+import { ViewPlace } from "./view-place.js";
 import type { WindowPartSource } from "./window-part-source.js";
 import { WindowSecrets } from "./window-secrets.js";
 import { WindowWebViews } from "./window-web-views.js";
@@ -502,6 +503,29 @@ export class WindowPartContext implements IWindowPartContext {
     return unsubscribe;
   }
 
+  public recordPlace(view: string, place: string, instance?: string): void {
+    this.requirePlace(view, place, instance);
+    if (!this.isWithdrawn)
+      this.host.recordPlace(new ViewPlace(view, instance ?? null, place));
+  }
+
+  public forgetPlace(view: string, place: string, instance?: string): void {
+    this.requirePlace(view, place, instance);
+    if (!this.isWithdrawn)
+      this.host.forgetPlace(new ViewPlace(view, instance ?? null, place));
+  }
+
+  public onPlaceShown(view: string, listener: (place: string, instance: string | null) => void): () => void {
+    this.requireOwn(view);
+    if (!this.knownViews.some(t => t.name === view))
+      throw new ContributionNotDeclaredException(this.moduleId, view, Resources.viewKind);
+    if (this.isWithdrawn)
+      return WindowPartContext.ignore;
+    const unsubscribe = this.host.onPlaceShown(view, listener);
+    this.subscriptions.push(unsubscribe);
+    return unsubscribe;
+  }
+
   public async showInDialogAsync(name: string, options: IViewDialogOptions = {}): Promise<void> {
     this.requireReadable(name);
     if (!this.isWithdrawn)
@@ -807,6 +831,15 @@ export class WindowPartContext implements IWindowPartContext {
     this.requireInstanceView(name);
     if (String.isNullOrWhitespace(instance))
       throw new ArgumentException(Resources.invalidInstance, Resources.instanceParameter);
+  }
+
+  private requirePlace(view: string, place: string, instance: string | undefined): void {
+    if (Object.isUndefined(instance))
+      this.requirePlainView(view);
+    else
+      this.requireInstance(view, instance);
+    if (String.isNullOrWhitespace(place))
+      throw new ArgumentException(Resources.invalidPlace, Resources.placeParameter);
   }
 
   private requireOwnDocument(name: string): void {
