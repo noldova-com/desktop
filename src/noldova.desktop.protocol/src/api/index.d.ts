@@ -3319,6 +3319,69 @@ export declare class WebViewCommand {
 }
 
 /**
+ * The loopback ports a web view may never reach, in `desktop.webViewBlockedPorts` and its acknowledgement
+ * `desktop.webViewPortsBlocked`: the runtime's own endpoint on Windows and every open tool endpoint.
+ */
+export declare class WebViewBlockedPorts {
+  /**
+   * The list's number, which grows with each change, so that an acknowledgement covers every list up to it.
+   */
+  public readonly serial: number;
+
+  /**
+   * The ports, in ascending order.
+   */
+  public readonly ports: readonly number[];
+
+  /**
+   * Creates the list.
+   *
+   * @param serial A whole number from 0.
+   * @param ports Distinct whole numbers from 1 to 65535, in any order.
+   * @throws ArgumentException synchronously when the serial or a port is invalid, or a port repeats.
+   *
+   * @example
+   * ```ts
+   * import { WebViewBlockedPorts } from "@noldova/desktop.protocol";
+   *
+   * export const blocked: WebViewBlockedPorts = new WebViewBlockedPorts(3, [52100, 61230]);
+   * ```
+   */
+  public constructor(serial: number, ports: readonly number[]);
+
+  /**
+   * Reads a list from its wire form.
+   *
+   * @param value The parsed JSON value.
+   * @param path The JSON path a rejection reports; `$` by default.
+   * @returns The list.
+   * @throws JsonException synchronously when the value is not a valid list.
+   *
+   * @example
+   * ```ts
+   * import { WebViewBlockedPorts } from "@noldova/desktop.protocol";
+   *
+   * export const blocked: WebViewBlockedPorts = WebViewBlockedPorts.fromJson({ serial: 3, ports: [52100] });
+   * ```
+   */
+  public static fromJson(value: unknown, path?: string): WebViewBlockedPorts;
+
+  /**
+   * Writes the list in its wire form.
+   *
+   * @returns The list's JSON object.
+   *
+   * @example
+   * ```ts
+   * import { WebViewBlockedPorts } from "@noldova/desktop.protocol";
+   *
+   * export const json = new WebViewBlockedPorts(3, [52100]).toJson();
+   * ```
+   */
+  public toJson(): JsonObject;
+}
+
+/**
  * The main process's answer to a `WebViewCommand`, in `desktop.webViewAnswered`: its value, or why it failed.
  */
 export declare class WebViewAnswered {
@@ -4607,6 +4670,13 @@ export declare class ShellEvents {
    * its payload is an `AgentControlState`.
    */
   public static readonly agentControlChanged: QualifiedName;
+
+  /**
+   * `desktop.webViewBlockedPorts`: the loopback ports the runtime and its modules' tool endpoints listen on, which a web view may
+   * never reach; the runtime sends it to one main process only, on each change while it is connected, and its payload is a
+   * `WebViewBlockedPorts`, which the main process acknowledges with `desktop.webViewPortsBlocked` once it refuses them.
+   */
+  public static readonly webViewBlockedPorts: QualifiedName;
 }
 
 /**
@@ -4904,6 +4974,20 @@ export declare class ShellMethods {
    * `WebViewEvents`, and the runtime gives each event only to the module that owns its view.
    */
   public static readonly webViewEvents: QualifiedName;
+
+  /**
+   * `desktop.readWebViewBlockedPorts`: the main process reads the loopback ports its web views may never reach, each time it
+   * connects, before it acknowledges them with `desktop.webViewPortsBlocked`; it takes no payload, and it answers a
+   * `WebViewBlockedPorts` to the one main process the runtime sends its web view calls to, and `null` to any other client.
+   */
+  public static readonly readWebViewBlockedPorts: QualifiedName;
+
+  /**
+   * `desktop.webViewPortsBlocked`: the main process acknowledges a `WebViewBlockedPorts` it read or was sent once its web views refuse
+   * those ports; its payload is the `WebViewBlockedPorts` it applied, and the runtime gives a tool endpoint's address to its
+   * module only after the acknowledgement that covers its port.
+   */
+  public static readonly webViewPortsBlocked: QualifiedName;
 
   /**
    * `desktop.saveSecret`: saves or replaces a module's secret on this machine; its payload is a `SecretValue`, and it answers

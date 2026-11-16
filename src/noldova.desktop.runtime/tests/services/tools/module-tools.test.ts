@@ -15,7 +15,9 @@ import type { IToolDescriptor } from "../../../src/interfaces/i-tool-descriptor.
 import { ModuleDeclaration } from "../../../src/models/module-declaration.js";
 import { ModuleTools } from "../../../src/services/tools/module-tools.js";
 import { ToolRegistry } from "../../../src/services/tools/tool-registry.js";
+import { WebViewCenter } from "../../../src/services/web-views/web-view-center.js";
 import { ModuleLogFixture } from "../../fixtures/module-log.fixture.js";
+import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
 import { ToolHandlerFixture } from "../../fixtures/tool-handler.fixture.js";
 
 @TestClass
@@ -97,6 +99,6 @@ export class ModuleToolsTests {
   }
 
   private static create(registry: ToolRegistry, registrations: Disposable[]): ModuleTools {
-    return new ModuleTools(ModuleToolsTests.DECLARATION, registry, new ModuleLogFixture(), registrations, new AbortController().signal);
+    return new ModuleTools(ModuleToolsTests.DECLARATION, registry, new ModuleLogFixture(), registrations, new AbortController().signal, new WebViewCenter(new TextOutputFixture()));
   }
 }

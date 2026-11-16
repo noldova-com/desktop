@@ -217,6 +217,7 @@ export class MainProcess {
       keyBindings,
       updateChecks: this.updates.checks,
       answerWebView: t => void this.webViews.answerAsync(t),
+      blockWebViewPorts: t => void this.webViews.blockPortsAsync(t),
       quitForRuntime: () => this.quits.quitForRuntime()
     }, t => log.write(t));
   }
@@ -472,8 +473,10 @@ export class MainProcess {
       this.updates.connect();
       void this.agents.refreshAsync();
       this.surface.connect();
+      void this.webViews.connectAsync();
     }
     else if (!isReady) {
+      this.webViews.disconnect();
       this.surface.disconnect();
       this.agents.disconnect();
       this.trays.disconnect();

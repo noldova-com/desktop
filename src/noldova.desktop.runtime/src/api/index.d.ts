@@ -22,7 +22,7 @@ import type { JsonObject, JsonValue } from "@noldova/context.json";
 import type {
   AppShortcut, AppShortcutList, AppWindow, AppWindowList, BuildIdentity, CommandInfo, CommandList, Event, Failure, FailureCode, FileGrant, KeyChord, MainWindow, ModuleStatus, ModuleStatusList, Notification, NotificationList, NotificationPost, PreShellData, ProgramStatus, ProgramStatusList, QualifiedName, Response,
   RunningWork, RuntimeHandover, SettingChange, SettingDefinition, SettingEntry, SettingKey, SettingScope, SettingValue, SettingsSnapshot, StopPolicy, UpdateProcess, WebViewAction,
-  WebViewAnswered, WebViewDeclaration, WebViewEvent, WebViewEvents, WebViewFailure, WebViewInfo, WebViewNavigation, WorkReport
+  WebViewAnswered, WebViewBlockedPorts, WebViewDeclaration, WebViewEvent, WebViewEvents, WebViewFailure, WebViewInfo, WebViewNavigation, WorkReport
 } from "@noldova/desktop.protocol";
 
 /**
@@ -16320,17 +16320,20 @@ export declare class WebViewCenter {
    * the main process can't give.
    * @param channel The `desktop.webViewCommand` event the calls go out on; with
    * none, no main process is ever reached.
+   * @param portsChannel The `desktop.webViewBlockedPorts` event each change of
+   * the blocked loopback ports goes out on; with none, a block waits for no
+   * acknowledgement.
    * @example
    * ```ts
    * import { ShellEvents } from "@noldova/desktop.protocol";
    * import { type EventRegistry, WebViewCenter } from "@noldova/desktop.runtime";
    *
    * export function createCenter(events: EventRegistry): WebViewCenter {
-   *   return new WebViewCenter(process.stderr, events.declare(ShellEvents.webViewCommand));
+   *   return new WebViewCenter(process.stderr, events.declare(ShellEvents.webViewCommand), events.declare(ShellEvents.webViewBlockedPorts));
    * }
    * ```
    */
-  public constructor(diagnostics: Writable, channel?: EventChannel | null);
+  public constructor(diagnostics: Writable, channel?: EventChannel | null, portsChannel?: EventChannel | null);
 
   /**
    * Starts a module's mirror, listing its open views when a main process is
@@ -16382,6 +16385,56 @@ export declare class WebViewCenter {
    * @param answered The answer.
    */
   public answer(connection: number, answered: WebViewAnswered): void;
+
+  /**
+   * Adds a loopback port that no web view may reach, such as the runtime's own
+   * endpoint or a tool endpoint's, and sends the new list to the connected main
+   * process.
+   *
+   * @param port The port.
+   * @returns The new list's serial, which {@link WebViewCenter.waitForPortsAsync}
+   * takes.
+   */
+  public blockPort(port: number): number;
+
+  /**
+   * Waits until the connected main process acknowledges a list at least as new
+   * as a serial, so that its web views refuse the ports in it; it settles at once
+   * when no main process is connected, since no web view is open then, and when
+   * the main process goes.
+   *
+   * @param serial The serial {@link WebViewCenter.blockPort} returned.
+   * @param signal Stops the wait.
+   * @returns A promise that settles once the list is acknowledged.
+   * @throws {Error} The promise rejects with the signal's reason when the signal
+   * aborts.
+   */
+  public waitForPortsAsync(serial: number, signal: AbortSignal): Promise<void>;
+
+  /**
+   * Removes a loopback port once its endpoint has closed, and sends the new list
+   * to the connected main process; a port it doesn't hold changes nothing.
+   *
+   * @param port The port.
+   */
+  public unblockPort(port: number): void;
+
+  /**
+   * Reads the blocked loopback ports for the connected main process.
+   *
+   * @param connection The connection that asks.
+   * @returns The list, or `null` for any connection but the main process's.
+   */
+  public readPorts(connection: number): WebViewBlockedPorts | null;
+
+  /**
+   * Settles every wait the main process's acknowledgement covers, when it came
+   * on the main process's connection; any other is ignored.
+   *
+   * @param connection The connection the acknowledgement came on.
+   * @param blocked The list the main process acknowledges.
+   */
+  public answerPorts(connection: number, blocked: WebViewBlockedPorts): void;
 
   /**
    * Passes a batch of events on to their modules, when it came from the

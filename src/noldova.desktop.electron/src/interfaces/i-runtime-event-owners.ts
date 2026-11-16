@@ -26,5 +26,6 @@ export interface IRuntimeEventOwners {
   readonly updateChecks: DeviceSettingFollower;
 
   answerWebView(payload: JsonValue): void;
+  blockWebViewPorts(payload: JsonValue): void;
   quitForRuntime(): void;
 }

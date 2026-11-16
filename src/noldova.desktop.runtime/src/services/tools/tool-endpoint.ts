@@ -14,6 +14,7 @@ import { ArgumentException } from "@noldova/context.exceptions";
 
 import { ToolEndpointException } from "../../exceptions/tool-endpoint.exception.js";
 import type { IModuleLog } from "../../interfaces/i-module-log.js";
+import type { IPortBlocker } from "../../interfaces/i-port-blocker.js";
 import type { IToolEndpoint } from "../../interfaces/i-tool-endpoint.js";
 import type { IToolEndpointHandler } from "../../interfaces/i-tool-endpoint-handler.js";
 import type { ToolSession } from "../../models/tool-session.js";
@@ -33,13 +34,18 @@ export class ToolEndpoint implements IToolEndpoint {
   private readonly handler: IToolEndpointHandler;
   private readonly isAdmissible: (session: ToolSession) => boolean;
   private readonly log: IModuleLog;
+  private readonly port: number;
+  private readonly blocker: IPortBlocker;
   private readonly tokens: Map<string, ToolSession> = new Map();
   private isClosed: boolean = false;
 
   public readonly url: string;
 
-  private constructor(server: Server, port: number, handler: IToolEndpointHandler, isAdmissible: (session: ToolSession) => boolean, log: IModuleLog) {
+  private constructor(server: Server, port: number, handler: IToolEndpointHandler, isAdmissible: (session: ToolSession) => boolean, log: IModuleLog,
+    blocker: IPortBlocker) {
     this.server = server;
+    this.port = port;
+    this.blocker = blocker;
     this.host = Resources.formatToolEndpointHost(port);
     this.handler = handler;
     this.isAdmissible = isAdmissible;
@@ -49,7 +55,7 @@ export class ToolEndpoint implements IToolEndpoint {
   }
 
   public static async openAsync(handler: IToolEndpointHandler, isAdmissible: (session: ToolSession) => boolean, log: IModuleLog, stopping: AbortSignal,
-    register: (endpoint: ToolEndpoint) => void, options: ServerOptions & { readonly maxConnections: number } = ToolEndpoint.options): Promise<ToolEndpoint> {
+    register: (endpoint: ToolEndpoint) => void, blocker: IPortBlocker, options: ServerOptions & { readonly maxConnections: number } = ToolEndpoint.options): Promise<ToolEndpoint> {
     const server = createServer(options);
     server.maxConnections = options.maxConnections;
     await ToolEndpoint.listenAsync(server);
@@ -58,8 +64,16 @@ export class ToolEndpoint implements IToolEndpoint {
       server.close();
       throw new ToolEndpointException();
     }
+    try {
+      await blocker.waitForPortsAsync(blocker.blockPort(address.port), stopping);
+    }
+    catch {
+      server.close(() => blocker.unblockPort(address.port));
+      server.closeAllConnections();
+      throw new ToolEndpointException();
+    }
 
-    const endpoint = new ToolEndpoint(server, address.port, handler, isAdmissible, log);
+    const endpoint = new ToolEndpoint(server, address.port, handler, isAdmissible, log, blocker);
     register(endpoint);
     return endpoint;
   }
@@ -81,7 +95,7 @@ export class ToolEndpoint implements IToolEndpoint {
   public [Symbol.dispose](): void {
     this.isClosed = true;
     this.tokens.clear();
-    this.server.close();
+    this.server.close(() => this.blocker.unblockPort(this.port));
     this.server.closeAllConnections();
   }
 

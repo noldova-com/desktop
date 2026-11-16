@@ -43,6 +43,8 @@ export class ShellMethods {
   public static readonly resolveFileShare: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.resolveFileShareMember);
   public static readonly webViewAnswered: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.webViewAnsweredMember);
   public static readonly webViewEvents: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.webViewEventsMember);
+  public static readonly readWebViewBlockedPorts: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.readWebViewBlockedPortsMember);
+  public static readonly webViewPortsBlocked: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.webViewPortsBlockedMember);
   public static readonly saveSecret: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.saveSecretMember);
   public static readonly removeSecret: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.removeSecretMember);
   public static readonly secretStatus: QualifiedName = new QualifiedName(Resources.shellOwner, Resources.secretStatusMember);

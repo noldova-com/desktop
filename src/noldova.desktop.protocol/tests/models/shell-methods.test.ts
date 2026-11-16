@@ -90,7 +90,8 @@ export class ShellMethodsTests {
 
   @TestMethod
   public namesTheWebViewMethods(): void {
-    Assert.areEqual("desktop.webViewAnswered,desktop.webViewEvents", [ShellMethods.webViewAnswered, ShellMethods.webViewEvents].map(t => t.text).join(","));
+    Assert.areEqual("desktop.webViewAnswered,desktop.webViewEvents,desktop.readWebViewBlockedPorts,desktop.webViewPortsBlocked",
+      [ShellMethods.webViewAnswered, ShellMethods.webViewEvents, ShellMethods.readWebViewBlockedPorts, ShellMethods.webViewPortsBlocked].map(t => t.text).join(","));
   }
 
   @TestMethod

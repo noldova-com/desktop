@@ -17,11 +17,16 @@ import { WebViewOriginCheckResources } from "./web-view-origin-check.resources.j
 
 export class WebViewOriginCheck {
   private readonly localOrigins: ReadonlySet<string>;
-  private readonly neverAllowedPorts: ReadonlySet<number>;
+  private readonly readNeverAllowedPorts: () => ReadonlySet<number> | null;
 
-  public constructor(localOrigins: readonly string[] = [], neverAllowedPorts: readonly number[] = []) {
+  public constructor(localOrigins: readonly string[] = [], neverAllowedPorts: readonly number[] | (() => ReadonlySet<number> | null) = []) {
     this.localOrigins = new Set(localOrigins);
-    this.neverAllowedPorts = new Set(neverAllowedPorts);
+    if (Object.isFunction(neverAllowedPorts))
+      this.readNeverAllowedPorts = neverAllowedPorts;
+    else {
+      const ports = new Set(neverAllowedPorts);
+      this.readNeverAllowedPorts = () => ports;
+    }
   }
 
   public static classify(address: string): WebAddressKind {
@@ -77,7 +82,7 @@ export class WebViewOriginCheck {
     const kind = isIP(host) !== 0 ? WebViewOriginCheck.classify(host) : WebViewOriginCheck.isLoopbackName(host) ? WebAddressKind.Loopback : WebAddressKind.Public;
     if (kind === WebAddressKind.LinkLocal || kind === WebAddressKind.Unspecified)
       return false;
-    if (kind === WebAddressKind.Loopback && this.neverAllowedPorts.has(WebViewOriginCheck.readPort(parsed)))
+    if (kind === WebAddressKind.Loopback && this.isNeverAllowed(parsed))
       return false;
     const origin = Object.isUndefined(socketScheme) ? parsed.origin : `${socketScheme}${Resources.webViewOriginSeparator}${parsed.host}`;
     if (kind === WebAddressKind.Loopback || kind === WebAddressKind.Private)
@@ -101,11 +106,15 @@ export class WebViewOriginCheck {
     const kind = WebViewOriginCheck.classify(address);
     if (kind === WebAddressKind.Public)
       return true;
-    if (kind === WebAddressKind.LinkLocal || kind === WebAddressKind.Unspecified)
+    if (kind === WebAddressKind.LinkLocal || kind === WebAddressKind.Unspecified || (kind === WebAddressKind.Loopback && this.isNeverAllowed(parsed)))
       return false;
     const host = WebViewOriginCheck.plainHost(parsed.hostname);
     const isLocalHost = isIP(host) !== 0 || WebViewOriginCheck.isLoopbackName(host) || this.localOrigins.has(parsed.origin);
     return isLocalHost && allowed.includes(parsed.origin);
+  }
+
+  private isNeverAllowed(url: URL): boolean {
+    return this.readNeverAllowedPorts()?.has(WebViewOriginCheck.readPort(url)) ?? true;
   }
 
   private static matches(origin: string, allowed: readonly string[]): boolean {
