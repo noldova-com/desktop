@@ -28,7 +28,7 @@ export class BuildCommandLineTests {
 
     const exitCode = await BuildCommandLineTests.create(errors).runAsync([]);
 
-    Assert.areEqual(`2 ${BuildCommandLineTests.USAGE}`, `${exitCode} ${String(errors.read())}`);
+    Assert.areEqual(`2 ${BuildCommandLineTests.USAGE}`, `${exitCode} ${String(errors.read(errors.readableLength))}`);
   }
 
   @TestMethod
@@ -37,7 +37,7 @@ export class BuildCommandLineTests {
 
     const exitCode = await BuildCommandLineTests.create(errors).runAsync(["frobnicate", "--test"]);
 
-    Assert.areEqual(`2 ${BuildCommandLineTests.USAGE}`, `${exitCode} ${String(errors.read())}`);
+    Assert.areEqual(`2 ${BuildCommandLineTests.USAGE}`, `${exitCode} ${String(errors.read(errors.readableLength))}`);
   }
 
   @TestMethod
@@ -47,7 +47,7 @@ export class BuildCommandLineTests {
     for (const command of ["list-targets", "release-check", "release-publish"]) {
       const output = new PassThrough();
       const exitCode = await BuildCommandLineTests.create(new PassThrough(), output).runAsync([command, "extra", "more"]);
-      const usage = String(output.read());
+      const usage = String(output.read(output.readableLength));
       results.push(`${exitCode} ${usage.slice(usage.indexOf("noldova-desktop-build"))}`);
     }
 
@@ -62,7 +62,7 @@ export class BuildCommandLineTests {
     for (const commandArguments of [["install", "--quick"], ["build", "--output"], ["package", "--quick"], ["package-smoke", "--quick"], ["release-assets", "--quick"]]) {
       const output = new PassThrough();
       const exitCode = await new BuildCommandLine(folder.path, {}, "linux", "x64", output, new PassThrough()).runAsync(commandArguments);
-      const usage = String(output.read());
+      const usage = String(output.read(output.readableLength));
       results.push(`${exitCode} ${usage.slice(0, usage.indexOf(" ", "Usage: noldova-desktop-build ".length))}`);
     }
 

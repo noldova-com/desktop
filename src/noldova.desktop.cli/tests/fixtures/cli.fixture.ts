@@ -93,7 +93,7 @@ export class CliFixture implements AsyncDisposable {
       output, error, inputStream, this.signals, starter, this.opener, process.pid, updateWaitMilliseconds,
       this.cleanupGraceMilliseconds);
     const code = await new Cli(context).runAsync(commandLineArguments);
-    return { code, output: String(output.read() ?? String.empty), error: String(error.read() ?? String.empty), readLaterError: () => String(error.read() ?? String.empty) };
+    return { code, output: String(output.read(output.readableLength) ?? String.empty), error: String(error.read(error.readableLength) ?? String.empty), readLaterError: () => String(error.read(error.readableLength) ?? String.empty) };
   }
 
   public runModuleAsync(

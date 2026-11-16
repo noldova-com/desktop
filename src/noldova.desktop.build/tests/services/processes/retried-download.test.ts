@@ -44,6 +44,6 @@ export class RetriedDownloadTests {
   }
 
   private static read(output: PassThrough): string {
-    return output.read()?.toString() ?? String.empty;
+    return output.read(output.readableLength)?.toString() ?? String.empty;
   }
 }

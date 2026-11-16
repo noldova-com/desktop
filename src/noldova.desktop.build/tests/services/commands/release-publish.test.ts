@@ -187,7 +187,7 @@ export class ReleasePublishTests {
     const exitCode = await new ReleasePublish(tmpdir(), new GitHubReleasesFixture(), {}, output, "noldova-desktop-release").runAsync(["now"]);
 
     Assert.areEqual(2, exitCode);
-    Assert.areEqual(Resources.formatReleasePublishUsage("noldova-desktop-release"), output.read()?.toString() ?? String.empty);
+    Assert.areEqual(Resources.formatReleasePublishUsage("noldova-desktop-release"), output.read(output.readableLength)?.toString() ?? String.empty);
   }
 
   private static environment(app: InstalledAppFixture, version: string): NodeJS.ProcessEnv {

@@ -30,6 +30,10 @@ export class StatsFixture implements Stats {
   public readonly mtime: Date = new Date(0);
   public readonly ctime: Date = new Date(0);
   public readonly birthtime: Date = new Date(0);
+  public readonly atimeInstant: Stats["atimeInstant"] = undefined;
+  public readonly mtimeInstant: Stats["mtimeInstant"] = undefined;
+  public readonly ctimeInstant: Stats["ctimeInstant"] = undefined;
+  public readonly birthtimeInstant: Stats["birthtimeInstant"] = undefined;
 
   public constructor(kind: "file" | "folder" | "link") {
     this.kind = kind;

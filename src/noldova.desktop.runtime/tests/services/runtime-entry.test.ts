@@ -243,7 +243,7 @@ export class RuntimeEntryTests {
   }
 
   private static read(stream: PassThrough): string {
-    return String(stream.read() ?? String.empty);
+    return String(stream.read(stream.readableLength) ?? String.empty);
   }
 
   private static waitForListenerAsync(emitter: EventEmitter, event: string): Promise<void> {

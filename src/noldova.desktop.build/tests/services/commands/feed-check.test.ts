@@ -323,7 +323,7 @@ export class FeedCheckTests {
     const error = await Assert.throwsAsync(() => new FeedCheck(FeedCheckTests.check("https://updates.example.test/app/"), output, "noldova-desktop-release", clock).runAsync([]), RangeError);
 
     Assert.areEqual("the clock stopped", error.message);
-    Assert.isNull(output.read());
+    Assert.isNull(output.read(output.readableLength));
   }
 
   @TestMethod
@@ -425,6 +425,6 @@ export class FeedCheckTests {
       }
     };
     const exitCode = await new FeedCheck(environment, output, "noldova-desktop-release", clock).runAsync(commandArguments);
-    return { exitCode, output: output.read()?.toString() ?? String.empty, pauses };
+    return { exitCode, output: output.read(output.readableLength)?.toString() ?? String.empty, pauses };
   }
 }

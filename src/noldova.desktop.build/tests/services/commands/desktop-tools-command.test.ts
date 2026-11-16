@@ -70,6 +70,6 @@ export class DesktopToolsCommandTests {
   private static async runAsync(app: DevelopmentAppFixture): Promise<string> {
     const errors = new PassThrough();
     const exitCode = await new BuildCommandLine(app.path, {}, app.platform, process.arch, new PassThrough(), errors).runAsync(["desktop-tools", "quit"]);
-    return `${exitCode} ${await app.readLaunchAsync()} ${String(errors.read())}`;
+    return `${exitCode} ${await app.readLaunchAsync()} ${String(errors.read(errors.readableLength))}`;
   }
 }
