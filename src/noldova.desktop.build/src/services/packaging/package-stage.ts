@@ -58,17 +58,18 @@ export class PackageStage {
     return this.layout.stage;
   }
 
-  public static async installAsync(npm: NpmCommand, folder: string, root: RootManifest, fields: Readonly<Record<string, unknown>>, cache: string, archives: readonly string[]):
-    Promise<void> {
+  public static async installAsync(npm: NpmCommand, folder: string, root: RootManifest, fields: Readonly<Record<string, unknown>>, cache: string,
+    archives: ReadonlyMap<string, string>): Promise<void> {
     const overrides = root.overrides;
     if (!Object.isUndefined(overrides) && !Object.isPlainObject(overrides))
       throw new BuildException(Resources.stageOverridesInvalid);
-    const manifest = { ...fields, ...Object.isUndefined(overrides) ? {} : { overrides } };
-    await writeFile(path.join(folder, Resources.packageManifestFileName), Resources.formatJsonFile(manifest));
-    const result = await npm.runAsync([...Resources.stageInstallArguments, cache, ...archives], folder);
+    const written = Object.isUndefined(overrides)
+      ? {}
+      : { overrides: Object.fromEntries(Object.entries(overrides).map(([name, value]: [string, unknown]) => [name, archives.has(name) ? PackageStage.refer(name, value) : value])) };
+    await writeFile(path.join(folder, Resources.packageManifestFileName), Resources.formatJsonFile({ ...fields, ...written }));
+    const result = await npm.runAsync([...Resources.stageInstallArguments, cache, ...archives.values()], folder);
     if (!result.isSuccessful)
-      throw new BuildException(Resources.formatStageInstallFailed(result.exitCode, result.text)
-        + (result.text.includes(Resources.stageOverrideConflictMarker) ? Resources.stageOverrideAdvice : String.empty));
+      throw new BuildException(Resources.formatStageInstallFailed(result.exitCode, result.text));
   }
 
   public async stageAsync(target: PackageTarget, output: Writable, updateFeed: string | null, windowsPublisher: string | null): Promise<void> {
@@ -116,7 +117,8 @@ export class PackageStage {
       main: path.posix.join(...Resources.electronMainSegments),
       dependencies: Object.fromEntries([...packages.map(t => [t.name, versions.of(t.name)] as const), ...roots, ...company.filter(t => PackageNaming.isContext(t.locked.name))
         .map(t => [t.locked.name, t.locked.version] as const)].sort(([left], [right]) => left.localeCompare(right)))
-    }, this.layout.npmCache, [...packages.map(t => archives.locateArchive(t, versions.of(t.name))), ...company.map(t => t.file), ...thirdParty.map(t => t.file)]);
+    }, this.layout.npmCache, new Map([...packages.map(t => [t.name, archives.locateArchive(t, versions.of(t.name))] as const), ...company.map(t => [t.locked.name, t.file] as const),
+      ...thirdParty.map(t => [t.locked.name, t.file] as const)]));
     const foreign = await ForeignAddons.removeAsync(this.folder, target);
     output.write(Resources.formatStagePackages(packages.map(t => t.name)));
     output.write(Resources.formatStageForeignAddons(foreign));
@@ -162,5 +164,13 @@ export class PackageStage {
       if (shipped.has(manifest.name))
         manifest.dependencies.forEach(t => shipped.add(t));
     return [packages.filter(t => shipped.has(t.name)), installed];
+  }
+
+  private static refer(name: string, value: unknown): unknown {
+    const reference = `${Resources.stageOverrideReferencePrefix}${name}`;
+    if (Object.isString(value))
+      return reference;
+    const fields = new Map<string, unknown>(Object.isPlainObject(value) ? Object.entries(value) : []);
+    return Object.isString(fields.get(Resources.stageOverrideSelfKey)) ? Object.fromEntries([...fields, [Resources.stageOverrideSelfKey, reference]]) : value;
   }
 }
