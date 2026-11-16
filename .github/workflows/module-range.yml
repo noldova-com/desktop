@@ -230,8 +230,9 @@ jobs:
             const names = new Set([
               ...Object.keys(locked).filter(key => /^node_modules\/@noldova\/[^/]+$/.test(key)).map(key => key.slice("node_modules/".length)),
               ...installed.map(name => `@noldova/${name}`)]);
-            const isLink = name => { try { return locked[`node_modules/${name}`]?.link === true || fs.lstatSync(`node_modules/${name}`).isSymbolicLink(); } catch { return false; } };
-            [...names].sort().filter(name => !isLink(name)).flatMap(name => {
+            const own = new Set(require("node:child_process").execFileSync("git", ["ls-files", "package.json", "**/package.json"], { encoding: "utf8" })
+              .split("\n").filter(file => file !== "").map(file => read(file)?.name));
+            [...names].sort().filter(name => !own.has(name)).flatMap(name => {
               const version = read(`node_modules/${name}/package.json`)?.version ?? "";
               const lockedVersion = locked[`node_modules/${name}`]?.version ?? "";
               if (!/^[\w.+-]+$/.test(version) || version === lockedVersion)
