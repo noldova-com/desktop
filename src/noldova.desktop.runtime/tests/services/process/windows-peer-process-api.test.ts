@@ -43,6 +43,7 @@ export class WindowsPeerProcessApiTests {
     Assert.areEqual("[\"Path=C:\\\\Windows\",\"ELECTRON_RUN_AS_NODE=1\"]", JSON.stringify(peer?.environment));
     Assert.isNull(peer?.sender);
     Assert.isNull(api.readSender());
+    Assert.isNull(api.readStart());
     Assert.areEqual("[[\"findTcpOwner\",5000,6000],[\"openProcess\",4120,1040],[\"closeHandle\",\"4120\"]]", JSON.stringify(createRequire(import.meta.url)(fake.file).calls));
   }
 

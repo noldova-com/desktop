@@ -10815,6 +10815,28 @@ export interface IEventSink {
  */
 export interface IMainProcessCheck {
   /**
+   * Reads, when the server accepts a connection and before any of its messages, what the later check compares against; on Linux, the start
+   * time of the connecting process, so that a process that later gets the same process id doesn't pass. A failure is kept and rejects the check.
+   *
+   * @param socket The connection, just accepted.
+   * @example
+   * ```ts
+   * import type { Socket } from "node:net";
+   *
+   * import type { IMainProcessCheck } from "@noldova/desktop.runtime";
+   *
+   * const accepted = new WeakSet<Socket>();
+   *
+   * export const acceptedOnly: IMainProcessCheck = {
+   *   accept: socket => accepted.add(socket),
+   *   isMainProcessAsync: socket => Promise.resolve(accepted.has(socket)),
+   *   isSameSender: socket => accepted.has(socket)
+   * };
+   * ```
+   */
+  accept?(socket: Socket): void;
+
+  /**
    * Checks the process at the other end of a connection.
    *
    * @param socket The connection, before its handshake is answered.

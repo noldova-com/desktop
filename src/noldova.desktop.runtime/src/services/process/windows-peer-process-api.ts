@@ -39,6 +39,10 @@ export class WindowsPeerProcessApi implements IPeerProcessApi {
     return null;
   }
 
+  public readStart(): string | null {
+    return null;
+  }
+
   private read(socket: Socket): PeerProcess | null {
     if (Object.isUndefined(socket.remotePort) || Object.isUndefined(socket.localPort))
       return null;

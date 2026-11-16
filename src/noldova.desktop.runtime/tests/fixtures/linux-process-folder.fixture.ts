@@ -6,24 +6,31 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { copyFile, link, mkdir, stat, writeFile } from "node:fs/promises";
+import { link, mkdir, stat, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
+
+import "@noldova/context.core";
 
 import { PeerProcess } from "../../src/models/peer-process.js";
 import { TemporaryFolderFixture } from "./temporary-folder.fixture.js";
 
 export class LinuxProcessFolderFixture implements AsyncDisposable {
   public static readonly START: string = "88123";
-  private static readonly NOISE: readonly string[] = [
-    "00400000-00452000 r-xp 00000000 08:01 1234                               /usr/lib/x86_64-linux-gnu/libc.so.6",
-    "7f0000000000-7f0000001000 rw-p 00000000 00:00 0 ",
-    "7ffd00000000-7ffd00021000 rw-p 00000000 00:00 0                          [stack]",
-    "00500000-00501000 r--p 00000000 08:01 99                                 /opt/other/app.asar.unpacked/addon.node"
+  private static readonly WRITTEN: Date = new Date(Date.UTC(2026, 0, 1));
+  private static readonly MOUNTS: readonly string[] = [
+    "22 1 4094:77 / /proc rw,nosuid shared:12 - proc proc rw",
+    "unreadable line"
   ];
 
   public readonly path: string;
   private readonly folder: TemporaryFolderFixture;
+  private readonly links: Map<string, string | Error> = new Map();
   private nextProcessId: number = 4120;
+
+  public readonly readLink = (file: string): Promise<string> => {
+    const target = this.links.get(file) ?? Object.assign(new Error(`${file} was closed.`), { code: "ENOENT" });
+    return target instanceof Error ? Promise.reject(target) : Promise.resolve(target);
+  };
 
   private constructor(folder: TemporaryFolderFixture) {
     this.folder = folder;
@@ -34,14 +41,8 @@ export class LinuxProcessFolderFixture implements AsyncDisposable {
     const fixture = new LinuxProcessFolderFixture(await TemporaryFolderFixture.createAsync());
     await mkdir(path.join(fixture.path, "self"), { recursive: true });
     await mkdir(path.join(fixture.folder.path, "files"));
+    await fixture.writeMountsAsync(null);
     return fixture;
-  }
-
-  public static async lineAsync(file: string, suffix: string = ""): Promise<string> {
-    const { dev, ino } = await stat(file, { bigint: true });
-    const major = ((dev >> 8n) & 0xfffn) | ((dev >> 32n) & ~0xfffn);
-    const minor = (dev & 0xffn) | ((dev >> 12n) & ~0xffn);
-    return `7f1200000000-7f1200400000 r--p 00000000 ${major.toString(16).padStart(2, "0")}:${minor.toString(16).padStart(2, "0")} ${ino}                    ${file}${suffix}`;
   }
 
   public file(name: string): string {
@@ -49,34 +50,52 @@ export class LinuxProcessFolderFixture implements AsyncDisposable {
   }
 
   public async writeAsync(name: string, content: string): Promise<string> {
-    await writeFile(this.file(name), content);
-    return this.file(name);
+    const file = this.file(name);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, content);
+    await utimes(file, LinuxProcessFolderFixture.WRITTEN, LinuxProcessFolderFixture.WRITTEN);
+    return file;
   }
 
-  public async writeArchiveAsync(folder: string, content: string): Promise<string> {
-    await mkdir(this.file(folder));
-    return await this.writeAsync(path.join(folder, "app.asar"), content);
+  public async writeAppAsync(name: string, archive: string | null, program: string = "electron"): Promise<readonly [string, string]> {
+    const archiveFile = Object.isNull(archive) ? this.file(path.join(name, "resources", "app.asar")) : await this.writeAsync(path.join(name, "resources", "app.asar"), archive);
+    return [await this.writeAsync(path.join(name, "program"), program), archiveFile];
   }
 
-  public async writeOwnMapsAsync(...lines: readonly string[]): Promise<void> {
-    await writeFile(path.join(this.path, "self", "maps"), [...LinuxProcessFolderFixture.NOISE, ...lines].join("\n"));
+  public async writeMountsAsync(options: string | null): Promise<void> {
+    const { dev } = await stat(this.file(""), { bigint: true });
+    const major = ((dev >> 8n) & 0xfffn) | ((dev >> 32n) & ~0xfffn);
+    const minor = (dev & 0xffn) | ((dev >> 12n) & ~0xffn);
+    const own = Object.isNull(options) ? [] : [`36 25 ${major}:${minor} / /files rw,relatime shared:1 - ext4 /dev/files ${options}`];
+    await writeFile(path.join(this.path, "self", "mountinfo"), [...LinuxProcessFolderFixture.MOUNTS, ...own, ""].join("\n"));
   }
 
-  public async writePeerAsync(program: string, isSameFile: boolean, lines: readonly string[]): Promise<PeerProcess> {
+  public setLink(file: string, target: string | Error): void {
+    this.links.set(file, target);
+  }
+
+  public async writePeerAsync(program: string, archives: readonly string[] = [], target: string = program): Promise<PeerProcess> {
     const processId = this.nextProcessId++;
     const folder = path.join(this.path, String(processId));
-    await mkdir(folder);
-    if (isSameFile)
-      await link(program, path.join(folder, "exe"));
-    else
-      await copyFile(program, path.join(folder, "exe"));
-    await this.writePeerMapsAsync(processId, lines);
+    await mkdir(path.join(folder, "fd"), { recursive: true });
+    await link(program, path.join(folder, "exe"));
+    this.setLink(path.join(folder, "exe"), target);
+    await writeFile(path.join(folder, "fd", "0"), "");
+    this.setLink(path.join(folder, "fd", "0"), "/dev/null");
+    await writeFile(path.join(folder, "fd", "1"), "");
+    const peer = new PeerProcess(path.join(folder, "exe"), [], null, processId, LinuxProcessFolderFixture.START);
+    for (const archive of archives)
+      await this.addDescriptorAsync(peer, archive);
     await this.writeStartAsync(processId, LinuxProcessFolderFixture.START);
-    return new PeerProcess(path.posix.join(this.path, String(processId), "exe"), [], null, processId, LinuxProcessFolderFixture.START);
+    return peer;
   }
 
-  public async writePeerMapsAsync(processId: number, lines: readonly string[]): Promise<void> {
-    await writeFile(path.join(this.path, String(processId), "maps"), [...LinuxProcessFolderFixture.NOISE, ...lines].join("\n"));
+  public async addDescriptorAsync(peer: PeerProcess, file: string, target: string = file): Promise<string> {
+    const folder = path.join(this.path, String(peer.processId), "fd");
+    const descriptor = path.join(folder, String(this.links.size + 3));
+    await link(file, descriptor);
+    this.setLink(descriptor, target);
+    return descriptor;
   }
 
   public async writeStartAsync(processId: number, start: string): Promise<void> {

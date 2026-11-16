@@ -64,7 +64,7 @@ export class PosixPeerProcessApi implements IPeerProcessApi {
     if (Object.isNull(processId))
       return null;
     const folder = path.posix.join(this.processFolder, String(processId));
-    const startTime = await LinuxProcessStart.readAsync(this.processFolder, processId);
+    const startTime = LinuxProcessStart.read(this.processFolder, processId);
     const environment = await readFile(path.posix.join(folder, Resources.environmentFile), Resources.utf8Encoding);
     return new PeerProcess(path.posix.join(folder, Resources.executableLink), environment.split(Resources.environmentSeparator).filter(t => t.length > 0), null, processId, startTime);
   }
@@ -74,6 +74,13 @@ export class PosixPeerProcessApi implements IPeerProcessApi {
       return null;
     const token = this.readToken(socket);
     return Object.isNull(token) ? null : token.join(Resources.senderSeparator);
+  }
+
+  public readStart(socket: Socket): string | null {
+    if (this.platform !== Resources.linuxPlatform)
+      return null;
+    const processId = this.findProcessId(socket);
+    return Object.isNull(processId) ? null : LinuxProcessStart.read(this.processFolder, processId);
   }
 
   private findProcessId(socket: Socket): number | null {

@@ -47,7 +47,8 @@ export class PosixPeerProcessApiTests {
     Assert.areEqual(4120, peer?.processId);
     Assert.areEqual("88123", peer?.startTime);
     Assert.isNull(api.readSender(PosixPeerProcessApiTests.socket({ fd: 7 })));
-    Assert.areEqual("[[7]]", JSON.stringify(createRequire(import.meta.url)(fake.file).calls));
+    Assert.areEqual("88123", api.readStart(PosixPeerProcessApiTests.socket({ fd: 7 })));
+    Assert.areEqual("[[7],[7]]", JSON.stringify(createRequire(import.meta.url)(fake.file).calls));
   }
 
   @TestMethod
@@ -58,6 +59,7 @@ export class PosixPeerProcessApiTests {
     Assert.isNull(await api.readAsync(PosixPeerProcessApiTests.socket(null)));
     Assert.isNull(await api.readAsync(PosixPeerProcessApiTests.socket({ fd: -1 })));
     Assert.isNull(await api.readAsync(PosixPeerProcessApiTests.socket({ fd: 7 })));
+    Assert.isNull(api.readStart(PosixPeerProcessApiTests.socket({ fd: 7 })));
   }
 
   @TestMethod
@@ -88,6 +90,7 @@ export class PosixPeerProcessApiTests {
     Assert.areEqual("[\"HOME=/Users/person\"]", JSON.stringify(peer?.environment));
     Assert.areEqual("4120:3", peer?.sender);
     Assert.areEqual("4120:3", api.readSender(PosixPeerProcessApiTests.socket({ fd: 7 })));
+    Assert.isNull(api.readStart(PosixPeerProcessApiTests.socket({ fd: 7 })));
     Assert.areEqual("[[7],[7],[7]]", JSON.stringify(createRequire(import.meta.url)(fake.file).calls));
   }
 
@@ -170,6 +173,7 @@ export class PosixPeerProcessApiTests {
 
       Assert.areEqual(`/proc/${process.pid}/exe`, peer?.program);
       Assert.areEqual(process.pid, peer?.processId);
+      Assert.areEqual(peer?.startTime, api.readStart(socket));
       Assert.isTrue(peer?.environment.some(t => t.startsWith("PATH=")) === true, "the environment holds PATH");
       Assert.isNull(api.readSender(socket));
       await Assert.throwsAsync(() => PosixPeerProcessApi.create("darwin").readAsync(socket), AddonIncompleteException);

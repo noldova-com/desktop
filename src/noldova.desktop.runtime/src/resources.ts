@@ -967,13 +967,16 @@ export class Resources {
   public static readonly executableLink: string = "exe";
   public static readonly environmentSeparator: string = "\0";
   public static readonly runAsNodeVariable: string = "ELECTRON_RUN_AS_NODE";
-  public static readonly mapsFile: string = "maps";
+  public static readonly descriptorFolder: string = "fd";
+  public static readonly mountInfoFile: string = "mountinfo";
   public static readonly ownProcessFolder: string = "self";
   public static readonly processStartField: number = 19;
   public static readonly processStartPattern: RegExp = /^[0-9]+$/u;
-  public static readonly mappedFilePattern: RegExp = /^\S+\s+\S+\s+\S+\s+([0-9a-f]+):([0-9a-f]+)\s+([0-9]+)\s+(.+)$/u;
-  public static readonly hexNumberPrefix: string = "0x";
-  public static readonly deletedMappingSuffix: string = " (deleted)";
+  public static readonly mountInfoPattern: RegExp = /^\S+ \S+ ([0-9]+):([0-9]+) .* - \S+ \S+ (\S+)$/u;
+  public static readonly mountOptionSeparator: string = ",";
+  public static readonly readOnlyOption: string = "ro";
+  public static readonly deletedLinkSuffix: string = " (deleted)";
+  public static readonly appResourcesFolder: string = "resources";
   public static readonly appArchiveName: string = "app.asar";
   public static readonly deviceMajorLowMask: bigint = 0xfffn;
   public static readonly deviceMinorLowMask: bigint = 0xffn;
@@ -1806,10 +1809,6 @@ export class Resources {
 
   public static formatEnvironmentNameInvalid(name: string): string {
     return `${JSON.stringify(name)} is not an environment variable's name.`;
-  }
-
-  public static formatOwnArchiveUnusable(maps: string, count: number): string {
-    return `The runtime can't tell its own app.asar: ${maps} maps ${count} app.asar files, or one that was deleted.`;
   }
 
   public static formatOwnFileChanged(file: string): string {

@@ -23,7 +23,7 @@ export class LinuxProcessStartTests {
   public async readsTheStartTimeAfterANameThatHoldsSpacesAndParentheses(): Promise<void> {
     await using folder = await LinuxProcessStartTests.createAsync("4120 (a (b) c) S 1 4120 4120 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 88123 0 0\n");
 
-    Assert.areEqual("88123", await LinuxProcessStart.readAsync(folder.path, 4120));
+    Assert.areEqual("88123", LinuxProcessStart.read(folder.path, 4120));
   }
 
   @TestMethod
@@ -33,13 +33,13 @@ export class LinuxProcessStartTests {
   public async refusesARowWithoutANameEndOrAStartTime(row: string): Promise<void> {
     await using folder = await LinuxProcessStartTests.createAsync(row);
 
-    await Assert.throwsAsync(() => LinuxProcessStart.readAsync(folder.path, 4120), ProcessTableRowUnreadableException);
+    Assert.throws(() => LinuxProcessStart.read(folder.path, 4120), ProcessTableRowUnreadableException);
   }
 
   @TestMethod
   @PlatformFixture.linuxOnly()
-  public async readsItsOwnStartTimeFromTheProcessFolder(): Promise<void> {
-    Assert.isTrue(/^[0-9]+$/u.test(await LinuxProcessStart.readAsync("/proc", process.pid)));
+  public readsItsOwnStartTimeFromTheProcessFolder(): void {
+    Assert.isTrue(/^[0-9]+$/u.test(LinuxProcessStart.read("/proc", process.pid)));
   }
 
   private static async createAsync(row: string): Promise<TemporaryFolderFixture> {
