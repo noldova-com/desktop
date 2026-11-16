@@ -559,12 +559,12 @@ describe("ShellCommandsService", () => {
     expect(labels("win32")).toEqual([
       ["desktop.search", "Ctrl+K"], ["desktop.showCommands", "Ctrl+Shift+P"], ["desktop.goBack", "Alt+Left"], ["desktop.goForward", "Alt+Right"], ["desktop.openSettings", "Ctrl+,"], ["desktop.closeTab", "Ctrl+W"], ["desktop.nextTab", "Ctrl+Tab"], ["desktop.nextTab", "Ctrl+PageDown"],
       ["desktop.previousTab", "Ctrl+Shift+Tab"], ["desktop.previousTab", "Ctrl+PageUp"], ["desktop.toggleLeftDock", "Ctrl+B"], ["desktop.toggleBottomDock", "Ctrl+J"],
-      ["desktop.toggleRightDock", "Ctrl+Alt+B"], ["desktop.showShortcuts", "Ctrl+/"]
+      ["desktop.toggleRightDock", "Ctrl+Alt+B"], ["desktop.focusNextRegion", "F6"], ["desktop.focusPreviousRegion", "Shift+F6"], ["desktop.showShortcuts", "Ctrl+/"]
     ]);
     expect(labels("darwin")).toEqual([
       ["desktop.search", "⌘K"], ["desktop.showCommands", "⇧⌘P"], ["desktop.goBack", "⌘["], ["desktop.goForward", "⌘]"], ["desktop.openSettings", "⌘,"], ["desktop.closeTab", "⌘W"], ["desktop.nextTab", "⌃⇥"], ["desktop.nextTab", "⌥⌘→"],
       ["desktop.previousTab", "⌃⇧⇥"], ["desktop.previousTab", "⌥⌘←"], ["desktop.toggleLeftDock", "⌘B"], ["desktop.toggleBottomDock", "⌘J"],
-      ["desktop.toggleRightDock", "⌥⌘B"], ["desktop.showShortcuts", "⌘/"]
+      ["desktop.toggleRightDock", "⌥⌘B"], ["desktop.focusNextRegion", "F6"], ["desktop.focusPreviousRegion", "⇧F6"], ["desktop.showShortcuts", "⌘/"]
     ]);
     for (const platform of ["linux", "darwin"]) {
       const keys = service.keys(platform);

@@ -438,6 +438,38 @@ test.describe("web views", () => {
     }
   });
 
+  test("F6 pressed in a module's web view moves the window's focus out of the view to the next region, and Shift+F6 brings it back into the view", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/keys` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Keys");
+      const focus = (): Promise<string> => window.evaluate(() => {
+        const active = document.activeElement;
+        if (active?.classList.contains("nol-web-view-guest") === true)
+          return "view";
+        return active?.closest(".nol-web-view") === null ? "outside" : "inside";
+      });
+      await window.evaluate(() => [...document.querySelectorAll<HTMLElement>(".nol-web-view-guest")].find(t => t.checkVisibility({ visibilityProperty: true }))?.focus());
+      await expect.poll(focus).toBe("view");
+
+      await pressInFirstViewAsync(mainProcess, "F6");
+      await expect.poll(focus).toBe("outside");
+      await window.keyboard.press("Shift+F6");
+      await expect.poll(focus).toBe("view");
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
   test("a key and text the runtime part sends through the relay reach the focused field of its web view's page, which keeps that field's focus, while the person's focus and keys stay in the window", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const tab = window.locator("nol-tab[data-tab-key=\"document/pages.page/1\"]");
