@@ -20,6 +20,13 @@ Each version's section is written by the pull request that changes the version, 
 - An open command search lists the commands that arrive or become enabled while it is open, such as at the end of the window's start, without the person typing again.
 - The runtime launcher's wait for the runtime's discovery file also wakes when the folder's entries change and its watch didn't report it, instead of waiting until its limit.
 - `@noldova/desktop.build`'s package smoke waits for the launcher's start log as an event on the file itself, not by polling or through a watch on its folder, which can miss a removal on macOS.
+- `@noldova/desktop.build`'s package command builds a macOS target once more when dmgbuild can't detach its disk image, instead of failing the package.
+- `@noldova/desktop.build`'s module catalog accepts a range for a module's peer on any of the organization's packages, `@noldova/` or `@noldova-com/`, when the installed version is inside it.
+  On a package other than Noldova Desktop's, context's and the kit's, the range must end at the first version refused after its lowest one: the next minor below 1.0.0, the next major from 1.0.0.
+- The declarations of `@noldova/desktop.build`, `@noldova/desktop.cli`, `@noldova/desktop.electron` and `@noldova/desktop.runtime` reference Node.js's types, so a project compiles against them without naming `@types/node` in its `types`.
+  Each package names `@types/node` `>=26.6.6 <27.0.0` as an optional peer.
+- Noldova Desktop builds and tests on Node.js 26.13.1 with npm 11.20.0.
+  What an app's program runs still runs on the Node.js that Electron embeds, 24.22.0 in Electron 44.9.1, and calls only what that Node.js has.
 - The packages are published through npm's trusted publishing, with provenance, so the release stores no token.
 
 ## 0.0.1
