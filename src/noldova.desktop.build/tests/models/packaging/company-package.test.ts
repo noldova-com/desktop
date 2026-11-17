@@ -209,6 +209,68 @@ export class CompanyPackageTests {
   }
 
   @TestMethod
+  public async takesAPackageNpmCiLeftOutFromTheArchivesFolderOnceItMatchesTheLock(): Promise<void> {
+    await using root = await CompanyPackageTests.createRootAsync(null);
+    const archive = TarballFixture.create({ "package.json": JSON.stringify({ name: "sample", version: "1.0.0" }) });
+    const archives = await CompanyPackageTests.writeArchiveAsync(root.path, archive);
+    const runner = new PackRunner(0);
+
+    const packed = await CompanyPackage.packAsync(CompanyPackageTests.lockRegistry(archive), root.path, path.join(root.path, "packed"),
+      new NpmCommand(runner, { npm_execpath: "npm-cli.js" }), new Set(), archives);
+
+    Assert.areEqual(path.join(archives, "sample-1.0.0.tgz"), packed.file);
+    Assert.areEqual(0, runner.calls.length);
+  }
+
+  @TestMethod
+  public async packsAnInstalledPackageFromWhereNpmCiInstalledItEvenWithAnArchivesFolder(): Promise<void> {
+    await using root = await CompanyPackageTests.createRootAsync({ name: "sample", version: "1.0.0" });
+    const archive = TarballFixture.create({ "package.json": JSON.stringify({ name: "sample", version: "1.0.0" }) });
+    const archives = await CompanyPackageTests.writeArchiveAsync(root.path, archive);
+    const runner = new PackRunner(0);
+    const folder = path.join(root.path, "packed");
+
+    const packed = await CompanyPackage.packAsync(CompanyPackageTests.lockRegistry(archive), root.path, folder, new NpmCommand(runner, { npm_execpath: "npm-cli.js" }), new Set(),
+      archives);
+
+    Assert.areEqual(path.join(folder, "sample-1.0.0.tgz"), packed.file);
+    Assert.areEqual(`npm-cli.js pack --ignore-scripts --loglevel=error --pack-destination ${folder} ${path.join(root.path, "node_modules", "sample")}`, runner.calls.join("|"));
+  }
+
+  @TestMethod
+  public async refusesAPackageNpmCiLeftOutThatIsNotInTheArchivesFolderOrDiffersFromTheLockOrHoldsAnother(): Promise<void> {
+    await using root = await CompanyPackageTests.createRootAsync(null);
+    const archive = TarballFixture.create({ "package.json": JSON.stringify({ name: "sample", version: "1.0.0" }) });
+    const noManifest = TarballFixture.create({ "README.md": "Sample" });
+    const another = TarballFixture.create({ "package.json": JSON.stringify({ name: "sample", version: "2.0.0" }) });
+    const archives = path.join(root.path, "archives");
+    const file = path.join(archives, "sample-1.0.0.tgz");
+    const pack = (locked: LockedPackage): Promise<CompanyPackage> => CompanyPackage.packAsync(locked, root.path, path.join(root.path, "packed"),
+      new NpmCommand(new PackRunner(0), { npm_execpath: "npm-cli.js" }), new Set(), archives);
+
+    const missing = await Assert.throwsAsync(() => pack(CompanyPackageTests.lockRegistry(archive)), BuildException);
+    await CompanyPackageTests.writeArchiveAsync(root.path, "changed");
+    const changed = await Assert.throwsAsync(() => pack(CompanyPackageTests.lockRegistry(archive)), BuildException);
+    await CompanyPackageTests.writeArchiveAsync(root.path, noManifest);
+    const unlisted = await Assert.throwsAsync(() => pack(CompanyPackageTests.lockRegistry(noManifest)), BuildException);
+    await CompanyPackageTests.writeArchiveAsync(root.path, another);
+    const other = await Assert.throwsAsync(() => pack(CompanyPackageTests.lockRegistry(another)), BuildException);
+
+    Assert.areEqual(`sample@1.0.0 could not be read at node_modules/sample, where npm ci installs it after checking it against package-lock.json, or at ${file}, `
+      + "where the install packs a company package that npm ci leaves out for another processor or system; the stage takes the company's packages only from there.", missing.message);
+    Assert.areEqual(`${file} does not match the integrity package-lock.json locks for sample@1.0.0, so it cannot ship.`, changed.message);
+    Assert.areEqual(`${file} holds no package.json for sample@1.0.0, so it cannot ship.`, unlisted.message);
+    Assert.areEqual(`${file} does not hold sample@1.0.0, which package-lock.json locks; run npm ci, so the stage takes the locked package.`, other.message);
+  }
+
+  @TestMethod
+  public readsTheArchivesFolderFromTheEnvironmentOnlyWhenItNamesOne(): void {
+    const folders = [{}, { NOLDOVA_DESKTOP_COMPANY_ARCHIVES: "" }, { NOLDOVA_DESKTOP_COMPANY_ARCHIVES: "archives" }].map(t => CompanyPackage.readArchivesFolder(t));
+
+    Assert.areEqual(JSON.stringify([null, null, "archives"]), JSON.stringify(folders));
+  }
+
+  @TestMethod
   public async refusesAFailedPack(): Promise<void> {
     await using root = await CompanyPackageTests.createRootAsync({ name: "sample", version: "1.0.0" });
 
@@ -457,7 +519,7 @@ export class CompanyPackageTests {
   private static async stageAndLoadAsync(npm: NpmCommand, stage: string, archive: string): Promise<string> {
     await mkdir(stage);
     await PackageStage.installAsync(npm, stage, new RootManifest("1.0.0", 1), { name: "sample-stage", version: "1.0.0", private: true }, `${stage}-cache`,
-      new Map([["@noldova/sample", archive]]));
+      new Map([["@noldova/sample", archive]]), PackageTarget.fromProcess("linux", "x64"));
     const loaded: unknown = createRequire(path.join(stage, "package.json"))("@noldova/sample");
     return String(loaded);
   }
@@ -496,8 +558,16 @@ export class CompanyPackageTests {
     return new LockedPackage(`node_modules/${name}`, { version: "1.0.0", resolved, integrity: `sha512-${createHash("sha512").update(archive).digest("base64")}` });
   }
 
-  private static lockRegistry(): LockedPackage {
-    return new LockedPackage("node_modules/sample", { version: "1.0.0", resolved: "https://registry.example.com/sample-1.0.0.tgz", integrity: "sha512-AAAA" });
+  private static lockRegistry(archive: Buffer | null = null): LockedPackage {
+    return new LockedPackage("node_modules/sample", { version: "1.0.0", resolved: "https://registry.example.com/sample-1.0.0.tgz",
+      integrity: Object.isNull(archive) ? "sha512-AAAA" : `sha512-${createHash("sha512").update(archive).digest("base64")}` });
+  }
+
+  private static async writeArchiveAsync(root: string, data: Buffer | string): Promise<string> {
+    const archives = path.join(root, "archives");
+    await mkdir(archives, { recursive: true });
+    await writeFile(path.join(archives, "sample-1.0.0.tgz"), data);
+    return archives;
   }
 
   private static lockInstalled(archive: Buffer): LockedPackage {

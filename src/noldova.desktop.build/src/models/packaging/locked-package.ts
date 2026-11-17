@@ -23,6 +23,7 @@ export class LockedPackage {
   public readonly resolved: string;
   public readonly sha512: string | null;
   public readonly isInstalled: boolean;
+  public readonly isPlatformBound: boolean;
 
   public constructor(location: string, entry: Readonly<Record<string, unknown>>, isInstalled: boolean = false) {
     const name = location.slice(location.lastIndexOf(Resources.lockedPackageFolder) + Resources.lockedPackageFolder.length);
@@ -63,6 +64,7 @@ export class LockedPackage {
     this.resolved = resolved;
     this.sha512 = sha512 ?? null;
     this.isInstalled = isInstalled;
+    this.isPlatformBound = [Resources.lockfileOsField, Resources.lockfileCpuField, Resources.lockfileLibcField].some(t => !Object.isUndefined(entry[t]));
   }
 
   public get id(): string {
