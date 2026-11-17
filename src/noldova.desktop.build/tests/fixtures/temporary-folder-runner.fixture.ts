@@ -111,7 +111,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
 
   private static async stopAsync(id: number, running: Promise<ProcessResult>): Promise<string> {
     const settled = running.then(() => true, () => true);
-    if (!TemporaryFolderRunnerFixture.signal(id, "SIGTERM")) {
+    if (!TemporaryFolderRunnerFixture.sendSignal(id, "SIGTERM")) {
       await settled;
       return "It had ended before SIGTERM.";
     }
@@ -119,12 +119,12 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     const ended = await Promise.race([settled, delay(TemporaryFolderRunnerFixture.SETTLE_LIMIT, false, { signal: watch.signal })]).finally(() => watch.abort());
     if (ended)
       return "It ended at SIGTERM.";
-    TemporaryFolderRunnerFixture.signal(id, "SIGKILL");
+    TemporaryFolderRunnerFixture.sendSignal(id, "SIGKILL");
     await settled;
     return `It outlived SIGTERM by ${TemporaryFolderRunnerFixture.SETTLE_LIMIT} ms and ended at SIGKILL.`;
   }
 
-  private static signal(id: number, signal: NodeJS.Signals): boolean {
+  private static sendSignal(id: number, signal: NodeJS.Signals): boolean {
     try {
       return process.kill(id, signal);
     }
