@@ -502,6 +502,7 @@ export class PackageSmoke {
         removed.resolve(true);
     }, removed.reject);
     const watchers: FSWatcher[] = [];
+    const recheck = setInterval(check, Resources.smokePollInterval);
     try {
       try {
         for (const name of (await readdir(logs)).filter(t => Resources.smokeStartLogPattern.test(t)))
@@ -515,6 +516,7 @@ export class PackageSmoke {
         throw new BuildException(Resources.formatSmokeMainEndedBeforeLauncher(mainProcess.ending, await PackageSmoke.readTailAsync(mainLogs)));
     }
     finally {
+      clearInterval(recheck);
       limit.abort();
       for (const watcher of watchers)
         watcher.close();

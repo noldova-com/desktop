@@ -17,13 +17,14 @@ export class WatchPathsFixture implements Disposable {
 
   public readonly paths: string[] = [];
   public onWatch: (target: string) => void = () => undefined;
+  public dropsEvents: boolean = false;
 
   public constructor() {
     const watch = fs.watch;
     const watching = mock.method(fs, "watch", (target: fs.PathLike, listener: WatchListener<string>): FSWatcher => {
       this.paths.push(String(target));
       this.onWatch(String(target));
-      return watch(target, listener);
+      return watch(target, this.dropsEvents ? () => undefined : listener);
     });
     this.restore = () => watching.mock.restore();
     syncBuiltinESMExports();

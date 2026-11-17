@@ -929,6 +929,23 @@ export class PackageSmokeTests {
   }
 
   @TestMethod
+  public async seesTheStartLogsRemovalThatItsWatchNeverReportsAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new AppImageCopyRunnerFixture();
+    runner.removesStartLog = true;
+    using watches = new WatchPathsFixture();
+    watches.dropsEvents = true;
+
+    const result = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, runner, processes, true);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.areEqual(1, watches.paths.length);
+    Assert.isFalse(existsSync(path.join(result.data, "logs", "start-00000000-0000-0000-0000-000000000000.log")));
+  }
+
+  @TestMethod
   public async goesOnWhenTheStartLogIsRemovedJustBeforeItsWatchStartsAsync(): Promise<void> {
     await using app = await PackageSmokeTests.createAppAsync();
     await using parent = await PackageSmokeTests.createParentAsync();
