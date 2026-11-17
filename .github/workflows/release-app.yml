@@ -65,6 +65,26 @@ on:
         description: The internal update feed's HTTPS URL, which internal-feed needs.
         type: string
         default: ''
+      source-repository:
+        description: The repository, as owner/name, whose app the release checks out at revision and builds; empty is this repository. Another repository must be public, since the release reads it with this run's token, and revision must be on its main with a passed Build and test run there.
+        type: string
+        default: ''
+      signing-environment:
+        description: The environment of this repository whose secrets sign the packages, such as one per app in a repository that builds several apps.
+        type: string
+        default: release
+      publish-environment:
+        description: The environment of this repository that publishes the release, such as one per app; for a release-repository other than this repository, it holds the release GitHub App's client ID as the variable RELEASE_APP_CLIENT_ID and its private key as the secret RELEASE_APP_PRIVATE_KEY.
+        type: string
+        default: publish
+      release-repository:
+        description: The repository, as owner/name, whose releases the release publishes in, such as one shared by several apps; empty publishes in this repository. Another repository's release is tagged there by GitHub at its default branch, and its notes name the source repository's commit.
+        type: string
+        default: ''
+      release-tag-prefix:
+        description: What the release's tag starts with before its version, v or lowercase words joined by dashes and ending in a dash, such as app- for app-1.0.0; empty is v. A release-repository other than the source repository refuses v, so name the app there, such as app-. In a shared release-repository, only releases under this prefix count as this app's.
+        type: string
+        default: ''
       skip-feed-check:
         description: True skips the update feed check after the release publishes, for an app whose releases its installed copies can't read yet.
         type: boolean
@@ -97,6 +117,8 @@ on:
       APPLE_API_KEY_ID:
         required: false
       APPLE_API_ISSUER:
+        required: false
+      RELEASE_APP_PRIVATE_KEY:
         required: false
 
 permissions:
@@ -179,7 +201,7 @@ jobs:
         env:
           API_URL: ${{ github.api_url }}
           GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
+          REPOSITORY: ${{ inputs.source-repository || github.repository }}
           REVISION: ${{ inputs.revision }}
         run: |
           set -euo pipefail
@@ -202,6 +224,7 @@ jobs:
         timeout-minutes: 5
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          repository: ${{ inputs.source-repository || github.repository }}
           ref: ${{ inputs.revision }}
           persist-credentials: false
 
@@ -346,7 +369,10 @@ jobs:
         working-directory: ${{ inputs.app-folder }}
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
+          RELEASE_SOURCE_REPOSITORY: ${{ inputs.source-repository || github.repository }}
+          RELEASE_BUILD_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}
         run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" release-check
@@ -408,6 +434,7 @@ jobs:
     with:
       app-folder: ${{ inputs.app-folder }}
       prepare: ${{ inputs.prepare }}
+      repository: ${{ inputs.source-repository }}
       revision: ${{ inputs.revision }}
       targets: ${{ needs.check.outputs.targets }}
       update-feed: ${{ needs.check.outputs.update-feed }}
@@ -426,9 +453,11 @@ jobs:
     with:
       app-folder: ${{ inputs.app-folder }}
       prepare: ${{ inputs.prepare }}
+      repository: ${{ inputs.source-repository }}
       revision: ${{ inputs.revision }}
       targets: ${{ needs.check.outputs.signed-targets }}
       signed: true
+      signing-environment: ${{ inputs.signing-environment }}
       update-feed: ${{ needs.check.outputs.update-feed }}
       package-version: ${{ needs.check.outputs.package-version }}
       keep-release-files: true
@@ -454,7 +483,7 @@ jobs:
     timeout-minutes: 30
     env:
       PEER_PACKAGES: ${{ needs.check.outputs.peers }}
-    environment: publish
+    environment: ${{ inputs.publish-environment }}
     permissions:
       contents: write
     concurrency:
@@ -486,12 +515,42 @@ jobs:
           pattern: report-*
           path: _build/release-reports
 
+      - name: Name the release repository's owner and name
+        id: release-repository
+        if: inputs.release-repository != '' && inputs.release-repository != github.repository
+        timeout-minutes: 1
+        env:
+          REPOSITORY: ${{ inputs.release-repository }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$REPOSITORY" =~ ^([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)$ ]]; then
+            echo "::error::release-repository must name a repository as owner/name, not $REPOSITORY."
+            exit 1
+          fi
+          echo "owner=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          echo "name=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+
+      - name: Create the release App's token for the release repository
+        id: release-token
+        if: steps.release-repository.outputs.name != ''
+        timeout-minutes: 2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ steps.release-repository.outputs.owner }}
+          repositories: ${{ steps.release-repository.outputs.name }}
+          permission-contents: write
+
       - name: Publish the release
         timeout-minutes: 20
         working-directory: ${{ inputs.app-folder }}
         env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ steps.release-token.outputs.token || github.token }}
+          RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
+          RELEASE_SOURCE_REPOSITORY: ${{ inputs.source-repository || github.repository }}
+          RELEASE_BUILD_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}
           RELEASE_FOLDER: ${{ github.workspace }}/_build/release
@@ -553,7 +612,10 @@ jobs:
         timeout-minutes: 10
         working-directory: ${{ inputs.app-folder }}
         env:
-          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
+          RELEASE_SOURCE_REPOSITORY: ${{ inputs.source-repository || github.repository }}
+          RELEASE_BUILD_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}
           RELEASE_FOLDER: ${{ github.workspace }}/_build/release
@@ -649,7 +711,7 @@ jobs:
         timeout-minutes: 25
         env:
           SKIP_FEED_CHECK: ${{ inputs.skip-feed-check }}
-          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_REPOSITORY: ${{ inputs.release-repository || github.repository }}
           FEED_URL: ${{ needs.check.outputs.product-feed }}
           FEED_VERSION: ${{ inputs.version }}
           RELEASE_TARGETS: ${{ needs.check.outputs.release-targets }}
