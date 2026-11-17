@@ -123,7 +123,7 @@ export class PackageStageTests {
     const folder = await mkdtemp(path.join(tmpdir(), "package-stage-"));
     try {
       const runner = await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), 500);
-      const script = "setTimeout(() => {}, 5000)";
+      const script = "setInterval(() => {}, 1_000)";
 
       const error = await Assert.throwsAsync(() => runner.captureAsync(process.execPath, ["-e", script, folder], tmpdir(), 600_000), BuildException);
 
