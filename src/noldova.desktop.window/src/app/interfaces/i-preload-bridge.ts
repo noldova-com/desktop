@@ -75,6 +75,7 @@ export interface IPreloadBridge {
   setAppShortcuts(shortcuts: JsonObject): void;
   onWebViewEvent(listener: (event: unknown) => void): () => void;
   onWebViewShortcut(listener: (stroke: unknown) => void): () => void;
+  answerWebViewShortcut(press: unknown, hasRun: boolean): void;
   onWebViewInput(listener: (input: unknown) => void): () => void;
   releaseWebViewFocus(moduleId: string, view: string): void;
   logModule(moduleId: string, message: string): void;

@@ -34,6 +34,28 @@ export class WebViewKeyInputTests {
   }
 
   @TestMethod
+  @TestData({ type: "keyDown", key: "a" }, "linux", "keyDown a |char a ")
+  @TestData({ type: "rawKeyDown", key: "A", shift: true }, "linux", "keyDown A shift|char A shift")
+  @TestData({ type: "keyDown", key: "Enter" }, "win32", "keyDown Enter |char \r ")
+  @TestData({ type: "keyDown", key: "ArrowLeft" }, "linux", "keyDown Left ")
+  @TestData({ type: "keyDown", key: "t", control: true }, "linux", "keyDown t control")
+  @TestData({ type: "keyDown", key: "t", meta: true }, "darwin", "keyDown t meta")
+  @TestData({ type: "keyDown", key: "@", control: true, alt: true }, "win32", "keyDown @ alt+control|char @ alt+control")
+  @TestData({ type: "keyDown", key: "f", alt: true }, "win32", "keyDown f alt")
+  @TestData({ type: "keyDown", key: "å", alt: true }, "darwin", "keyDown å alt|char å alt")
+  @TestData({ type: "keyDown", key: "t", control: true, isAutoRepeat: true }, "linux", "keyDown t control+isautorepeat")
+  @TestData({ type: "keyUp", key: "a" }, "linux", "keyUp a ")
+  public givesBackAPersonsPressAsThePageInputsItTakes(press: JsonObject, platform: string, expected: string): void {
+    const input = { type: "keyDown", key: String.empty, code: String.empty, isAutoRepeat: false, control: false, alt: false, shift: false, meta: false, ...press };
+    const events = WebViewKeyInput.fromInput({
+      type: String(input.type), key: String(input.key), code: String(input.code), isAutoRepeat: input.isAutoRepeat === true,
+      control: input.control === true, alt: input.alt === true, shift: input.shift === true, meta: input.meta === true
+    }, platform);
+
+    Assert.areEqual(expected, events.map(t => `${t.type} ${t.keyCode} ${t.modifiers.join("+")}`).join("|"));
+  }
+
+  @TestMethod
   public keepsTheHeldKeysAndARepeatOnEachInput(): void {
     const events = WebViewKeyInput.read({ type: "keyDown", key: "a", text: "a", modifiers: 15, autoRepeat: true });
 

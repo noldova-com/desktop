@@ -98,6 +98,7 @@ export class IpcRouter {
     });
     ipc.on(Resources.webViewFocusReleaseChannel, (event, module, view) => this.onWebView(event, false, t => views.releaseFocus(t, module, view)));
     ipc.on(Resources.webViewShortcutsChannel, (event, keys) => this.onWebView(event, false, t => views.setShortcuts(t, keys)));
+    ipc.on(Resources.webViewShortcutAnswerChannel, (event, press, hasRun) => this.onWebView(event, false, t => views.answerShortcut(t, press, hasRun)));
   }
 
   private onWebView(event: IIpcEvent, refused: unknown, run: (windowId: number) => unknown): unknown {

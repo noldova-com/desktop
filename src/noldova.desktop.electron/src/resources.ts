@@ -63,6 +63,7 @@ export class Resources {
   public static readonly appShortcutsChannel: string = "desktop:appShortcuts";
   public static readonly webViewEventChannel: string = "desktop:webViewEvent";
   public static readonly webViewShortcutChannel: string = "desktop:webViewShortcut";
+  public static readonly webViewShortcutAnswerChannel: string = "desktop:webViewShortcutAnswer";
   public static readonly webViewInputChannel: string = "desktop:webViewInput";
   public static readonly webViewFocusReleaseChannel: string = "desktop:webViewFocusRelease";
   public static readonly webViewZoomChannel: string = "desktop:webViewZoom";
@@ -246,6 +247,8 @@ export class Resources {
     [Resources.altModifier, "alt"], [Resources.ctrlModifier, "control"], [Resources.metaModifier, "meta"], [Resources.shiftModifier, "shift"]
   ];
   public static readonly autoRepeatModifier: string = "isautorepeat";
+  public static readonly pressField: string = "press";
+  public static readonly webViewKeyTexts: ReadonlyMap<string, string> = new Map([["Enter", "\r"]]);
   public static readonly webViewKeyNames: ReadonlyMap<string, string> = new Map([["ArrowUp", "Up"], ["ArrowDown", "Down"], ["ArrowLeft", "Left"], ["ArrowRight", "Right"], [" ", "Space"], ["+", "Plus"]]);
   public static readonly webViewTextUnreadable: string = "The text input names no text.";
   public static readonly webViewKeyUnreadable: string = "The key event names no key, or a type the page's input doesn't take.";
@@ -673,6 +676,7 @@ export class Resources {
     webViewNavigate: Resources.webViewNavigateChannel,
     webViewOpen: Resources.webViewOpenChannel,
     webViewShortcut: Resources.webViewShortcutChannel,
+    webViewShortcutAnswer: Resources.webViewShortcutAnswerChannel,
     webViewShortcuts: Resources.webViewShortcutsChannel,
     webViewZoom: Resources.webViewZoomChannel,
     windowAction: Resources.windowActionChannel,
@@ -1136,6 +1140,10 @@ export class Resources {
 
   public static formatWebViewAttachRefused(windowId: number, partition: string): string {
     return `A <webview> in window ${windowId} was refused, because its partition "${partition}" belongs to no web view the window opened.`;
+  }
+
+  public static formatShortcutPress(windowId: number, press: number): string {
+    return `${windowId} ${press}`;
   }
 
   public static formatWebViewPartition(module: string, profileKey: string): string {

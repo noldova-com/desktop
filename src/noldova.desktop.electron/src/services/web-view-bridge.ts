@@ -37,7 +37,7 @@ export class WebViewBridge {
     this.log = options.log;
     this.declarations = undefined;
     this.host = new WebViewHost(options.electron.webViews, new WebViewOriginCheck([], () => this.blockedPorts), () => this.readDeclarationsAsync(), options.settings.platform,
-      (windowId, event) => this.sendEvent(windowId, event), (windowId, stroke) => this.sendShortcut(windowId, stroke),
+      (windowId, event) => this.sendEvent(windowId, event), (windowId, stroke, press) => this.sendShortcut(windowId, stroke, press),
       (windowId, input) => this.windows.sendTo(windowId, Resources.webViewInputChannel, input), isReady,
       t => void runtime.callAsync(ShellMethods.webViewEvents, t.toJson()), t => options.log.write(t));
   }
@@ -97,8 +97,8 @@ export class WebViewBridge {
     this.windows.sendTo(windowId, Resources.webViewEventChannel, event.toJson());
   }
 
-  private sendShortcut(windowId: number, stroke: IKeyStroke): void {
-    this.windows.sendTo(windowId, Resources.webViewShortcutChannel, { ...stroke });
+  private sendShortcut(windowId: number, stroke: IKeyStroke, press: number): void {
+    this.windows.sendTo(windowId, Resources.webViewShortcutChannel, { ...stroke, [Resources.pressField]: press });
   }
 
   private readDeclarationsAsync(): Promise<ReadonlyMap<string, WebViewDeclaration>> {

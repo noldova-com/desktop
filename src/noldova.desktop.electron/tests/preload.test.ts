@@ -23,7 +23,7 @@ export class PreloadTests {
       "readLayout", "writeLayout", "request", "onEvent", "readBuild", "copyText", "copyImage", "openLogFolder", "copyDetails", "openLink", "showInFolder", "openFile", "chooseFolder", "chooseFilePath", "saveFile", "chooseFiles", "grantFiles", "installCommand", "readUpdate", "onUpdate", "actOnUpdate",
       "keepAppearance", "readSpelling", "keepSpelling", "onFieldMenu", "replaceMisspelling", "addToDictionary", "edit", "setMenuBar", "onMenuCommand", "onNotificationOpened", "onQuitQuestion",
       "answerQuit", "readTrayAvailable", "onTrayAvailable", "readFullScreen", "onFullScreen", "readMaximized", "onMaximized", "actOnWindow", "openWebView", "attachWebView",
-      "navigateWebView", "actOnWebView", "zoomWebView", "findInWebView", "closeWebView", "keepWebViews", "expectWebView", "setWebViewShortcuts", "setAppShortcuts", "onWebViewEvent", "onWebViewShortcut", "onWebViewInput",
+      "navigateWebView", "actOnWebView", "zoomWebView", "findInWebView", "closeWebView", "keepWebViews", "expectWebView", "setWebViewShortcuts", "setAppShortcuts", "onWebViewEvent", "onWebViewShortcut", "answerWebViewShortcut", "onWebViewInput",
       "releaseWebViewFocus", "logModule", "logError"
     ].join(","), Object.keys(api).join(","));
     Assert.areEqual(process.platform, api["platform"]);
@@ -81,6 +81,7 @@ export class PreloadTests {
     PreloadTests.invoke(api["closeWebView"], "browser", "1");
     PreloadTests.invoke(api["setWebViewShortcuts"], ["Mod+K"]);
     PreloadTests.invoke(api["setAppShortcuts"], "shortcuts");
+    PreloadTests.invoke(api["answerWebViewShortcut"], 3, false);
     PreloadTests.invoke(api["releaseWebViewFocus"], "browser", "1");
     PreloadTests.invoke(api["logModule"], "clock", "line");
     PreloadTests.invoke(api["logError"], null, "error");
@@ -94,6 +95,7 @@ export class PreloadTests {
       ["desktop:webViewClose", "browser", "1"],
       ["desktop:webViewShortcuts", ["Mod+K"]],
       ["desktop:appShortcuts", "shortcuts"],
+      ["desktop:webViewShortcutAnswer", 3, false],
       ["desktop:webViewFocusRelease", "browser", "1"],
       ["desktop:moduleLog", "clock", "line"],
       ["desktop:windowError", null, "error"]

@@ -66,6 +66,7 @@ export class Resources {
   public static readonly middleButton: number = 1;
   public static readonly escapeKey: string = "Escape";
   public static readonly keyDownEvent: "keydown" = "keydown";
+  public static readonly webViewPressField: string = "press";
   public static readonly keepsCtrlKeysAttribute: string = "data-nol-keeps-ctrl-keys";
   public static readonly inertAttribute: string = "inert";
   public static readonly dialogContainerSelector: string = ".cdk-dialog-container";
