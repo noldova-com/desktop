@@ -114,6 +114,25 @@ export class RuntimeServerTests {
   }
 
   @TestMethod
+  public answersAHandshakeThatArrivedInTimeWhileTheServerWasBusyPastItsHandshakeTime(): Promise<void> {
+    return RuntimeServerFixture.runAsync(new ServerSettings(64 * 1024, 100, 1_000, 1_000), async fixture => {
+      const answers: Response[] = [];
+      for (const client of [ShellClients.mainProcess, "tester"]) {
+        const connection = await fixture.connectAsync();
+        await fixture.waitUntilAsync(() => fixture.server.sessionCount === answers.length + 1);
+
+        connection.sendMessages(new Handshake(`${client}:0`, RuntimeServerFixture.IDENTITY, RuntimeServerFixture.TOKEN, client));
+        RuntimeServerTests.blockEventLoop(150);
+
+        answers.push(await connection.readResponseAsync());
+      }
+
+      Assert.areEqual("false false", answers.map(t => String(t.hasFailed)).join(" "));
+      Assert.areEqual(2, fixture.server.sessionCount);
+    });
+  }
+
+  @TestMethod
   public closesAConnectionThatSendsNoHandshakeInTime(): Promise<void> {
     return RuntimeServerFixture.runAsync(new ServerSettings(1_024, 100, 1_000, 1_000), async fixture => {
       const connection = await fixture.connectAsync();
@@ -680,6 +699,10 @@ export class RuntimeServerTests {
     const loop: JsonValue[] = [];
     loop.push(loop);
     return loop;
+  }
+
+  private static blockEventLoop(milliseconds: number): void {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
   }
 
   private static async runInFolderAsync(test: (folder: string) => Promise<void>): Promise<void> {

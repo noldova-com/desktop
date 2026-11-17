@@ -302,10 +302,10 @@ export class RuntimeServer implements IEventSink {
     this.mainProcessCheck.accept?.(socket);
     const session = new ClientSession(socket, this.nextConnection++, this.settings.maximumFrameLength, this.listener);
     this.sessions.add(session);
-    const timer = setTimeout(() => {
+    const timer = setTimeout(() => setImmediate(() => {
       if (session.state === SessionState.AwaitingHandshake || session.state === SessionState.Verifying)
         session.close();
-    }, this.settings.handshakeTimeout);
+    }), this.settings.handshakeTimeout);
     socket.once(Resources.closeEvent, () => clearTimeout(timer));
     this.changed();
   }
