@@ -71,10 +71,11 @@ export class ReleasePublishTests {
     await using app = await ReleasePublishTests.createAppAsync("1.2.3-internal.6");
 
     const result = await app.runAsync("linux", ["release-publish"], ReleasePublishTests.environment(app, ReleasePublishTests.VERSION));
+    const [missing = String.empty, unexpected = String.empty] = result.split(" Not part of a release: ");
 
-    Assert.isTrue(result.startsWith(`1 ${ReleasePublishTests.REPORTS_CHECKED}The release's files in ${path.join(app.path, "release")} differ from the files a release has. `
-      + "Missing: Sample App-1.2.3-internal.7-linux-x64.AppImage, "), result);
-    Assert.isTrue(result.includes("Sample App-1.2.3-internal.6-windows-x64.exe"), result);
+    Assert.isTrue(missing.startsWith(`1 ${ReleasePublishTests.REPORTS_CHECKED}The release's files in ${path.join(app.path, "release")} differ from the files a release has. Missing: `), result);
+    Assert.isTrue(missing.includes("Sample App-1.2.3-internal.7-linux-x64.AppImage") && !missing.includes("internal.6"), result);
+    Assert.isTrue(unexpected.includes("Sample App-1.2.3-internal.6-windows-x64.exe") && !unexpected.includes("internal.7"), result);
     Assert.isFalse(result.includes("latest-windows-x64.yml"), result);
   }
 
