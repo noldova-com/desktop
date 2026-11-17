@@ -18,14 +18,16 @@ export class StandInBuilderRunnerFixture extends ProcessRunner {
   private readonly runner: ProcessRunner;
   private readonly files: readonly string[];
   private readonly failures: string[];
+  private readonly built: ReadonlyMap<string, Buffer>;
 
   public readonly environments: NodeJS.ProcessEnv[] = [];
 
-  public constructor(runner: ProcessRunner, files: readonly string[], failures: readonly string[] = []) {
+  public constructor(runner: ProcessRunner, files: readonly string[], failures: readonly string[] = [], built: ReadonlyMap<string, Buffer> = new Map()) {
     super();
     this.runner = runner;
     this.files = files;
     this.failures = [...failures];
+    this.built = built;
   }
 
   public override captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv): Promise<ProcessResult> {
@@ -45,6 +47,10 @@ export class StandInBuilderRunnerFixture extends ProcessRunner {
     for (const file of this.files) {
       await mkdir(path.dirname(file), { recursive: true });
       await writeFile(file, String.empty);
+    }
+    for (const [file, data] of this.built) {
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(file, data);
     }
     return 0;
   }

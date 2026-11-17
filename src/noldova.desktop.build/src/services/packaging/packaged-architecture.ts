@@ -15,19 +15,20 @@ import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
 
 export class PackagedArchitecture {
-  public static async verifyAsync(application: string, architecture: string): Promise<string> {
+  public static async verifyAsync(folder: string, architecture: string): Promise<string> {
     if (Object.isUndefined(Resources.machCpuTypes[architecture]))
-      throw new BuildException(Resources.formatMachArchitectureUnknown(architecture, Object.keys(Resources.machCpuTypes)));
+      throw new BuildException(Resources.formatNativeArchitectureUnknown(architecture, Object.keys(Resources.machCpuTypes)));
     let count = 0;
-    for (const file of await PackagedArchitecture.listFilesAsync(application)) {
-      const found = await PackagedArchitecture.describeAsync(file);
-      if (Object.isNull(found))
+    for (const file of await PackagedArchitecture.listFilesAsync(folder)) {
+      const native = await PackagedArchitecture.describeAsync(file);
+      if (Object.isNull(native))
         continue;
+      const [kind, found] = native;
       if (found !== architecture)
-        throw new BuildException(Resources.formatMachArchitectureMismatch(file, found, architecture));
+        throw new BuildException(Resources.formatNativeArchitectureMismatch(file, found, kind, architecture));
       count++;
     }
-    return Resources.formatMachArchitectureVerified(application, count, architecture);
+    return Resources.formatNativeArchitectureVerified(folder, count, architecture);
   }
 
   private static async listFilesAsync(folder: string): Promise<readonly string[]> {
@@ -43,22 +44,48 @@ export class PackagedArchitecture {
     return files;
   }
 
-  private static async describeAsync(file: string): Promise<string | null> {
-    const header = Buffer.alloc(Resources.machHeaderLength);
+  private static async describeAsync(file: string): Promise<readonly [string, string] | null> {
     const handle = await open(file, Resources.fileReadFlag);
     try {
+      const header = Buffer.alloc(Resources.nativeHeaderLength);
       await handle.read(header, 0, header.length, 0);
+      if (header.subarray(0, Resources.nativeDosMagic.length).equals(Resources.nativeDosMagic)) {
+        const signature = Buffer.alloc(Resources.peSignatureLength);
+        await handle.read(signature, 0, signature.length, header.readUInt32LE(Resources.peHeaderOffsetField));
+        return signature.subarray(0, Resources.nativePeMagic.length).equals(Resources.nativePeMagic) ? PackagedArchitecture.describePe(signature.readUInt16LE(Resources.peMachineOffset)) : null;
+      }
+      return header.subarray(0, Resources.elfMagic.length).toString(Resources.elfMagicEncoding) === Resources.elfMagic ? PackagedArchitecture.describeElf(header) : PackagedArchitecture.describeMach(header);
     }
     finally {
       await handle.close();
     }
+  }
+
+  private static describePe(machine: number): readonly [string, string] {
+    return [Resources.peKind, PackagedArchitecture.nameOf(Resources.peMachines, machine) ?? Resources.formatPeMachine(machine)];
+  }
+
+  private static describeElf(header: Buffer): readonly [string, string] {
+    if (header[Resources.elfClassOffset] !== Resources.elf64BitClass)
+      return [Resources.elfKind, Resources.elf32BitFile];
+    if (header[Resources.elfDataOffset] !== Resources.elfLittleEndianData)
+      return [Resources.elfKind, Resources.elfBigEndianFile];
+    const machine = header.readUInt16LE(Resources.elfMachineOffset);
+    return [Resources.elfKind, PackagedArchitecture.nameOf(Resources.elfMachines, machine) ?? Resources.formatElfMachine(machine)];
+  }
+
+  private static describeMach(header: Buffer): readonly [string, string] | null {
     if (Resources.machUniversalMagics.includes(header.readUInt32BE(0)) && header.readUInt32BE(Resources.machUniversalCountOffset) <= Resources.machUniversalArchitectureLimit)
-      return Resources.machUniversalFile;
+      return [Resources.machKind, Resources.machUniversalFile];
     if (header.readUInt32LE(0) === Resources.machThin32Magic)
-      return Resources.mach32BitFile;
+      return [Resources.machKind, Resources.mach32BitFile];
     if (header.readUInt32LE(0) !== Resources.machThinMagic)
       return null;
     const type = header.readUInt32LE(Resources.machCpuTypeOffset);
-    return Object.entries(Resources.machCpuTypes).find(([, value]) => value === type)?.[0] ?? Resources.formatMachCpuType(type);
+    return [Resources.machKind, PackagedArchitecture.nameOf(Resources.machCpuTypes, type) ?? Resources.formatMachCpuType(type)];
+  }
+
+  private static nameOf(table: Readonly<Record<string, number>>, value: number): string | undefined {
+    return Object.entries(table).find(([, t]) => t === value)?.[0];
   }
 }

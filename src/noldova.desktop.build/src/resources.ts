@@ -91,6 +91,8 @@ export class Resources {
   public static readonly addonOutputFolder: string = "native";
   public static readonly addonExtension: string = ".node";
   public static readonly releaseAddonsVariable: string = "RELEASE_ADDONS";
+  public static readonly targetArchitectureVariable: string = "NOLDOVA_DESKTOP_ARCHITECTURE";
+  public static readonly electronArchitectureVariable: string = "npm_config_arch";
   public static readonly addonWindowsTargets: readonly string[] = ["win32-x64", "win32-arm64"];
   public static readonly addonPosixTargets: readonly string[] = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
   public static readonly addonTargets: readonly string[] = [...Resources.addonWindowsTargets, ...Resources.addonPosixTargets];
@@ -436,7 +438,6 @@ export class Resources {
   public static readonly stageIconsRole: string = "the icons folder that desktop.product.icons names";
   public static readonly stageDictionariesRole: string = "the spelling dictionaries the window checks text with";
   public static readonly stageNoGallery: string = "The packaged window holds no Gallery.\n";
-  public static readonly machHeaderLength: number = 8;
   public static readonly machCpuTypeOffset: number = 4;
   public static readonly machUniversalCountOffset: number = 4;
   public static readonly machThinMagic: number = 0xfeedfacf;
@@ -446,6 +447,21 @@ export class Resources {
   public static readonly machCpuTypes: Readonly<Record<string, number>> = { arm64: 0x0100000c, x64: 0x01000007 };
   public static readonly machUniversalFile: string = "a universal Mach-O file";
   public static readonly mach32BitFile: string = "a 32-bit Mach-O file";
+  public static readonly machKind: string = "Mach-O";
+  public static readonly peHeaderOffsetField: number = 0x3c;
+  public static readonly peSignatureLength: number = 6;
+  public static readonly peMachineOffset: number = 4;
+  public static readonly peMachines: Readonly<Record<string, number>> = { arm64: 0xaa64, x64: 0x8664 };
+  public static readonly peKind: string = "PE";
+  public static readonly elfClassOffset: number = 4;
+  public static readonly elf64BitClass: number = 2;
+  public static readonly elfDataOffset: number = 5;
+  public static readonly elfLittleEndianData: number = 1;
+  public static readonly elfMachineOffset: number = 18;
+  public static readonly elfMachines: Readonly<Record<string, number>> = { arm64: 183, x64: 62 };
+  public static readonly elfKind: string = "ELF";
+  public static readonly elf32BitFile: string = "a 32-bit ELF file";
+  public static readonly elfBigEndianFile: string = "a big-endian ELF file";
   public static readonly packagedBuildCommandLineName: string = "../build-command-line";
   public static readonly packagedBuildOptions: readonly string[] = [Resources.buildCommand, "--packaged", "--output"];
   public static readonly packagedWindowFolder: string = "window";
@@ -1836,7 +1852,7 @@ export class Resources {
     return `The stage needs ${missing.join(Resources.listSeparator)}, which is not a package under src/.`;
   }
 
-  public static formatMachArchitectureUnknown(architecture: string, known: readonly string[]): string {
+  public static formatNativeArchitectureUnknown(architecture: string, known: readonly string[]): string {
     return `The package's architecture ${architecture} is none of ${known.join(Resources.listSeparator)}.`;
   }
 
@@ -2351,16 +2367,24 @@ export class Resources {
     return `${id} (${license})`;
   }
 
-  public static formatMachArchitectureMismatch(file: string, found: string, architecture: string): string {
-    return `The installed ${file} is ${found}, not an ${architecture}-only Mach-O file, so it would not run natively on ${architecture}.`;
+  public static formatNativeArchitectureMismatch(file: string, found: string, kind: string, architecture: string): string {
+    return `The file ${file} is ${found}, not an ${architecture}-only ${kind} file, so it would not run natively on ${architecture}.`;
   }
 
-  public static formatMachArchitectureVerified(application: string, count: number, architecture: string): string {
-    return `Every Mach-O file in ${application}, ${count} in all, is ${architecture} alone.`;
+  public static formatNativeArchitectureVerified(folder: string, count: number, architecture: string): string {
+    return `Every Mach-O, PE and ELF file in ${folder}, ${count} in all, is ${architecture} alone.`;
   }
 
   public static formatMachCpuType(type: number): string {
     return `a Mach-O file for CPU type 0x${type.toString(16)}`;
+  }
+
+  public static formatPeMachine(machine: number): string {
+    return `a PE file for machine 0x${machine.toString(16)}`;
+  }
+
+  public static formatElfMachine(machine: number): string {
+    return `an ELF file for machine ${String(machine)}`;
   }
 
   public static formatPackagedBuildFailed(exitCode: number | null): string {
@@ -3645,6 +3669,10 @@ export class Resources {
 
   public static formatAddonBuildFailed(packageName: string, kind: string, addon: string, exitCode: number | null, text: string): string {
     return `Building ${packageName}'s ${kind} addon ${addon} failed with exit code ${exitCode}:\n${text}`;
+  }
+
+  public static formatAddonArchitectureRefused(packageName: string, architecture: string, machineArchitecture: string): string {
+    return `${packageName}'s addons can't be built for ${architecture} on this ${machineArchitecture} machine, since node-gyp builds for the machine's own processor. Build on a ${architecture} machine, or name a folder of release builds in ${Resources.releaseAddonsVariable}.`;
   }
 
   public static formatReleaseAddonMissing(target: string, packageName: string, addon: string, directory: string, build: string): string {

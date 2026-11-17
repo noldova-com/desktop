@@ -252,7 +252,7 @@ export class PackageSmokeTests {
     const screenshot = path.join(app.path, "_build", "package", "smoke", "window-macos-x64.png");
     Assert.areEqual(0, result.exitCode, result.output);
     Assert.areEqual([
-      Resources.formatOutputLine(Resources.formatMachArchitectureVerified(bundle, 1, "x64")),
+      Resources.formatOutputLine(Resources.formatNativeArchitectureVerified(bundle, 1, "x64")),
       Resources.formatSmokeCookieEncryption(false),
       Resources.formatOutputLine(Resources.publisherNoneVerified),
       Resources.formatOutputLine(Resources.unpackedNoneVerified),

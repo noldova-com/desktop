@@ -131,8 +131,8 @@ export class PackageConfigurationTests {
     Assert.areEqual(JSON.stringify([{ target: "nsis", arch: ["x64"] }]), JSON.stringify(windows.readValue("target")));
     Assert.areEqual(JSON.stringify([{ from: path.join(PackageConfigurationTests.ROOT, "_build", "package", "command", "sample-app.cmd"), to: "bin/sample-app.cmd" }]),
       JSON.stringify(windows.readValue("extraFiles")));
-    Assert.areEqual("Sample App|Sample App|true|false", [installer.readString("shortcutName"), installer.readString("uninstallDisplayName"),
-      installer.readBoolean("oneClick"), installer.readBoolean("perMachine")].join("|"));
+    Assert.areEqual("Sample App|Sample App|true|false|false", [installer.readString("shortcutName"), installer.readString("uninstallDisplayName"),
+      installer.readBoolean("oneClick"), installer.readBoolean("perMachine"), installer.readBoolean("packElevateHelper")].join("|"));
     Assert.isTrue(installer.readString("include").endsWith(path.join("assets", "installer", "installer.nsh")));
   }
 

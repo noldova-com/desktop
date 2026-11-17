@@ -43,7 +43,7 @@ export class AddonBuilderTests {
       const runner = AddonBuilderTests.createBuildingRunner(new ProcessResult(0, "done", String.empty));
       const output = path.join(root, "out");
 
-      await new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, runner), "linux", "x64").buildAsync(AddonBuilderTests.MANIFEST, output);
+      await new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, runner), "linux", "x64", String.empty, "x64").buildAsync(AddonBuilderTests.MANIFEST, output);
 
       const work = layout.locateAddonWork(AddonBuilderTests.MANIFEST, "pty-unix");
       Assert.areEqual("built", await readFile(path.join(output, "native", "linux-x64", "pty-unix.node"), "utf8"));
@@ -65,7 +65,7 @@ export class AddonBuilderTests {
       const runner = AddonBuilderTests.createBuildingRunner(new ProcessResult(0, "done", String.empty));
       const output = path.join(root, "out");
 
-      await new AddonBuilder(new BuildLayout(root), AddonBuilderTests.createNodeGyp(root, runner), "win32", "arm64").buildAsync(AddonBuilderTests.MANIFEST, output);
+      await new AddonBuilder(new BuildLayout(root), AddonBuilderTests.createNodeGyp(root, runner), "win32", "arm64", String.empty, "arm64").buildAsync(AddonBuilderTests.MANIFEST, output);
 
       Assert.isTrue(existsSync(path.join(output, "native", "win32-arm64", "pty-win.node")));
       Assert.isFalse(existsSync(path.join(output, "native", "win32-arm64", "pty-unix.node")));
@@ -84,8 +84,8 @@ export class AddonBuilderTests {
       const layout = new BuildLayout(root);
       const output = path.join(root, "out");
 
-      const x64 = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, new RecordingRunnerFixture(missing)), "win32", "x64").buildAsync(AddonBuilderTests.MANIFEST, output), BuildException);
-      const arm64 = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, new RecordingRunnerFixture(missing)), "win32", "arm64").buildAsync(AddonBuilderTests.MANIFEST, output), BuildException);
+      const x64 = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, new RecordingRunnerFixture(missing)), "win32", "x64", String.empty, "x64").buildAsync(AddonBuilderTests.MANIFEST, output), BuildException);
+      const arm64 = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, new RecordingRunnerFixture(missing)), "win32", "arm64", String.empty, "arm64").buildAsync(AddonBuilderTests.MANIFEST, output), BuildException);
 
       Assert.areEqual(Resources.formatAddonToolchainMissing(AddonBuilderTests.NAME, "pty-win", Resources.addonToolchainWorkload), x64.message);
       Assert.areEqual(Resources.formatAddonToolchainMissing(AddonBuilderTests.NAME, "pty-win", Resources.addonToolchainWorkloadArm64), arm64.message);
@@ -103,11 +103,48 @@ export class AddonBuilderTests {
       const layout = new BuildLayout(root);
       const output = path.join(root, "out");
 
-      const posix = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, new RecordingRunnerFixture(failed)), "darwin", "arm64").buildAsync(AddonBuilderTests.MANIFEST, output), BuildException);
-      const windows = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, new RecordingRunnerFixture(failed)), "win32", "x64").buildAsync(AddonBuilderTests.MANIFEST, output), BuildException);
+      const posix = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, new RecordingRunnerFixture(failed)), "darwin", "arm64", String.empty, "arm64").buildAsync(AddonBuilderTests.MANIFEST, output), BuildException);
+      const windows = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, new RecordingRunnerFixture(failed)), "win32", "x64", String.empty, "x64").buildAsync(AddonBuilderTests.MANIFEST, output), BuildException);
 
       Assert.areEqual(Resources.formatAddonBuildFailed(AddonBuilderTests.NAME, "POSIX", "pty-unix", 2, "outerr"), posix.message);
       Assert.areEqual(Resources.formatAddonBuildFailed(AddonBuilderTests.NAME, "Windows", "pty-win", 2, "outerr"), windows.message);
+    }
+    finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  public async refusesToBuildForAProcessorOtherThanTheMachinesAsync(): Promise<void> {
+    const root = await AddonBuilderTests.createRootAsync();
+    try {
+      const runner = new RecordingRunnerFixture();
+      const output = path.join(root, "out");
+
+      const error = await Assert.throwsAsync(() => new AddonBuilder(new BuildLayout(root), AddonBuilderTests.createNodeGyp(root, runner), "win32", "arm64", String.empty, "x64")
+        .buildAsync(AddonBuilderTests.MANIFEST, output), BuildException);
+
+      Assert.areEqual(Resources.formatAddonArchitectureRefused(AddonBuilderTests.NAME, "arm64", "x64"), error.message);
+      Assert.areEqual(0, runner.calls.length);
+      Assert.isFalse(existsSync(output));
+    }
+    finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  public async buildsNothingForAProcessorOtherThanTheMachinesWhenThePlatformHasNoAddonsAsync(): Promise<void> {
+    const root = await AddonBuilderTests.createRootAsync();
+    try {
+      const runner = new RecordingRunnerFixture();
+      const output = path.join(root, "out");
+      const posixOnly = new PackageManifest(AddonBuilderTests.DIRECTORY, AddonBuilderTests.NAME, [], undefined, [], [], ["pty-unix"]);
+
+      await new AddonBuilder(new BuildLayout(root), AddonBuilderTests.createNodeGyp(root, runner), "win32", "arm64", String.empty, "x64").buildAsync(posixOnly, output);
+
+      Assert.areEqual(0, runner.calls.length);
+      Assert.isFalse(existsSync(output));
     }
     finally {
       await rm(root, { recursive: true, force: true });
