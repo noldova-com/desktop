@@ -38,8 +38,7 @@ export class FeedUpdater implements IUpdater {
   private cancellation: CancellationToken | undefined;
   private isConfigured: boolean = false;
   private downloaded: string | null = null;
-
-  public readonly packagePath: string;
+  private readonly pendingFolder: string;
 
   public constructor(
     updater: IAppUpdater,
@@ -56,7 +55,7 @@ export class FeedUpdater implements IUpdater {
     this.configuration = JSON.stringify({ [Resources.updaterCacheFolderField]: cacheFolder });
     this.verifyAsync = verifyAsync;
     this.log = log;
-    this.packagePath = join(cacheRoot, cacheFolder, Resources.pendingUpdateFolder, source.packageFile);
+    this.pendingFolder = join(cacheRoot, cacheFolder, Resources.pendingUpdateFolder);
     this.cancellation = undefined;
     updater.autoDownload = false;
     updater.autoInstallOnAppQuit = false;
@@ -83,7 +82,7 @@ export class FeedUpdater implements IUpdater {
     }
   }
 
-  public async downloadAsync(onProgress: (percent: number) => void): Promise<string> {
+  public async downloadAsync(version: string, onProgress: (percent: number) => void): Promise<string> {
     const listener = (info: ProgressInfo): void => onProgress(Math.floor(info.percent));
     const cancellation = new CancellationToken();
     this.cancellation = cancellation;
@@ -93,7 +92,7 @@ export class FeedUpdater implements IUpdater {
       const [file] = await this.updater.downloadUpdate(cancellation);
       if (Object.isUndefined(file))
         throw new UpdateDownloadInterruptedException();
-      if (file !== this.packagePath)
+      if (file !== this.formatPackagePath(version))
         throw new UpdateFailedUnexpectedlyException();
       await this.verifyPublisherAsync(file);
       this.downloaded = file;
@@ -106,6 +105,10 @@ export class FeedUpdater implements IUpdater {
       this.updater.removeListener(Resources.downloadProgressEvent, listener);
       this.cancellation = undefined;
     }
+  }
+
+  public formatPackagePath(version: string): string {
+    return join(this.pendingFolder, this.source.formatReleasedFile(version));
   }
 
   public cancel(): void {

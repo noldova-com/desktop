@@ -164,6 +164,8 @@ export class FeedProviderTests {
       "~",
       "version: 1.3.0",
       "version: 13\nfiles: []",
+      "version: 1.3.0/../../evil\nfiles:\n  - url: Noldova Desktop Sample-1.3.0/../../evil-linux-x64.AppImage\n    sha512: c2hh\n    size: 1024",
+      "version: v1.3.0\nfiles:\n  - url: Noldova Desktop Sample-v1.3.0-linux-x64.AppImage\n    sha512: c2hh\n    size: 1024",
       "version: 1.3.0\nfiles: []",
       "version: 1.3.0\nfiles:\n  - Noldova Desktop Sample-1.3.0-linux-x64.AppImage",
       "version: 1.3.0\nfiles:\n  - url: Noldova Desktop Sample-1.3.0-linux-arm64.AppImage\n    sha512: c2hh\n    size: 1024",

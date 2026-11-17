@@ -9,7 +9,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import "@noldova/context.core";
 import type { CancellationToken } from "electron-updater";
@@ -27,9 +27,9 @@ import { FakeAppUpdater } from "../fixtures/fake-app-updater.fixture.js";
 @TestClass
 export class FeedUpdaterTests {
   private static readonly SOURCE: FeedSource = new FeedSource("http://127.0.0.1:8080/", "latest-linux-x64.yml", "Noldova Desktop Sample-linux-x64.AppImage",
-    (): Promise<IFeedResponse> => Promise.reject(new Error("offline")));
+    (): Promise<IFeedResponse> => Promise.reject(new Error("offline")), undefined, t => `Noldova Desktop Sample-${t}-linux-x64.AppImage`);
   private static readonly INSTALLATION: string = join("/devices", "installations", "0123456789abcdef");
-  private static readonly PACKAGE: string = join("/cache", "noldova-desktop-updater-0123456789abcdef", "pending", "Noldova Desktop Sample-linux-x64.AppImage");
+  private static readonly PACKAGE: string = join("/cache", "noldova-desktop-updater-0123456789abcdef", "pending", "Noldova Desktop Sample-1.3.0-linux-x64.AppImage");
 
   @TestMethod
   public setsTheUpdaterUpToCheckOnlyAndOfferOnlyReleases(): void {
@@ -44,7 +44,16 @@ export class FeedUpdaterTests {
     Assert.isTrue(app.isUpdateSupported(FakeAppUpdater.info("1.3.0-internal.4")) === true);
     Assert.isNull(app.updateConfigPath);
     Assert.isNull(app.feed);
-    Assert.areEqual(FeedUpdaterTests.PACKAGE, updater.packagePath);
+    Assert.areEqual(FeedUpdaterTests.PACKAGE, updater.formatPackagePath("1.3.0"));
+  }
+
+  @TestMethod
+  public expectsThePackageWhereTheUpdaterKeepsTheVersionsReleasedFile(): void {
+    const updater = FeedUpdaterTests.create(new FakeAppUpdater());
+    const url = new URL(FeedUpdaterTests.SOURCE.formatReleasedFile("1.3.0"), FeedUpdaterTests.SOURCE.feed);
+
+    Assert.areEqual(join("/cache", "noldova-desktop-updater-0123456789abcdef", "pending", basename(decodeURIComponent(url.pathname))), updater.formatPackagePath("1.3.0"));
+    Assert.areNotEqual(updater.formatPackagePath("1.3.0"), updater.formatPackagePath("1.4.0"));
   }
 
   @TestMethod
@@ -156,7 +165,7 @@ export class FeedUpdaterTests {
       return Promise.resolve([FeedUpdaterTests.PACKAGE]);
     };
 
-    const file = await updater.downloadAsync(t => progress.push(t));
+    const file = await updater.downloadAsync("1.3.0", t => progress.push(t));
 
     Assert.areEqual(FeedUpdaterTests.PACKAGE, file);
     Assert.areEqual(JSON.stringify([12, 100]), JSON.stringify(progress));
@@ -170,17 +179,19 @@ export class FeedUpdaterTests {
     const reasons: string[] = [];
 
     app.download = () => Promise.reject(new CodedError("ERR_CHECKSUM_MISMATCH", "ERR_CHECKSUM_MISMATCH"));
-    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync(() => undefined), UpdateDownloadMismatchException)).message);
+    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync("1.3.0", () => undefined), UpdateDownloadMismatchException)).message);
     app.download = () => Promise.reject(new CodedError("ERR_UPDATER_INVALID_SIGNATURE", "ERR_UPDATER_INVALID_SIGNATURE"));
-    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync(() => undefined), UpdateNotSignedException)).message);
+    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync("1.3.0", () => undefined), UpdateNotSignedException)).message);
     app.download = () => Promise.reject(new CodedError("ERR_UPDATER_NO_CHECKSUM", "ERR_UPDATER_NO_CHECKSUM"));
-    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync(() => undefined), UpdateInfoInvalidException)).message);
+    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync("1.3.0", () => undefined), UpdateInfoInvalidException)).message);
     app.download = () => Promise.reject(new Error("net::ERR_NETWORK_CHANGED"));
-    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync(() => undefined), UpdateDownloadInterruptedException)).message);
+    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync("1.3.0", () => undefined), UpdateDownloadInterruptedException)).message);
     app.download = () => Promise.resolve([]);
-    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync(() => undefined), UpdateDownloadInterruptedException)).message);
-    app.download = () => Promise.resolve([join("/cache", "elsewhere", "Noldova Desktop Sample-linux-x64.AppImage")]);
-    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync(() => undefined), UpdateFailedUnexpectedlyException)).message);
+    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync("1.3.0", () => undefined), UpdateDownloadInterruptedException)).message);
+    app.download = () => Promise.resolve([join("/cache", "elsewhere", "Noldova Desktop Sample-1.3.0-linux-x64.AppImage")]);
+    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync("1.3.0", () => undefined), UpdateFailedUnexpectedlyException)).message);
+    app.download = () => Promise.resolve([FeedUpdaterTests.PACKAGE]);
+    reasons.push((await Assert.throwsAsync(() => updater.downloadAsync("1.4.0", () => undefined), UpdateFailedUnexpectedlyException)).message);
 
     Assert.areEqual(JSON.stringify([
       "The download doesn't match the release.",
@@ -188,6 +199,7 @@ export class FeedUpdaterTests {
       "The release's information is invalid.",
       "The download was interrupted.",
       "The download was interrupted.",
+      "The update stopped on an unexpected error.",
       "The update stopped on an unexpected error."
     ]), JSON.stringify(reasons));
     Assert.isNull(app.listener);
@@ -205,7 +217,7 @@ export class FeedUpdaterTests {
     };
 
     updater.cancel();
-    const downloading = updater.downloadAsync(() => undefined);
+    const downloading = updater.downloadAsync("1.3.0", () => undefined);
     updater.cancel();
     const cancelled = tokens[0]?.cancelled;
     download.reject(new Error("cancelled"));
@@ -229,39 +241,40 @@ export class FeedUpdaterTests {
         checked.push(t);
         return Promise.resolve(failure);
       }, t => lines.push(t));
-      await mkdir(join(updater.packagePath, ".."), { recursive: true });
-      await writeFile(updater.packagePath, "Noldova Desktop Sample 1.3.0");
-      app.download = () => Promise.resolve([updater.packagePath]);
+      const packagePath = updater.formatPackagePath("1.3.0");
+      await mkdir(join(packagePath, ".."), { recursive: true });
+      await writeFile(packagePath, "Noldova Desktop Sample 1.3.0");
+      app.download = () => Promise.resolve([packagePath]);
 
       const before = updater.downloadedFile;
-      const signed = await updater.downloadAsync(() => undefined);
+      const signed = await updater.downloadAsync("1.3.0", () => undefined);
       const kept = existsSync(signed);
       const downloaded = updater.downloadedFile;
-      const again = updater.downloadAsync(() => undefined);
+      const again = updater.downloadAsync("1.3.0", () => undefined);
       const during = updater.downloadedFile;
       await again;
       failure = "The signature is not the publisher's.";
-      const unsigned = await Assert.throwsAsync(() => updater.downloadAsync(() => undefined), UpdateNotSignedException);
-      const isDeleted = !existsSync(updater.packagePath);
-      await writeFile(updater.packagePath, "Noldova Desktop Sample 1.3.0");
+      const unsigned = await Assert.throwsAsync(() => updater.downloadAsync("1.3.0", () => undefined), UpdateNotSignedException);
+      const isDeleted = !existsSync(packagePath);
+      await writeFile(packagePath, "Noldova Desktop Sample 1.3.0");
       let stuck: UpdateNotSignedException;
       {
-        using _rm = new FailingFileCallFixture("rm", updater.packagePath, "EBUSY");
-        stuck = await Assert.throwsAsync(() => updater.downloadAsync(() => undefined), UpdateNotSignedException);
+        using _rm = new FailingFileCallFixture("rm", packagePath, "EBUSY");
+        stuck = await Assert.throwsAsync(() => updater.downloadAsync("1.3.0", () => undefined), UpdateNotSignedException);
       }
 
-      Assert.areEqual(updater.packagePath, signed);
+      Assert.areEqual(packagePath, signed);
       Assert.isNull(before);
-      Assert.areEqual(updater.packagePath, downloaded);
+      Assert.areEqual(packagePath, downloaded);
       Assert.isNull(during);
       Assert.isTrue(kept);
       Assert.areEqual("The update isn't signed by the publisher.", unsigned.message);
       Assert.isTrue(isDeleted);
       Assert.areEqual("The update isn't signed by the publisher.", stuck.message);
-      Assert.isTrue(existsSync(updater.packagePath));
+      Assert.isTrue(existsSync(packagePath));
       Assert.areEqual(1, lines.length);
       Assert.isTrue(lines[0]?.startsWith("The update that failed its publisher check could not be deleted: Error: EBUSY") === true, lines[0]);
-      Assert.areEqual(JSON.stringify(Array(4).fill(updater.packagePath)), JSON.stringify(checked));
+      Assert.areEqual(JSON.stringify(Array(4).fill(packagePath)), JSON.stringify(checked));
     });
   }
 

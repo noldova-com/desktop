@@ -436,6 +436,7 @@ export class Resources {
   public static readonly downloadProgressEvent: "download-progress" = "download-progress";
   public static readonly pendingUpdateFolder: string = "pending";
   public static readonly updaterCacheFolderField: string = "updaterCacheDirName";
+  public static readonly releaseVersionPattern: RegExp = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
   public static readonly updateVersionPattern: RegExp = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-internal\.(0|[1-9]\d{0,8}))?$/u;
   public static readonly sha512Algorithm: string = "sha512";
   public static readonly base64Encoding: "base64" = "base64";

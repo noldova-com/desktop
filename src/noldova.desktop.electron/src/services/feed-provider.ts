@@ -48,7 +48,7 @@ export class FeedProvider extends Provider<UpdateInfo> {
       throw new UpdateFeedRedirectedException();
     const info = FeedProvider.parse(await FeedProvider.reach(response.text()), this.source.channelFile, url);
     FeedProvider.check(info);
-    if (Object.isUndefined(FeedProvider.findPackage(info, this.source.formatReleasedFile(info.version))))
+    if (!Resources.releaseVersionPattern.test(info.version) || Object.isUndefined(FeedProvider.findPackage(info, this.source.formatReleasedFile(info.version))))
       throw new UpdateInfoInvalidException();
     this.base = url;
     return info;
