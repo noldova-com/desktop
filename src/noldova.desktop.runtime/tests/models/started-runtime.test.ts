@@ -66,11 +66,16 @@ export class StartedRuntimeTests {
       `const fs = require("node:fs"); const end = Date.now() + 60_000; setInterval(() => { if (fs.existsSync(${JSON.stringify(release)}) || Date.now() > end) process.exit(0); }, 20);`);
     const settings = new LaunchSettings(launch.dataDirectory, process.execPath, RuntimeEntry.entryPath, {}, process.platform, 1_000, 200);
 
-    const exception = await Assert.throwsAsync(() => UpdateBarrierFixture.createLauncher(settings, RuntimeBuild.identity, starter).attachAsync("main", new ClientListenerFixture()), LaunchTimedOutException);
-    await writeFile(release, String.empty);
+    try {
+      const exception = await Assert.throwsAsync(() => UpdateBarrierFixture.createLauncher(settings, RuntimeBuild.identity, starter).attachAsync("main", new ClientListenerFixture()),
+        LaunchTimedOutException);
 
-    Assert.areEqual("The runtime did not start in time.", exception.message);
-    Assert.areEqual(String.empty, (await readdir(launch.dataDirectory.logsFolder)).join(","));
+      Assert.areEqual("The runtime did not start in time.", exception.message);
+      Assert.areEqual(String.empty, (await readdir(launch.dataDirectory.logsFolder)).join(","));
+    }
+    finally {
+      await writeFile(release, String.empty);
+    }
     Assert.isTrue(await RuntimeLaunchFixture.waitForExitAsync(Number(starter.processIds[0])));
   }
 
