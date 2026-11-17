@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { execFile } from "node:child_process";
+import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -14,35 +14,49 @@ import { promisify } from "node:util";
 
 import "@noldova/context.core";
 
-import type { ProcessResult } from "../../src/models/processes/process-result.js";
+import { ProcessResult } from "../../src/models/processes/process-result.js";
 import { BuildException } from "../../src/exceptions/build.exception.js";
 import { ProcessRunner } from "../../src/services/processes/process-runner.js";
 
 export class TemporaryFolderRunnerFixture extends ProcessRunner {
-  public static readonly STALL_LIMIT: number = 28_000;
+  private static readonly TEST_LIMIT: number = 40_000;
+  private static readonly REPORT_TIME: number = 17_000;
   private static readonly TEMPORARY_VARIABLES: readonly string[] = ["TMPDIR", "TEMP", "TMP"];
   private static readonly CONFIGURATION_FILES: readonly (readonly [string, string])[] = [["npm_config_userconfig", "user.npmrc"], ["npm_config_globalconfig", "global.npmrc"]];
   private static readonly LOG_LINES: number = 60;
   private static readonly SAMPLE_LINES: number = 120;
   private static readonly TIMING_LENGTH: number = 6000;
+  private static readonly LIST_LIMIT: number = 5000;
+  private static readonly SAMPLE_LIMIT: number = 6000;
   private static readonly SETTLE_LIMIT: number = 3000;
-  private static readonly WINDOWS_PROCESSES: string = "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} - {2:HH:mm:ss} {3}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate, $_.CommandLine }";
+  private static readonly KILL_LIMIT: number = 1000;
+  private static readonly STOP_RESERVE: number = 6000;
   private static readonly execute = promisify(execFile);
 
   private readonly folder: string;
-  private readonly stallLimit: number | null;
+  private readonly end: number | null;
+  private readonly listsProcesses: boolean;
 
-  private constructor(folder: string, stallLimit: number | null) {
+  private constructor(folder: string, end: number | null, listsProcesses: boolean) {
     super();
     this.folder = folder;
-    this.stallLimit = stallLimit;
+    this.end = end;
+    this.listsProcesses = listsProcesses;
   }
 
-  public static async createAsync(folder: string, stallLimit: number | null = null): Promise<TemporaryFolderRunnerFixture> {
+  public static startTest(): number {
+    return performance.now() + TemporaryFolderRunnerFixture.TEST_LIMIT;
+  }
+
+  public static stallAfter(milliseconds: number): number {
+    return performance.now() + TemporaryFolderRunnerFixture.REPORT_TIME + milliseconds;
+  }
+
+  public static async createAsync(folder: string, end: number | null = null, listsProcesses: boolean = true): Promise<TemporaryFolderRunnerFixture> {
     await mkdir(folder, { recursive: true });
     for (const [, file] of TemporaryFolderRunnerFixture.CONFIGURATION_FILES)
       await writeFile(path.join(folder, file), String.empty);
-    return new TemporaryFolderRunnerFixture(folder, stallLimit);
+    return new TemporaryFolderRunnerFixture(folder, end, listsProcesses);
   }
 
   public override async captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv): Promise<ProcessResult> {
@@ -50,88 +64,111 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
       ...TemporaryFolderRunnerFixture.TEMPORARY_VARIABLES.map(t => [t, this.folder]),
       ...TemporaryFolderRunnerFixture.CONFIGURATION_FILES.map(([variable, file]) => [variable, path.join(this.folder, file)])
     ]);
-    if (Object.isNull(this.stallLimit))
+    if (Object.isNull(this.end))
       return await super.captureAsync(command, commandArguments, directory, timeout, { ...environment ?? process.env, ...variables });
 
     const logs = path.join(this.folder, "npm-logs");
-    const running = super.captureAsync(command, commandArguments, directory, timeout,
-      { ...environment ?? process.env, ...variables, npm_config_timing: "true", npm_config_logs_dir: logs });
-    const watch = new AbortController();
-    const result = await Promise.race([running, delay(this.stallLimit, null, { signal: watch.signal })]).finally(() => watch.abort());
-    if (!Object.isNull(result))
-      return result;
-    throw new BuildException(await this.describeStallAsync(command, commandArguments, running, logs, this.stallLimit));
+    const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, timeout,
+      env: { ...environment ?? process.env, ...variables, npm_config_timing: "true", npm_config_logs_dir: logs } });
+    const output: Buffer[] = [];
+    const errorOutput: Buffer[] = [];
+    child.stdout.on("data", (t: Buffer) => output.push(t));
+    child.stderr.on("data", (t: Buffer) => errorOutput.push(t));
+    const exited = new Promise<boolean>(resolve => child.once("exit", () => resolve(true)));
+    const running = new Promise<ProcessResult>((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", t => resolve(new ProcessResult(t, Buffer.concat(output).toString("utf8"), Buffer.concat(errorOutput).toString("utf8"))));
+    });
+    const stall = Math.max(0, this.end - TemporaryFolderRunnerFixture.REPORT_TIME - performance.now());
+    if (await TemporaryFolderRunnerFixture.withinAsync(running.then(() => true, () => true), stall))
+      return await running;
+    throw new BuildException(await this.describeStallAsync(command, commandArguments, child, exited, logs, stall));
   }
 
-  private async describeStallAsync(command: string, commandArguments: readonly string[], running: Promise<ProcessResult>, logs: string, limit: number): Promise<string> {
-    const report = [`${path.basename(command)} ${commandArguments.join(" ")} was still running after ${limit} ms.`];
-    const rows = await TemporaryFolderRunnerFixture.listProcessesAsync();
-    const child = rows.find(t => t.parent === process.pid && t.command.includes(commandArguments.at(-1) ?? command));
-    if (Object.isUndefined(child))
-      report.push("Its process was not found among this process's children.");
-    else {
-      const tree = [child];
+  private async describeStallAsync(command: string, commandArguments: readonly string[], child: ChildProcess, exited: Promise<boolean>, logs: string,
+    stall: number): Promise<string> {
+    const report = [`${path.basename(command)} ${commandArguments.join(" ")} was still running after ${Math.round(stall)} ms.`];
+    try {
+      const id = child.pid ?? -1;
+      const rows = this.listsProcesses ? await this.listProcessesAsync(id) : [];
+      const tree = rows.filter(t => t.id === id);
       for (const row of tree)
         tree.push(...rows.filter(t => t.parent === row.id));
-      report.push("Its processes:", ...tree.map(t => t.line));
+      report.push(...tree.length === 0
+        ? [`Its process, ${id}, was not found in the listing.`, ...rows.filter(t => Number.isNaN(t.id)).map(t => t.line)]
+        : ["Its processes:", ...tree.map(t => t.line)]);
       if (process.platform === "darwin")
-        report.push(await this.sampleAsync(child.id));
-      report.push(await TemporaryFolderRunnerFixture.stopAsync(child.id, running));
+        report.push(await this.sampleAsync(id));
+    }
+    finally {
+      report.push(await TemporaryFolderRunnerFixture.stopAsync(child, exited));
     }
     report.push(...await TemporaryFolderRunnerFixture.readLogsAsync(logs));
     return report.join("\n");
   }
 
-  private static async listProcessesAsync(): Promise<readonly { id: number, parent: number, command: string, line: string }[]> {
+  private left(): number {
+    return Object.isNull(this.end) ? 0 : this.end - performance.now() - TemporaryFolderRunnerFixture.STOP_RESERVE;
+  }
+
+  private async listProcessesAsync(id: number): Promise<readonly { id: number, parent: number, line: string }[]> {
+    const limit = Math.min(TemporaryFolderRunnerFixture.LIST_LIMIT, this.left());
+    if (limit <= 0)
+      return [{ id: Number.NaN, parent: Number.NaN, line: "The listing was skipped: no time was left." }];
     try {
       const { stdout } = process.platform === "win32"
-        ? await TemporaryFolderRunnerFixture.execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", TemporaryFolderRunnerFixture.WINDOWS_PROCESSES])
-        : await TemporaryFolderRunnerFixture.execute("ps", ["-ww", "-A", "-o", "pid=,ppid=,stat=,etime=,command="]);
+        ? await TemporaryFolderRunnerFixture.execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", TemporaryFolderRunnerFixture.formatWindowsTree(id)], { timeout: limit })
+        : await TemporaryFolderRunnerFixture.execute("ps", ["-ww", "-A", "-o", "pid=,ppid=,stat=,etime=,command="], { timeout: limit });
       return stdout.split("\n").map(t => t.trim()).filter(t => t.length > 0).map(t => {
-        const [id, parent, , , ...command] = t.split(/\s+/);
-        return { id: Number(id), parent: Number(parent), command: command.join(" "), line: t };
+        const [row, parent] = t.split(/\s+/);
+        return { id: Number(row), parent: Number(parent), line: t };
       });
     }
     catch (error) {
-      return [{ id: -1, parent: -1, command: String.empty, line: `ps failed: ${String(error)}` }];
+      return [{ id: Number.NaN, parent: Number.NaN, line: `The listing failed: ${String(error)}` }];
     }
   }
 
+  private static formatWindowsTree(id: number): string {
+    return [
+      `$rows = @(Get-CimInstance Win32_Process -Filter 'ProcessId=${id}')`,
+      `$queue = @(${id})`,
+      "while ($queue.Count -gt 0) { $next = @(); foreach ($parent in $queue) { foreach ($row in @(Get-CimInstance Win32_Process -Filter \"ParentProcessId=$parent\")) { $rows += $row; $next += $row.ProcessId } }; $queue = $next }",
+      "$rows | ForEach-Object { '{0} {1} - {2:HH:mm:ss} {3}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate, $_.CommandLine }"
+    ].join("; ");
+  }
+
   private async sampleAsync(id: number): Promise<string> {
+    const limit = Math.min(TemporaryFolderRunnerFixture.SAMPLE_LIMIT, this.left());
+    if (limit <= 0)
+      return "The sample was skipped: no time was left.";
     const file = path.join(this.folder, `sample-${id}.txt`);
     try {
-      await TemporaryFolderRunnerFixture.execute("/usr/bin/sample", [String(id), "2", "-mayDie", "-file", file]);
+      await TemporaryFolderRunnerFixture.execute("/usr/bin/sample", [String(id), "1", "-mayDie", "-file", file], { timeout: limit });
       const lines = (await readFile(file, "utf8")).split("\n");
       const start = Math.max(0, lines.findIndex(t => t.startsWith("Call graph:")));
       return ["Its sample:", ...lines.slice(start, start + TemporaryFolderRunnerFixture.SAMPLE_LINES)].join("\n");
     }
     catch (error) {
-      return `sample failed: ${String(error)}`;
+      return `The sample failed: ${String(error)}`;
     }
   }
 
-  private static async stopAsync(id: number, running: Promise<ProcessResult>): Promise<string> {
-    const settled = running.then(() => true, () => true);
-    if (!TemporaryFolderRunnerFixture.sendSignal(id, "SIGTERM")) {
-      await settled;
+  private static async stopAsync(child: ChildProcess, exited: Promise<boolean>): Promise<string> {
+    if (!Object.isNull(child.exitCode) || !Object.isNull(child.signalCode))
       return "It had ended before SIGTERM.";
-    }
-    const watch = new AbortController();
-    const ended = await Promise.race([settled, delay(TemporaryFolderRunnerFixture.SETTLE_LIMIT, false, { signal: watch.signal })]).finally(() => watch.abort());
-    if (ended)
+    child.kill("SIGTERM");
+    if (await TemporaryFolderRunnerFixture.withinAsync(exited, TemporaryFolderRunnerFixture.SETTLE_LIMIT))
       return "It ended at SIGTERM.";
-    TemporaryFolderRunnerFixture.sendSignal(id, "SIGKILL");
-    await settled;
-    return `It outlived SIGTERM by ${TemporaryFolderRunnerFixture.SETTLE_LIMIT} ms and ended at SIGKILL.`;
+    child.kill("SIGKILL");
+    if (await TemporaryFolderRunnerFixture.withinAsync(exited, TemporaryFolderRunnerFixture.KILL_LIMIT))
+      return `It outlived SIGTERM by ${TemporaryFolderRunnerFixture.SETTLE_LIMIT} ms and ended at SIGKILL.`;
+    return `It outlived SIGKILL by ${TemporaryFolderRunnerFixture.KILL_LIMIT} ms.`;
   }
 
-  private static sendSignal(id: number, signal: NodeJS.Signals): boolean {
-    try {
-      return process.kill(id, signal);
-    }
-    catch {
-      return false;
-    }
+  private static async withinAsync(settled: Promise<boolean>, milliseconds: number): Promise<boolean> {
+    const watch = new AbortController();
+    return await Promise.race([settled, delay(milliseconds, false, { signal: watch.signal })]).finally(() => watch.abort());
   }
 
   private static async readLogsAsync(logs: string): Promise<readonly string[]> {

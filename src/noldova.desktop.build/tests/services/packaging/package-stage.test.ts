@@ -78,13 +78,14 @@ export class PackageStageTests {
 
   @TestMethod
   public async stagesTheContextPackagesAnInstalledPackageTakesAsPeersAmongTheAppsDependencies(): Promise<void> {
+    const end = TemporaryFolderRunnerFixture.startTest();
     const context = "@noldova/context.core";
     await using app = await InstalledAppFixture.createAsync();
     await app.installAsync(context);
     await app.installAsync(InstalledAppFixture.CLI, null, { "shared-type": "1.0.0" }, { [context]: ">=0.0.2 <0.1.0" });
     await app.installAsync(InstalledAppFixture.ELECTRON);
     await app.addThirdPartyAsync("shared-type", "MIT", { LICENSE: "Shared license" });
-    const npm = new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary"), TemporaryFolderRunnerFixture.STALL_LIMIT), process.env);
+    const npm = new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary"), end), process.env);
     const stage = new PackageStage(app.path, npm, new StandInBuildFixture(app.path));
 
     await stage.stageAsync(PackageTarget.fromProcess("linux", "x64"), new PassThrough(), null, null);
@@ -120,22 +121,33 @@ export class PackageStageTests {
 
   @TestMethod
   public async reportsAnInstallStillRunningAtTheStallLimitWithWhatItWasDoing(): Promise<void> {
-    const folder = await mkdtemp(path.join(tmpdir(), "package-stage-"));
-    try {
-      const runner = await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), 500);
-      const script = "setInterval(() => {}, 1_000)";
+    const script = "setInterval(() => {}, 1_000)";
 
-      const error = await Assert.throwsAsync(() => runner.captureAsync(process.execPath, ["-e", script, folder], tmpdir(), 600_000), BuildException);
+    const [folder, lines] = await PackageStageTests.stallAsync(script, 500, true);
 
-      const lines = error.message.split("\n");
-      Assert.areEqual(`${path.basename(process.execPath)} -e ${script} ${folder} was still running after 500 ms.`, lines[0]);
-      Assert.isTrue(lines.includes("It ended at SIGTERM."), error.message);
-      Assert.areEqual(process.platform === "darwin", lines.includes("Its sample:"), error.message);
-      Assert.areEqual(`npm wrote no log in ${path.join(folder, "temporary", "npm-logs")}.`, lines.at(-1));
-    }
-    finally {
-      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
-    }
+    Assert.isTrue((lines[0] ?? String.empty).startsWith(`${path.basename(process.execPath)} -e ${script} ${folder} was still running after `), lines.join("\n"));
+    Assert.isTrue(lines.includes("Its processes:"), lines.join("\n"));
+    Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
+    Assert.areEqual(process.platform === "darwin", lines.some(t => t === "Its sample:" || t.startsWith("The sample failed: ")), lines.join("\n"));
+    Assert.areEqual(`npm wrote no log in ${path.join(folder, "temporary", "npm-logs")}.`, lines.at(-1));
+  }
+
+  @TestMethod
+  public async killsAStalledInstallThatOutlivesSigterm(): Promise<void> {
+    const [, lines] = await PackageStageTests.stallAsync("process.on(\"SIGTERM\", () => {}); setInterval(() => {}, 1_000)", 2000, true);
+
+    Assert.isTrue(lines.includes(process.platform === "win32" ? "It ended at SIGTERM." : "It outlived SIGTERM by 3000 ms and ended at SIGKILL."), lines.join("\n"));
+  }
+
+  @TestMethod
+  public async stopsAStalledInstallTheListingMisses(): Promise<void> {
+    const [, lines] = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, false);
+    const id = Number(lines.find(t => t.startsWith("Its process, "))?.split(", ")[1]);
+
+    Assert.isTrue(Number.isInteger(id) && id > 0, lines.join("\n"));
+    Assert.isTrue(lines.includes(`Its process, ${id}, was not found in the listing.`), lines.join("\n"));
+    Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
+    Assert.isFalse(PackageStageTests.isRunning(id), lines.join("\n"));
   }
 
   @TestMethod
@@ -150,11 +162,12 @@ export class PackageStageTests {
 
   @TestMethod
   public async stagesAnAppWhoseOverridesMoveANestedDependentOutsideItsOwnRangeOnlyWhileTheAppNamesThem(): Promise<void> {
+    const end = TemporaryFolderRunnerFixture.startTest();
     const overrides = { "sdk-host": { "shared-type": "1.0.0" } };
 
-    const [staged, version, written] = await PackageStageTests.stageSdkHostAsync(overrides);
-    const [stagedTopLevel, topLevelVersion, writtenTopLevel] = await PackageStageTests.stageSdkHostAsync({ "shared-type": "1.0.0" });
-    const [refused] = await PackageStageTests.stageSdkHostAsync(null);
+    const [staged, version, written] = await PackageStageTests.stageSdkHostAsync(overrides, end);
+    const [stagedTopLevel, topLevelVersion, writtenTopLevel] = await PackageStageTests.stageSdkHostAsync({ "shared-type": "1.0.0" }, end);
+    const [refused] = await PackageStageTests.stageSdkHostAsync(null, end);
 
     Assert.isNull(staged);
     Assert.areEqual("1.0.0", version);
@@ -180,13 +193,14 @@ export class PackageStageTests {
 
   @TestMethod
   public async writesTheWindowsPublisherIntoTheBuiltProductAndNamesTheLicensesTheAppAccepted(): Promise<void> {
+    const end = TemporaryFolderRunnerFixture.startTest();
     const terms = "SEE LICENSE IN README.md";
     await using app = await InstalledAppFixture.createAsync({}, true,
       { acceptedLicenses: { "sample-sdk@1.0.0": { license: terms, reason: "The app's owner accepted these terms." } } });
     await app.installAsync(InstalledAppFixture.CLI, null, { "sample-sdk": "1.0.0" });
     await app.installAsync(InstalledAppFixture.ELECTRON);
     await app.addThirdPartyAsync("sample-sdk", terms, { "README.md": "Sample terms" });
-    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path), new ProductStandInBuild(app.path));
+    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new ProductStandInBuild(app.path));
 
     const output = await PackageStageTests.stageAsync(stage, "win32", "CN=Sample, O=Sample");
     const product = await readFile(path.join(stage.folder, "_build", "product.json"), "utf8");
@@ -197,9 +211,10 @@ export class PackageStageTests {
 
   @TestMethod
   public async refusesAPartOfAnInRepoModuleThatIsNoPackageUnderSrc(): Promise<void> {
+    const end = TemporaryFolderRunnerFixture.startTest();
     await using app = await PackageStageTests.createInRepoModuleAppAsync();
     await app.writeAppFileAsync("src/noldova.desktop.tools/package.json", JSON.stringify({ name: "@noldova/desktop.tools", version: "__VERSION__" }));
-    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path), new StandInBuildFixture(app.path));
+    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
 
     const error = await Assert.throwsAsync(() => stage.stageAsync(PackageTarget.fromProcess("linux", "x64"), new PassThrough(), null, null), BuildException);
 
@@ -208,6 +223,7 @@ export class PackageStageTests {
 
   @TestMethod
   public async stagesTheInRepoPackagesAnInRepoModuleShipsFromTheirArchivesAndLeavesOutTheRest(): Promise<void> {
+    const end = TemporaryFolderRunnerFixture.startTest();
     const runtime = "@noldova/desktop.clock.runtime";
     const format = "@noldova/desktop.clockformat";
     await using app = await PackageStageTests.createInRepoModuleAppAsync();
@@ -218,7 +234,7 @@ export class PackageStageTests {
     await mkdir(archives, { recursive: true });
     for (const [name, version] of [[runtime, "0.0.1"], [format, "1.2.3"]] as const)
       await writeFile(path.join(archives, BuildLayout.nameArchive(name, version)), TarballFixture.create({ "package.json": JSON.stringify({ name, version, license: "MIT" }) }));
-    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path), new StandInBuildFixture(app.path));
+    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
 
     const output = await PackageStageTests.stageAsync(stage, "linux", null);
     const dependencies = JsonReader.parse(await readFile(path.join(stage.folder, "package.json"), "utf8")).readObject("dependencies");
@@ -251,8 +267,8 @@ export class PackageStageTests {
     return app;
   }
 
-  private static async createNpmAsync(root: string): Promise<NpmCommand> {
-    return new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(root, "temporary"), TemporaryFolderRunnerFixture.STALL_LIMIT), process.env);
+  private static async createNpmAsync(root: string, end: number): Promise<NpmCommand> {
+    return new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(root, "temporary"), end), process.env);
   }
 
   private static async stageAsync(stage: PackageStage, platform: string, windowsPublisher: string | null): Promise<string> {
@@ -263,7 +279,7 @@ export class PackageStageTests {
     return chunks.join(String.empty);
   }
 
-  private static async stageSdkHostAsync(overrides: Readonly<Record<string, unknown>> | null): Promise<readonly [string | null, string | null, unknown]> {
+  private static async stageSdkHostAsync(overrides: Readonly<Record<string, unknown>> | null, end: number): Promise<readonly [string | null, string | null, unknown]> {
     await using app = await InstalledAppFixture.createAsync();
     await app.installAsync(InstalledAppFixture.CLI, null, { "sdk-host": "1.0.0" });
     await app.installAsync(InstalledAppFixture.ELECTRON);
@@ -273,7 +289,7 @@ export class PackageStageTests {
       const manifest = JsonReader.parse(await readFile(path.join(app.path, "package.json"), "utf8")).toJson();
       await app.writeAppFileAsync("package.json", JSON.stringify({ ...manifest, overrides }));
     }
-    const npm = new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary"), TemporaryFolderRunnerFixture.STALL_LIMIT), process.env);
+    const npm = new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary"), end), process.env);
     const stage = new PackageStage(app.path, npm, new StandInBuildFixture(app.path));
 
     const failure = await stage.stageAsync(PackageTarget.fromProcess("linux", "x64"), new PassThrough(), null, null).then(() => null, (error: unknown) => {
@@ -287,12 +303,36 @@ export class PackageStageTests {
     return [null, await PackageStageTests.readVersionAsync(path.join(stage.folder, "node_modules", "shared-type")), written["overrides"]];
   }
 
+  private static async stallAsync(script: string, stall: number, listsProcesses: boolean): Promise<readonly [string, readonly string[]]> {
+    const folder = await mkdtemp(path.join(tmpdir(), "package-stage-"));
+    try {
+      const runner = await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), TemporaryFolderRunnerFixture.stallAfter(stall), listsProcesses);
+
+      const error = await Assert.throwsAsync(() => runner.captureAsync(process.execPath, ["-e", script, folder], tmpdir(), 600_000), BuildException);
+
+      return [folder, error.message.split("\n")];
+    }
+    finally {
+      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
+    }
+  }
+
+  private static isRunning(id: number): boolean {
+    try {
+      return process.kill(id, 0);
+    }
+    catch {
+      return false;
+    }
+  }
+
   private static async readVersionAsync(folder: string): Promise<string> {
     return JsonReader.parse(await readFile(path.join(folder, "package.json"), "utf8")).readString("version");
   }
 
   private static async createStageAsync(packages: Readonly<Record<string, Readonly<Record<string, unknown>>>> = PackageStageTests.PACKAGES):
     Promise<{ path: string, cache: string, archives: ReadonlyMap<string, string>, npm: NpmCommand } & AsyncDisposable> {
+    const end = TemporaryFolderRunnerFixture.startTest();
     const folder = await mkdtemp(path.join(tmpdir(), "package-stage-"));
     const archives = new Map<string, string>();
     for (const [name, fields] of Object.entries(packages)) {
@@ -306,7 +346,7 @@ export class PackageStageTests {
       path: stage,
       cache: path.join(folder, "cache"),
       archives,
-      npm: new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), TemporaryFolderRunnerFixture.STALL_LIMIT), process.env),
+      npm: new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), end), process.env),
       [Symbol.asyncDispose]: () => rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 })
     };
   }
