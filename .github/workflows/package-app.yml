@@ -358,7 +358,7 @@ jobs:
 
       - name: Install, start and quit the package
         id: smoke
-        if: matrix.platform != 'macos' || matrix.architecture != 'x64'
+        if: matrix.platform != 'macos' || matrix.architecture != 'x64' || runner.environment == 'github-hosted'
         timeout-minutes: 15
         working-directory: ${{ inputs.app-folder }}
         env:
