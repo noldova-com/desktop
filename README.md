@@ -356,6 +356,7 @@ The Test waits check refuses a fixed pause in any test file this table doesn't l
 
 | Test file | Why it pauses |
 |---|---|
+| `src/noldova.desktop.build/tests/fixtures/temporary-folder-runner.fixture.ts` | With a stall limit, it lets an npm install run until that limit, 28 s in the package stage tests, before reporting what npm was doing, inside the test's own 40 s limit; a stopped install gets 3 s to end at SIGTERM before SIGKILL. |
 | `src/noldova.desktop.build/tests/fixtures/wait.fixture.ts` | Between checks of a polled condition, until the test's limit. |
 | `src/noldova.desktop.cli/tests/fixtures/wait.fixture.ts` | Between checks of a polled condition, until the test's limit. |
 | `src/noldova.desktop.electron/tests/e2e/fixtures/wait.fixture.ts` | Between checks of a polled condition, until the test's limit. |
