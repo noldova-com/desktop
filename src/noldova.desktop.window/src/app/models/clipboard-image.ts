@@ -7,7 +7,6 @@
  */
 
 import { Resources } from "../../resources.js";
-import { ClipboardImageResources } from "./clipboard-image.resources.js";
 
 export class ClipboardImage {
   public static async readAsync(bytes: Uint8Array): Promise<Uint8Array | null> {
@@ -49,8 +48,8 @@ export class ClipboardImage {
 
   private static sizeOf(bytes: Uint8Array): readonly [number, number] | null {
     if (ClipboardImage.matches(bytes, 0, Resources.pngSignature))
-      return ClipboardImage.matches(bytes, ClipboardImageResources.pngHeaderChunkOffset, Resources.pngHeaderChunk) && bytes.byteLength > ClipboardImageResources.pngHeaderLength
-        ? [ClipboardImage.readUint32(bytes, ClipboardImageResources.pngWidthOffset), ClipboardImage.readUint32(bytes, ClipboardImageResources.pngHeightOffset)] : null;
+      return ClipboardImage.matches(bytes, Resources.pngHeaderChunkOffset, Resources.pngHeaderChunk) && bytes.byteLength > Resources.pngHeaderLength
+        ? [ClipboardImage.readUint32(bytes, Resources.pngWidthOffset), ClipboardImage.readUint32(bytes, Resources.pngHeightOffset)] : null;
     if (ClipboardImage.matches(bytes, 0, Resources.jpegSignature))
       return ClipboardImage.jpegSizeOf(bytes);
     if (Resources.gifSignatures.some(t => ClipboardImage.matches(bytes, 0, t)))
@@ -61,59 +60,59 @@ export class ClipboardImage {
   }
 
   private static jpegSizeOf(bytes: Uint8Array): readonly [number, number] | null {
-    let offset = ClipboardImageResources.jpegFirstMarkerOffset;
-    while (offset + ClipboardImageResources.jpegMarkerLookahead < bytes.byteLength && bytes[offset] === ClipboardImageResources.jpegMarkerPrefix) {
+    let offset = Resources.jpegFirstMarkerOffset;
+    while (offset + Resources.jpegMarkerLookahead < bytes.byteLength && bytes[offset] === Resources.jpegMarkerPrefix) {
       const marker = ClipboardImage.view(bytes).getUint8(offset + 1);
-      if (marker === ClipboardImageResources.jpegMarkerPrefix)
+      if (marker === Resources.jpegMarkerPrefix)
         offset += 1;
       else if (Resources.jpegEndMarkers.includes(marker))
         return null;
       else if (Resources.jpegStandaloneMarkers.includes(marker))
-        offset += ClipboardImageResources.jpegMarkerLength;
+        offset += Resources.jpegMarkerLength;
       else if (Resources.jpegFrameMarkers.includes(marker))
-        return offset + ClipboardImageResources.jpegFrameLength <= bytes.byteLength
-          ? [ClipboardImage.readUint16(bytes, offset + ClipboardImageResources.jpegFrameWidthOffset), ClipboardImage.readUint16(bytes, offset + ClipboardImageResources.jpegFrameHeightOffset)]
+        return offset + Resources.jpegFrameLength <= bytes.byteLength
+          ? [ClipboardImage.readUint16(bytes, offset + Resources.jpegFrameWidthOffset), ClipboardImage.readUint16(bytes, offset + Resources.jpegFrameHeightOffset)]
           : null;
       else
-        offset += ClipboardImageResources.jpegMarkerLength + ClipboardImage.readUint16(bytes, offset + ClipboardImageResources.jpegMarkerLength);
+        offset += Resources.jpegMarkerLength + ClipboardImage.readUint16(bytes, offset + Resources.jpegMarkerLength);
     }
     return null;
   }
 
   private static gifSizeOf(bytes: Uint8Array): readonly [number, number] | null {
-    if (bytes.byteLength <= ClipboardImageResources.gifHeaderLength)
+    if (bytes.byteLength <= Resources.gifHeaderLength)
       return null;
     const view = ClipboardImage.view(bytes);
-    const screen = view.getUint8(ClipboardImageResources.gifFlagsOffset);
-    let offset = ClipboardImageResources.gifHeaderLength
-      + ((screen & Resources.gifColorTableFlag) === 0 ? 0 : ClipboardImageResources.gifColorEntryBytes * 2 ** ((screen & ClipboardImageResources.gifColorTableSizeMask) + 1));
+    const screen = view.getUint8(Resources.gifFlagsOffset);
+    let offset = Resources.gifHeaderLength
+      + ((screen & Resources.gifColorTableFlag) === 0 ? 0 : Resources.gifColorEntryBytes * 2 ** ((screen & Resources.gifColorTableSizeMask) + 1));
     while (offset + 1 < bytes.byteLength && view.getUint8(offset) === Resources.gifExtensionIntroducer) {
-      offset += ClipboardImageResources.gifExtensionHeaderLength;
+      offset += Resources.gifExtensionHeaderLength;
       while (offset < bytes.byteLength && view.getUint8(offset) !== 0)
         offset += view.getUint8(offset) + 1;
       offset += 1;
     }
-    if (offset + ClipboardImageResources.gifDescriptorLength > bytes.byteLength || view.getUint8(offset) !== Resources.gifImageSeparator)
+    if (offset + Resources.gifDescriptorLength > bytes.byteLength || view.getUint8(offset) !== Resources.gifImageSeparator)
       return null;
     return [
-      Math.max(ClipboardImage.readUint16Le(bytes, ClipboardImageResources.gifScreenWidthOffset),
-        ClipboardImage.readUint16Le(bytes, offset + ClipboardImageResources.gifLeftOffset) + ClipboardImage.readUint16Le(bytes, offset + ClipboardImageResources.gifWidthOffset)),
-      Math.max(ClipboardImage.readUint16Le(bytes, ClipboardImageResources.gifScreenHeightOffset),
-        ClipboardImage.readUint16Le(bytes, offset + ClipboardImageResources.gifTopOffset) + ClipboardImage.readUint16Le(bytes, offset + ClipboardImageResources.gifHeightOffset))
+      Math.max(ClipboardImage.readUint16Le(bytes, Resources.gifScreenWidthOffset),
+        ClipboardImage.readUint16Le(bytes, offset + Resources.gifLeftOffset) + ClipboardImage.readUint16Le(bytes, offset + Resources.gifWidthOffset)),
+      Math.max(ClipboardImage.readUint16Le(bytes, Resources.gifScreenHeightOffset),
+        ClipboardImage.readUint16Le(bytes, offset + Resources.gifTopOffset) + ClipboardImage.readUint16Le(bytes, offset + Resources.gifHeightOffset))
     ];
   }
 
   private static webpSizeOf(bytes: Uint8Array): readonly [number, number] | null {
-    if (bytes.byteLength <= ClipboardImageResources.webpMinimumLength)
+    if (bytes.byteLength <= Resources.webpMinimumLength)
       return null;
-    if (ClipboardImage.matches(bytes, ClipboardImageResources.webpChunkOffset, Resources.webpLossyChunk))
-      return [ClipboardImage.readUint16Le(bytes, ClipboardImageResources.webpLossyWidthOffset) & ClipboardImageResources.webpDimensionMask, ClipboardImage.readUint16Le(bytes, ClipboardImageResources.webpLossyHeightOffset) & ClipboardImageResources.webpDimensionMask];
-    if (ClipboardImage.matches(bytes, ClipboardImageResources.webpChunkOffset, Resources.webpLosslessChunk)) {
-      const bits = ClipboardImage.readUint16Le(bytes, ClipboardImageResources.webpLosslessBitsOffset) + ClipboardImage.readUint16Le(bytes, ClipboardImageResources.webpLosslessHighOffset) * ClipboardImageResources.uint16Range;
-      return [(bits & ClipboardImageResources.webpDimensionMask) + 1, Math.floor(bits / ClipboardImageResources.webpLosslessHeightDivisor) % ClipboardImageResources.webpLosslessHeightDivisor + 1];
+    if (ClipboardImage.matches(bytes, Resources.webpChunkOffset, Resources.webpLossyChunk))
+      return [ClipboardImage.readUint16Le(bytes, Resources.webpLossyWidthOffset) & Resources.webpDimensionMask, ClipboardImage.readUint16Le(bytes, Resources.webpLossyHeightOffset) & Resources.webpDimensionMask];
+    if (ClipboardImage.matches(bytes, Resources.webpChunkOffset, Resources.webpLosslessChunk)) {
+      const bits = ClipboardImage.readUint16Le(bytes, Resources.webpLosslessBitsOffset) + ClipboardImage.readUint16Le(bytes, Resources.webpLosslessHighOffset) * Resources.uint16Range;
+      return [(bits & Resources.webpDimensionMask) + 1, Math.floor(bits / Resources.webpLosslessHeightDivisor) % Resources.webpLosslessHeightDivisor + 1];
     }
-    if (ClipboardImage.matches(bytes, ClipboardImageResources.webpChunkOffset, Resources.webpExtendedChunk))
-      return [ClipboardImage.readUint24Le(bytes, ClipboardImageResources.webpExtendedWidthOffset) + 1, ClipboardImage.readUint24Le(bytes, ClipboardImageResources.webpExtendedHeightOffset) + 1];
+    if (ClipboardImage.matches(bytes, Resources.webpChunkOffset, Resources.webpExtendedChunk))
+      return [ClipboardImage.readUint24Le(bytes, Resources.webpExtendedWidthOffset) + 1, ClipboardImage.readUint24Le(bytes, Resources.webpExtendedHeightOffset) + 1];
     return null;
   }
 
@@ -130,7 +129,7 @@ export class ClipboardImage {
   }
 
   private static readUint24Le(bytes: Uint8Array, offset: number): number {
-    return ClipboardImage.readUint16Le(bytes, offset) + ClipboardImage.view(bytes).getUint8(offset + 2) * ClipboardImageResources.uint16Range;
+    return ClipboardImage.readUint16Le(bytes, offset) + ClipboardImage.view(bytes).getUint8(offset + 2) * Resources.uint16Range;
   }
 
   private static view(bytes: Uint8Array): DataView {
