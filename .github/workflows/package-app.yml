@@ -451,11 +451,26 @@ jobs:
           updates=(latest-*.yml)
           missing=()
           others=()
+          is_for_target() {
+            [[ "$1" =~ -"$2"\.[A-Za-z]+$ ]]
+          }
+          expect_for_target() {
+            if is_for_target "$2" "$3"; then got=true; else got=false; fi
+            if [ "$got" != "$1" ]; then
+              echo "::error::The check gives $got, not $1, for $2 as a $3 package."
+              exit 1
+            fi
+          }
+          expect_for_target true P-1.0.0-windows-arm64.exe windows-arm64
+          expect_for_target true P-1.0.0-linux-arm64.AppImage linux-arm64
+          expect_for_target false P-1.0.0-windows-x64.exe windows-arm64
+          expect_for_target false P-1.0.0-linux-x64.deb linux-arm64
+          expect_for_target false P-windows-arm64-1.0.0.exe windows-arm64
           if [ ${#packages[@]} -eq 0 ]; then
             missing+=("a package")
           fi
           for package in "${packages[@]}"; do
-            if [[ "$package" != *"-$TARGET."* ]]; then
+            if ! is_for_target "$package" "$TARGET"; then
               others+=("$package")
             fi
           done
