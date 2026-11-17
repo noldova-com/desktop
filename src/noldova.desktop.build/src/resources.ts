@@ -438,7 +438,6 @@ export class Resources {
   public static readonly stageIconsRole: string = "the icons folder that desktop.product.icons names";
   public static readonly stageDictionariesRole: string = "the spelling dictionaries the window checks text with";
   public static readonly stageNoGallery: string = "The packaged window holds no Gallery.\n";
-  public static readonly nativeHeaderLength: number = 64;
   public static readonly machCpuTypeOffset: number = 4;
   public static readonly machUniversalCountOffset: number = 4;
   public static readonly machThinMagic: number = 0xfeedfacf;
@@ -449,14 +448,11 @@ export class Resources {
   public static readonly machUniversalFile: string = "a universal Mach-O file";
   public static readonly mach32BitFile: string = "a 32-bit Mach-O file";
   public static readonly machKind: string = "Mach-O";
-  public static readonly peDosMagic: number = 0x5a4d;
   public static readonly peHeaderOffsetField: number = 0x3c;
-  public static readonly peSignature: number = 0x00004550;
   public static readonly peSignatureLength: number = 6;
   public static readonly peMachineOffset: number = 4;
   public static readonly peMachines: Readonly<Record<string, number>> = { arm64: 0xaa64, x64: 0x8664 };
   public static readonly peKind: string = "PE";
-  public static readonly elfMagic: number = 0x464c457f;
   public static readonly elfClassOffset: number = 4;
   public static readonly elf64BitClass: number = 2;
   public static readonly elfDataOffset: number = 5;

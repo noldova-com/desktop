@@ -49,12 +49,12 @@ export class PackagedArchitecture {
     try {
       const header = Buffer.alloc(Resources.nativeHeaderLength);
       await handle.read(header, 0, header.length, 0);
-      if (header.readUInt16LE(0) === Resources.peDosMagic) {
+      if (header.subarray(0, Resources.nativeDosMagic.length).equals(Resources.nativeDosMagic)) {
         const signature = Buffer.alloc(Resources.peSignatureLength);
         await handle.read(signature, 0, signature.length, header.readUInt32LE(Resources.peHeaderOffsetField));
-        return signature.readUInt32LE(0) === Resources.peSignature ? PackagedArchitecture.describePe(signature.readUInt16LE(Resources.peMachineOffset)) : null;
+        return signature.subarray(0, Resources.nativePeMagic.length).equals(Resources.nativePeMagic) ? PackagedArchitecture.describePe(signature.readUInt16LE(Resources.peMachineOffset)) : null;
       }
-      return header.readUInt32LE(0) === Resources.elfMagic ? PackagedArchitecture.describeElf(header) : PackagedArchitecture.describeMach(header);
+      return header.subarray(0, Resources.elfMagic.length).toString(Resources.elfMagicEncoding) === Resources.elfMagic ? PackagedArchitecture.describeElf(header) : PackagedArchitecture.describeMach(header);
     }
     finally {
       await handle.close();
