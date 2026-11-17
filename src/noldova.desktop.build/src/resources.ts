@@ -1565,6 +1565,8 @@ export class Resources {
   public static readonly lockedPackageVersion: RegExp = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$/;
   public static readonly lockResolvedField: string = "resolved";
   public static readonly lockInBundleField: string = "inBundle";
+  public static readonly lockLinkField: string = "link";
+  public static readonly ownArchiveFolder: RegExp = /^(?:\.\.\/)*_packages$/u;
   public static readonly omittedOptionalsField: string = "omittedOptionals";
   public static readonly omittedOptionalsShape: string = `The root package.json's ${Resources.omittedOptionalsSection} must map each package, as <name>@<version>, to `
     + "{ \"dependencies\": [<optional dependency name>, ...], \"reason\": \"<why the app never loads them>\" }.";
@@ -3954,6 +3956,32 @@ export class Resources {
 
   public static formatLockedPackageUnlocked(name: string, version: string, location: string): string {
     return `${name}@${version} at ${location} is installed but not locked in package-lock.json, and only a package installed from the app's own archive may ship unlocked.`;
+  }
+
+  public static formatLockedPackageLinked(location: string, resolved: string): string {
+    return `${location} in package-lock.json links to the folder ${resolved}; a linked folder cannot ship, so lock the package to its archive in the repository's own ${Resources.archivesFolder} folder.`;
+  }
+
+  public static formatLockedArchiveRefused(name: string, version: string, location: string, resolved: string): string {
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved}; a locked file ships only as a ${Resources.packageArchiveExtension} archive of a Noldova package `
+      + `directly in the ${Resources.archivesFolder} folder of the app's folder or of a folder above it.`;
+  }
+
+  public static formatLockedArchiveMisnamed(name: string, version: string, location: string, resolved: string, expected: string): string {
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved}; its archive must be named ${expected}, the name npm pack gives ${name}@${version}.`;
+  }
+
+  public static formatLockedArchiveOutside(id: string, archive: string, repository: string): string {
+    return `${id} is locked to ${archive}, which is outside the repository at ${repository}; an app ships only the archives in its own repository's ${Resources.archivesFolder} folders.`;
+  }
+
+  public static formatLockedArchiveThroughLink(id: string, archive: string, real: string): string {
+    return `${id} is locked to ${archive}, which a link leads to ${real}; an app ships an archive only from its repository's own ${Resources.archivesFolder} folder, not through a link.`;
+  }
+
+  public static formatLockedArchiveNoIntegrity(name: string, version: string, location: string, resolved: string): string {
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved} with an integrity that holds no SHA-512, so its archive cannot be verified; `
+      + `write "integrity": "sha512-<the archive's SHA-512 digest in base64>" beside its "resolved", or leave the integrity out to ship the archive as it is.`;
   }
 
   public static formatLockedPackageUnresolved(name: string, version: string, location: string): string {
