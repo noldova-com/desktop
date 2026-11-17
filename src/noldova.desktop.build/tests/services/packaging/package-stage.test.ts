@@ -104,15 +104,17 @@ export class PackageStageTests {
     await using app = await InstalledAppFixture.createAsync();
     await app.installAsync(InstalledAppFixture.CLI, null, { "addon-host": "1.0.0" });
     await app.installAsync(InstalledAppFixture.ELECTRON);
-    await app.addThirdPartyAsync("addon-host", "MIT", { LICENSE: "Host license" }, { optionalDependencies: { "addon-bound": "1.0.0" } });
+    await app.addThirdPartyAsync("addon-host", "MIT", { LICENSE: "Host license" }, { optionalDependencies: { "addon-zeta": "1.0.0", "addon-bound": "1.0.0" } });
+    await app.addThirdPartyAsync("addon-zeta", "MIT", { LICENSE: "Zeta license" }, { cpu: [other] });
     await app.addThirdPartyAsync("addon-bound", "MIT", { LICENSE: "Bound license" }, { os: ["linux"], cpu: [other] });
     const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
 
     await stage.stageAsync(PackageTarget.fromProcess("linux", other), new PassThrough(), null, null);
     const written = JsonReader.parse(await readFile(path.join(stage.folder, "package.json"), "utf8")).toJson();
 
-    Assert.areEqual(JSON.stringify({ "addon-bound": "1.0.0" }), JSON.stringify(written["optionalDependencies"]));
-    Assert.areEqual("1.0.0", await PackageStageTests.readVersionAsync(path.join(stage.folder, "node_modules", "addon-bound")));
+    Assert.areEqual(JSON.stringify({ "addon-bound": "1.0.0", "addon-zeta": "1.0.0" }), JSON.stringify(written["optionalDependencies"]));
+    Assert.areEqual("1.0.0,1.0.0", [await PackageStageTests.readVersionAsync(path.join(stage.folder, "node_modules", "addon-bound")),
+      await PackageStageTests.readVersionAsync(path.join(stage.folder, "node_modules", "addon-zeta"))].join(","));
   }
 
   @TestMethod
