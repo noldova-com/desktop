@@ -383,7 +383,6 @@ jobs:
           WINDOWS_PUBLISHER: ${{ matrix.signed == 'true' && matrix.platform == 'windows' && secrets.WINDOWS_PUBLISHER || '' }}
         run: |
           if [ "$RUNNER_OS" = Linux ]; then
-            sudo apt-get update
             xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --deb --require-sandbox
             if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
               xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-fallback

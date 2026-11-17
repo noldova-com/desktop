@@ -1201,6 +1201,10 @@ export class Resources {
   public static readonly aptGetCommand: string = "apt-get";
   public static readonly aptGetInstallArguments: readonly string[] = ["install", "--yes"];
   public static readonly aptGetRemoveArguments: readonly string[] = ["remove", "--yes"];
+  public static readonly aptGetSimulateArguments: readonly string[] = ["--simulate", "install", "--yes"];
+  public static readonly aptGetUpdateArguments: readonly string[] = ["update"];
+  public static readonly aptGetInstalledPrefix: string = "Inst ";
+  public static readonly aptGetInstalledDetails: RegExp = /\s.*$/;
   public static readonly dpkgDebCommand: string = "dpkg-deb";
   public static readonly dpkgDebFieldOption: string = "--field";
   public static readonly debianPackageField: string = "Package";
@@ -3753,6 +3757,12 @@ export class Resources {
 
   public static formatDebianPackageUnnamed(file: string, exitCode: number | null, text: string): string {
     return `dpkg-deb found no package name in ${file}, ${Resources.formatExitCodeProblem(exitCode, text)}`;
+  }
+
+  public static formatDebianDependenciesMissing(file: string, missing: readonly string[], simulation: string, exitCode: number | null, text: string): string {
+    const lacking = missing.length > 0 ? `needs ${missing.join(Resources.listSeparator)}, which this runner lacks` : `has dependencies apt-get could not resolve here: ${simulation.trim()}`;
+    return `${file} ${lacking}, and sudo --non-interactive apt-get update could not run to find them, ${Resources.formatExitCodeProblem(exitCode, text)}. `
+      + "Install them on the runner, or let its user run apt-get as root without a password.";
   }
 
   public static formatDebianCommandUnresolved(command: string, exitCode: number | null, text: string): string {

@@ -45,6 +45,7 @@ export class DebianInstall {
     const packageName = field.output.trim();
     if (!field.isSuccessful || packageName.length === 0)
       throw new BuildException(Resources.formatDebianPackageUnnamed(file, field.exitCode, field.text));
+    await DebianInstall.prepareDependenciesAsync(runner, file, packageName, folder);
     await runner.requireAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetInstallArguments, file], folder,
       Resources.installerTimeout);
     const command = path.posix.join(Resources.linuxCommandFolder, slug);
@@ -56,6 +57,18 @@ export class DebianInstall {
       throw new BuildException(Resources.formatDebianCommandUnresolved(command, link.exitCode, link.text));
     }
     return new DebianInstall(runner, folder, slug, packageName, program);
+  }
+
+  private static async prepareDependenciesAsync(runner: ProcessRunner, file: string, packageName: string, folder: string): Promise<void> {
+    const simulation = await runner.captureAsync(Resources.aptGetCommand, [...Resources.aptGetSimulateArguments, file], folder, Resources.smokeCommandLimit);
+    const missing = simulation.output.split(Resources.lineSeparator).filter(t => t.startsWith(Resources.aptGetInstalledPrefix))
+      .map(t => t.slice(Resources.aptGetInstalledPrefix.length).replace(Resources.aptGetInstalledDetails, String.empty)).filter(t => t !== packageName);
+    if (simulation.isSuccessful && missing.length === 0)
+      return;
+    const update = await runner.captureAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetUpdateArguments], folder,
+      Resources.installerTimeout);
+    if (!update.isSuccessful)
+      throw new BuildException(Resources.formatDebianDependenciesMissing(file, missing, simulation.text, update.exitCode, update.text));
   }
 
   public async verifyAsync(): Promise<string> {
