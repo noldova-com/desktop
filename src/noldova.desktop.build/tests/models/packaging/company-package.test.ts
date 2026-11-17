@@ -374,6 +374,26 @@ export class CompanyPackageTests {
   }
 
   @TestMethod
+  public async refusesALinkedArchiveBeforeReadingWhatItLeadsTo(): Promise<void> {
+    await using root = await CompanyPackageTests.createRootAsync(null);
+    const archive = TarballFixture.create({ "package.json": JSON.stringify({ name: "@noldova/sample", version: "1.0.0" }) });
+    const repository = path.join(root.path, "repository");
+    const file = path.join(repository, "_packages", "noldova-sample-1.0.0.tgz");
+    const target = path.join(root.path, "folder");
+    await mkdir(path.join(repository, ".git"), { recursive: true });
+    await CompanyPackageTests.installSampleAsync(repository);
+    await mkdir(path.dirname(file));
+    await mkdir(target);
+    await symlink(target, file, "junction");
+
+    const error = await Assert.throwsAsync(() => CompanyPackage.packAsync(CompanyPackageTests.lockArchive("@noldova/sample", "file:_packages/noldova-sample-1.0.0.tgz", archive),
+      repository, path.join(root.path, "packed"), new NpmCommand(new PackRunner(1), { npm_execpath: "npm-cli.js" }), new Set()), BuildException);
+
+    Assert.areEqual(`@noldova/sample@1.0.0 is locked to ${file}, which a link leads to ${await realpath(target)}; `
+      + "an app ships an archive only from its repository's own _packages folder, not through a link.", error.message);
+  }
+
+  @TestMethod
   public async shipsAndLoadsTheArchiveNpmLocksFromThePackagesFolderOfTheApp(): Promise<void> {
     await CompanyPackageTests.installPackAndLoadAsync([]);
   }

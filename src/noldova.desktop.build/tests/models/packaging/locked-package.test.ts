@@ -169,4 +169,13 @@ export class LockedPackageTests {
       Assert.areEqual("sample@1.2.3-beta.1 at node_modules/sample in package-lock.json has no SHA-512 integrity, so its tarball cannot be verified.", error.message);
     }
   }
+
+  @TestMethod
+  public refusesAnInstalledArchiveWithoutIntegrityThoughAnOwnArchiveMayShipWithout(): void {
+    const entry = { version: "1.2.3", resolved: "file:archives/sample-1.2.3.tgz" };
+
+    const error = Assert.throws(() => new LockedPackage("node_modules/sample", entry, true), BuildException);
+
+    Assert.areEqual("sample@1.2.3 at node_modules/sample in package-lock.json has no SHA-512 integrity, so its tarball cannot be verified.", error.message);
+  }
 }

@@ -71,18 +71,15 @@ export class CompanyPackage {
     const relative = path.relative(repository, archive);
     if (!locked.isInstalled && (path.isAbsolute(relative) || relative.split(path.sep)[0] === Resources.parentFolderSegment))
       throw new BuildException(Resources.formatLockedArchiveOutside(locked.id, archive, repository));
-    let data: Buffer;
-    try {
-      data = await readFile(archive);
-    }
-    catch (error) {
+    const unreadable = (error: unknown): never => {
       throw new BuildException(Resources.formatCompanyArchiveUnreadable(locked.id, archive), new ExceptionOptions(error));
-    }
+    };
     if (!locked.isInstalled) {
-      const real = await realpath(archive);
+      const real = await realpath(archive).catch(unreadable);
       if (real !== path.join(await realpath(repository), relative))
         throw new BuildException(Resources.formatLockedArchiveThroughLink(locked.id, archive, real));
     }
+    const data = await readFile(archive).catch(unreadable);
     if (!Object.isNull(locked.sha512) && !locked.matches(data))
       throw new BuildException(Resources.formatCompanyArchiveMismatch(archive, locked.id));
     return [archive, data];
