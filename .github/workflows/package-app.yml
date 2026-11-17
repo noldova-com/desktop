@@ -102,6 +102,8 @@ jobs:
         include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ fromJSON(matrix.runner) }}
     timeout-minutes: 105
+    env:
+      NOLDOVA_DESKTOP_ARCHITECTURE: ${{ matrix.architecture }}
     steps: &package-steps
       - name: Stop Spotlight indexing
         if: runner.os == 'macOS'
@@ -135,7 +137,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
-          architecture: ${{ matrix.architecture }}
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           package-manager-cache: false
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.registry-scope }}
@@ -153,7 +155,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
-          architecture: ${{ matrix.architecture }}
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           package-manager-cache: false
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.registry-scope }}
@@ -169,7 +171,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
-          architecture: ${{ matrix.architecture }}
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           package-manager-cache: false
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.registry-scope }}
@@ -177,7 +179,7 @@ jobs:
       - name: Verify the toolchain
         timeout-minutes: 1
         env:
-          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+          EXPECTED_ARCHITECTURE: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           EXPECTED_NODE: ${{ needs.versions.outputs.node-version }}
           EXPECTED_NPM: ${{ needs.versions.outputs.npm-version }}
         run: |
@@ -211,6 +213,8 @@ jobs:
       - name: Install Electron
         timeout-minutes: 5
         working-directory: ${{ inputs.app-folder }}
+        env:
+          npm_config_arch: ${{ matrix.architecture }}
         run: |
           for attempt in 1 2 3 4; do
             if node node_modules/electron/install.js; then
@@ -272,7 +276,7 @@ jobs:
                 if (process.platform === "linux") {
                   const { appimageChecksums, getAppImageTools, getFpmPath } = toolset("linux.js");
                   for (const version of Object.keys(appimageChecksums).filter(t => t !== "0.0.0"))
-                    await getAppImageTools(version, Arch[process.arch]);
+                    await getAppImageTools(version, Arch[process.env.NOLDOVA_DESKTOP_ARCHITECTURE]);
                   await getFpmPath();
                 } else {
                   await toolset("icons.js").getIconsToolsetPath();
@@ -358,7 +362,7 @@ jobs:
 
       - name: Install, start and quit the package
         id: smoke
-        if: matrix.platform != 'macos' || matrix.architecture != 'x64' || runner.environment == 'github-hosted'
+        if: (runner.arch == 'ARM64' && 'arm64' || 'x64') == matrix.architecture && (matrix.platform != 'macos' || matrix.architecture != 'x64' || runner.environment == 'github-hosted')
         timeout-minutes: 15
         working-directory: ${{ inputs.app-folder }}
         env:
@@ -440,13 +444,39 @@ jobs:
         working-directory: ${{ inputs.app-folder }}/_build/package/out
         env:
           PRODUCT: ${{ steps.product.outputs.name }}
+          TARGET: ${{ matrix.platform }}-${{ matrix.architecture }}
         run: |
           shopt -s nullglob
           packages=("$PRODUCT"-*.exe "$PRODUCT"-*.dmg "$PRODUCT"-*.zip "$PRODUCT"-*.AppImage "$PRODUCT"-*.deb)
           updates=(latest-*.yml)
           missing=()
+          others=()
+          is_for_target() {
+            [[ "$1" =~ -"$2"\.[A-Za-z]+$ ]]
+          }
+          expect_for_target() {
+            if is_for_target "$2" "$3"; then got=true; else got=false; fi
+            if [ "$got" != "$1" ]; then
+              echo "::error::The check gives $got, not $1, for $2 as a $3 package."
+              exit 1
+            fi
+          }
+          expect_for_target true P-1.0.0-windows-arm64.exe windows-arm64
+          expect_for_target true P-1.0.0-linux-arm64.AppImage linux-arm64
+          expect_for_target false P-1.0.0-windows-x64.exe windows-arm64
+          expect_for_target false P-1.0.0-linux-x64.deb linux-arm64
+          expect_for_target false P-windows-arm64-1.0.0.exe windows-arm64
           if [ ${#packages[@]} -eq 0 ]; then
             missing+=("a package")
+          fi
+          for package in "${packages[@]}"; do
+            if ! is_for_target "$package" "$TARGET"; then
+              others+=("$package")
+            fi
+          done
+          if [ ${#others[@]} -gt 0 ]; then
+            echo "::error::The packages $(IFS=,; echo "${others[*]}" | sed 's/,/, /g') are not for $TARGET; a desktop.build of 0.0.2 or older packages for the runner's processor alone, so pass a runner of that processor or a newer desktop.build."
+            exit 1
           fi
           for package in "${packages[@]}"; do
             if [ ! -f "$package.sha256" ]; then
@@ -573,4 +603,6 @@ jobs:
     runs-on: ${{ fromJSON(matrix.runner) }}
     environment: ${{ inputs.signing-environment }}
     timeout-minutes: 105
+    env:
+      NOLDOVA_DESKTOP_ARCHITECTURE: ${{ matrix.architecture }}
     steps: *package-steps
