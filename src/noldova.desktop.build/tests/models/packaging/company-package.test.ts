@@ -329,8 +329,8 @@ export class CompanyPackageTests {
     await mkdir(path.dirname(file));
     await writeFile(file, archive);
     await mkdir(path.join(repository, ".git"), { recursive: true });
-    await mkdir(path.join(repository, "app"));
-    await mkdir(other, { recursive: true });
+    await CompanyPackageTests.installSampleAsync(path.join(repository, "app"));
+    await CompanyPackageTests.installSampleAsync(other);
     const pack = (resolved: string, app: string): Promise<BuildException> => Assert.throwsAsync(() => CompanyPackage.packAsync(
       CompanyPackageTests.lockArchive("@noldova/sample", resolved, archive), app, path.join(root.path, "packed"),
       new NpmCommand(new PackRunner(1), { npm_execpath: "npm-cli.js" }), new Set()), BuildException);
@@ -357,6 +357,7 @@ export class CompanyPackageTests {
     for (const [repository, target] of cases) {
       const file = path.join(repository, "_packages", "noldova-sample-1.0.0.tgz");
       await mkdir(path.join(repository, ".git"), { recursive: true });
+      await CompanyPackageTests.installSampleAsync(repository);
       await mkdir(target);
       await writeFile(path.join(target, "noldova-sample-1.0.0.tgz"), archive);
       await symlink(target, path.join(repository, "_packages"), "junction");
@@ -456,6 +457,12 @@ export class CompanyPackageTests {
     const result = await npm.runAsync(["install", "--ignore-scripts", "--no-audit", "--no-fund", "--loglevel=error", "--cache", path.join(root, "cache")], app);
     Assert.isTrue(result.isSuccessful, result.text);
     return npm;
+  }
+
+  private static async installSampleAsync(app: string): Promise<void> {
+    const installed = path.join(app, "node_modules", "@noldova", "sample");
+    await mkdir(installed, { recursive: true });
+    await writeFile(path.join(installed, "package.json"), JSON.stringify({ name: "@noldova/sample", version: "1.0.0" }));
   }
 
   private static createLoadableArchive(text: string = "sample loaded"): Buffer {
