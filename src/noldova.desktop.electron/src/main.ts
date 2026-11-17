@@ -46,12 +46,13 @@ import { MainProcess } from "./services/main-process.js";
 import { PathCommand } from "./services/path-command.js";
 import { ProductAppAdapter } from "./services/product-app-adapter.js";
 import { PublisherCheck } from "./services/publisher-check.js";
+import { ReadyProcessStarter } from "./services/ready-process-starter.js";
 import { ShipItProcess } from "./services/ship-it-process.js";
 import { SquirrelHandoff } from "./services/squirrel-handoff.js";
 import { UpdateCheckLock } from "./services/update-check-lock.js";
 import { UtilityProcessStarter } from "./services/utility-process-starter.js";
 
-const starter = process.platform === Resources.windowsPlatform ? new UtilityProcessStarter(utilityProcess, process.env) : new ChildProcessStarter();
+const starter = process.platform === Resources.windowsPlatform ? new ReadyProcessStarter(new UtilityProcessStarter(utilityProcess, process.env), () => app.whenReady()) : new ChildProcessStarter();
 const programs = new ChildProgramHost(process.platform, Resources.programTimeout);
 const presence = ProcessPresence.create(process.platform);
 const isDebianPackage = DebianPackage.isInstalled(process.platform, process.execPath);
