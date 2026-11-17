@@ -35,13 +35,13 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
 
   private readonly folder: string;
   private readonly end: number | null;
-  private readonly listsProcesses: boolean;
+  private readonly listing: readonly [string, readonly string[]] | null;
 
-  private constructor(folder: string, end: number | null, listsProcesses: boolean) {
+  private constructor(folder: string, end: number | null, listing: readonly [string, readonly string[]] | null) {
     super();
     this.folder = folder;
     this.end = end;
-    this.listsProcesses = listsProcesses;
+    this.listing = listing;
   }
 
   public static startTest(): number {
@@ -52,11 +52,11 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     return performance.now() + TemporaryFolderRunnerFixture.REPORT_TIME + milliseconds;
   }
 
-  public static async createAsync(folder: string, end: number | null = null, listsProcesses: boolean = true): Promise<TemporaryFolderRunnerFixture> {
+  public static async createAsync(folder: string, end: number | null = null, listing: readonly [string, readonly string[]] | null = null): Promise<TemporaryFolderRunnerFixture> {
     await mkdir(folder, { recursive: true });
     for (const [, file] of TemporaryFolderRunnerFixture.CONFIGURATION_FILES)
       await writeFile(path.join(folder, file), String.empty);
-    return new TemporaryFolderRunnerFixture(folder, end, listsProcesses);
+    return new TemporaryFolderRunnerFixture(folder, end, listing);
   }
 
   public override async captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv): Promise<ProcessResult> {
@@ -90,7 +90,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     const report = [`${path.basename(command)} ${commandArguments.join(" ")} was still running after ${Math.round(stall)} ms.`];
     try {
       const id = child.pid ?? -1;
-      const rows = this.listsProcesses ? await this.listProcessesAsync(id) : [];
+      const rows = await this.listProcessesAsync(id);
       const tree = rows.filter(t => t.id === id);
       for (const row of tree)
         tree.push(...rows.filter(t => t.parent === row.id));
@@ -116,7 +116,9 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     if (limit <= 0)
       return [{ id: Number.NaN, parent: Number.NaN, line: "The listing was skipped: no time was left." }];
     try {
-      const { stdout } = process.platform === "win32"
+      const { stdout } = !Object.isNull(this.listing)
+        ? await TemporaryFolderRunnerFixture.execute(this.listing[0], [...this.listing[1]], { timeout: limit })
+        : process.platform === "win32"
         ? await TemporaryFolderRunnerFixture.execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", TemporaryFolderRunnerFixture.formatWindowsTree(id)], { timeout: limit })
         : await TemporaryFolderRunnerFixture.execute("ps", ["-ww", "-A", "-o", "pid=,ppid=,stat=,etime=,command="], { timeout: limit });
       return stdout.split("\n").map(t => t.trim()).filter(t => t.length > 0).map(t => {

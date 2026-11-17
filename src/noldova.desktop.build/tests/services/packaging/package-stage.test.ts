@@ -123,7 +123,7 @@ export class PackageStageTests {
   public async reportsAnInstallStillRunningAtTheStallLimitWithWhatItWasDoing(): Promise<void> {
     const script = "setInterval(() => {}, 1_000)";
 
-    const [folder, lines] = await PackageStageTests.stallAsync(script, 500, true);
+    const [folder, lines] = await PackageStageTests.stallAsync(script, 500);
 
     Assert.isTrue((lines[0] ?? String.empty).startsWith(`${path.basename(process.execPath)} -e ${script} ${folder} was still running after `), lines.join("\n"));
     Assert.isTrue(lines.includes("Its processes:"), lines.join("\n"));
@@ -134,20 +134,29 @@ export class PackageStageTests {
 
   @TestMethod
   public async killsAStalledInstallThatOutlivesSigterm(): Promise<void> {
-    const [, lines] = await PackageStageTests.stallAsync("process.on(\"SIGTERM\", () => {}); setInterval(() => {}, 1_000)", 2000, true);
+    const [, lines] = await PackageStageTests.stallAsync("process.on(\"SIGTERM\", () => {}); setInterval(() => {}, 1_000)", 2000);
 
     Assert.isTrue(lines.includes(process.platform === "win32" ? "It ended at SIGTERM." : "It outlived SIGTERM by 3000 ms and ended at SIGKILL."), lines.join("\n"));
   }
 
   @TestMethod
   public async stopsAStalledInstallTheListingMisses(): Promise<void> {
-    const [, lines] = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, false);
+    const [, lines] = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, [process.execPath, ["-e", String.empty]]);
     const id = Number(lines.find(t => t.startsWith("Its process, "))?.split(", ")[1]);
 
     Assert.isTrue(Number.isInteger(id) && id > 0, lines.join("\n"));
     Assert.isTrue(lines.includes(`Its process, ${id}, was not found in the listing.`), lines.join("\n"));
     Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
     Assert.isFalse(PackageStageTests.isRunning(id), lines.join("\n"));
+  }
+
+  @TestMethod
+  public async stopsAStalledInstallBeforeTheTestsEndWhenTheListingHangs(): Promise<void> {
+    const [, lines, isInTime] = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, [process.execPath, ["-e", "setInterval(() => {}, 1_000)"]]);
+
+    Assert.isTrue(lines.some(t => t.startsWith("The listing failed: ")), lines.join("\n"));
+    Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
+    Assert.isTrue(isInTime, lines.join("\n"));
   }
 
   @TestMethod
@@ -303,14 +312,15 @@ export class PackageStageTests {
     return [null, await PackageStageTests.readVersionAsync(path.join(stage.folder, "node_modules", "shared-type")), written["overrides"]];
   }
 
-  private static async stallAsync(script: string, stall: number, listsProcesses: boolean): Promise<readonly [string, readonly string[]]> {
+  private static async stallAsync(script: string, stall: number, listing: readonly [string, readonly string[]] | null = null): Promise<readonly [string, readonly string[], boolean]> {
     const folder = await mkdtemp(path.join(tmpdir(), "package-stage-"));
     try {
-      const runner = await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), TemporaryFolderRunnerFixture.stallAfter(stall), listsProcesses);
+      const end = TemporaryFolderRunnerFixture.stallAfter(stall);
+      const runner = await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), end, listing);
 
       const error = await Assert.throwsAsync(() => runner.captureAsync(process.execPath, ["-e", script, folder], tmpdir(), 600_000), BuildException);
 
-      return [folder, error.message.split("\n")];
+      return [folder, error.message.split("\n"), performance.now() < end];
     }
     finally {
       await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
