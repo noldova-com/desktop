@@ -29,8 +29,8 @@ export class PackageTargetTests {
   public namesThePackageFilesOfAProduct(): void {
     const macos = new PackageTarget("macos", "x64");
 
-    Assert.areEqual("Sample App-macos-x64.zip", macos.formatFileName("Sample App", "zip"));
-    Assert.areEqual("Sample App-macos-x64.dmg|Sample App-macos-x64.zip", macos.listFileNames("Sample App").join("|"));
+    Assert.areEqual("Sample App-1.2.3-macos-x64.zip", macos.formatFileName("Sample App", "1.2.3", "zip"));
+    Assert.areEqual("Sample App-1.2.3-macos-x64.dmg|Sample App-1.2.3-macos-x64.zip", macos.listFileNames("Sample App", "1.2.3").join("|"));
   }
 
   @TestMethod

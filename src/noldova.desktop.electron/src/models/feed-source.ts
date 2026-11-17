@@ -17,14 +17,16 @@ export class FeedSource {
   public readonly packageFile: string;
   public readonly fetchAsync: (url: string, signal: AbortSignal) => Promise<IFeedResponse>;
   public readonly timeout: (milliseconds: number) => AbortSignal;
+  public readonly formatReleasedFile: (version: string) => string;
 
   public constructor(feed: string, channelFile: string, packageFile: string, fetchAsync: (url: string, signal: AbortSignal) => Promise<IFeedResponse>,
-    timeout: (milliseconds: number) => AbortSignal = t => AbortSignal.timeout(t)) {
+    timeout: (milliseconds: number) => AbortSignal = t => AbortSignal.timeout(t), formatReleasedFile: (version: string) => string = () => packageFile) {
     this.feed = feed;
     this.channelFile = channelFile;
     this.packageFile = packageFile;
     this.fetchAsync = fetchAsync;
     this.timeout = timeout;
+    this.formatReleasedFile = formatReleasedFile;
   }
 
   public static create(feed: string | null, productName: string, platform: string, architecture: string, fetchAsync: (url: string, signal: AbortSignal) => Promise<IFeedResponse>,
@@ -34,6 +36,7 @@ export class FeedSource {
       return null;
     const [name, extension] = target;
     const packageExtension = isDebianPackage && platform === Resources.linuxPlatform ? Resources.debianPackageExtension : extension;
-    return new FeedSource(feed, Resources.formatChannelFile(name, architecture), Resources.formatPackageFile(productName, name, architecture, packageExtension), fetchAsync);
+    return new FeedSource(feed, Resources.formatChannelFile(name, architecture), Resources.formatPackageFile(productName, name, architecture, packageExtension), fetchAsync,
+      undefined, t => Resources.formatReleasedPackageFile(productName, t, name, architecture, packageExtension));
   }
 }

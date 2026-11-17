@@ -55,7 +55,7 @@ export class SquirrelHandoff implements IUpdateHandoff {
     if (this.updater.downloadedFile !== record.file) {
       if (await this.updater.checkAsync() !== record.version)
         throw new UpdateNoLongerOfferedException(record.version);
-      await this.updater.downloadAsync(() => undefined);
+      await this.updater.downloadAsync(record.version, () => undefined);
     }
     if (await UpdateController.hashFileAsync(record.file).catch(() => null) !== record.sha512)
       throw new UpdateChangedBeforeHandoffException();

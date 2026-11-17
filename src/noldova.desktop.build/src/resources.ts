@@ -1112,6 +1112,11 @@ export class Resources {
   public static readonly feedVersionVariable: string = "FEED_VERSION";
   public static readonly feedUrlVariable: string = "FEED_URL";
   public static readonly releaseRepositoryVariable: string = "RELEASE_REPOSITORY";
+  public static readonly releaseSourceRepositoryVariable: string = "RELEASE_SOURCE_REPOSITORY";
+  public static readonly releaseBuildRepositoryVariable: string = "RELEASE_BUILD_REPOSITORY";
+  public static readonly gitHubPrivateField: string = "private";
+  public static readonly sourceRepositoryLabel: string = "the source repository";
+  public static readonly releaseTagPrefixVariable: string = "RELEASE_TAG_PREFIX";
   public static readonly feedWaitVariable: string = "FEED_WAIT_SECONDS";
   public static readonly feedSkipValue: string = "true";
   public static readonly feedSkipValues: readonly string[] = [String.empty, "false", Resources.feedSkipValue];
@@ -1705,6 +1710,7 @@ export class Resources {
   public static readonly releaseRevisionPattern: RegExp = /^[0-9a-f]{40}$/u;
   public static readonly releaseVersionPattern: RegExp = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})$/u;
   public static readonly releaseTagPrefix: string = "v";
+  public static readonly releaseTagPrefixPattern: RegExp = /^(?:v|[a-z0-9]+(?:-[a-z0-9]+)*-)$/u;
   public static readonly gitCommand: string = "git";
   public static readonly gitTimeout: number = 60_000;
   public static readonly successExitCodes: readonly number[] = [0];
@@ -3348,7 +3354,12 @@ export class Resources {
   }
 
   public static formatReleaseCheckUsage(command: string): string {
-    return `Usage: ${Resources.releaseRepositoryVariable}=<owner/name> ${Resources.releaseVersionVariable}=<N.N.N> ${Resources.releaseRevisionVariable}=<commit> ${command} ${Resources.releaseCheckCommand}\n`;
+    return `Usage: ${Resources.releaseRepositoryVariable}=<owner/name> ${Resources.releaseVersionVariable}=<N.N.N> ${Resources.releaseRevisionVariable}=<commit> `
+      + `${Resources.formatReleaseSourceOptions()} ${command} ${Resources.releaseCheckCommand}\n`;
+  }
+
+  public static formatReleaseSourceOptions(): string {
+    return `[${Resources.releaseSourceRepositoryVariable}=<owner/name>] [${Resources.releaseBuildRepositoryVariable}=<owner/name>] [${Resources.releaseTagPrefixVariable}=<prefix>]`;
   }
 
   public static formatRootVersionMismatch(rootVersion: string, version: string): string {
@@ -3394,7 +3405,7 @@ export class Resources {
 
   public static formatReleasePublishUsage(command: string): string {
     return `Usage: ${Resources.releaseRepositoryVariable}=<owner/name> ${Resources.releaseVersionVariable}=<N.N.N> ${Resources.releaseRevisionVariable}=<commit> ${Resources.releaseFolderVariable}=<folder> `
-      + `${Resources.releaseReportsVariable}=<folder> ${Resources.releaseRunVariable}=<url> [${Resources.releaseUpdateFeedVariable}=<loopback URL> | ${Resources.releaseInternalVariable}=<N.N.N-internal.N>] ${command} ${Resources.releasePublishCommand}\n`;
+      + `${Resources.formatReleaseSourceOptions()} ${Resources.releaseReportsVariable}=<folder> ${Resources.releaseRunVariable}=<url> [${Resources.releaseUpdateFeedVariable}=<loopback URL> | ${Resources.releaseInternalVariable}=<N.N.N-internal.N>] ${command} ${Resources.releasePublishCommand}\n`;
   }
 
   public static formatTestFeedPublishesNothing(feed: string): string {
@@ -3989,8 +4000,8 @@ export class Resources {
     return `${platform}-${architecture}`;
   }
 
-  public static formatTargetFileName(productName: string, platform: string, architecture: string, extension: string): string {
-    return `${productName}-${platform}-${architecture}.${extension}`;
+  public static formatTargetFileName(productName: string, version: string, platform: string, architecture: string, extension: string): string {
+    return `${productName}-${version}-${platform}-${architecture}.${extension}`;
   }
 
   public static formatTarEntryType(type: string): string {
@@ -4115,6 +4126,10 @@ export class Resources {
     return `Each target's package passed its install check on that target's own runner in the run that built it: ${runUrl}`;
   }
 
+  public static formatReleaseSource(repository: string, revision: string): string {
+    return `Built from ${repository} at ${revision}.`;
+  }
+
   public static formatUnsignedTestRelease(name: string, repository: string): string {
     return `Unsigned test release of ${name}, published in ${repository}; an installed ${name} never updates from it.`;
   }
@@ -4236,6 +4251,28 @@ export class Resources {
     return `The tag ${tag} is annotated; a release's tag points straight at its commit.`;
   }
 
+  public static formatReleaseTagTaken(tag: string, repository: string): string {
+    return `The tag ${tag} already exists in ${repository}, which isn't the source repository, so it can't be this release's own; this release needs a new version.`;
+  }
+
+  public static formatReleaseTagMissing(tag: string, repository: string): string {
+    return `The tag ${tag} doesn't exist in ${repository}, though its release is published.`;
+  }
+
+  public static formatReleaseTagPrefixNeeded(repository: string, sourceRepository: string): string {
+    return `${Resources.releaseTagPrefixVariable} must name the app, such as app-, for a release in ${repository}, which isn't its source repository ${sourceRepository}: `
+      + `a v tag there can't say which app it belongs to.`;
+  }
+
+  public static formatReleaseSourceNotPublic(sourceRepository: string, buildRepository: string): string {
+    return `The release runs in ${buildRepository} and reads its source ${sourceRepository} with the run's own token, which reads no other private repository, so ${sourceRepository} must be public; it is private or doesn't exist.`;
+  }
+
+  public static formatSeparateReleaseNeedsFeed(repository: string, sourceRepository: string): string {
+    return `The release publishes in ${repository}, not in its source repository ${sourceRepository}, so product.json must name its updateFeed: `
+      + `the latest release of ${repository} may be another app's.`;
+  }
+
   public static formatTagMoved(tag: string, commit: string, revision: string): string {
     return `The tag ${tag} already points at ${commit}, not at ${revision}; a tag is never moved, so this release needs a new version.`;
   }
@@ -4256,8 +4293,12 @@ export class Resources {
     return `'${text.replaceAll("'", "''")}'`;
   }
 
-  public static formatReleaseRepositoryInvalid(repository: string): string {
-    return `${Resources.releaseRepositoryVariable} must name a repository as owner/name, not "${repository}".`;
+  public static formatReleaseRepositoryInvalid(repository: string, variable: string = Resources.releaseRepositoryVariable): string {
+    return `${variable} must name a repository as owner/name, not "${repository}".`;
+  }
+
+  public static formatReleaseTagPrefixInvalid(prefix: string): string {
+    return `${Resources.releaseTagPrefixVariable} must be v, or lowercase words joined by dashes and ending in a dash, such as app-, not "${prefix}".`;
   }
 
   public static formatReleaseRevisionInvalid(revision: string): string {
@@ -4268,8 +4309,8 @@ export class Resources {
     return `${source} must be a plain version such as 0.0.2, not "${text}".`;
   }
 
-  public static formatReleaseTagInvalid(source: string, tag: string): string {
-    return `${source} must be a tag such as v0.0.2, not "${tag}".`;
+  public static formatReleaseTagInvalid(source: string, tag: string, prefix: string): string {
+    return `${source} must be a tag such as ${prefix}0.0.2, not "${tag}".`;
   }
 
   public static formatTagReferencesContext(tag: string): string {

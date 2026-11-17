@@ -87,7 +87,9 @@ The organization's security standard, `https://github.com/noldova-com/.github/bl
   An AppImage can't carry Chromium's setuid sandbox helper, so its launcher tries `unshare -Ur true` and starts the app with `--no-sandbox` when that fails: on a host that refuses unprivileged user namespaces, as Ubuntu 24.04 and later do by default, in a container that refuses them, or where `unshare` is missing.
   The app's renderers then run without Chromium's sandbox, as [ARCHITECTURE.md](ARCHITECTURE.md#code) says; where the probe succeeds, they run sandboxed, and the Debian package runs them sandboxed on such hosts too.
   After packaging for macOS, signed or not, `package` extracts the ZIP with `ditto -x -k`, as Squirrel.Mac does, and fails unless each framework's `Versions/Current` is still a link and the extracted app holds the same folders, links and file sizes as the packaged one.
-- A download is named `<app name>-<platform>-<arch>.<ext>`, and its update information `latest-<platform>-<arch>.yml`, with no version in either, so an update replaces an AppImage in place.
+- A download is named `<app name>-<version>-<platform>-<arch>.<ext>`, such as `Sample App-1.2.3-windows-x64.exe`, with the version the package was built as, and its checksum `<download>.sha256`, so releases' files kept side by side never share a name.
+  The update information keeps its one name per target, `latest-<platform>-<arch>.yml`, since an installed app reads it to learn the newest version, and it names the versioned package to download.
+  An update replaces an AppImage in place, under the name it was downloaded with, so a launcher or shortcut that points at it keeps working.
 
 ## Packaging
 
@@ -177,12 +179,12 @@ Each target is packaged on its own platform and processor, through electron-buil
   An app that installs from a private registry names it with `registry-url` and `registry-scope`, and passes its token as the secret `REGISTRY_TOKEN`.
   A release's runners are the inputs `runs-on-linux-x64`, `runs-on-linux-arm64`, `runs-on-windows-x64`, `runs-on-windows-arm64`, `runs-on-macos-x64` and `runs-on-macos-arm64`, each as the JSON `runs-on` takes, and each defaults to `default`; an empty ARM64 input leaves that target out.
   By default the Windows x64 runner builds Windows x64 and Windows ARM64, the Linux x64 runner builds Linux x64 and Linux ARM64, deb and AppImage, the organization's macOS x64 runner, an Intel Mac, builds macOS x64, and its macOS ARM64 runner, an Apple Silicon Mac, builds macOS ARM64, each x64 runner and the macOS runners as the organization's `versions.yml` names them.
-  It uses the environments `release` and `publish` of the app's repository.
+  It uses the environments `release` and `publish` of the app's repository, or those its `signing-environment` and `publish-environment` name.
   - Its `fetch` job refuses a revision that is not a full commit SHA on main, then takes desktop.build's archive at the version the app's `package-lock.json` locks, from the npm registry, and checks its SHA-512 against the lockfile.
     It then reads the `@noldova/*` names among the archive's `peerDependencies`, and takes and checks each of those packages the same way, at the version the lockfile locks; a peer the lockfile doesn't lock fails the job with its name.
     It passes that list on as its `peers` output, so the later jobs check and unpack the same packages, a job without a checkout against the SHA-512s the `fetch` job checked.
   - Its `check` and `publish` jobs check those archives again and run its release entry with no install, so no third-party code runs where `contents: write` is held.
-  - Its `build` and `build-signed` jobs call `$/.github/workflows/package-app.yml`, Noldova Desktop's own file at the commit the app calls; only `build-signed` runs in the environment `release`, from main, with the signing secrets, and only `publish` runs in the environment `publish`.
+  - Its `build` and `build-signed` jobs call `$/.github/workflows/package-app.yml`, Noldova Desktop's own file at the commit the app calls; only `build-signed` runs in the environment `signing-environment` names, `release` by default, from main, with the signing secrets, and only `publish` runs in the environment `publish-environment` names, `publish` by default.
 - `package-app.yml` installs the app's dependencies and runs its `prepare` command with install scripts off, so npm runs no dependency's install script in either, and no pre- or post-script of a script `prepare` runs.
   Since that also skips the app's own root lifecycle, the install then runs the root package's `preinstall`, `install`, `postinstall`, `prepublish`, `preprepare`, `prepare` and `postprepare` scripts by name, in npm's order, as `npm ci` would; one that installs another folder, such as `npm ci --prefix src`, runs no dependency's install script either.
   Electron's binary installs in a step of its own.
@@ -217,6 +219,20 @@ Each target is packaged on its own platform and processor, through electron-buil
 - Versions are `major.minor.patch`, with no prerelease suffix, each higher than every version already published, tagged `v<version>`; each publication becomes the latest release.
 - A `v<version>` tag already on the release's commit is kept and the release goes on, so an app whose packages' release tags the same `v<version>` can run either release first; a tag on another commit refuses the release.
 - A release to any repository other than the app's release repository is an unsigned test release, which says so and never reaches the update feed.
+- An app may publish in a repository other than its source, such as one shared by several apps, with `release-app.yml`'s `release-repository`, and tag its releases `<prefix><version>` with `release-tag-prefix`, such as `app-0.0.2`; both default to the app's own repository and `v`.
+  - `release-check` then reads the revision, its comparison with `main` and its Build and test run in the source repository.
+    It compares the version only with that repository's releases under the app's own prefix, refuses a tag that already exists there, and refuses an app whose `desktop.product.updateFeed` is unset, since that repository's latest release may be another app's.
+  - The draft names no commit and its name is the tag; GitHub makes the tag at that repository's default branch when the release publishes, and publication then requires the tag rather than a commit.
+    The notes end with the source repository and commit, and when the release runs in a repository that is neither the source nor the release repository, they leave out the link to its run, which may be private.
+  - `release-tag-prefix` must name the app there, such as `app-`; `v` is refused, since a `v` tag in a shared repository can't say which app it belongs to.
+  - The release is still marked as that repository's latest, so its latest release is whichever app published last.
+    An installed app reads its own `desktop.product.updateFeed`, never that repository's latest; before a second app publishes there, every app's feed must resolve its newest release by the app's own prefix.
+  - Publishing there needs a token that may write that repository's releases, since the run's own token writes only the repository running it.
+    The `publish` job creates it with `actions/create-github-app-token` from a GitHub App installed on that repository, limited to it and to Contents write, whose client ID is the variable `RELEASE_APP_CLIENT_ID` and private key the secret `RELEASE_APP_PRIVATE_KEY` of `publish-environment`.
+- An app's official build may run in another repository, such as a private one that builds several apps, with `release-app.yml`'s `source-repository`; it defaults to the repository running the release.
+  - Every job checks out `source-repository` at `revision` and builds `app-folder` from it, and `release-check` reads the revision, its comparison with `main` and its Build and test run there.
+  - The source must be public: the release reads it with the run's own token, which reads no other private repository, and `release-check` refuses a private or missing source before anything else there.
+  - `signing-environment` names the environment of the repository running the release whose secrets sign the packages, such as one per app.
 - `feed-check` checks a published update feed as an installed app reads it, anonymously: for each target it reads `latest-<platform>-<architecture>.yml` and requires the release's version, then downloads every file it lists and requires its SHA-512 and size.
   It reads the latest release of a repository, or a feed URL it is given, which must carry no user info, query or fragment, so no secret reaches a request or the log.
   While a target's update information is missing or names another version, as from a CDN still serving the release before, it tries again every 15 seconds for up to 10 minutes by default; any other failure, such as a package whose SHA-512 differs, ends the check at once, and its downloads together get at most 10 minutes past that wait.

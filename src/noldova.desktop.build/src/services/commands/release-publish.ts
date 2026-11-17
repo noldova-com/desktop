@@ -79,14 +79,14 @@ export class ReleasePublish {
       ReleasePublish.requireInternal(internal, request, signed);
     const supported = await SupportedTargets.readAsync(this.root);
     const targets = ReleaseTargets.read(this.environment, supported);
-    const notes = ReleaseNotes.compose(product, targets, supported ?? [], signed, request.repository, request.version, this.environment[Resources.releaseRunVariable] ?? String.empty);
+    const notes = ReleaseNotes.compose(product, targets, supported ?? [], signed, request, this.environment[Resources.releaseRunVariable] ?? String.empty);
     this.output.write(Resources.formatOutputLine(await new ReleaseReports(signed, targets).verifyAsync(reports)));
-    const files = await new ReleaseFileSet(product.name, targets).verifyAsync(folder, internal.length > 0 ? internal : request.version.text);
+    const files = await new ReleaseFileSet(product.name, internal.length > 0 ? internal : request.version.text, targets).verifyAsync(folder);
     if (internal.length > 0) {
       this.output.write(Resources.formatInternalFilesChecked(internal));
       return;
     }
-    await new ReleasePublisher(new GitHubApi(request.repository, this.runner, this.root), this.output).publishAsync(request.version, request.revision, folder, files, notes);
+    await new ReleasePublisher(new GitHubApi(request.repository, this.runner, this.root), this.output).publishAsync(request, folder, files, notes);
   }
 
   private static requireInternal(internal: string, request: ReleaseRequest, signed: readonly string[]): void {

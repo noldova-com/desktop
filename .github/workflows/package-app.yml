@@ -17,6 +17,10 @@ on:
         description: The command that builds the app at the repository's root after npm ci and the root package's own preinstall, install, postinstall and prepare scripts, which run by name with their pre- and post-scripts in npm's order; npm runs no dependency's install scripts in it, and no pre- or post-script of a script it runs.
         type: string
         default: npm run build
+      repository:
+        description: The repository, as owner/name, to check out at revision; empty is this repository.
+        type: string
+        default: ''
       revision:
         description: The full commit SHA to package; empty takes the commit that started the run.
         type: string
@@ -26,9 +30,13 @@ on:
         type: string
         required: true
       signed:
-        description: Whether the targets are signed, in the environment release, from main only.
+        description: Whether the targets are signed, in signing-environment, from main only.
         type: boolean
         default: false
+      signing-environment:
+        description: The environment whose secrets sign the packages.
+        type: string
+        default: release
       update-feed:
         description: The URL the package checks for updates instead of the app's own feed, a loopback HTTP URL for a test of updating or the internal feed's HTTPS URL.
         type: string
@@ -81,7 +89,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@61a49ab45454e6f7074782ee34cf34fbfeeda512 # v2.35.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@ca4ec084bd2907b4050679523deba3e3cc010fb7 # v2.36.0
     permissions: {}
 
   package:
@@ -118,6 +126,7 @@ jobs:
         timeout-minutes: 5
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          repository: ${{ inputs.repository || github.repository }}
           ref: ${{ inputs.revision }}
           persist-credentials: false
 
@@ -566,7 +575,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ fromJSON(matrix.runner) }}
-    environment: release
+    environment: ${{ inputs.signing-environment }}
     timeout-minutes: 105
     env:
       NOLDOVA_DESKTOP_ARCHITECTURE: ${{ matrix.architecture }}

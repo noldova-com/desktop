@@ -9,8 +9,8 @@
 import "@noldova/context.core";
 import { mock } from "node:test";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Resources } from "../../src/resources.js";
 import { WebViewFavicon } from "../../src/services/web-view-favicon.js";
-import { WebViewFaviconResources } from "../../src/services/web-view-favicon.resources.js";
 import { WebViewOriginCheck } from "../../src/services/web-view-origin-check.js";
 import { Condition } from "../fixtures/condition.fixture.js";
 import { FakeWebViewContents } from "../fixtures/fake-web-view-contents.fixture.js";
@@ -279,7 +279,7 @@ export class WebViewFaviconTests {
     const harness = new FaviconHarness();
     const values = [FaviconHarness.png(24, 65), FaviconHarness.png(24, 64, 65), FaviconHarness.png(24, 0, 1), FaviconHarness.png(24, 1, 0),
       FaviconHarness.png(24, 1, 1, "IDAT"), FaviconHarness.png(24).slice(0, 28), Buffer.alloc(24).toString("base64"), "A".repeat(21_849)];
-    const testing = mock.method(WebViewFaviconResources.base64Pattern, "test");
+    const testing = mock.method(Resources.faviconBase64Pattern, "test");
     try {
       for (const value of values) {
         harness.decodeTo(FaviconHarness.png(24, 64));

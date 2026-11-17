@@ -25,6 +25,7 @@ export class PackageConfiguration {
   private readonly root: string;
   private readonly assets: PackageAssets;
   private readonly product: ProductIdentity;
+  private readonly version: string;
   private readonly target: PackageTarget;
   private readonly stage: string;
   private readonly output: string;
@@ -34,11 +35,12 @@ export class PackageConfiguration {
   private readonly windowsPublisher: string | null;
   private readonly hasWebViews: boolean;
 
-  public constructor(root: string, product: ProductIdentity, target: PackageTarget, stage: string, output: string, electronDistribution: string, electronVersion: string,
+  public constructor(root: string, product: ProductIdentity, version: string, target: PackageTarget, stage: string, output: string, electronDistribution: string, electronVersion: string,
     isSigned: boolean, windowsPublisher: string | null, hasWebViews: boolean) {
     this.root = root;
     this.assets = new PackageAssets(root);
     this.product = product;
+    this.version = version;
     this.target = target;
     this.stage = stage;
     this.output = output;
@@ -62,7 +64,7 @@ export class PackageConfiguration {
   }
 
   public get fileNames(): readonly string[] {
-    return this.target.listFileNames(this.product.name);
+    return this.target.listFileNames(this.product.name, this.version);
   }
 
   public toJson(unpackedFiles: readonly string[]): Record<string, unknown> {
@@ -126,7 +128,7 @@ export class PackageConfiguration {
     const product = this.product;
     const icons = path.join(this.root, product.icons);
     const target = this.target.formats.map(t => ({ target: t, arch: [this.target.architecture] }));
-    const artifactName = this.target.formatFileName(product.name, Resources.builderExtensionMacro);
+    const artifactName = this.target.formatFileName(product.name, this.version, Resources.builderExtensionMacro);
     switch (this.target.platform) {
       case Resources.windowsTarget:
         return {

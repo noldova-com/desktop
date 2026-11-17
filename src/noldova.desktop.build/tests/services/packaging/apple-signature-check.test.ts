@@ -155,7 +155,7 @@ export class AppleSignatureCheckTests {
     try {
       const runner = new StaplerRunner(staples, isSigned);
       await PausedTimersFixture.withoutPausesAsync(() => run(new AppleSignatureCheck(runner, path.join(folder, "check"), {}), runner,
-        path.join(folder, "Sample-macos-arm64.zip")), AppleSignatureCheckTests.PAUSE);
+        path.join(folder, "Sample-1.2.3-macos-arm64.zip")), AppleSignatureCheckTests.PAUSE);
     }
     finally {
       await rm(folder, { recursive: true, force: true });

@@ -45,7 +45,7 @@ export class ReadyUpdateFixture {
     const installation = Installation.locate(deviceDirectory, program, process.platform);
     const cacheRoot = process.platform === "darwin" ? path.join(cacheFolder, ...ReadyUpdateFixture.MAC_CACHES) : cacheFolder;
     const packageFile = path.join(cacheRoot, `${ProductInfo.current.slug}${ReadyUpdateFixture.CACHE_SUFFIX}${path.basename(installation)}`,
-      ReadyUpdateFixture.PENDING_FOLDER, UpdateFeedFixture.source.packageFile);
+      ReadyUpdateFixture.PENDING_FOLDER, UpdateFeedFixture.source.formatReleasedFile(version));
     await mkdir(path.dirname(packageFile), { recursive: true });
     await writeFile(packageFile, contents);
     const recordFile = path.join(installation, ReadyUpdateFixture.RECORD_FILE);

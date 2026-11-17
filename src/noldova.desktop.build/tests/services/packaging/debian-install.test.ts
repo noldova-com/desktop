@@ -17,7 +17,7 @@ import { ScriptedRunnerFixture } from "../../fixtures/scripted-runner.fixture.js
 
 @TestClass
 export class DebianInstallTests {
-  private static readonly FILE: string = "/work/out/Sample App-linux-x64.deb";
+  private static readonly FILE: string = "/work/out/Sample App-1.2.3-linux-x64.deb";
   private static readonly FOLDER: string = "/work";
   private static readonly SLUG: string = "sample-app";
   private static readonly PROGRAM: string = "/opt/Sample App/sample-app";

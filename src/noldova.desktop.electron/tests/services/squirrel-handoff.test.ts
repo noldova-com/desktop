@@ -127,7 +127,7 @@ export class SquirrelHandoffTests {
 
       Assert.areEqual(5230, processId);
       Assert.areEqual(1, fixture.updater.checks);
-      Assert.areEqual(1, fixture.updater.downloads);
+      Assert.areEqual(JSON.stringify(["1.3.0"]), JSON.stringify(fixture.updater.downloadedVersions));
       Assert.areEqual(1, fixture.native.checks);
     });
   }

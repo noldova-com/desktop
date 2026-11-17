@@ -37,6 +37,7 @@ export class GitHubReleasesFixture extends ProcessRunner {
   public readonly releases: IReleaseRecord[] = [];
   public readonly tags: Map<string, string> = new Map();
   public readonly requests: string[] = [];
+  public defaultBranchHead: string | null = "abcdefabcdefabcdefabcdefabcdefabcdefabcd";
   public intercept: (request: readonly string[]) => ProcessResult | null = () => null;
 
   public static ok(value: unknown): ProcessResult {
@@ -102,6 +103,8 @@ export class GitHubReleasesFixture extends ProcessRunner {
         this.addRelease(fields.get("tag_name") ?? String.empty, fields.get("target_commitish") ?? String.empty, fields.get("draft") === "true")));
     if (method === "PATCH" && first === "releases" && !Object.isUndefined(release)) {
       release.isDraft = fields.get("draft") === "true";
+      if (!release.isDraft && !this.tags.has(release.tag) && !Object.isNull(this.defaultBranchHead))
+        this.tags.set(release.tag, this.defaultBranchHead);
       return GitHubReleasesFixture.ok(GitHubReleasesFixture.describe(release));
     }
     if (method === "DELETE" && first === "releases" && second === "assets") {

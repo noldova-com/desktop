@@ -137,7 +137,7 @@ export class PackageSmoke {
       this.output.write(Resources.formatOutputLine(await installer.removeWindowsLeftoverAsync(product, folder, userPath) ?? Resources.smokeNothingLeft));
     const pathBefore = target.platform === Resources.windowsTarget ? await userPath.readAsync() : null;
     const started = Date.now();
-    const installed = this.isDebian ? await this.installDebianAsync(target, product, folder) : await installer.installAsync(target, product, folder);
+    const installed = this.isDebian ? await this.installDebianAsync(target, product, manifest.productVersion, folder) : await installer.installAsync(target, product, manifest.productVersion, folder);
     this.output.write(Resources.formatSmokeInstalled((Date.now() - started) / Resources.millisecondsPerSecond, installed.mainProcess));
     if (!Object.isNull(this.debian))
       this.output.write(Resources.formatOutputLine(await this.debian.verifyAsync()));
@@ -231,7 +231,7 @@ export class PackageSmoke {
     }
     if (Object.isNull(installed.command))
       return;
-    await installer.installAsync(target, product, folder);
+    await installer.installAsync(target, product, manifest.productVersion, folder);
     await this.requireOnPathAsync(userPath, installed.command, Resources.smokePathHoldsAgainIntro);
     await installer.uninstallWindowsAsync(product, folder);
     const pathAfter = await userPath.readAsync();
@@ -240,8 +240,8 @@ export class PackageSmoke {
     this.output.write(Resources.smokeUninstalled);
   }
 
-  private async installDebianAsync(target: PackageTarget, product: ProductIdentity, folder: string): Promise<InstalledPackage> {
-    const file = path.join(new PackageLayout(this.root).output, target.formatFileName(product.name, Resources.debianPackageTarget));
+  private async installDebianAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<InstalledPackage> {
+    const file = path.join(new PackageLayout(this.root).output, target.formatFileName(product.name, version, Resources.debianPackageTarget));
     this.debian = await DebianInstall.installAsync(this.runner, file, product.slug, folder);
     return this.debian.installed;
   }
@@ -502,6 +502,7 @@ export class PackageSmoke {
         removed.resolve(true);
     }, removed.reject);
     const watchers: FSWatcher[] = [];
+    const recheck = setInterval(check, Resources.smokePollInterval);
     try {
       try {
         for (const name of (await readdir(logs)).filter(t => Resources.smokeStartLogPattern.test(t)))
@@ -515,6 +516,7 @@ export class PackageSmoke {
         throw new BuildException(Resources.formatSmokeMainEndedBeforeLauncher(mainProcess.ending, await PackageSmoke.readTailAsync(mainLogs)));
     }
     finally {
+      clearInterval(recheck);
       limit.abort();
       for (const watcher of watchers)
         watcher.close();

@@ -32,16 +32,6 @@ export class ReleaseVersion {
     return new ReleaseVersion(text, Number(match[1]), Number(match[2]), Number(match[3]));
   }
 
-  public static parseTag(tag: string, source: string): ReleaseVersion {
-    if (!tag.startsWith(Resources.releaseTagPrefix))
-      throw new BuildException(Resources.formatReleaseTagInvalid(source, tag));
-    return ReleaseVersion.parse(tag.slice(Resources.releaseTagPrefix.length), source);
-  }
-
-  public get tag(): string {
-    return `${Resources.releaseTagPrefix}${this.text}`;
-  }
-
   public isNewerThan(other: ReleaseVersion): boolean {
     if (this.major !== other.major)
       return this.major > other.major;

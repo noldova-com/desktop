@@ -12,6 +12,8 @@ export class FakeUpdater implements IUpdater {
   public static readonly FILE: string = "/cache/noldova-desktop-updater-0123456789abcdef/pending/Noldova Desktop Sample-linux-x64.AppImage";
 
   public readonly packagePath: string;
+  public readonly formatted: string[] = [];
+  public readonly downloadedVersions: string[] = [];
   public downloadedFile: string | null = null;
   public checks: number = 0;
   public cancels: number = 0;
@@ -29,9 +31,15 @@ export class FakeUpdater implements IUpdater {
     return this.check();
   }
 
-  public downloadAsync(onProgress: (percent: number) => void): Promise<string> {
+  public downloadAsync(version: string, onProgress: (percent: number) => void): Promise<string> {
     this.downloads++;
+    this.downloadedVersions.push(version);
     return this.download(onProgress);
+  }
+
+  public formatPackagePath(version: string): string {
+    this.formatted.push(version);
+    return this.packagePath;
   }
 
   public cancel(): void {

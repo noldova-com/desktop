@@ -16,6 +16,7 @@ import "@noldova/context.core";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { ModuleCatalog } from "../modules/module-catalog.ts";
 import { ProductIdentity } from "../../models/packages/product-identity.ts";
+import { RootManifest } from "../../models/packages/root-manifest.ts";
 import { UpdateFeed } from "../packages/update-feed.ts";
 import { ElectronDistribution } from "../packaging/electron-distribution.ts";
 import type { IPackageSigning } from "../../interfaces/i-package-signing.ts";
@@ -74,9 +75,10 @@ export class Package {
     try {
       const target = PackageTarget.fromProcess(this.platform, this.architecture);
       const product = await ProductIdentity.readAsync(this.root);
+      const version = (await RootManifest.readAsync(this.root)).productVersion;
       const signing = options.length === 0 ? null : this.createSigning(target, layout, credentials, product);
       const electron = new ElectronDistribution(this.root, layout.electron);
-      const configuration = new PackageConfiguration(this.root, product, target, this.stage.folder, layout.output, electron.folder, await electron.readVersionAsync(),
+      const configuration = new PackageConfiguration(this.root, product, version, target, this.stage.folder, layout.output, electron.folder, await electron.readVersionAsync(),
         !Object.isNull(signing), signing?.windowsPublisher ?? null, await new ModuleCatalog(this.root).hasWebViewsAsync());
       await configuration.writeAsync(layout.configuration);
       await this.stage.stageAsync(target, this.output, updateFeed, signing?.windowsPublisher ?? null);
