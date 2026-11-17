@@ -8,7 +8,7 @@
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { readdir } from "node:fs/promises";
+import { readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -61,10 +61,13 @@ export class StartedRuntimeTests {
   @TestMethod
   public async removesItsStartLogWhenTheRuntimeNeverStarts(): Promise<void> {
     await using launch = await RuntimeLaunchFixture.createAsync();
-    const starter = new ScriptedStarterFixture("setTimeout(() => {}, 500);");
+    const release = path.join(path.dirname(launch.dataDirectory.root), "release");
+    const starter = new ScriptedStarterFixture(
+      `const fs = require("node:fs"); const end = Date.now() + 60_000; setInterval(() => { if (fs.existsSync(${JSON.stringify(release)}) || Date.now() > end) process.exit(0); }, 20);`);
     const settings = new LaunchSettings(launch.dataDirectory, process.execPath, RuntimeEntry.entryPath, {}, process.platform, 1_000, 200);
 
     const exception = await Assert.throwsAsync(() => UpdateBarrierFixture.createLauncher(settings, RuntimeBuild.identity, starter).attachAsync("main", new ClientListenerFixture()), LaunchTimedOutException);
+    await writeFile(release, String.empty);
 
     Assert.areEqual("The runtime did not start in time.", exception.message);
     Assert.areEqual(String.empty, (await readdir(launch.dataDirectory.logsFolder)).join(","));
