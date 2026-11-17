@@ -414,18 +414,40 @@ export class CompanyPackageTests {
 
     const packed = await CompanyPackage.packAsync(locked, app, path.join(root.path, "packed"), npm, new Set());
     const shipped = await readFile(packed.file);
-    const stage = path.join(root.path, "stage");
-    await mkdir(stage);
-    await PackageStage.installAsync(npm, stage, new RootManifest("1.0.0", 1), { name: "sample-stage", version: "1.0.0", private: true }, path.join(root.path, "stage-cache"),
-      new Map([["@noldova/sample", packed.file]]));
-    await writeFile(file, "rebuilt archive");
+    const loaded = await CompanyPackageTests.stageAndLoadAsync(npm, path.join(root.path, "stage"), packed.file);
+    const rebuilt = CompanyPackageTests.createLoadableArchive("sample rebuilt");
+    await writeFile(file, rebuilt);
     const changed = await Assert.throwsAsync(() => CompanyPackage.packAsync(locked, app, path.join(root.path, "packed"), npm, new Set()), BuildException);
+    await CompanyPackageTests.dropIntegrityAsync(app);
+    const [[unchecked]] = (await ThirdPartyClosure.readAsync(app, PackageTarget.fromProcess("linux", "x64"))).collect([], ["@noldova/sample"]);
+    if (Object.isUndefined(unchecked))
+      throw new Error("The lock without integrity holds no @noldova/sample.");
+    const asItIs = await CompanyPackage.packAsync(unchecked, app, path.join(root.path, "packed"), npm, new Set());
+    const reloaded = await CompanyPackageTests.stageAndLoadAsync(npm, path.join(root.path, "restage"), asItIs.file);
 
-    Assert.areEqual(`${resolved},${file},true`, [locked.resolved, packed.file, String(archive.equals(shipped))].join());
-    const loaded: unknown = createRequire(path.join(stage, "package.json"))("@noldova/sample");
-    Assert.areEqual("sample loaded", String(loaded));
+    Assert.areEqual(`${resolved},false,${file},true`, [locked.resolved, String(Object.isNull(locked.sha512)), packed.file, String(archive.equals(shipped))].join());
+    Assert.areEqual("sample loaded", loaded);
     Assert.areEqual(`${file} no longer matches the integrity npm recorded when it installed @noldova/sample@1.0.0; build the app's packages and install the app again.`,
       changed.message);
+    Assert.areEqual(`true,${file},true`, [String(Object.isNull(unchecked.sha512)), asItIs.file, String(rebuilt.equals(await readFile(asItIs.file)))].join());
+    Assert.areEqual("sample rebuilt", reloaded);
+  }
+
+  private static async stageAndLoadAsync(npm: NpmCommand, stage: string, archive: string): Promise<string> {
+    await mkdir(stage);
+    await PackageStage.installAsync(npm, stage, new RootManifest("1.0.0", 1), { name: "sample-stage", version: "1.0.0", private: true }, `${stage}-cache`,
+      new Map([["@noldova/sample", archive]]));
+    const loaded: unknown = createRequire(path.join(stage, "package.json"))("@noldova/sample");
+    return String(loaded);
+  }
+
+  private static async dropIntegrityAsync(app: string): Promise<void> {
+    const file = path.join(app, "package-lock.json");
+    const lock = JsonReader.parse(await readFile(file, "utf8")).toJson();
+    const packages = lock["packages"];
+    const stripped = Object.entries(Object.isPlainObject(packages) ? packages : {}).map(([location, entry]) =>
+      [location, Object.isPlainObject(entry) ? Object.fromEntries(Object.entries(entry).filter(([field]) => field !== "integrity")) : entry] as const);
+    await writeFile(file, JSON.stringify({ ...lock, packages: Object.fromEntries(stripped) }));
   }
 
   private static async npmInstallAsync(root: string, app: string, resolved: string): Promise<NpmCommand> {
@@ -436,10 +458,10 @@ export class CompanyPackageTests {
     return npm;
   }
 
-  private static createLoadableArchive(): Buffer {
+  private static createLoadableArchive(text: string = "sample loaded"): Buffer {
     return TarballFixture.create({
       "package.json": JSON.stringify({ name: "@noldova/sample", version: "1.0.0", main: "index.js" }),
-      "index.js": "module.exports = 'sample loaded';"
+      "index.js": `module.exports = ${JSON.stringify(text)};`
     });
   }
 

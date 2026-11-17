@@ -3980,8 +3980,8 @@ export class Resources {
   }
 
   public static formatLockedArchiveNoIntegrity(name: string, version: string, location: string, resolved: string): string {
-    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved} with no SHA-512 integrity, so its archive cannot be verified; `
-      + `the step that locks it must write "integrity": "sha512-<the archive's SHA-512 digest in base64>" beside its "resolved".`;
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved} with an integrity that holds no SHA-512, so its archive cannot be verified; `
+      + `write "integrity": "sha512-<the archive's SHA-512 digest in base64>" beside its "resolved", or leave the integrity out to ship the archive as it is.`;
   }
 
   public static formatLockedPackageUnresolved(name: string, version: string, location: string): string {

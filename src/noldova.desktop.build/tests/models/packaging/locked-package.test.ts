@@ -99,13 +99,21 @@ export class LockedPackageTests {
   }
 
   @TestMethod
-  public refusesALockedArchiveWithoutASha512IntegritySayingWhatToWrite(): void {
-    const error = Assert.throws(() => new LockedPackage("node_modules/@noldova/sample", { version: "1.2.3", resolved: "file:../_packages/noldova-sample-1.2.3.tgz" }),
-      BuildException);
+  public readsALockedArchiveWithoutAnIntegrityAsOneToShipAsItIs(): void {
+    const locked = new LockedPackage("node_modules/@noldova/sample", { version: "1.2.3", resolved: "file:../_packages/noldova-sample-1.2.3.tgz" });
 
-    Assert.areEqual("@noldova/sample@1.2.3 at node_modules/@noldova/sample in package-lock.json is locked to file:../_packages/noldova-sample-1.2.3.tgz with no SHA-512 integrity, "
-      + "so its archive cannot be verified; the step that locks it must write \"integrity\": \"sha512-<the archive's SHA-512 digest in base64>\" beside its \"resolved\".",
-      error.message);
+    Assert.isNull(locked.sha512);
+    Assert.isFalse(locked.matches(LockedPackageTests.DATA));
+  }
+
+  @TestMethod
+  public refusesALockedArchiveWhoseIntegrityHoldsNoSha512SayingWhatToWrite(): void {
+    const error = Assert.throws(() => new LockedPackage("node_modules/@noldova/sample", { version: "1.2.3", resolved: "file:../_packages/noldova-sample-1.2.3.tgz",
+      integrity: "sha1-AAAA" }), BuildException);
+
+    Assert.areEqual("@noldova/sample@1.2.3 at node_modules/@noldova/sample in package-lock.json is locked to file:../_packages/noldova-sample-1.2.3.tgz with an integrity "
+      + "that holds no SHA-512, so its archive cannot be verified; write \"integrity\": \"sha512-<the archive's SHA-512 digest in base64>\" beside its \"resolved\", "
+      + "or leave the integrity out to ship the archive as it is.", error.message);
   }
 
   @TestMethod

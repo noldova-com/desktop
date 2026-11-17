@@ -21,7 +21,7 @@ export class LockedPackage {
   public readonly name: string;
   public readonly version: string;
   public readonly resolved: string;
-  public readonly sha512: string;
+  public readonly sha512: string | null;
   public readonly isInstalled: boolean;
 
   public constructor(location: string, entry: Readonly<Record<string, unknown>>, isInstalled: boolean = false) {
@@ -51,8 +51,9 @@ export class LockedPackage {
     const sha512 = Object.isString(integrity)
       ? integrity.split(Resources.integritySeparator).find(t => t.startsWith(Resources.integrityPrefix))?.slice(Resources.integrityPrefix.length)
       : undefined;
-    if (Object.isUndefined(sha512))
-      throw new BuildException(!isInstalled && resolved.startsWith(Resources.archiveScheme)
+    const isOwnArchive = !isInstalled && resolved.startsWith(Resources.archiveScheme);
+    if (Object.isUndefined(sha512) && !(isOwnArchive && Object.isUndefined(integrity)))
+      throw new BuildException(isOwnArchive
         ? Resources.formatLockedArchiveNoIntegrity(name, version, location, resolved)
         : Resources.formatLockedPackageNoIntegrity(name, version, location));
 
@@ -60,7 +61,7 @@ export class LockedPackage {
     this.name = name;
     this.version = version;
     this.resolved = resolved;
-    this.sha512 = sha512;
+    this.sha512 = sha512 ?? null;
     this.isInstalled = isInstalled;
   }
 

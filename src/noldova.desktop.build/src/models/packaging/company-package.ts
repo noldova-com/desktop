@@ -83,7 +83,7 @@ export class CompanyPackage {
       if (real !== path.join(await realpath(repository), relative))
         throw new BuildException(Resources.formatLockedArchiveThroughLink(locked.id, archive, real));
     }
-    if (!locked.matches(data))
+    if (!Object.isNull(locked.sha512) && !locked.matches(data))
       throw new BuildException(Resources.formatCompanyArchiveMismatch(archive, locked.id));
     return [archive, data];
   }
