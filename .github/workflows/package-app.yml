@@ -97,7 +97,7 @@ jobs:
     needs: versions
     if: ${{ !inputs.signed }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ fromJSON(matrix.runner) }}
@@ -547,7 +547,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-${{ matrix.platform }}-${{ matrix.architecture }}${{ runner.arch == 'X64' && matrix.architecture == 'arm64' && '-on-x64' || '' }}
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
           path: &release-files |
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.exe
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.dmg
@@ -572,7 +572,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-${{ matrix.platform }}-${{ matrix.architecture }}${{ runner.arch == 'X64' && matrix.architecture == 'arm64' && '-on-x64' || '' }}
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
           path: *release-files
           retention-days: *retention
           if-no-files-found: error
@@ -588,7 +588,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-${{ matrix.platform }}-${{ matrix.architecture }}${{ runner.arch == 'X64' && matrix.architecture == 'arm64' && '-on-x64' || '' }}
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
           path: *release-files
           retention-days: *retention
           if-no-files-found: error
@@ -600,7 +600,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: report-${{ matrix.platform }}-${{ matrix.architecture }}${{ runner.arch == 'X64' && matrix.architecture == 'arm64' && '-on-x64' || '' }}
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
           path: ${{ inputs.app-folder }}/_build/package/package-report.json
           retention-days: *retention
           if-no-files-found: error
@@ -618,7 +618,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: report-${{ matrix.platform }}-${{ matrix.architecture }}${{ runner.arch == 'X64' && matrix.architecture == 'arm64' && '-on-x64' || '' }}
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
           path: ${{ inputs.app-folder }}/_build/package/package-report.json
           retention-days: *retention
           if-no-files-found: error
@@ -634,7 +634,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: report-${{ matrix.platform }}-${{ matrix.architecture }}${{ runner.arch == 'X64' && matrix.architecture == 'arm64' && '-on-x64' || '' }}
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
           path: ${{ inputs.app-folder }}/_build/package/package-report.json
           retention-days: *retention
           if-no-files-found: error
@@ -645,7 +645,7 @@ jobs:
     needs: versions
     if: inputs.signed && github.ref == 'refs/heads/main'
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ fromJSON(matrix.runner) }}
