@@ -72,7 +72,7 @@ class OpenWebViewHarness {
       };
     });
     this.open = new OpenWebView(new WebViewInfo("1", "browser", WebViewPane.fromJson({ name: "browser.pane" }), "workspace-1"), 3, OpenWebViewHarness.PARTITION, this.session,
-      new WebViewOriginCheck(), declaration, t => this.report(t), t => this.shortcuts.includes(t.key), t => this.press(t.key), platform,
+      new WebViewOriginCheck(), declaration, t => this.report(t), t => this.shortcuts.includes(t.key), (t, answer) => this.press(t.key, answer), platform,
       (t, signal) => this.waits.waitAsync(t, signal), () => this.time, () => this.markLost(), t => {
         this.inputs.push(t);
         this.onInput();
@@ -97,8 +97,9 @@ class OpenWebViewHarness {
     this.events.push(event);
   }
 
-  private press(key: string): void {
+  private press(key: string, answer: (hasRun: boolean) => void): void {
     this.presses.push(key);
+    answer(true);
   }
 }
 

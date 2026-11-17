@@ -94,6 +94,7 @@ describe("PreloadBridgeService", () => {
     setAppShortcuts: (): void => undefined,
     onWebViewEvent: (): (() => void) => () => undefined,
     onWebViewShortcut: (): (() => void) => () => undefined,
+    answerWebViewShortcut: (): void => undefined,
     onWebViewInput: (): (() => void) => () => undefined,
     releaseWebViewFocus: (): void => undefined,
     logModule: (): void => undefined,
@@ -163,6 +164,7 @@ describe("PreloadBridgeService", () => {
     ["no setAppShortcuts", { ...complete, setAppShortcuts: null }],
     ["no onWebViewEvent", { ...complete, onWebViewEvent: null }],
     ["no onWebViewShortcut", { ...complete, onWebViewShortcut: null }],
+    ["no answerWebViewShortcut", { ...complete, answerWebViewShortcut: null }],
     ["no onWebViewInput", { ...complete, onWebViewInput: null }],
     ["no releaseWebViewFocus", { ...complete, releaseWebViewFocus: null }],
     ["no logModule", { ...complete, logModule: null }],
@@ -708,20 +710,46 @@ describe("PreloadBridgeService", () => {
     ] }]);
   });
 
-  it("passes on a shortcut pressed in a web view as a cancelable key press, skipping one that isn't a whole key stroke", () => {
+  it("passes on a shortcut pressed in a web view as a cancelable key press and answers each one, declined for one that isn't a whole key stroke", () => {
     const bridge = PreloadBridgeFixture.install();
     const service = TestBed.inject(PreloadBridgeService);
     const presses: string[] = [];
-    const stroke = { key: "k", code: "KeyK", ctrlKey: true, altKey: false, shiftKey: true, metaKey: false };
+    const stroke = { key: "k", code: "KeyK", ctrlKey: true, altKey: false, shiftKey: true, metaKey: false, press: 1 };
 
-    const stop = service.onWebViewShortcut(t => presses.push(`${t.type} ${t.key} ${t.code} ${t.ctrlKey} ${t.altKey} ${t.shiftKey} ${t.metaKey} ${t.cancelable}`));
+    const stop = service.onWebViewShortcut(t => presses.push(`${t.type} ${t.key} ${t.code} ${t.ctrlKey} ${t.altKey} ${t.shiftKey} ${t.metaKey} ${t.cancelable}`) > 0);
     bridge.publishWebViewShortcut(stroke);
-    for (const value of [null, "k", { ...stroke, key: 1 }, { ...stroke, code: null }, { ...stroke, ctrlKey: 1 }, { ...stroke, altKey: null }, { ...stroke, shiftKey: "yes" }, { ...stroke, metaKey: "no" }])
+    for (const value of [null, "k", { ...stroke, key: 1, press: 2 }, { ...stroke, code: null, press: 3 }, { ...stroke, ctrlKey: 1, press: 4 }, { ...stroke, altKey: null, press: 5 },
+      { ...stroke, shiftKey: "yes", press: 6 }, { ...stroke, metaKey: "no", press: 7 }])
       bridge.publishWebViewShortcut(value);
     stop();
     bridge.publishWebViewShortcut(stroke);
 
     expect(presses).toEqual(["keydown k KeyK true false true false true"]);
+    expect(bridge.shortcutAnswers).toEqual([[1, true], [null, false], [null, false], [2, false], [3, false], [4, false], [5, false], [6, false], [7, false]]);
+  });
+
+  it("answers a web view's shortcut as declined when the window doesn't run it, or when running it throws", () => {
+    const bridge = PreloadBridgeFixture.install();
+    const service = TestBed.inject(PreloadBridgeService);
+    const stroke = { key: "t", code: "KeyT", ctrlKey: true, altKey: false, shiftKey: false, metaKey: false };
+    const fault = new TypeError("A bug in the command.");
+    let thrown: unknown = null;
+
+    const stopDeclining = service.onWebViewShortcut(() => false);
+    bridge.publishWebViewShortcut({ ...stroke, press: 1 });
+    stopDeclining();
+    const stopThrowing = service.onWebViewShortcut(() => {
+      throw fault;
+    });
+    try {
+      bridge.publishWebViewShortcut({ ...stroke, press: 2 });
+    }
+    catch (error) {
+      thrown = error;
+    }
+    stopThrowing();
+
+    expect([thrown, bridge.shortcutAnswers]).toEqual([fault, [[1, false], [2, false]]]);
   });
 
   it("passes on each notice of a web view's agent input, skipping one that isn't whole or names no kind it knows, and releases a view's focus through the bridge", () => {
