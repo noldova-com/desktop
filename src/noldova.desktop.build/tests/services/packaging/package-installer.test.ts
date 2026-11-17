@@ -273,11 +273,11 @@ export class PackageInstallerTests {
     const target = new PackageTarget("windows", "x64");
 
     const system = await Assert.throwsAsync(() => new PackageInstaller(tmpdir(), runner, { LOCALAPPDATA: tmpdir(), SystemRoot: String.empty })
-      .installAsync(target, PackageInstallerTests.PRODUCT, tmpdir()), BuildException);
+      .installAsync(target, PackageInstallerTests.PRODUCT, "1.2.3", tmpdir()), BuildException);
     const absent = await Assert.throwsAsync(() => new PackageInstaller(tmpdir(), runner, { LOCALAPPDATA: tmpdir() })
-      .installAsync(target, PackageInstallerTests.PRODUCT, tmpdir()), BuildException);
+      .installAsync(target, PackageInstallerTests.PRODUCT, "1.2.3", tmpdir()), BuildException);
     const local = await Assert.throwsAsync(() => new PackageInstaller(tmpdir(), runner, { SystemRoot: "C:\\Windows" })
-      .installAsync(target, PackageInstallerTests.PRODUCT, tmpdir()), BuildException);
+      .installAsync(target, PackageInstallerTests.PRODUCT, "1.2.3", tmpdir()), BuildException);
 
     Assert.areEqual("SystemRoot must name the Windows folder, whose PowerShell modules the installer's checks search first.", system.message);
     Assert.areEqual(system.message, absent.message);
