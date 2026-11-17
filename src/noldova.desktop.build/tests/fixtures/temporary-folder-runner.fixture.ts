@@ -112,7 +112,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   }
 
   private async listProcessesAsync(id: number): Promise<readonly { id: number, parent: number, line: string }[]> {
-    const limit = Math.min(TemporaryFolderRunnerFixture.LIST_LIMIT, this.left());
+    const limit = Math.min(process.platform === "win32" ? TemporaryFolderRunnerFixture.LIST_LIMIT + TemporaryFolderRunnerFixture.SAMPLE_LIMIT : TemporaryFolderRunnerFixture.LIST_LIMIT, this.left());
     if (limit <= 0)
       return [{ id: Number.NaN, parent: Number.NaN, line: "The listing was skipped: no time was left." }];
     try {
@@ -133,9 +133,9 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
 
   private static formatWindowsTree(id: number): string {
     return [
-      `$rows = @(Get-CimInstance Win32_Process -Filter 'ProcessId=${id}')`,
-      `$queue = @(${id})`,
-      "while ($queue.Count -gt 0) { $next = @(); foreach ($parent in $queue) { foreach ($row in @(Get-CimInstance Win32_Process -Filter \"ParentProcessId=$parent\")) { $rows += $row; $next += $row.ProcessId } }; $queue = $next }",
+      `$rows = @(Get-CimInstance Win32_Process -Filter 'ProcessId=${id} or ParentProcessId=${id}')`,
+      `$queue = @($rows | Where-Object { $_.ProcessId -ne ${id} } | ForEach-Object { $_.ProcessId })`,
+      "while ($queue.Count -gt 0) { $found = @(Get-CimInstance Win32_Process -Filter (($queue | ForEach-Object { \"ParentProcessId=$_\" }) -join ' or ')); $rows += $found; $queue = @($found | ForEach-Object { $_.ProcessId }) }",
       "$rows | ForEach-Object { '{0} {1} - {2:HH:mm:ss} {3}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate, $_.CommandLine }"
     ].join("; ");
   }
