@@ -13,6 +13,7 @@ import { basename, join } from "node:path";
 
 import "@noldova/context.core";
 import type { CancellationToken } from "electron-updater";
+import { ElectronHttpExecutor } from "electron-updater/out/electronHttpExecutor.js";
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import {
@@ -48,11 +49,16 @@ export class FeedUpdaterTests {
   }
 
   @TestMethod
-  public expectsThePackageWhereTheUpdaterKeepsTheVersionsReleasedFile(): void {
-    const updater = FeedUpdaterTests.create(new FakeAppUpdater());
-    const url = new URL(FeedUpdaterTests.SOURCE.formatReleasedFile("1.3.0"), FeedUpdaterTests.SOURCE.feed);
+  public async expectsThePackageWhereTheUpdaterKeepsTheVersionsReleasedFile(): Promise<void> {
+    const info = ["version: 1.3.0", "files:", "  - url: Noldova Desktop Sample-1.3.0-linux-x64.AppImage", "    sha512: c2hh", "    size: 1024"].join("\n");
+    const source = new FeedSource(FeedUpdaterTests.SOURCE.feed, FeedUpdaterTests.SOURCE.channelFile, FeedUpdaterTests.SOURCE.packageFile,
+      url => Promise.resolve({ ok: true, status: 200, url, text: () => Promise.resolve(info) }), undefined, FeedUpdaterTests.SOURCE.formatReleasedFile);
+    const provider = new FeedProvider({ source }, null, { isUseMultipleRangeRequest: false, platform: "linux", executor: new ElectronHttpExecutor() });
+    const updater = new FeedUpdater(new FakeAppUpdater(), source, FeedUpdaterTests.INSTALLATION, "/cache", "noldova-desktop", null, () => undefined);
 
-    Assert.areEqual(join("/cache", "noldova-desktop-updater-0123456789abcdef", "pending", basename(decodeURIComponent(url.pathname))), updater.formatPackagePath("1.3.0"));
+    const [file] = provider.resolveFiles(await provider.getLatestVersion());
+
+    Assert.areEqual(join("/cache", "noldova-desktop-updater-0123456789abcdef", "pending", basename(decodeURIComponent(String(file?.url.pathname)))), updater.formatPackagePath("1.3.0"));
     Assert.areNotEqual(updater.formatPackagePath("1.3.0"), updater.formatPackagePath("1.4.0"));
   }
 
