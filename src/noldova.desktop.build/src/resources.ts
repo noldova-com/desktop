@@ -3762,7 +3762,7 @@ export class Resources {
   public static formatDebianDependenciesMissing(file: string, missing: readonly string[], simulation: string, exitCode: number | null, text: string): string {
     const lacking = missing.length > 0 ? `needs ${missing.join(Resources.listSeparator)}, which this runner lacks` : `has dependencies apt-get could not resolve here: ${simulation.trim()}`;
     return `${file} ${lacking}, and sudo --non-interactive apt-get update could not run to find them, ${Resources.formatExitCodeProblem(exitCode, text)}. `
-      + "Install them on the runner, or let its user run apt-get as root without a password.";
+      + "The Debian package's smoke needs the runner's user to run apt-get as root without a password, as it installs and removes the package with sudo.";
   }
 
   public static formatDebianCommandUnresolved(command: string, exitCode: number | null, text: string): string {

@@ -7,6 +7,7 @@
  */
 
 import assert from "node:assert/strict";
+import path from "node:path";
 import { describe, it } from "node:test";
 
 import { CommandFakesFixture } from "./fixtures/command-fakes.fixture.ts";
@@ -32,7 +33,7 @@ function libfuseFakes(installed: boolean): Readonly<Record<string, string>> {
 
 async function runAsync(text: string, commands: Readonly<Record<string, string>>, hosted: boolean, isPathKept: boolean = true): Promise<{ status: number | null, calls: readonly string[], output: string }> {
   await using fakes = await CommandFakesFixture.createAsync(commands);
-  const result = await WorkflowStepFixture.runAsync(text, fakes.folder, fakes.bin, { RUNNER_OS: "Linux", HOSTED: String(hosted) }, isPathKept);
+  const result = await WorkflowStepFixture.runAsync(text, fakes.folder, fakes.bin, { RUNNER_OS: "Linux", HOSTED: String(hosted), RUNNER_TEMP: fakes.folder.split(path.sep).join("/") }, isPathKept);
   return { status: result.status, calls: await fakes.readCallsAsync(), output: result.output };
 }
 
