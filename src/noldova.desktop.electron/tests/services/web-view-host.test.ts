@@ -1149,6 +1149,36 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async passesAKeyTheRelaySendsWhilePressAwaitsItsAnswerToThePageAsTheRelaysUnjudgedAndUncounted(): Promise<void> {
+    const declaration = new WebViewDeclaration(WebViewHostTests.KEYS.methods, WebViewHostTests.KEYS.events, WebViewHostTests.KEYS.keys, true);
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync({ browser: declaration });
+    const window = MainProcessStartFixture.firstWindow(electron);
+    electron.ipcMain.send("desktop:webViewShortcuts", MainProcessStartFixture.trustedEvent("linux", window.id), ["Mod+J"]);
+    await WebViewHostTests.openAsync(electron);
+    const contents = WebViewHostTests.view(electron, 0).contents;
+    const reload = WebViewHostTests.input("r", "KeyR", true, "linux");
+    const prevented: boolean[] = [];
+    contents.onInput = () => prevented.push(contents.prevent("before-input-event", reload));
+
+    prevented.push(contents.prevent("before-input-event", WebViewHostTests.input("j", "KeyJ", true, "linux")));
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1",
+      { method: "Input.dispatchKeyEvent", params: { type: "keyDown", key: "r", code: "KeyR", modifiers: 2 }, timeoutMilliseconds: 1000 });
+    WebViewHostTests.answer(electron, "linux", window, 1, true);
+    const passedOn = contents.inputs.map(t => `${t.type} ${t.keyCode} ${t.modifiers.join("+")}`).join(",");
+    prevented.push(contents.prevent("before-input-event", reload));
+    contents.emit("input-event", {}, { type: "keyDown" });
+    void contents.openWindow("https://example.com/relayed");
+    prevented.push(contents.prevent("before-input-event", WebViewHostTests.input("a", "KeyA", false, "linux")));
+    contents.emit("input-event", {}, { type: "keyDown" });
+    void contents.openWindow("https://example.com/pressed");
+
+    Assert.areEqual("true,true,false,false", prevented.join(","));
+    Assert.areEqual("keyDown r control", passedOn);
+    Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Key").length);
+    Assert.areEqual("false,true", WebViewHostTests.requested(WebViewHostTests.windowEvents(window)).map(t => String(t["hadRecentInput"])).join(","));
+  }
+
+  @TestMethod
   public async replaysOnlyAPressItForwardedOnceAndNeverForASenderThatIsNotTheWindow(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);

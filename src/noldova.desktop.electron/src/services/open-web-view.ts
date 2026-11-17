@@ -26,7 +26,6 @@ import type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
-import type { IWebViewKeyEvent } from "../interfaces/i-web-view-key-event.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
@@ -64,7 +63,8 @@ export class OpenWebView {
   private lastInput: number | undefined;
   private relayedInputs: number = 0;
   private relayedPresses: readonly symbol[] = [];
-  private heldInputs: readonly (readonly [IWebViewContents, IWebViewInput])[] = [];
+  private heldInputs: readonly (readonly [IWebViewContents, IWebViewInput, boolean])[] = [];
+  private relayCopies: number = 0;
   private declinedKey: IKeyStroke | null = null;
   private isAnswerAwaited: boolean = false;
   private touchPoints: readonly unknown[] = [];
@@ -719,7 +719,10 @@ export class OpenWebView {
       this.relayedPresses = this.relayedPresses.slice(1);
       return;
     }
-    if (this.relayedInputs === 0 && Resources.personInputTypes.includes(type))
+    const isPersonInput = Resources.personInputTypes.includes(type);
+    if (isPersonInput && this.relayCopies > 0)
+      this.relayCopies -= 1;
+    else if (this.relayedInputs === 0 && isPersonInput)
       this.lastInput = this.now();
     if (this.openPageCalls > 0 && isPress && this.uncountedInputs === 0)
       this.input(Resources.inputPressKind);
@@ -806,7 +809,9 @@ export class OpenWebView {
     }
     if (this.isAnswerAwaited) {
       event.preventDefault();
-      this.heldInputs = [...this.heldInputs, [guest, input]];
+      const heldRelayKey = isDown ? this.relayKeys.find(t => OpenWebView.isSameStroke(t, stroke)) : undefined;
+      this.forgetRelayKey(heldRelayKey ?? null);
+      this.heldInputs = [...this.heldInputs, [guest, input, !Object.isUndefined(heldRelayKey)]];
       return;
     }
     if (!isDown) {
@@ -841,8 +846,8 @@ export class OpenWebView {
       this.replay(guest, input);
     const held = this.heldInputs;
     this.heldInputs = [];
-    for (const [heldBy, heldInput] of held)
-      this.send(heldBy, WebViewKeyInput.fromInput(heldInput, this.platform));
+    for (const [heldBy, heldInput, isRelayed] of held)
+      this.send(heldBy, heldInput, isRelayed);
   }
 
   private replay(guest: IWebViewContents, input: IWebViewInput): void {
@@ -855,9 +860,14 @@ export class OpenWebView {
       guest.sendInputEvent(event);
   }
 
-  private send(guest: IWebViewContents, events: readonly IWebViewKeyEvent[]): void {
+  private send(guest: IWebViewContents, input: IWebViewInput, isRelayed: boolean): void {
     if (!this.isBound(guest))
       return;
+    const events = WebViewKeyInput.fromInput(input, this.platform);
+    if (isRelayed) {
+      this.replays.push({ key: input.key, code: String.empty, ctrlKey: input.control, altKey: input.alt, shiftKey: input.shift, metaKey: input.meta });
+      this.relayCopies += events.filter(t => Resources.personInputTypes.includes(t.type)).length;
+    }
     for (const event of events)
       guest.sendInputEvent(event);
   }
