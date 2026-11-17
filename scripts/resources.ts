@@ -83,6 +83,12 @@ export class Resources {
   public static readonly buildBootstrapArguments: readonly string[] = ["ci", "--ignore-scripts", "--no-audit", "--no-fund"];
   public static readonly buildListCopiesOption: string = "--list-copies";
   public static readonly buildInstallCommand: string = "install";
+  public static readonly npmCiLogsPrefix: string = "npm-ci-logs-";
+  public static readonly npmCiLogsVariable: string = "npm_config_logs_dir";
+  public static readonly npmCiErrorCodePattern: RegExp = /^\d+ error code (ETIMEDOUT|ECONNRESET)\r?$/m;
+  public static readonly npmCiReadPattern: RegExp = /^\d+ error syscall read\r?$/m;
+  public static readonly npmCiRequestPattern: RegExp = /^\d+ http fetch /;
+  public static readonly npmCiRequestLines: number = 5;
   public static readonly uiWorkflowsCiScript: readonly string[] = ["scripts", "ui-workflows.ts"];
   public static readonly uiWorkflowsCiSessionBus: string = "dbus-run-session";
   public static readonly uiWorkflowsCiSessionBusArguments: readonly string[] = ["--"];
@@ -246,7 +252,7 @@ export class Resources {
   public static readonly testWaitQuotes: readonly string[] = ["\"", "'", "`"];
   public static readonly testWaitEscape: string = "\\";
   public static readonly testWaitCheckTitle: string = "Test waits";
-  public static readonly scriptTestArguments: readonly string[] = ["--test", "--test-timeout=10000", "scripts/angular/tests/**/*.test.ts", "scripts/checks/tests/**/*.test.ts", "src/noldova.desktop.window/scripts/angular/tests/**/*.test.ts"];
+  public static readonly scriptTestArguments: readonly string[] = ["--test", "--test-timeout=10000", "scripts/angular/tests/**/*.test.ts", "scripts/checks/tests/**/*.test.ts", "scripts/tests/**/*.test.ts", "src/noldova.desktop.window/scripts/angular/tests/**/*.test.ts"];
   public static readonly scriptTestCheckTitle: string = "Script tests";
   public static readonly typeCheckProjectArguments: readonly string[] = ["--project", "scripts/tsconfig.json"];
   public static readonly typeCheckTitle: string = "Script types";
@@ -1204,5 +1210,9 @@ export class Resources {
 
   public static formatPackageCheckBuilt(count: number): string {
     return `Packages built and installed: ${count}.${Resources.lineEnd}`;
+  }
+
+  public static npmCiStalledRead(requests: readonly string[]): string {
+    return `npm ci stopped on a stalled read, which npm doesn't retry, so it runs once more. Its last requests:${Resources.lineEnd}${requests.join(Resources.lineEnd)}${Resources.lineEnd}`;
   }
 }
