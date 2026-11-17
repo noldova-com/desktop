@@ -19,10 +19,12 @@ import { UpdateMetadata } from "./update-metadata.ts";
 
 export class ReleaseFileSet {
   private readonly productName: string;
+  private readonly version: string;
   private readonly targets: readonly PackageTarget[];
 
-  public constructor(productName: string, targets: readonly PackageTarget[]) {
+  public constructor(productName: string, version: string, targets: readonly PackageTarget[]) {
     this.productName = productName;
+    this.version = version;
     this.targets = targets;
   }
 
@@ -30,15 +32,15 @@ export class ReleaseFileSet {
     return this.targets.flatMap(t => this.listTarget(t));
   }
 
-  public async writeAsync(folder: string, target: PackageTarget, version: string, releaseDate: string): Promise<readonly string[]> {
+  public async writeAsync(folder: string, target: PackageTarget, releaseDate: string): Promise<readonly string[]> {
     const packages = await this.readPackagesAsync(folder, target);
     for (const file of packages)
       await writeFile(path.join(folder, Resources.formatChecksumName(file.name)), ReleaseFileSet.formatChecksum(file));
-    await writeFile(path.join(folder, UpdateMetadata.formatFileName(target)), this.describe(target, version, packages, releaseDate).format());
+    await writeFile(path.join(folder, UpdateMetadata.formatFileName(target)), this.describe(target, packages, releaseDate).format());
     return this.listTarget(target);
   }
 
-  public async verifyAsync(folder: string, version: string): Promise<readonly ReleaseFile[]> {
+  public async verifyAsync(folder: string): Promise<readonly ReleaseFile[]> {
     if (!existsSync(folder))
       throw new BuildException(Resources.formatReleaseFolderMissing(folder));
     const expected = this.listAll();
@@ -62,8 +64,8 @@ export class ReleaseFileSet {
       const metadata = UpdateMetadata.formatFileName(target);
       const bytes = await readFile(path.join(folder, metadata));
       const text = bytes.toString(Resources.textEncoding);
-      if (text !== this.describe(target, version, packages, UpdateMetadata.readReleaseDate(text, metadata)).format())
-        throw new BuildException(Resources.formatUpdateMetadataMismatch(metadata, version, packages.map(t => t.name)));
+      if (text !== this.describe(target, packages, UpdateMetadata.readReleaseDate(text, metadata)).format())
+        throw new BuildException(Resources.formatUpdateMetadataMismatch(metadata, this.version, packages.map(t => t.name)));
       files.push(...packages, ...checksums, new ReleaseFile(metadata, PackageDigest.fromBytes(bytes)));
     }
     return files;
@@ -81,18 +83,18 @@ export class ReleaseFileSet {
   }
 
   private listTarget(target: PackageTarget): readonly string[] {
-    const packages = target.listFileNames(this.productName);
+    const packages = target.listFileNames(this.productName, this.version);
     return [...packages, ...packages.map(t => Resources.formatChecksumName(t)), UpdateMetadata.formatFileName(target)];
   }
 
   private async readPackagesAsync(folder: string, target: PackageTarget): Promise<readonly ReleaseFile[]> {
     const files: ReleaseFile[] = [];
-    for (const name of target.listFileNames(this.productName))
+    for (const name of target.listFileNames(this.productName, this.version))
       files.push(await ReleaseFileSet.readAsync(folder, name));
     return files;
   }
 
-  private describe(target: PackageTarget, version: string, packages: readonly ReleaseFile[], releaseDate: string): UpdateMetadata {
-    return new UpdateMetadata(version, target.formatFileName(this.productName, target.updateExtension), packages, releaseDate);
+  private describe(target: PackageTarget, packages: readonly ReleaseFile[], releaseDate: string): UpdateMetadata {
+    return new UpdateMetadata(this.version, target.formatFileName(this.productName, this.version, target.updateExtension), packages, releaseDate);
   }
 }

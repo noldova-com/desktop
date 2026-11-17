@@ -283,7 +283,7 @@ export class UpdateController {
     this.set(new UpdateStatus(UpdateStateKind.Downloading, version, null, checkedAt, null, false));
     let record: UpdateReadyRecord;
     try {
-      const file = await this.updater.downloadAsync(t => {
+      const file = await this.updater.downloadAsync(version, t => {
         const progress = Math.min(Resources.maximumProgress, Math.max(0, t));
         if (progress !== this.current.progress)
           this.set(new UpdateStatus(UpdateStateKind.Downloading, version, progress, checkedAt, null, false));
@@ -325,7 +325,7 @@ export class UpdateController {
       const record = UpdateReadyRecord.fromJson(json);
       if (!UpdateVersion.isNewer(record.version, this.currentVersion))
         return Resources.formatUpdateInstalled(record.version);
-      if (record.file !== this.updater.packagePath)
+      if (record.file !== this.updater.formatPackagePath(record.version))
         return Resources.updateFileElsewhere;
       if (await UpdateController.hashFileAsync(record.file).catch(() => null) !== record.sha512)
         return Resources.updateFileChanged;

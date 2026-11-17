@@ -128,7 +128,7 @@ test("an update made ready before Noldova Desktop Sample started offers Restart 
       await expect(about.locator(".nol-about-detail")).toHaveText(NOT_AN_APP_IMAGE);
       await expect(about.getByRole("button", { name: "Restart to update" })).toHaveCount(0);
       expect(await PageBridgeFixture.evaluateAsync(page, t => t.actOnUpdate("Restart"))).toBe(false);
-      expect(feed.requests).not.toContain(UpdateFeedFixture.source.packageFile);
+      expect(feed.requests).not.toContain(UpdateFeedFixture.source.formatReleasedFile(VERSION));
       expect(await mainProcess.readRuntimeProcessIdAsync()).toBe(runtime);
       expect(MainProcessFixture.isAlive(runtime ?? 0)).toBe(true);
       expect(await mainProcess.isVisibleAsync()).toBe(true);

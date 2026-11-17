@@ -87,7 +87,9 @@ The organization's security standard, `https://github.com/noldova-com/.github/bl
   An AppImage can't carry Chromium's setuid sandbox helper, so its launcher tries `unshare -Ur true` and starts the app with `--no-sandbox` when that fails: on a host that refuses unprivileged user namespaces, as Ubuntu 24.04 and later do by default, in a container that refuses them, or where `unshare` is missing.
   The app's renderers then run without Chromium's sandbox, as [ARCHITECTURE.md](ARCHITECTURE.md#code) says; where the probe succeeds, they run sandboxed, and the Debian package runs them sandboxed on such hosts too.
   After packaging for macOS, signed or not, `package` extracts the ZIP with `ditto -x -k`, as Squirrel.Mac does, and fails unless each framework's `Versions/Current` is still a link and the extracted app holds the same folders, links and file sizes as the packaged one.
-- A download is named `<app name>-<platform>-<arch>.<ext>`, and its update information `latest-<platform>-<arch>.yml`, with no version in either, so an update replaces an AppImage in place.
+- A download is named `<app name>-<version>-<platform>-<arch>.<ext>`, such as `Sample App-1.2.3-windows-x64.exe`, with the version the package was built as, and its checksum `<download>.sha256`, so releases' files kept side by side never share a name.
+  The update information keeps its one name per target, `latest-<platform>-<arch>.yml`, since an installed app reads it to learn the newest version, and it names the versioned package to download.
+  An update replaces an AppImage in place, under the name it was downloaded with, so a launcher or shortcut that points at it keeps working.
 
 ## Packaging
 

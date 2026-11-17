@@ -27,10 +27,10 @@ export class ReleaseAssetsTests {
   private static readonly INTERNAL_FEED: string = "https://updates.example.test/sample-app/";
   private static readonly OWN_FEED: string = "https://counted.example.test/";
   private static readonly USAGE: string = "2 Usage: noldova-desktop-build release-assets [--update-feed <https URL, or http URL of localhost, ending in />]\n";
-  private static readonly WRITTEN: string = "0 The release files of linux x64 for 1.2.3:\nSample App-linux-x64.AppImage\nSample App-linux-x64.deb\nSample App-linux-x64.AppImage.sha256\nSample App-linux-x64.deb.sha256\nlatest-linux-x64.yml\n";
+  private static readonly WRITTEN: string = "0 The release files of linux x64 for 1.2.3:\nSample App-1.2.3-linux-x64.AppImage\nSample App-1.2.3-linux-x64.deb\nSample App-1.2.3-linux-x64.AppImage.sha256\nSample App-1.2.3-linux-x64.deb.sha256\nlatest-linux-x64.yml\n";
   private static readonly PRODUCT_FILE: string = "_build/package/app/_build/product.json";
-  private static readonly PACKAGE_FILE: string = "_build/package/out/Sample App-linux-x64.AppImage";
-  private static readonly DEBIAN_FILE: string = "_build/package/out/Sample App-linux-x64.deb";
+  private static readonly PACKAGE_FILE: string = "_build/package/out/Sample App-1.2.3-linux-x64.AppImage";
+  private static readonly DEBIAN_FILE: string = "_build/package/out/Sample App-1.2.3-linux-x64.deb";
 
   @TestMethod
   public async writesTheReleaseFilesOfAPackageForATestFeedOnlyWhenGivenThatFeedAsync(): Promise<void> {

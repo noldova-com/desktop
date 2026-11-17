@@ -67,13 +67,16 @@ export class ReleasePublishTests {
   }
 
   @TestMethod
-  public async refusesInternalReleaseFilesWrittenForAnotherVersionAsync(): Promise<void> {
+  public async refusesInternalReleaseFilesNamedForAnotherVersionAsync(): Promise<void> {
     await using app = await ReleasePublishTests.createAppAsync("1.2.3-internal.6");
 
     const result = await app.runAsync("linux", ["release-publish"], ReleasePublishTests.environment(app, ReleasePublishTests.VERSION));
+    const [missing = String.empty, unexpected = String.empty] = result.split(" Not part of a release: ");
 
-    Assert.areEqual(`1 ${ReleasePublishTests.REPORTS_CHECKED}`
-      + "latest-windows-x64.yml does not describe version 1.2.3-internal.7 with Sample App-windows-x64.exe as they are.\n", result);
+    Assert.isTrue(missing.startsWith(`1 ${ReleasePublishTests.REPORTS_CHECKED}The release's files in ${path.join(app.path, "release")} differ from the files a release has. Missing: `), result);
+    Assert.isTrue(missing.includes("Sample App-1.2.3-internal.7-linux-x64.AppImage") && !missing.includes("internal.6"), result);
+    Assert.isTrue(unexpected.includes("Sample App-1.2.3-internal.6-windows-x64.exe") && !unexpected.includes("internal.7"), result);
+    Assert.isFalse(result.includes("latest-windows-x64.yml"), result);
   }
 
   @TestMethod
@@ -105,7 +108,7 @@ export class ReleasePublishTests {
 
     Assert.areEqual(0, result.exitCode, result.output);
     Assert.isTrue(result.output.startsWith(`${ReleasePublishTests.REPORTS_CHECKED}Creating the draft release v1.2.3 for `), result.output);
-    Assert.isTrue(result.output.endsWith(`with ${new ReleaseFileSet("Sample App", ReleasePublishTests.TARGETS).listAll().length} files.\n`), result.output);
+    Assert.isTrue(result.output.endsWith(`with ${new ReleaseFileSet("Sample App", "1.2.3", ReleasePublishTests.TARGETS).listAll().length} files.\n`), result.output);
     Assert.isTrue(github.requests.some(t => t.includes("--raw-field body=") && t.includes("https://github.com/example/sample-app/actions/runs/1")), github.requests.join("\n"));
   }
 
@@ -215,11 +218,11 @@ export class ReleasePublishTests {
     const app = await InstalledAppFixture.createAsync();
     const manifest = await readFile(path.join(app.path, "package.json"), "utf8");
     await app.writeAppFileAsync("package.json", manifest.replace("\"desktop\":{", `"desktop":{"signedPlatforms":${JSON.stringify(ReleasePublishTests.SIGNED)},`));
-    const set = new ReleaseFileSet("Sample App", ReleasePublishTests.TARGETS);
+    const set = new ReleaseFileSet("Sample App", written, ReleasePublishTests.TARGETS);
     for (const target of ReleasePublishTests.TARGETS) {
-      for (const name of target.listFileNames("Sample App"))
+      for (const name of target.listFileNames("Sample App", written))
         await app.writeAppFileAsync(`release/${name}`, `${name} bytes`);
-      await set.writeAsync(path.join(app.path, "release"), target, written, ReleasePublishTests.DATE);
+      await set.writeAsync(path.join(app.path, "release"), target, ReleasePublishTests.DATE);
       const isSigned = ReleasePublishTests.SIGNED.includes(target.platform);
       await new PackageReport(target.id, isSigned, isSigned).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
     }

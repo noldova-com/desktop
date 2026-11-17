@@ -40,7 +40,7 @@ class FuseWireRunner extends SmokeRunnerFixture {
   public override async captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv):
     Promise<ProcessResult> {
     const result = await super.captureAsync(command, commandArguments, directory, timeout, environment);
-    if (path.basename(command) === `${SmokeRunnerFixture.PRODUCT_NAME}-linux-x64.AppImage`)
+    if (path.basename(command) === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-linux-x64.AppImage`)
       await writeFile(path.join(directory, "squashfs-root", SmokeRunnerFixture.SLUG), Buffer.concat([Buffer.from("electron-program-"), Resources.electronFuseSentinel, Buffer.from(this.wire)]));
     return result;
   }
@@ -48,7 +48,7 @@ class FuseWireRunner extends SmokeRunnerFixture {
 
 @TestClass
 export class PackageSmokeTests {
-  private static readonly APP_IMAGE: string = "_build/package/out/Sample App-linux-x64.AppImage";
+  private static readonly APP_IMAGE: string = "_build/package/out/Sample App-1.2.3-linux-x64.AppImage";
   private static readonly ELF: Buffer = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01]);
   private static readonly RENDERER: number = SmokeRunnerFixture.MAIN + 2;
   private static readonly RESTRICTION: string = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns";
@@ -99,7 +99,7 @@ export class PackageSmokeTests {
 
     Assert.areEqual(1, result.exitCode);
     Assert.areEqual(1, runner.captured.length);
-    Assert.isTrue(runner.captured[0]?.startsWith("Sample App-linux-x64.AppImage --appimage-extract") ?? false, runner.captured.join("|"));
+    Assert.isTrue(runner.captured[0]?.startsWith("Sample App-1.2.3-linux-x64.AppImage --appimage-extract") ?? false, runner.captured.join("|"));
     Assert.areEqual(JSON.stringify(folders.created), JSON.stringify(folders.removed));
     Assert.isFalse(folders.created.some(t => existsSync(t)));
   }
@@ -410,7 +410,7 @@ export class PackageSmokeTests {
         Resources.formatOutputLine(Resources.packagedModulesNone),
         Resources.formatOutputLine(Resources.formatWindowMainEnded("exited with code 1", Resources.formatWindowUnreported(null), tail))
       ].join(String.empty), PackageSmokeTests.withoutTimes(result.output));
-      Assert.areEqual(`${SmokeRunnerFixture.PRODUCT_NAME}-linux-x64.AppImage --device-dir=${path.join(result.folder, "device")} --data-dir=${result.data}`,
+      Assert.areEqual(`${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-linux-x64.AppImage --device-dir=${path.join(result.folder, "device")} --data-dir=${result.data}`,
         runner.started.join("|"));
       Assert.isTrue(runner.captured.includes("unshare -Ur true"), runner.captured.join("\n"));
       Assert.areEqual(0, runner.killed.length);
@@ -486,7 +486,7 @@ export class PackageSmokeTests {
 
     const result = await PackageSmokeTests.smokeAsync(app, parent.path, "linux", runner, ["--deb", "--no-sandbox"], {}, new RecordingTemporaryFolderFixture(parent.path), processes);
 
-    const file = path.join(app.path, "_build", "package", "out", "Sample App-linux-x64.deb");
+    const file = path.join(app.path, "_build", "package", "out", "Sample App-1.2.3-linux-x64.deb");
     Assert.areEqual(0, result.exitCode, result.output);
     Assert.areEqual([
       Resources.formatOutputLine([
@@ -510,7 +510,7 @@ export class PackageSmokeTests {
     Assert.areEqual(`${SmokeRunnerFixture.SLUG} --device-dir=${path.join(result.folder, "device")} --data-dir=${result.data} --no-sandbox`, runner.started.join("|"));
     Assert.isTrue(runner.captured.includes(`sudo --non-interactive apt-get install --yes ${file}`), runner.captured.join("\n"));
     Assert.areEqual(1, runner.captured.filter(t => t === "sudo --non-interactive apt-get remove --yes sample-app").length);
-    Assert.isFalse(runner.captured.some(t => t.startsWith("unshare") || t.startsWith(`${SmokeRunnerFixture.PRODUCT_NAME}-linux-x64.AppImage`)), runner.captured.join("\n"));
+    Assert.isFalse(runner.captured.some(t => t.startsWith("unshare") || t.startsWith(`${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-linux-x64.AppImage`)), runner.captured.join("\n"));
     Assert.isFalse(existsSync(runner.debianFolder));
     Assert.isFalse(existsSync(result.folder));
   }

@@ -8187,11 +8187,6 @@ export interface IUpdateSetup {
  */
 export interface IUpdater {
   /**
-   * The only file a download may give: the target's package in the updater's cache for the installation.
-   */
-  readonly packagePath: string;
-
-  /**
    * The file the last download in this process gave, or `null` before one has and while a download runs.
    */
   readonly downloadedFile: string | null;
@@ -8215,6 +8210,8 @@ export interface IUpdater {
   /**
    * Downloads the version the last check found and checks it against the release.
    *
+   * @param version The version the last check found, which names the only file the download may give,
+   * {@link IUpdater.formatPackagePath}.
    * @param onProgress Receives the progress as a whole percentage.
    * @returns A promise of the downloaded file; it rejects with an {@link UpdateException} that gives the reason.
    * @example
@@ -8222,11 +8219,28 @@ export interface IUpdater {
    * import type { IUpdater } from "@noldova/desktop.electron";
    *
    * export function downloadAsync(updater: IUpdater): Promise<string> {
-   *   return updater.downloadAsync(t => console.log(`${t}%`));
+   *   return updater.downloadAsync("1.3.0", t => console.log(`${t}%`));
    * }
    * ```
    */
-  downloadAsync(onProgress: (percent: number) => void): Promise<string>;
+  downloadAsync(version: string, onProgress: (percent: number) => void): Promise<string>;
+
+  /**
+   * Gives the only file a download of a version may give: the version's released package in the updater's cache for
+   * the installation.
+   *
+   * @param version The version.
+   * @returns The package's path.
+   * @example
+   * ```ts
+   * import type { IUpdater } from "@noldova/desktop.electron";
+   *
+   * export function isPackage(updater: IUpdater, file: string): boolean {
+   *   return file === updater.formatPackagePath("1.3.0");
+   * }
+   * ```
+   */
+  formatPackagePath(version: string): string;
 
   /**
    * Cancels the download in progress, if any.
@@ -8762,7 +8776,8 @@ export declare class FeedSource {
    */
   public readonly channelFile: string;
   /**
-   * The package the updater downloads, `<product>-<platform>-<arch>.<ext>`.
+   * The package's name without a version, `<product>-<platform>-<arch>.<ext>`, which a feed whose files carry no version
+   * lists for every version.
    */
   public readonly packageFile: string;
   /**
@@ -8774,24 +8789,33 @@ export declare class FeedSource {
    * given another.
    */
   public readonly timeout: (milliseconds: number) => AbortSignal;
+  /**
+   * Names the package of a version as the update information lists it and the feed serves it,
+   * `<product>-<version>-<platform>-<arch>.<ext>` for a source {@link FeedSource.create} makes.
+   */
+  public readonly formatReleasedFile: (version: string) => string;
 
   /**
    * Creates the source.
    *
    * @param feed The feed's URL, ending in `/`.
    * @param channelFile The update information's file.
-   * @param packageFile The package the updater downloads.
+   * @param packageFile The package's name without a version.
    * @param fetchAsync Fetches a URL anonymously, following redirects, until the signal aborts; the signal aborts when the
    * feed hasn't answered with the whole information file within 30 seconds.
    * @param timeout Gives the signal that aborts a fetch after the milliseconds it takes; `AbortSignal.timeout` by default.
+   * @param formatReleasedFile Names the package of the version the update information names, as it lists it; by default
+   * `packageFile` for every version.
    * @example
    * ```ts
    * import { FeedSource } from "@noldova/desktop.electron";
    *
-   * export const source: FeedSource = new FeedSource("http://127.0.0.1:8080/", "latest-linux-x64.yml", "Noldova Desktop Sample-linux-x64.AppImage", (url, signal) => fetch(url, { signal }));
+   * export const source: FeedSource = new FeedSource("http://127.0.0.1:8080/", "latest-linux-x64.yml", "Noldova Desktop Sample-linux-x64.AppImage", (url, signal) => fetch(url, { signal }),
+   *   undefined, version => `Noldova Desktop Sample-${version}-linux-x64.AppImage`);
    * ```
    */
-  public constructor(feed: string, channelFile: string, packageFile: string, fetchAsync: (url: string, signal: AbortSignal) => Promise<IFeedResponse>, timeout?: (milliseconds: number) => AbortSignal);
+  public constructor(feed: string, channelFile: string, packageFile: string, fetchAsync: (url: string, signal: AbortSignal) => Promise<IFeedResponse>, timeout?: (milliseconds: number) => AbortSignal,
+    formatReleasedFile?: (version: string) => string);
 
   /**
    * Creates the source of a platform and processor: Windows' installer, macOS's ZIP or Linux's AppImage, or its Debian
@@ -9182,11 +9206,6 @@ export declare class FeedProvider extends Provider<UpdateInfo> {
  */
 export declare class FeedUpdater implements IUpdater {
   /**
-   * The target's package in electron-updater's cache folder for the installation, the only file a download may give.
-   */
-  public readonly packagePath: string;
-
-  /**
    * The file the last download in this process gave, or `null` before one has and while a download runs.
    */
   public get downloadedFile(): string | null;
@@ -9244,20 +9263,39 @@ export declare class FeedUpdater implements IUpdater {
    * Downloads the version the last check found; electron-updater checks its SHA-512, and then the updater checks its
    * publisher, deleting a file that fails.
    *
+   * @param version The version the last check found.
    * @param onProgress Receives the progress as a whole percentage.
    * @returns A promise of the downloaded file; it rejects with an {@link UpdateException} that gives the reason, by
    * default that the download was interrupted, and with an unexpected error when the file is not
-   * {@link FeedUpdater.packagePath}.
+   * {@link FeedUpdater.formatPackagePath} for the version.
    * @example
    * ```ts
    * import type { FeedUpdater } from "@noldova/desktop.electron";
    *
    * export function downloadAsync(updater: FeedUpdater): Promise<string> {
-   *   return updater.downloadAsync(t => console.log(`${t}%`));
+   *   return updater.downloadAsync("1.3.0", t => console.log(`${t}%`));
    * }
    * ```
    */
-  public downloadAsync(onProgress: (percent: number) => void): Promise<string>;
+  public downloadAsync(version: string, onProgress: (percent: number) => void): Promise<string>;
+
+  /**
+   * Gives the only file a download of a version may give: the name electron-updater keeps it under, the last part of
+   * the address {@link FeedProvider} gives, the source's {@link FeedSource.formatReleasedFile} for the version, in the
+   * `pending` folder of its cache folder for the installation.
+   *
+   * @param version The version.
+   * @returns The package's path.
+   * @example
+   * ```ts
+   * import type { FeedUpdater } from "@noldova/desktop.electron";
+   *
+   * export function isPackage(updater: FeedUpdater, file: string): boolean {
+   *   return file === updater.formatPackagePath("1.3.0");
+   * }
+   * ```
+   */
+  public formatPackagePath(version: string): string;
 
   /**
    * Cancels the download in progress, if any.
