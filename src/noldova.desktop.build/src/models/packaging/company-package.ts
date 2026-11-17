@@ -6,7 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { cp, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -42,7 +43,7 @@ export class CompanyPackage {
       throw new BuildException(Resources.formatCompanyPackageMismatch(locked.location, locked.id));
     const dependencies = manifest[Resources.manifestDependenciesField];
     const bundled = Object.keys(Object.isPlainObject(dependencies) ? dependencies : {}).filter(t => windowPackages.has(t));
-    const archive = locked.isInstalled ? await CompanyPackage.verifyArchiveAsync(locked, root) : null;
+    const archive = locked.isArchive ? await CompanyPackage.verifyArchiveAsync(locked, root) : null;
     if (!Object.isNull(archive) && bundled.length === 0)
       return new CompanyPackage(locked, archive[0]);
 
@@ -66,16 +67,33 @@ export class CompanyPackage {
 
   private static async verifyArchiveAsync(locked: LockedPackage, root: string): Promise<readonly [string, Buffer]> {
     const archive = locked.locateArchive(root);
-    let data: Buffer;
-    try {
-      data = await readFile(archive);
-    }
-    catch (error) {
+    const repository = CompanyPackage.findRepository(path.resolve(root));
+    const relative = path.relative(repository, archive);
+    if (!locked.isInstalled && (path.isAbsolute(relative) || relative.split(path.sep)[0] === Resources.parentFolderSegment))
+      throw new BuildException(Resources.formatLockedArchiveOutside(locked.id, archive, repository));
+    const unreadable = (error: unknown): never => {
       throw new BuildException(Resources.formatCompanyArchiveUnreadable(locked.id, archive), new ExceptionOptions(error));
+    };
+    if (!locked.isInstalled) {
+      const real = await realpath(archive).catch(unreadable);
+      if (real !== path.join(await realpath(repository), relative))
+        throw new BuildException(Resources.formatLockedArchiveThroughLink(locked.id, archive, real));
     }
-    if (!locked.matches(data))
+    const data = await readFile(archive).catch(unreadable);
+    if (!Object.isNull(locked.sha512) && !locked.matches(data))
       throw new BuildException(Resources.formatCompanyArchiveMismatch(archive, locked.id));
     return [archive, data];
+  }
+
+  private static findRepository(root: string): string {
+    let folder = root;
+    while (!existsSync(path.join(folder, Resources.gitFolder))) {
+      const parent = path.dirname(folder);
+      if (parent === folder)
+        return root;
+      folder = parent;
+    }
+    return folder;
   }
 
   private static async extractAsync(locked: LockedPackage, [archive, data]: readonly [string, Buffer], source: string): Promise<void> {
