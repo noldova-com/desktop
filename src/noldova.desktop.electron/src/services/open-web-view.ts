@@ -127,7 +127,7 @@ export class OpenWebView {
   }
 
   public get isRestorable(): boolean {
-    return !Object.isNull(this.kept) && Object.isNull(this.guest) && !this.isClosed;
+    return !Object.isNull(this.kept) && !this.isClosed;
   }
 
   public get zoom(): number {

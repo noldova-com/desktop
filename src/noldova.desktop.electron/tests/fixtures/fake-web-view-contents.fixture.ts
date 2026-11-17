@@ -91,6 +91,8 @@ export class FakeWebViewContents implements IWebViewContents {
     this.begin();
     return this.restoreAnswer().then(() => {
       this.url = this.restoredUrl ?? history.currentUrl ?? String.empty;
+      this.history = history.entries.map(t => t.url);
+      this.index = history.index;
     });
   }
 

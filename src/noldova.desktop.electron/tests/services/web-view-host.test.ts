@@ -390,6 +390,35 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async restoresAKeptViewInTheWebviewItsWindowExpectsBeforeItsOldPageIsDestroyedSoBackStillGoesBack(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    const old = WebViewHostTests.view(electron, 0);
+    electron.webViews.session(WebViewHostTests.PARTITION).addresses.set("example.com", ["93.184.215.14"]);
+    await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", ["https://example.com"]);
+    for (const page of ["a", "b", "c"])
+      old.contents.show(`https://example.com/${page}`);
+    const kept = await WebViewHostTests.keepAsync(electron, [["browser", "1"]]);
+    const expected = WebViewHostTests.expect(electron, "1");
+
+    const guest = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
+    const claimed = electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION);
+    electron.webViews.attached(window.webContents.id, guest.contents);
+    old.contents.destroyed = true;
+    old.contents.emit("destroyed");
+    const attached = await WebViewHostTests.attachAsync(electron, "1", guest.contents.id);
+    await Condition.waitAsync(() => guest.contents.history.length > 0 || guest.contents.calls.some(t => t.startsWith("load")));
+    const back = await electron.ipcMain.invoke("desktop:webViewAct", MainProcessStartFixture.trustedEvent("linux"), "browser", "1", "Back");
+
+    Assert.areEqual(JSON.stringify([[true], true, true]), JSON.stringify([kept, expected, claimed]));
+    Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(attached));
+    Assert.areEqual(JSON.stringify({ kind: "Started", origin: null }), JSON.stringify(back));
+    Assert.areEqual(`restore 2 ${["a", "b", "c"].map(t => `https://example.com/${t} state of https://example.com/${t}`).join(" ")},back`, guest.contents.calls.join(","));
+    Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
+  }
+
+  @TestMethod
   public async readsTheScrollOfEveryViewOfAMoveAtOnceSoTheWindowWaitsForOneBoundWhenNoPageAnswers(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     await WebViewHostTests.openAsync(electron);
@@ -412,7 +441,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async claimsNoWebviewForAViewThatStillHasItsPageIsClosedOrIsInAnotherWindowAndBindsNoUnclaimedOneOrOneOfAnotherWindow(): Promise<void> {
+  public async claimsNoWebviewForAViewThatIsClosedOrIsInAnotherWindowAndBindsNoUnclaimedOneOrOneOfAnotherWindow(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     await WebViewHostTests.openAsync(electron);
@@ -430,17 +459,16 @@ export class WebViewHostTests {
     closing.contents.emit("destroyed");
     electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "2");
 
-    const claims = [electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION), electron.webViews.claim(window.webContents.id + 1, WebViewHostTests.PARTITION)];
+    const claims = [electron.webViews.claim(window.webContents.id + 1, WebViewHostTests.PARTITION)];
     const stray = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
     electron.webViews.attached(window.webContents.id, stray.contents);
-    live.contents.destroyed = true;
-    live.contents.emit("destroyed");
     claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
     electron.webViews.attached(window.webContents.id + 1, stray.contents);
+    claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
 
     Assert.areEqual("[[],[false,false]]", JSON.stringify(malformed));
     Assert.areEqual("false,true,true,false,true,true", answers.join(","));
-    Assert.areEqual("false,false,true", claims.join(","));
+    Assert.areEqual("false,true,false", claims.join(","));
     Assert.areEqual(String.empty, stray.contents.calls.join(","));
   }
 
