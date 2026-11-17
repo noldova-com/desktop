@@ -30,16 +30,20 @@ Each version's section is written by the pull request that changes the version, 
 - A module declares its commands' and documents' former names in `contributes.formerNames`, so a key binding or a saved tab under a former name carries over to the renamed command or document.
 - A pane's declared key wins in its own views over the app's shortcuts; `webViews.json` gains `loadingKeys`, keys that reach the pane only while the view's page loads; and F6 and Shift+F6 move the focus through the window's regions.
 - A web view raises a `Favicon` event to the window part with the page's icon as a PNG data URL of at most 64 by 64 pixels, or null.
+  `@noldova/desktop.electron`'s `IWebViewSession` gains a required `readIconAsync(url, byteLimit, signal)`: an app that implements `IWebViewSession` itself adds it.
 - A `NewWindowRequested` web view event holds `disposition`: `background-tab`, `foreground-tab` or `new-window`, as the engine gives the request.
   Within 0.0.x the protocol also accepts an event without it, and `IWindowOpenDetails` gains an optional `disposition`.
 - Web views refuse the app's own endpoint ports on a loopback address, even when an allowed origin names them; the protocol adds `desktop.webViewBlockedPorts`, `desktop.readWebViewBlockedPorts` and `desktop.webViewPortsBlocked`.
 - A web view's page that navigates its own top frame elsewhere than its view allows, including to `about:srcdoc`, raises `NavigationRefused`, which a misread of the engine's event had dropped.
+  `@noldova/desktop.electron`'s `IWebViewContents` now gives a `will-frame-navigate` listener one `IFrameNavigation`, in place of `(event, url, isMainFrame)`, and gains `on` overloads for `did-start-navigation`, with an `IWindowNavigation`, and `page-favicon-updated`, with the icons' addresses: an app that implements `IWebViewContents` itself changes its `will-frame-navigate` listener and adds the two overloads.
 - A runtime part marks the span an agent controls a web view with `IRuntimeWebViews.setControlledAsync(id, isControlled)`, and a controlled view behind another tab keeps painting, under the shown tab, so the agent's clicks and keys reach the pages it loads there; the protocol adds `WebViewAction.SetControlled` and the window's `Controlled` event.
   An app that implements `IRuntimeWebViews` itself adds `setControlledAsync`.
 - A web view moved to another group restores its kept page in its new place even when its old page is still being torn down.
 - On Linux only the app's own main process, running the app's program on its own `app.asar`, connects as `ShellClients.mainProcess`, as on macOS and Windows; `IMainProcessCheck` has an optional `accept(socket)`.
 - On macOS a private folder on a volume mounted with ownership ignored is refused with a `FolderNotPrivateException` naming the volume.
+  `@noldova/desktop.runtime`'s `MacFolderProtector` takes the POSIX addon, a `NativeAddon<IPosixProcessAddon>`, as its required second argument, before the optional user: an app that constructs `MacFolderProtector` itself passes it.
 - The runtime's and the main process's log lines no longer block their process on the disk.
+  `@noldova/desktop.electron`'s `IMainProcessLog` gains a required `flush()`, which writes the waiting lines at once before the process quits: an app that implements `IMainProcessLog` itself adds it.
 - The runtime answers a client's handshake that arrived within the handshake time even when the runtime was busy past it, instead of closing the connection.
 - A choice row shows the checked row's own icon when it has one.
 - A document a running part opens while the window reconnects to the runtime opens in front.
