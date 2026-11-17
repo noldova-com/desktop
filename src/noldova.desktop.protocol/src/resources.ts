@@ -343,6 +343,7 @@ export class Resources {
   public static readonly originField: string = "origin";
   public static readonly isRedirectField: string = "isRedirect";
   public static readonly hadRecentInputField: string = "hadRecentInput";
+  public static readonly dispositionField: string = "disposition";
   public static readonly requestField: string = "request";
   public static readonly paramsField: string = "params";
   public static readonly isCutField: string = "isCut";

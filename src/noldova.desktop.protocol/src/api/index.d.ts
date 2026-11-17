@@ -532,7 +532,13 @@ export declare enum WebViewEventKind {
    * `webViews.json` takes such requests; the host opens no window. Its details
    * are the `address`, `hadRecentInput`, whether the person's own key, mouse or
    * touch input reached the view in the last 5 seconds, relayed input aside,
-   * and the `origin` of the referrer, or `null` when the engine sends none.
+   * the `origin` of the referrer, or `null` when the engine sends none, and
+   * the `disposition` the engine gives the request: `background-tab` for the
+   * person's middle or Ctrl or Cmd click on a link, `foreground-tab` for a
+   * link's `target="_blank"` or a script's plain `window.open`, `new-window`
+   * for a `window.open` that asks for a popup or a Shift click, and `default`
+   * or `other` otherwise. The host always sends it; an event without it, such
+   * as one a module's tests build, is accepted until 0.1.0.
    */
   NewWindowRequested = "NewWindowRequested",
 

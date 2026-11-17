@@ -667,7 +667,8 @@ export class OpenWebView {
     this.emit(WebViewEventKind.NewWindowRequested, {
       [Resources.addressField]: details.url,
       [Resources.hadRecentInputField]: !Object.isUndefined(this.lastInput) && now - this.lastInput <= Resources.recentInputMilliseconds,
-      [Resources.originField]: origin === Resources.nullOrigin ? null : origin
+      [Resources.originField]: origin === Resources.nullOrigin ? null : origin,
+      ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition }
     });
   }
 
