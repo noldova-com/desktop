@@ -1,6 +1,6 @@
 {
   "name": "@noldova/desktop",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "desktop": {
     "protocolVersion": 1,
     "modules": [],
