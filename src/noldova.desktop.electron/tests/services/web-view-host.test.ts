@@ -1176,7 +1176,8 @@ export class WebViewHostTests {
     electron.ipcMain.send("desktop:webViewShortcuts", event, ["Mod+T"]);
     await WebViewHostTests.openAsync(electron);
     await WebViewHostTests.openAsync(electron);
-    const [closing, gone] = [0, 1].map(t => WebViewHostTests.view(electron, t).contents);
+    const closing = WebViewHostTests.view(electron, 0).contents;
+    const gone = WebViewHostTests.view(electron, 1).contents;
     const newPage = WebViewHostTests.input("t", "KeyT", true, "linux");
     const typed = WebViewHostTests.input("a", "KeyA", false, "linux");
 
