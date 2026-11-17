@@ -184,15 +184,15 @@ describe("TabGroupComponent", () => {
 
   function showLooks(): void {
     const labels = TestBed.inject(TabLabelService);
-    labels.setLook(LayoutFixture.plan, DocumentLook.none.updated({ image: "data:image/png;base64,iVBORw0KGgo=", imageGlyph: "public",
-      marker: { glyph: "subdirectory_arrow_right", label: "Opened from Todo" }, underline: "A teammate is using this page" }));
+    const older = { image: "data:image/png;base64,iVBORw0KGgo=", imageGlyph: "public", marker: { glyph: "subdirectory_arrow_right", label: "Opened from Todo" }, underline: "A teammate is using this page" };
+    labels.setLook(LayoutFixture.plan, DocumentLook.none.updated(older));
     labels.setLook(LayoutFixture.todo, DocumentLook.none.updated({ status: { glyph: "error", description: "Can't reach this page", tone: DocumentTone.Failed } }));
     update();
   }
 
   for (const theme of AppearanceFixture.themes)
     for (const mode of AppearanceFixture.modes)
-      it(`draws a document tab's marker, image and status at the icon size and part gap, underlines it inside its pill and names each part, with the ${theme.id} theme in ${mode} mode`, async () => {
+      it(`draws a document tab's marker, image and status at the icon size and part gap and names each part, with no underline even from an older module, with the ${theme.id} theme in ${mode} mode`, async () => {
         AppearanceFixture.apply(theme, mode);
         try {
           await renderAsync();
@@ -211,10 +211,9 @@ describe("TabGroupComponent", () => {
           expect([image.left - marker.right, planLabel.left - image.right, todoLabel.left - statusBounds.right].map(t => t / rem())).toEqual([0.375, 0.375, 0.375]);
           expect([image.top + image.height / 2 - (planLabel.top + planLabel.height / 2), statusBounds.top + statusBounds.height / 2 - (todoLabel.top + todoLabel.height / 2)]
             .every(t => Math.abs(t) <= 0.5)).toBe(true);
-          expect(getComputedStyle(find(plan, ".nol-tab-pill")).boxShadow).toContain(`0px ${-0.125 * rem()}px 0px 0px inset`);
-          expect(getComputedStyle(find(todo, ".nol-tab-pill")).boxShadow).toBe("none");
+          expect([getComputedStyle(find(plan, ".nol-tab-pill")).boxShadow, getComputedStyle(find(todo, ".nol-tab-pill")).boxShadow]).toEqual(["none", "none"]);
           expect([(status.textContent ?? String.empty).trim(), status.getAttribute("data-nol-tone"), todo.getAttribute("aria-label")?.includes("Can't reach this page")]).toEqual(["error", "Failed", true]);
-          expect([name.indexOf("Opened from Todo") > 0, name.indexOf("A teammate is using this page") > name.indexOf("Opened from Todo")]).toEqual([true, true]);
+          expect([name.indexOf("Opened from Todo") > 0, name.includes("A teammate is using this page")]).toEqual([true, false]);
           expect([getComputedStyle(status).color, getComputedStyle(find(plan, ".nol-tab-marker")).color])
             .toEqual([colorOf(todo, "var(--nol-status-failed)"), colorOf(plan, "var(--nol-accent)")]);
           expect(colorOf(todo, "var(--nol-status-failed)")).not.toBe(getComputedStyle(find(todo, ".nol-tab-label")).color);
@@ -264,7 +263,7 @@ describe("TabGroupComponent", () => {
 
   for (const theme of AppearanceFixture.themes)
     for (const mode of AppearanceFixture.modes)
-      it(`draws a document tab's marker and status in its text colour, its image's glyph in the image's place and its underline in a system colour under forced colors, with the ${theme.id} theme in ${mode} mode`, async () => {
+      it(`draws a document tab's marker and status in its text colour, its image's glyph in the image's place and no underline under forced colors, with the ${theme.id} theme in ${mode} mode`, async () => {
         AppearanceFixture.apply(theme, mode);
         await emulateForcedColorsAsync("active");
         try {
@@ -277,7 +276,7 @@ describe("TabGroupComponent", () => {
 
           expect([getComputedStyle(find(plan, ".nol-tab-marker")).color, getComputedStyle(find(todo, ".nol-tab-status")).color])
             .toEqual([getComputedStyle(find(plan, ".nol-tab-label")).color, getComputedStyle(find(todo, ".nol-tab-label")).color]);
-          expect([(glyph.textContent ?? String.empty).trim(), getComputedStyle(glyph).visibility, Number.parseFloat(line.height) / rem(), line.backgroundColor !== "rgba(0, 0, 0, 0)"]).toEqual(["public", "visible", 0.125, true]);
+          expect([(glyph.textContent ?? String.empty).trim(), getComputedStyle(glyph).visibility, line.content]).toEqual(["public", "visible", "none"]);
         }
         finally {
           await emulateForcedColorsAsync("none");

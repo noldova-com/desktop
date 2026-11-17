@@ -375,10 +375,10 @@ export interface IDocumentOptions {
   readonly marker?: IDocumentMarker;
 
   /**
-   * Why the tab carries the accent underline, an inset line at its bottom
-   * edge, such as "A teammate is using this page", which joins the tab's
-   * accessible name. Left out, an open document keeps its underline, and one
-   * that isn't open has none. It must not be blank.
+   * Ignored: a document tab no longer carries an underline. It goes at the
+   * next minor version.
+   *
+   * @deprecated Leave it out.
    */
   readonly underline?: string;
 
@@ -518,8 +518,10 @@ export interface IDocumentUpdate {
   readonly marker?: IDocumentMarker | null;
 
   /**
-   * The new reason for the underline, as {@link IDocumentOptions.underline}
-   * describes it; null removes the underline.
+   * Ignored: a document tab no longer carries an underline. It goes at the
+   * next minor version.
+   *
+   * @deprecated Leave it out.
    */
   readonly underline?: string | null;
 }

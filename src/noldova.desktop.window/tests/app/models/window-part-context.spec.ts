@@ -388,15 +388,26 @@ describe("WindowPartContext", () => {
   });
 
   it("gives the host the look a document opens or updates with, and refuses a look its tab can't show", () => {
-    context.openDocument("notes.note", "1", "Note 1", { image: "data:image/png;base64,AA==", underline: "Shared" });
+    context.openDocument("notes.note", "1", "Note 1", { image: "data:image/png;base64,AA==", imageGlyph: "public" });
     context.updateDocument("notes.note", "1", { title: "Note one" });
     context.updateDocument("notes.note", "1", { status: { glyph: "error", description: "Gone" } });
 
     expect(() => context.openDocument("notes.note", "2", "Note 2", { image: "https://example.com/a.png" })).toThrowError(ArgumentException);
-    expect(() => context.updateDocument("notes.note", "1", { underline: " " })).toThrowError(ArgumentException);
+    expect(() => context.updateDocument("notes.note", "1", { imageGlyph: " " })).toThrowError(ArgumentException);
     expect(host.looks.map(([call]) => call)).toEqual(["open notes notes.note 1", "update notes.note 1"]);
-    expect(host.looks[0]?.[1]).toEqual({ image: "data:image/png;base64,AA==", underline: "Shared" });
+    expect(host.looks[0]?.[1]).toEqual({ image: "data:image/png;base64,AA==", imageGlyph: "public" });
     expect(host.looks[1]?.[1]).toEqual({ status: { glyph: "error", description: "Gone" } });
+    expect(host.calls.filter(t => t.startsWith("open"))).toEqual(["open notes notes.note 1 Note 1"]);
+  });
+
+  it("takes an older module's underline, even a blank one or null, and gives the host no look change for it", () => {
+    expect(() => {
+      context.openDocument("notes.note", "1", "Note 1", { underline: " " });
+      context.updateDocument("notes.note", "1", { underline: null });
+      context.updateDocument("notes.note", "1", { underline: " " });
+    }).not.toThrow();
+
+    expect(host.looks.map(([call]) => call)).toEqual(["open notes notes.note 1"]);
     expect(host.calls.filter(t => t.startsWith("open"))).toEqual(["open notes notes.note 1 Note 1"]);
   });
 
@@ -418,8 +429,8 @@ describe("WindowPartContext", () => {
 
   it("gives the host no look once withdrawn", () => {
     context.withdraw();
-    context.openDocument("notes.note", "1", "Note 1", { underline: "Shared" });
-    context.updateDocument("notes.note", "1", { underline: null });
+    context.openDocument("notes.note", "1", "Note 1", { imageGlyph: "public" });
+    context.updateDocument("notes.note", "1", { imageGlyph: null });
 
     expect(host.looks).toEqual([]);
   });
