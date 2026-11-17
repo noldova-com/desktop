@@ -612,13 +612,13 @@ export class OpenWebViewTests {
     const first = asking.contents.openWindow("https://example.com/new", "https://example.com/page");
     asking.contents.emit("input-event", {}, { type: "mouseDown" });
     asking.time = 4000;
-    asking.contents.openWindow("https://example.com/other");
+    asking.contents.openWindow("https://example.com/other", String.empty, "background-tab");
 
     Assert.areEqual(JSON.stringify([{ action: "deny" }, { action: "deny" }]), JSON.stringify([refused, first]));
     Assert.areEqual("RequestRefused {\"request\":\"newWindow\",\"origin\":\"null\"}", refusing.describe());
     Assert.areEqual([
-      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\"}",
-      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null}"
+      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\",\"disposition\":\"foreground-tab\"}",
+      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\"}"
     ].join("|"), asking.describe());
   }
 

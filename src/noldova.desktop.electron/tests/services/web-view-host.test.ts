@@ -1340,15 +1340,15 @@ export class WebViewHostTests {
 
     const answers = [
       contents.openWindow("https://example.com/next", "https://example.com/page"),
-      contents.openWindow("https://example.net/other"),
-      contents.openWindow("https://example.com/data", "data:text/html,x")
+      contents.openWindow("https://example.net/other", String.empty, "new-window"),
+      contents.openWindow("https://example.com/data", "data:text/html,x", "background-tab")
     ];
     await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.runtimeEvents(connection)).length === 3);
 
     const expected = JSON.stringify([
-      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com" },
-      { address: "https://example.net/other", hadRecentInput: false, origin: null },
-      { address: "https://example.com/data", hadRecentInput: false, origin: null }
+      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab" },
+      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window" },
+      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab" }
     ]);
     Assert.areEqual("deny,deny,deny", answers.map(t => t?.action).join(","));
     Assert.areEqual(expected, JSON.stringify(WebViewHostTests.requested(WebViewHostTests.windowEvents(window))));

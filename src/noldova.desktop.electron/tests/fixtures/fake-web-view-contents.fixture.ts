@@ -173,8 +173,8 @@ export class FakeWebViewContents implements IWebViewContents {
     return navigation.isPrevented;
   }
 
-  public openWindow(url: string, referrer: string = String.empty): WindowOpenHandlerResponse | undefined {
-    return this.openHandler?.({ url, referrer: { url: referrer } });
+  public openWindow(url: string, referrer: string = String.empty, disposition: string = "foreground-tab"): WindowOpenHandlerResponse | undefined {
+    return this.openHandler?.({ url, referrer: { url: referrer }, disposition });
   }
 
   public show(url: string, title: string = String.empty): void {

@@ -119,14 +119,16 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 | `ProfileCleared` | The profile key. |
 | `Dropped` | How many of the view's events the host dropped while the runtime was away. |
 | `RequestRefused` | What the host refused without asking, `download`, `newWindow`, `permission`, `fileChooser`, `authentication`, `certificate` or `nestedView`, and the origin that asked. |
-| `NewWindowRequested` | A new-window request the module takes, as [New windows](#new-windows) says: the address, `hadRecentInput` and `origin`. |
+| `NewWindowRequested` | A new-window request the module takes, as [New windows](#new-windows) says: the address, `hadRecentInput`, `origin` and `disposition`. |
 
 ### New windows
 
 A link with `target="_blank"`, a form or a script's `window.open` in a view asks for a new window; the host never opens one.
 
 - A module whose `webViews.json` says `"newWindows": true` gets each request as a `NewWindowRequested` event of that view, through the window bridge's `subscribe` and the runtime's `onViewEvent`; any other module's requests stay refused, each with a `RequestRefused` event of `newWindow`.
-- The event holds the `address` the page asked for, resolved against the page; `hadRecentInput`; and `origin`, the origin of the referrer the engine would send, or `null` when it sends none, such as for `noreferrer`, never a guess.
+- The event holds the `address` the page asked for, resolved against the page; `hadRecentInput`; `origin`, the origin of the referrer the engine would send, or `null` when it sends none, such as for `noreferrer`, never a guess; and `disposition`, how the engine would open it.
+- `disposition` is the engine's own: `background-tab` for the person's middle click or Ctrl or Cmd click on a link, `foreground-tab` for a link's `target="_blank"` or a script's plain `window.open`, `new-window` for a `window.open` that asks for a popup or a Shift click on a link, and `default` or `other` otherwise.
+  It tells the person's click that opens a link in the background from a page's own request, which `hadRecentInput` can't, since that counts any input in the last 5 seconds; a page can't make its own `window.open` a `background-tab`.
 - `hadRecentInput` is the host's own judgement, not the engine's user activation: it is true when the person's own key, mouse button or touch reached that view in the last 5 seconds, and input the runtime part relayed to the view never counts.
   While an `Input.*` call the runtime part relayed is unanswered, the person's input to that view doesn't count either, so a call the engine never answers, even once the relay has timed it out, keeps `hadRecentInput` false for that view.
 - The module answers by opening the address in a view of its own, such as a new view in the same pane, with `openAsync` and `navigateAsync`, where the origin check runs as on every navigation.

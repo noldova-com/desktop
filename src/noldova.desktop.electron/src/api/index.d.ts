@@ -3055,6 +3055,11 @@ export interface IWindowOpenDetails {
    * The referrer the engine would send with it; its address is empty when the page sends none.
    */
   readonly referrer: { readonly url: string };
+
+  /**
+   * How the engine would open it: `default`, `foreground-tab`, `background-tab`, `new-window` or `other`.
+   */
+  readonly disposition: string;
 }
 
 /**
