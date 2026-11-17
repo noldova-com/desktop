@@ -51,6 +51,7 @@ import {
   ToolFailureCode,
   ToolRegistry,
   ToolRisk,
+  TurnOutcome,
   WorkTracker
 } from "@noldova/desktop.runtime";
 
@@ -540,6 +541,7 @@ export class ModuleContextTests {
       settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry(), undefined, undefined, undefined, undefined, undefined, tools);
     const heard: string[] = [];
     context.tools.onSessionStopped((session, reason) => heard.push(`${session}: ${reason}`));
+    context.tools.onTurnEnded((session, outcome) => heard.push(`${session} turn: ${outcome}`));
     const handler = new ToolHandlerFixture(t => ToolHandlerFixture.untilAborted(t));
     context.tools.register(ModuleContextTests.toolDescriptor("notes_search"), handler);
     const session = context.tools.openSession("conversation-1", {});
@@ -548,12 +550,14 @@ export class ModuleContextTests {
     await handler.waitForCallAsync(1);
     context.tools.stopSession(session.id, "The person took over the page.");
     const outcome = await running;
+    session.endTurn(TurnOutcome.Stopped);
     const kept = tools.openSession("conversation-2", {});
     context[Symbol.dispose]();
     tools.stopSession("notes", kept.id, "The person took over the page.");
+    kept.endTurn(TurnOutcome.Stopped);
 
     Assert.areEqual("Stopped", outcome.isFailure ? outcome.code : null);
-    Assert.areEqual(`${session.id}: The person took over the page.`, heard.join(","));
+    Assert.areEqual(`${session.id}: The person took over the page.,${session.id} turn: Stopped`, heard.join(","));
     Assert.isFalse(tools.isStopped);
   }
 

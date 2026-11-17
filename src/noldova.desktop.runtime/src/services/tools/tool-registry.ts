@@ -16,6 +16,7 @@ import type { JsonObject, JsonValue } from "@noldova/context.json";
 import { AgentControlFailure } from "../../enums/agent-control-failure.js";
 import { ToolAbortReason } from "../../enums/tool-abort-reason.js";
 import { ToolFailureCode } from "../../enums/tool-failure-code.js";
+import type { TurnOutcome } from "../../enums/turn-outcome.js";
 import { AgentControlException } from "../../exceptions/agent-control.exception.js";
 import { ToolFailureException } from "../../exceptions/tool-failure.exception.js";
 import { ToolRegisteredException } from "../../exceptions/tool-registered.exception.js";
@@ -53,6 +54,7 @@ export class ToolRegistry implements IToolSessionHost {
   private readonly endListeners: Set<(session: string) => void> = new Set();
   private readonly stopListeners: Set<(reason: string) => void> = new Set();
   private readonly sessionStopListeners: Set<(session: string, reason: string) => void> = new Set();
+  private readonly turnEndListeners: Set<(session: string, outcome: TurnOutcome) => void> = new Set();
   private readonly resumeListeners: Set<() => void> = new Set();
   private readonly controlListeners: Set<() => void> = new Set();
   private readonly turns: ToolTurns = new ToolTurns();
@@ -120,6 +122,10 @@ export class ToolRegistry implements IToolSessionHost {
 
   public onSessionStopped(listener: (session: string, reason: string) => void, log: IModuleLog): Registration {
     return ToolRegistry.listen(this.sessionStopListeners, listener, log);
+  }
+
+  public onTurnEnded(listener: (session: string, outcome: TurnOutcome) => void, log: IModuleLog): Registration {
+    return ToolRegistry.listen(this.turnEndListeners, listener, log);
   }
 
   public onResumed(listener: () => void, log: IModuleLog): Registration {
@@ -242,6 +248,14 @@ export class ToolRegistry implements IToolSessionHost {
     const taking = turn;
     this.running.add(run);
     return new Promise(resolve => this.start(run, input, milliseconds, taking, options.signal, t => resolve(ToolRegistry.withRequests(t, run.requests))));
+  }
+
+  public endTurn(session: ToolSession, outcome: TurnOutcome): void {
+    if (!this.sessions.has(session))
+      return;
+    for (const listener of [...this.turnEndListeners])
+      if (this.turnEndListeners.has(listener))
+        listener(session.id, outcome);
   }
 
   public end(session: ToolSession): void {

@@ -8,6 +8,7 @@
 
 import type { JsonObject } from "@noldova/context.json";
 
+import type { TurnOutcome } from "../../enums/turn-outcome.js";
 import { NotContributedException } from "../../exceptions/not-contributed.exception.js";
 import type { IModuleLog } from "../../interfaces/i-module-log.js";
 import type { IPortBlocker } from "../../interfaces/i-port-blocker.js";
@@ -83,6 +84,12 @@ export class ModuleTools implements IToolsContext {
 
   public onSessionStopped(listener: (session: string, reason: string) => void): Registration {
     const registration = this.registry.onSessionStopped(listener, this.log);
+    this.registrations.push(registration);
+    return registration;
+  }
+
+  public onTurnEnded(listener: (session: string, outcome: TurnOutcome) => void): Registration {
+    const registration = this.registry.onTurnEnded(listener, this.log);
     this.registrations.push(registration);
     return registration;
   }

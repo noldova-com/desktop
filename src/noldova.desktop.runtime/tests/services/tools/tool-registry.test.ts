@@ -17,7 +17,7 @@ import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testin
 import {
   AgentControlException, type IPermissionRequest, type IToolDescriptor, type IToolHandler, type IToolSchemaValidator, PermissionCenter, PermissionDecision, PermissionOption, type PermissionOutcome,
   type Registration, RememberedPermissionStore, ToolAbortReason, type ToolCall, ToolContent, ToolDescriptor, ToolFailure, ToolFailureCode, ToolFailureException, ToolRegisteredException, ToolRegistry,
-  ToolResult, ToolRisk, ToolSchemaValidator, type ToolSession
+  ToolResult, ToolRisk, ToolSchemaValidator, type ToolSession, TurnOutcome
 } from "@noldova/desktop.runtime";
 
 import { ModuleLogFixture } from "../../fixtures/module-log.fixture.js";
@@ -1912,6 +1912,39 @@ export class ToolStopTests {
       refusals.join("\n"));
     Assert.areEqual(0, log.lines.length);
     Assert.areEqual(2, failingLog.lines.length);
+    Assert.isTrue(failingLog.lines[0]?.startsWith("A listener for stopped or resumed agent control failed: Error: The bar failed.") === true, failingLog.lines.join("\n"));
+  }
+
+  @TestMethod
+  public tellsEachTurnEndListenerHowEachTurnOfAnOpenSessionEndedUntilItsRegistrationEnds(): void {
+    const registry = ToolRegistryFixture.create();
+    const log = new ModuleLogFixture();
+    const failingLog = new ModuleLogFixture();
+    const first = registry.openSession("conversation-1", {});
+    const second = registry.openSession("conversation-2", {});
+    const heard: string[] = [];
+    registry.onSessionStopped(t => {
+      if (t === first.id)
+        first.endTurn(TurnOutcome.Stopped);
+    }, log);
+    registry.onTurnEnded(() => {
+      throw new Error("The bar failed.");
+    }, failingLog);
+    const listening = registry.onTurnEnded((t, u) => heard.push(`${t === first.id ? "first" : t === second.id ? "second" : t}: ${u}`), log);
+
+    first.endTurn(TurnOutcome.Finished);
+    second.endTurn(TurnOutcome.Failed);
+    registry.stopSession("browser", first.id, "The person took over the page.");
+    second.end();
+    second.endTurn(TurnOutcome.Finished);
+    const isFirstOpen = registry.isOpen(first);
+    listening[Symbol.dispose]();
+    first.endTurn(TurnOutcome.Finished);
+
+    Assert.areEqual("first: Finished,second: Failed,first: Stopped", heard.join(","));
+    Assert.isTrue(isFirstOpen);
+    Assert.areEqual(0, log.lines.length);
+    Assert.areEqual(4, failingLog.lines.length);
     Assert.isTrue(failingLog.lines[0]?.startsWith("A listener for stopped or resumed agent control failed: Error: The bar failed.") === true, failingLog.lines.join("\n"));
   }
 

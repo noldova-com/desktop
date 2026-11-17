@@ -11,6 +11,7 @@ import { inspect } from "node:util";
 import "@noldova/context.core";
 import { Fake } from "@noldova/desktop.protocol/testing";
 
+import type { TurnOutcome } from "../../enums/turn-outcome.js";
 import type { IModuleLog } from "../../interfaces/i-module-log.js";
 import type { IToolsContext } from "../../interfaces/i-tools-context.js";
 import { Registration } from "../../models/registration.js";
@@ -21,6 +22,7 @@ export class FakeToolsContext extends Fake<IToolsContext> implements IToolsConte
   private readonly log: IModuleLog;
   private readonly sessionEnded: Set<(session: string) => void> = new Set<(session: string) => void>();
   private readonly sessionStopped: Set<(session: string, reason: string) => void> = new Set<(session: string, reason: string) => void>();
+  private readonly turnEnded: Set<(session: string, outcome: TurnOutcome) => void> = new Set<(session: string, outcome: TurnOutcome) => void>();
   private readonly stopped: Set<(reason: string) => void> = new Set<(reason: string) => void>();
   private readonly resumed: Set<() => void> = new Set<() => void>();
 
@@ -31,6 +33,7 @@ export class FakeToolsContext extends Fake<IToolsContext> implements IToolsConte
   public readonly stopAll: IToolsContext["stopAll"] = (...args) => this.tell("stopAll", args, this.answers.stopAll);
   public readonly stopSession: IToolsContext["stopSession"] = (...args) => this.tell("stopSession", args, this.answers.stopSession);
   public readonly onSessionStopped: IToolsContext["onSessionStopped"] = listener => this.listenTo("onSessionStopped", listener, this.sessionStopped, this.answers.onSessionStopped);
+  public readonly onTurnEnded: IToolsContext["onTurnEnded"] = listener => this.listenTo("onTurnEnded", listener, this.turnEnded, this.answers.onTurnEnded);
   public readonly resumeAll: IToolsContext["resumeAll"] = (...args) => this.tell("resumeAll", args, this.answers.resumeAll);
   public readonly onStopped: IToolsContext["onStopped"] = listener => this.listenTo("onStopped", listener, this.stopped, this.answers.onStopped);
   public readonly onResumed: IToolsContext["onResumed"] = listener => this.listenTo("onResumed", listener, this.resumed, this.answers.onResumed);
@@ -50,6 +53,10 @@ export class FakeToolsContext extends Fake<IToolsContext> implements IToolsConte
 
   public raiseSessionStopped(session: string, reason: string): void {
     this.raiseLive(this.sessionStopped, t => t(session, reason), t => this.reportControl(t));
+  }
+
+  public raiseTurnEnded(session: string, outcome: TurnOutcome): void {
+    this.raiseLive(this.turnEnded, t => t(session, outcome), t => this.reportControl(t));
   }
 
   public raiseStopped(reason: string): void {

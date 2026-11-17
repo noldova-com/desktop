@@ -13628,6 +13628,26 @@ export declare enum ToolAbortReason {
 }
 
 /**
+ * How an agent session's turn ended, as the part that opened the session tells it with `ToolSession.endTurn`.
+ */
+export declare enum TurnOutcome {
+  /**
+   * The agent finished the turn and replied.
+   */
+  Finished = "Finished",
+
+  /**
+   * The turn failed, such as when the agent's model or its connection failed.
+   */
+  Failed = "Failed",
+
+  /**
+   * A part stopped the turn, such as for the person's Stop or Take over, or the app stopped it.
+   */
+  Stopped = "Stopped"
+}
+
+/**
  * What a content item of a result holds.
  */
 export declare enum ToolContentKind {
@@ -14046,6 +14066,23 @@ export interface IToolSessionHost {
   callAsync(session: ToolSession, name: string, input: JsonObject, options: IToolCallOptions): Promise<ToolResult | ToolFailure>;
 
   /**
+   * Ends a session's turn: every part's `onTurnEnded` listeners hear the session and the outcome. A session that isn't
+   * open does nothing.
+   *
+   * @param session The session.
+   * @param outcome How the turn ended.
+   * @example
+   * ```ts
+   * import { type IToolSessionHost, type ToolSession, TurnOutcome } from "@noldova/desktop.runtime";
+   *
+   * export function finishTurn(host: IToolSessionHost, session: ToolSession): void {
+   *   host.endTurn(session, TurnOutcome.Finished);
+   * }
+   * ```
+   */
+  endTurn(session: ToolSession, outcome: TurnOutcome): void;
+
+  /**
    * Ends a session: its calls in flight abort with `SessionEnded`, and every part that listens learns of it. Ending a
    * session again does nothing.
    *
@@ -14235,6 +14272,25 @@ export interface IToolsContext {
    * ```
    */
   onSessionStopped(listener: (session: string, reason: string) => void): Registration;
+
+  /**
+   * Listens for the end of each agent session's turn, once per turn, whether it finished, failed or was stopped, as
+   * the part that opened the session tells it with `ToolSession.endTurn`; a part that shows an agent at work, from the
+   * turn's first call, stops showing it then. A session's end isn't a turn's end: `onSessionEnded` tells it. A listener
+   * that throws is written to the module's log and stops no other listener.
+   *
+   * @param listener Called with the session's id and how the turn ended.
+   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too.
+   * @example
+   * ```ts
+   * import type { IRuntimePartContext, Registration } from "@noldova/desktop.runtime";
+   *
+   * export function hideAgentBars(context: IRuntimePartContext, hide: (session: string) => void): Registration {
+   *   return context.tools.onTurnEnded(t => hide(t));
+   * }
+   * ```
+   */
+  onTurnEnded(listener: (session: string, outcome: TurnOutcome) => void): Registration;
 
   /**
    * Resumes agent control, from a command the person runs, which checks that its request comes from the app's main
@@ -16067,6 +16123,23 @@ export declare class ToolSession {
   public callAsync(name: string, input: JsonObject, options?: IToolCallOptions): Promise<ToolResult | ToolFailure>;
 
   /**
+   * Ends the session's turn, once at each turn's end, whether the agent finished, the turn failed or a part stopped
+   * it: every part's `onTurnEnded` listeners hear the session and the outcome. The session stays open for its next
+   * turn; a session that isn't open does nothing.
+   *
+   * @param outcome How the turn ended.
+   * @example
+   * ```ts
+   * import { type ToolSession, TurnOutcome } from "@noldova/desktop.runtime";
+   *
+   * export function finishTurn(session: ToolSession): void {
+   *   session.endTurn(TurnOutcome.Finished);
+   * }
+   * ```
+   */
+  public endTurn(outcome: TurnOutcome): void;
+
+  /**
    * Ends the session: its calls in flight abort with `SessionEnded`, and every part that listens learns of it.
    *
    * @example
@@ -16239,6 +16312,22 @@ export declare class ToolRegistry implements IToolSessionHost {
   public callAsync(session: ToolSession, name: string, input: JsonObject, options: IToolCallOptions): Promise<ToolResult | ToolFailure>;
 
   /**
+   * See {@link IToolSessionHost.endTurn}.
+   *
+   * @param session The session.
+   * @param outcome How the turn ended.
+   * @example
+   * ```ts
+   * import { type ToolRegistry, type ToolSession, TurnOutcome } from "@noldova/desktop.runtime";
+   *
+   * export function failTurn(registry: ToolRegistry, session: ToolSession): void {
+   *   registry.endTurn(session, TurnOutcome.Failed);
+   * }
+   * ```
+   */
+  public endTurn(session: ToolSession, outcome: TurnOutcome): void;
+
+  /**
    * See {@link IToolSessionHost.end}.
    *
    * @param session The session.
@@ -16313,6 +16402,23 @@ export declare class ToolRegistry implements IToolSessionHost {
    * ```
    */
   public onSessionStopped(listener: (session: string, reason: string) => void, log: IModuleLog): Registration;
+
+  /**
+   * See {@link IToolsContext.onTurnEnded}.
+   *
+   * @param listener Called with the session's id and how the turn ended.
+   * @param log The listening module's log, which takes a listener's failure.
+   * @returns The listening; disposing it stops it.
+   * @example
+   * ```ts
+   * import type { IModuleLog, Registration, ToolRegistry } from "@noldova/desktop.runtime";
+   *
+   * export function hideAgentBars(registry: ToolRegistry, hide: (session: string) => void, log: IModuleLog): Registration {
+   *   return registry.onTurnEnded(t => hide(t), log);
+   * }
+   * ```
+   */
+  public onTurnEnded(listener: (session: string, outcome: TurnOutcome) => void, log: IModuleLog): Registration;
 
   /**
    * Listens for any change of `isStopped` or `isActing`, for the runtime's own report of agent control.

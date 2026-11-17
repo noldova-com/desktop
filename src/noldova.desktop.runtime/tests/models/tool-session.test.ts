@@ -9,7 +9,7 @@
 import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { type IToolCallOptions, type IToolSessionHost, ToolDescriptor, ToolFailure, ToolFailureCode, ToolResult, ToolRisk, ToolSession } from "@noldova/desktop.runtime";
+import { type IToolCallOptions, type IToolSessionHost, ToolDescriptor, ToolFailure, ToolFailureCode, ToolResult, ToolRisk, ToolSession, TurnOutcome } from "@noldova/desktop.runtime";
 
 @TestClass
 export class ToolSessionTests {
@@ -51,6 +51,18 @@ export class ToolSessionTests {
   }
 
   @TestMethod
+  public endsEachTurnThroughTheHostWithItsOutcome(): void {
+    const calls: string[] = [];
+    const session = new ToolSession("session-1", "conversation-1", {}, ToolSessionTests.host([], calls));
+
+    session.endTurn(TurnOutcome.Finished);
+    session.endTurn(TurnOutcome.Failed);
+    session.endTurn(TurnOutcome.Stopped);
+
+    Assert.areEqual("turn session-1 Finished|turn session-1 Failed|turn session-1 Stopped", calls.join("|"));
+  }
+
+  @TestMethod
   public endsThroughTheHost(): void {
     const calls: string[] = [];
     const session = new ToolSession("session-1", "conversation-1", {}, ToolSessionTests.host([], calls));
@@ -63,7 +75,7 @@ export class ToolSessionTests {
   @TestMethod
   public async passesOnTheHostsFailure(): Promise<void> {
     const failure = new ToolFailure(ToolFailureCode.Refused, "The note is outside the notebook.");
-    const host: IToolSessionHost = { listTools: () => [], callAsync: () => Promise.resolve(failure), end: () => undefined };
+    const host: IToolSessionHost = { listTools: () => [], callAsync: () => Promise.resolve(failure), endTurn: () => undefined, end: () => undefined };
 
     const outcome = await new ToolSession("session-1", "conversation-1", {}, host).callAsync("notes_append", {});
 
@@ -76,6 +88,9 @@ export class ToolSessionTests {
       callAsync: (session: ToolSession, name: string, input: JsonObject, options: IToolCallOptions) => {
         calls.push(`${session.id} ${name} ${JSON.stringify(input)} ${JSON.stringify(options)}`);
         return Promise.resolve(new ToolResult([]));
+      },
+      endTurn: (session: ToolSession, outcome: TurnOutcome) => {
+        calls.push(`turn ${session.id} ${outcome}`);
       },
       end: (session: ToolSession) => {
         calls.push(`end ${session.id}`);

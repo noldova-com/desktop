@@ -158,8 +158,13 @@ An aborted call fails with the code its reason and its progress give; a resumabl
 | `switchedOff(name)`, `switchedOn(name)` | The tool's part | The app turns one of its tools off or on again while its module stays on. |
 | `stopped(reason)`, `resumed()` | Every runtime part that registers tools | Agent control stops, or the person resumes it; stopping aborts every call in flight with `Stopped`. |
 | `sessionStopped(session, reason)` | Every runtime part that listens with `context.tools.onSessionStopped(listener)` | A part stops one session's turn; the app's part, which opened the session, ends the agent's turn and says so in its reply. |
+| `turnEnded(session, outcome)` | Every runtime part that listens with `context.tools.onTurnEnded(listener)` | The app's part, which opened the session, ends one of its turns with `session.endTurn(outcome)`: `Finished`, `Failed` or `Stopped`. |
 
 - A `sessionEnded` listener that throws is written to its module's log and stops no other listener.
+- The part that opened a session calls `session.endTurn(outcome)` once at the end of each of its turns, however the turn ends: `TurnOutcome.Finished` when the agent replied, `TurnOutcome.Failed` when the turn failed, such as when the agent's model or its connection failed, and `TurnOutcome.Stopped` when a part or the app stopped it, such as in its `onSessionStopped` listener.
+  Every part's `onTurnEnded` listeners then hear the session's id and the outcome, so a part that shows an agent at work from the turn's first call, such as a bar on the page the agent acts on, stops showing it at the turn's end rather than after each call or a timer.
+  The session stays open for its next turn; a session that isn't open does nothing, and its end is no turn end: `onSessionEnded` tells it.
+  A listener that throws is written to its module's log and stops no other listener, and the part's deactivation stops its listening.
 - Turning a whole module off deactivates its runtime part, as [MODULES.md](MODULES.md#lifecycle) says, which releases its tools; the part then offers no tool and does no work for agents.
 - The person or any runtime part stops all agent control, a part with `context.tools.stopAll(reason)`, such as when the person takes over or a part misses its own heartbeat.
 - Only the person resumes: a part calls `context.tools.resumeAll()` only from a command the person runs, whose request's client it checks is `ShellClients.mainProcess`, and the registry refuses it, with an `AgentControlException`, while a tool call of that part runs, until its handler returns even past its abort, and while agent control is stopping, as in a listener of `onStopped` or of a call's abort.

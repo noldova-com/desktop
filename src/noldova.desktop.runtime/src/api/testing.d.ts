@@ -11,7 +11,7 @@ import type { SettingChange, WebViewEvent } from "@noldova/desktop.protocol";
 import { Fake, type UnansweredCallException } from "@noldova/desktop.protocol/testing";
 import type { ClientClosure, IAppShortcuts, IAppWindows, IModuleDatabase, IModuleLog, IModuleSecrets, IModuleSettings, IPermissionsContext, IRuntimeFiles,
   IRuntimePartContext, IRuntimeWebViews, IToolsContext, IWebViewRelay, PermissionRevocation, Registration, RegistrationException,
-  WebViewFailureException, WebViewProtocolEvent } from "@noldova/desktop.runtime";
+  TurnOutcome, WebViewFailureException, WebViewProtocolEvent } from "@noldova/desktop.runtime";
 
 /**
  * A fake of the {@link IRuntimePartContext} that the runtime hands a module's
@@ -1204,6 +1204,26 @@ export declare class FakeToolsContext extends Fake<IToolsContext> implements ITo
   public readonly onSessionStopped: IToolsContext["onSessionStopped"];
 
   /**
+   * Stands in for {@link IToolsContext.onTurnEnded}. Records each listener,
+   * which {@link Fake.activeCallsOf} lists until the {@link Registration} it
+   * returns is disposed, and which {@link FakeToolsContext.raiseTurnEnded}
+   * calls. With the answer that {@link Fake.answer} gives, such as a
+   * `ToolRegistry`'s own, the listener goes to that answer instead, and the
+   * raiser doesn't call it; disposing the {@link Registration} it returns
+   * also disposes the answer's.
+   *
+   * @example
+   * ```ts
+   * import type { FakeToolsContext } from "@noldova/desktop.runtime/testing";
+   *
+   * export function activeOnTurnEnded(fake: FakeToolsContext): number {
+   *   return fake.activeCallsOf("onTurnEnded").length;
+   * }
+   * ```
+   */
+  public readonly onTurnEnded: IToolsContext["onTurnEnded"];
+
+  /**
    * Stands in for {@link IToolsContext.resumeAll}. Records each call, which
    * {@link Fake.callsOf} reads, and calls the answer that {@link Fake.answer}
    * gives; while unanswered, it only records the call.
@@ -1325,6 +1345,30 @@ export declare class FakeToolsContext extends Fake<IToolsContext> implements ITo
    * ```
    */
   public raiseSessionStopped(session: string, reason: string): void;
+
+  /**
+   * Tells each listener of {@link IToolsContext.onTurnEnded} that a tool
+   * session's turn ended.
+   *
+   * As Noldova Desktop's own dispatch does, it skips a listener that an earlier
+   * one removes during the call, and one that throws stops no other: the log
+   * the fake was made with records the line the module's log would write.
+   *
+   * @param session The session's id.
+   *
+   * @param outcome How the turn ended.
+   *
+   * @example
+   * ```ts
+   * import { TurnOutcome } from "@noldova/desktop.runtime";
+   * import { FakeToolsContext } from "@noldova/desktop.runtime/testing";
+   *
+   * export function finishTurn(tools: FakeToolsContext): void {
+   *   tools.raiseTurnEnded("session-1", TurnOutcome.Finished);
+   * }
+   * ```
+   */
+  public raiseTurnEnded(session: string, outcome: TurnOutcome): void;
 
   /**
    * Tells each listener of {@link IToolsContext.onStopped} that every tool

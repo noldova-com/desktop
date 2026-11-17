@@ -10,6 +10,7 @@ import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { ToolRisk } from "../../../src/enums/tool-risk.js";
+import { TurnOutcome } from "../../../src/enums/turn-outcome.js";
 import { NotContributedException } from "../../../src/exceptions/not-contributed.exception.js";
 import type { IToolDescriptor } from "../../../src/interfaces/i-tool-descriptor.js";
 import { ModuleDeclaration } from "../../../src/models/module-declaration.js";
@@ -80,9 +81,11 @@ export class ModuleToolsTests {
     tools.onResumed(() => heard.push("resumed"));
     tools.onSessionStopped((session, reason) => heard.push(`session ${session} ${reason}`));
     tools.onSessionEnded(t => heard.push(`ended ${t}`));
+    tools.onTurnEnded((session, outcome) => heard.push(`turn ${session} ${outcome}`));
     const session = tools.openSession("conversation-1", {});
 
     tools.stopSession(session.id, "The person stopped it.");
+    session.endTurn(TurnOutcome.Stopped);
     tools.stopAll("The person stopped everything.");
     const isStopped = tools.isStopped;
     tools.resumeAll();
@@ -92,10 +95,10 @@ export class ModuleToolsTests {
     tools.stopAll("Again.");
     tools.resumeAll();
 
-    Assert.areEqual(`session ${session.id} The person stopped it.,stopped The person stopped everything.,resumed`, heard.join(","));
+    Assert.areEqual(`session ${session.id} The person stopped it.,turn ${session.id} Stopped,stopped The person stopped everything.,resumed`, heard.join(","));
     Assert.isTrue(isStopped);
     Assert.isTrue(isResumed);
-    Assert.areEqual(5, registrations.length);
+    Assert.areEqual(6, registrations.length);
   }
 
   private static create(registry: ToolRegistry, registrations: Disposable[]): ModuleTools {

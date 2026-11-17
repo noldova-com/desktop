@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ToolDescriptor, ToolRegistry, ToolRisk } from "@noldova/desktop.runtime";
+import { ToolDescriptor, ToolRegistry, ToolRisk, TurnOutcome } from "@noldova/desktop.runtime";
 import type { IToolDescriptor, IToolsContext } from "@noldova/desktop.runtime";
 import { FakeModuleLog, FakeToolsContext } from "@noldova/desktop.runtime/testing";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
@@ -35,6 +35,7 @@ export class FakeToolsContextTests {
     stopAll: ["told", t => t.stopAll(FakeToolsContextTests.REASON)],
     stopSession: ["told", t => t.stopSession(FakeToolsContextTests.SESSION, FakeToolsContextTests.REASON)],
     onSessionStopped: ["registered", t => t.onSessionStopped(() => undefined)],
+    onTurnEnded: ["registered", t => t.onTurnEnded(() => undefined)],
     resumeAll: ["told", t => t.resumeAll()],
     onStopped: ["registered", t => t.onStopped(() => undefined)],
     onResumed: ["registered", t => t.onResumed(() => undefined)],
@@ -57,18 +58,22 @@ export class FakeToolsContextTests {
     tools.answer("register", (descriptor, toolHandler) => registry.register("notes", new ToolDescriptor(descriptor, named), toolHandler, named, log));
     tools.answer("onSessionEnded", listener => registry.onSessionEnded(listener, log));
     tools.answer("onSessionStopped", listener => registry.onSessionStopped(listener, log));
+    tools.answer("onTurnEnded", listener => registry.onTurnEnded(listener, log));
     tools.answer("onStopped", listener => registry.onStopped(listener, log));
     tools.answer("onResumed", listener => registry.onResumed(listener, log));
 
     const registration = tools.register(FakeToolsContextTests.SEARCH, handler);
     tools.onSessionEnded(() => heard.push("ended"));
     tools.onSessionStopped((_session, reason) => heard.push(`session stopped ${reason}`));
+    tools.onTurnEnded((_session, outcome) => heard.push(`turn ${outcome}`));
     const stopped = tools.onStopped(t => heard.push(`stopped ${t}`));
     tools.onResumed(() => heard.push("resumed"));
     const session = registry.openSession("notes", {});
     const outcome = await session.callAsync(FakeToolsContextTests.SEARCH.name, {});
     tools.raiseStopped("fake");
     registry.stopSession("notes", session.id, "person");
+    session.endTurn(TurnOutcome.Stopped);
+    tools.raiseTurnEnded(session.id, TurnOutcome.Finished);
     registry.stopAll("person");
     stopped[Symbol.dispose]();
     registry.resumeAll(null);
@@ -79,7 +84,7 @@ export class FakeToolsContextTests {
 
     Assert.isFalse(outcome.isFailure);
     Assert.areEqual(1, handler.calls.length);
-    Assert.areEqual("session stopped person|stopped person|resumed|ended", heard.join("|"));
+    Assert.areEqual("session stopped person|turn Stopped|stopped person|resumed|ended", heard.join("|"));
     Assert.areEqual(1, listed);
     Assert.areEqual(0, registry.listTools().length);
     Assert.areEqual(0, tools.activeCallsOf("register").length);
@@ -106,12 +111,14 @@ export class FakeToolsContextTests {
     const registrations = [
       tools.onSessionEnded(t => heard.push(`ended ${t}`)),
       tools.onSessionStopped((t, reason) => heard.push(`stopped ${t} ${reason}`)),
+      tools.onTurnEnded((t, outcome) => heard.push(`turn ${t} ${outcome}`)),
       tools.onStopped(t => heard.push(`all stopped ${t}`)),
       tools.onResumed(() => heard.push("resumed"))
     ];
     const raiseAll = (round: string): void => {
       tools.raiseSessionEnded(round);
       tools.raiseSessionStopped(round, "person");
+      tools.raiseTurnEnded(round, TurnOutcome.Failed);
       tools.raiseStopped(round);
       tools.raiseResumed();
     };
@@ -121,7 +128,7 @@ export class FakeToolsContextTests {
       registration[Symbol.dispose]();
     raiseAll("2");
 
-    Assert.areEqual("ended 1|stopped 1 person|all stopped 1|resumed", heard.join("|"));
+    Assert.areEqual("ended 1|stopped 1 person|turn 1 Failed|all stopped 1|resumed", heard.join("|"));
   }
 
   @TestMethod
@@ -148,6 +155,21 @@ export class FakeToolsContextTests {
       const registration = tools.onSessionStopped(listener);
       return () => registration[Symbol.dispose]();
     }, () => tools.raiseSessionStopped("session-1", "person"));
+
+    Assert.areEqual("third|fourth", heard);
+    Assert.areEqual(0, tools.errors.length);
+    Assert.isTrue(FakeRaisersFixture.logged(log, "A listener for stopped or resumed agent control failed: "));
+  }
+
+  @TestMethod
+  public turnEndedSkipsARemovedListenerAndWritesAThrownErrorToTheLog(): void {
+    const log = new FakeModuleLog();
+    const tools = new FakeToolsContext(log);
+
+    const heard = FakeRaisersFixture.heard(listener => {
+      const registration = tools.onTurnEnded(listener);
+      return () => registration[Symbol.dispose]();
+    }, () => tools.raiseTurnEnded("session-1", TurnOutcome.Finished));
 
     Assert.areEqual("third|fourth", heard);
     Assert.areEqual(0, tools.errors.length);

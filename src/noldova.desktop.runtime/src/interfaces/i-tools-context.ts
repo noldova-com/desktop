@@ -8,6 +8,7 @@
 
 import type { JsonObject } from "@noldova/context.json";
 
+import type { TurnOutcome } from "../enums/turn-outcome.js";
 import type { Registration } from "../models/registration.js";
 import type { ToolSession } from "../models/tool-session.js";
 import type { IToolDescriptor } from "./i-tool-descriptor.js";
@@ -31,6 +32,8 @@ export interface IToolsContext {
   stopSession(session: string, reason: string): void;
 
   onSessionStopped(listener: (session: string, reason: string) => void): Registration;
+
+  onTurnEnded(listener: (session: string, outcome: TurnOutcome) => void): Registration;
 
   resumeAll(): void;
 

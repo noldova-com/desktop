@@ -17,6 +17,7 @@ export { ToolAbortReason } from "../enums/tool-abort-reason.js";
 export { ToolContentKind } from "../enums/tool-content-kind.js";
 export { ToolFailureCode } from "../enums/tool-failure-code.js";
 export { ToolRisk } from "../enums/tool-risk.js";
+export { TurnOutcome } from "../enums/turn-outcome.js";
 export { UnknownSchemaFailure } from "../enums/unknown-schema-failure.js";
 export { UpdateBarrierState } from "../enums/update-barrier-state.js";
 export { UpdateBarrierStatus } from "../enums/update-barrier-status.js";

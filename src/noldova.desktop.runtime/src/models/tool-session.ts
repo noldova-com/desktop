@@ -8,6 +8,7 @@
 
 import type { JsonObject } from "@noldova/context.json";
 
+import type { TurnOutcome } from "../enums/turn-outcome.js";
 import type { IToolCallOptions } from "../interfaces/i-tool-call-options.js";
 import type { IToolSessionHost } from "../interfaces/i-tool-session-host.js";
 import type { ToolDescriptor } from "./tool-descriptor.js";
@@ -34,6 +35,10 @@ export class ToolSession {
 
   public callAsync(name: string, input: JsonObject, options: IToolCallOptions = {}): Promise<ToolResult | ToolFailure> {
     return this.host.callAsync(this, name, input, options);
+  }
+
+  public endTurn(outcome: TurnOutcome): void {
+    this.host.endTurn(this, outcome);
   }
 
   public end(): void {
