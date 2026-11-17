@@ -149,6 +149,7 @@ The runtime part sends its views calls of the window's web engine's debugging pr
 - Any other call the relay sends reaches the page as sent, and the person's focus stays theirs.
   Before each such call, the host turns on `Emulation.setFocusEmulationEnabled` for the page, once until it is released, so the page keeps its focus state: it sees no `blur` when the focus leaves it, or between an agent's click and the typing after it, and its field keeps its focus.
   The page reads `document.hasFocus()` as true while the emulation is on.
+  Each such call also turns the page's background throttling off first, keeping the value it found until the focus is released, when it puts that value back on the same page: a page in a hidden tab is hidden too, and a document it loads there, by a navigation or a form's post, starts hidden and never paints, while the engine drops every input but a mouse move until a document's first paint, so the call wakes the document it reaches.
   The host tells the window when the call starts; once the engine answers, the host makes a round trip to the page's renderer, in a world the page's scripts can't reach, and only then tells the window the call has ended.
   A call that times out is answered as `TimedOut` at its deadline, but the window hears that it ended only once the call and the round trip settle, so a focus change that lands late still finds the call open.
 - A mouse press, `DOM.focus` or a script can focus one of the page's elements, which makes the view the window's focused element.

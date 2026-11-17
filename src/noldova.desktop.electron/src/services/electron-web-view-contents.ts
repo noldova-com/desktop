@@ -105,6 +105,14 @@ export class ElectronWebViewContents implements IWebViewContents {
     this.page.setZoomFactor(factor);
   }
 
+  public getBackgroundThrottling(): boolean {
+    return this.page.getBackgroundThrottling();
+  }
+
+  public setBackgroundThrottling(isAllowed: boolean): void {
+    this.page.setBackgroundThrottling(isAllowed);
+  }
+
   public findInPage(text: string, options: { readonly forward: boolean; readonly findNext: boolean; readonly matchCase: boolean }): number {
     return this.page.findInPage(text, options);
   }

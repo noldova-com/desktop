@@ -275,7 +275,7 @@ async function startServerAsync(): Promise<Server> {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(request.url?.endsWith("&manual") === true ? manualFormPage : formPage);
       return;
     }
-    if (request.url === "/focus") {
+    if (request.url === "/focus" || (request.url ?? String.empty).startsWith("/focus?")) {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(focusPage);
       return;
     }
@@ -574,6 +574,45 @@ test.describe("web views", () => {
 
       expect(await readFirstViewAsync(mainProcess, "document.title")).toBe("Focus hello! abc first 0");
       await expect(note).toBeFocused();
+      await expect.poll(() => readPlacesAsync(window)).toEqual([[false, expect.anything()], [false, expect.anything()]]);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a click the runtime part sends through the relay reaches a web view's page that navigated by GET and by POST while its tab was behind another document of its group", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const noteKey = "document/notes.note/1";
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      const navigations = [
+        [`${origin}/focus?get`, `setTimeout(() => location.assign(${JSON.stringify(`${origin}/focus?get`)}));`],
+        [`${origin}/focus?post`, `setTimeout(() => { const form = document.createElement("form"); form.method = "post"; form.action = ${JSON.stringify(`${origin}/focus?post`)}; document.body.append(form); form.submit(); });`]
+      ] as const;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/focus` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Focus - - - 0");
+      await TabDragFixture.tab(window, noteKey).click();
+      await expect(window.locator("[data-fixture-content=notes-note-1]")).toBeVisible();
+      await expect.poll(() => readPlacesAsync(window)).toEqual([[false, expect.anything()], [false, expect.anything()]]);
+
+      const titles: unknown[] = [];
+      for (const [address, script] of navigations) {
+        expect(await runInFirstViewAsync(mainProcess, script)).toBe(true);
+        await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address, isLoading: false });
+        await requestAsync(window, "pages.click", { view: 0, x: 60, y: 25 });
+        await requestAsync(window, "pages.type", { view: 0, text: "ab" });
+        titles.push(await readFirstViewAsync(mainProcess, "document.title"));
+      }
+
+      expect(titles).toEqual(["Focus ab - first 0", "Focus ab - first 0"]);
       await expect.poll(() => readPlacesAsync(window)).toEqual([[false, expect.anything()], [false, expect.anything()]]);
     }
     finally {

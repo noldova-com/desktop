@@ -1165,6 +1165,45 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async turnsThrottlingOffForEachCallToThePageNotForKeysOrTextAndPutsBackTheValueItFoundOnReleaseOnlyOnThatPage(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const click = (call: number): Promise<WebViewAnswered> => harness.open.sendAsync(call, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+
+    await harness.open.sendAsync(1, "Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: 0 }, 1000);
+    await harness.open.sendAsync(2, "Input.insertText", { text: "a" }, 1000);
+    const beforePageCalls = JSON.stringify(harness.contents.throttling);
+    await click(3);
+    await click(4);
+    harness.open.releaseFocus();
+    harness.open.releaseFocus();
+    await click(5);
+    await harness.open.bindAsync(fresh);
+    harness.open.releaseFocus();
+    fresh.isThrottled = false;
+    await click(6);
+    harness.open.releaseFocus();
+
+    Assert.areEqual("[]", beforePageCalls);
+    Assert.areEqual(JSON.stringify([false, false, true, false]), JSON.stringify(harness.contents.throttling));
+    Assert.areEqual(JSON.stringify([false, false]), JSON.stringify(fresh.throttling));
+  }
+
+  @TestMethod
+  public async leavesTheThrottlingOfADestroyedPageAlone(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    const click = (call: number): Promise<WebViewAnswered> => harness.open.sendAsync(call, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+
+    await click(1);
+    harness.contents.destroyed = true;
+    harness.open.releaseFocus();
+    await click(2);
+    harness.open.releaseFocus();
+
+    Assert.areEqual(JSON.stringify([false]), JSON.stringify(harness.contents.throttling));
+  }
+
+  @TestMethod
   public async sendsACallToThePageWhenThePageRefusesTheHoldTriesTheHoldAgainNextTimeForgetsARefusedReleaseAndHoldsNothingOnACrashedPage(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
     const click = (call: number): Promise<WebViewAnswered> => harness.open.sendAsync(call, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);

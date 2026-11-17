@@ -40,6 +40,8 @@ export interface IWebViewContents {
   setWebRTCIPHandlingPolicy(policy: "disable_non_proxied_udp"): void;
   getZoomFactor(): number;
   setZoomFactor(factor: number): void;
+  getBackgroundThrottling(): boolean;
+  setBackgroundThrottling(isAllowed: boolean): void;
   findInPage(text: string, options: { readonly forward: boolean; readonly findNext: boolean; readonly matchCase: boolean }): number;
   stopFindInPage(action: "clearSelection"): void;
   sendInputEvent(event: IWebViewKeyEvent): void;
