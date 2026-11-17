@@ -18,7 +18,7 @@ import type { IDocumentStatus } from "../interfaces/i-document-status.js";
 import { Resources } from "../../resources.js";
 
 export class DocumentLook {
-  public static readonly none: DocumentLook = new DocumentLook(null, null, null, null, null);
+  public static readonly none: DocumentLook = new DocumentLook(null, null, null, null);
 
   private static readonly TONES: Readonly<Record<DocumentTone, TabTone>> = {
     [DocumentTone.Neutral]: TabTone.Neutral,
@@ -30,14 +30,12 @@ export class DocumentLook {
   public readonly imageGlyph: string | null;
   public readonly status: TabStatus | null;
   public readonly marker: TabMarker | null;
-  public readonly underline: string | null;
 
-  private constructor(image: string | null, imageGlyph: string | null, status: TabStatus | null, marker: TabMarker | null, underline: string | null) {
+  private constructor(image: string | null, imageGlyph: string | null, status: TabStatus | null, marker: TabMarker | null) {
     this.image = image;
     this.imageGlyph = imageGlyph;
     this.status = status;
     this.marker = marker;
-    this.underline = underline;
   }
 
   public static validate(change: IDocumentUpdate): void {
@@ -45,7 +43,7 @@ export class DocumentLook {
   }
 
   public static changes(change: IDocumentUpdate): boolean {
-    return [change.image, change.imageGlyph, change.status, change.marker, change.underline].some(t => !Object.isUndefined(t));
+    return [change.image, change.imageGlyph, change.status, change.marker].some(t => !Object.isUndefined(t));
   }
 
   public updated(change: IDocumentUpdate): DocumentLook {
@@ -53,8 +51,7 @@ export class DocumentLook {
       Object.isUndefined(change.image) ? this.image : DocumentLook.requireImage(change.image),
       Object.isUndefined(change.imageGlyph) ? this.imageGlyph : DocumentLook.requireText(change.imageGlyph, Resources.imageGlyphParameter),
       Object.isUndefined(change.status) ? this.status : DocumentLook.toStatus(change.status),
-      Object.isUndefined(change.marker) ? this.marker : DocumentLook.toMarker(change.marker),
-      Object.isUndefined(change.underline) ? this.underline : DocumentLook.requireText(change.underline, Resources.underlineParameter));
+      Object.isUndefined(change.marker) ? this.marker : DocumentLook.toMarker(change.marker));
   }
 
   private static requireImage(image: string | null): string | null {

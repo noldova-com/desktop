@@ -279,7 +279,7 @@ describe("WindowPartHostService", () => {
     const notes = new WindowPartFixture("notes", log, t => {
       t.registerView(new ViewContribution("notes.list", "Notes", "sticky_note_2", DockSide.Left, true, load));
       t.registerDocument(new DocumentContribution("notes.note", load));
-      t.openDocument("notes.note", "1", "Note 1", { underline: "Shared", image: "data:image/png;base64,AA==" });
+      t.openDocument("notes.note", "1", "Note 1", { imageGlyph: "Shared", image: "data:image/png;base64,AA==" });
       t.updateDocument("notes.note", "1", { status: { glyph: "error", description: "Gone" }, image: null });
     });
     const { layout } = start([source("notes", notes)], [status("notes")]);
@@ -288,27 +288,27 @@ describe("WindowPartHostService", () => {
     await vi.waitFor(() => expect(layout.layout().documents.tabs).toEqual([new DocumentTab("notes.note", "1")]));
 
     const look = labels.lookOf(new DocumentTab("notes.note", "1"));
-    expect([look.underline, look.status?.description, look.image]).toEqual(["Shared", "Gone", null]);
+    expect([look.imageGlyph, look.status?.description, look.image]).toEqual(["Shared", "Gone", null]);
   });
 
   it("keeps an open document's look when the part opens it again, changing only the look the options give", async () => {
     const parts: IWindowPartContext[] = [];
     const notes = new WindowPartFixture("notes", log, t => {
       t.registerDocument(new DocumentContribution("notes.note", load));
-      t.openDocument("notes.note", "1", "Note 1", { underline: "Shared" });
+      t.openDocument("notes.note", "1", "Note 1", { imageGlyph: "Shared" });
       t.updateDocument("notes.note", "1", { status: { glyph: "error", description: "Gone" }, marker: { glyph: "lock", label: "Locked" } });
       parts.push(t);
     });
     const { layout } = start([source("notes", notes)], [status("notes")]);
     const labels = TestBed.inject(TabLabelService);
     const tab = new DocumentTab("notes.note", "1");
-    const read = (): readonly (string | null)[] => [labels.lookOf(tab).underline, labels.lookOf(tab).status?.description ?? null, labels.lookOf(tab).marker?.label ?? null];
+    const read = (): readonly (string | null)[] => [labels.lookOf(tab).imageGlyph, labels.lookOf(tab).status?.description ?? null, labels.lookOf(tab).marker?.label ?? null];
     await vi.waitFor(() => expect(layout.layout().documents.tabs).toEqual([tab]));
     const opened = read();
 
     parts.forEach(t => t.openDocument("notes.note", "1", "Note 1"));
     const reopened = read();
-    parts.forEach(t => t.openDocument("notes.note", "1", "Note 1", { underline: "Draft", breadcrumb: ["Notes"] }));
+    parts.forEach(t => t.openDocument("notes.note", "1", "Note 1", { imageGlyph: "Draft", breadcrumb: ["Notes"] }));
 
     expect([opened, reopened, read()]).toEqual([["Shared", "Gone", "Locked"], ["Shared", "Gone", "Locked"], ["Draft", "Gone", "Locked"]]);
   });
@@ -317,7 +317,7 @@ describe("WindowPartHostService", () => {
     const notes = new WindowPartFixture("notes", log, t => {
       t.registerDocument(new DocumentContribution("notes.note", load));
       t.openDocument("notes.note", "1", "Note 1", { marker: { glyph: "link", label: "From a link" } });
-      t.updateDocument("notes.note", "1", { underline: "Shared" });
+      t.updateDocument("notes.note", "1", { imageGlyph: "Shared" });
       t.openDocument("notes.note", "1", "Note 1");
     });
     const { layout } = start([source("notes", notes)], [status("notes")]);
@@ -326,54 +326,54 @@ describe("WindowPartHostService", () => {
 
     await vi.waitFor(() => expect(layout.layout().documents.tabs).toEqual([tab]));
 
-    expect([labels.lookOf(tab).marker?.label ?? null, labels.lookOf(tab).underline]).toEqual(["From a link", "Shared"]);
+    expect([labels.lookOf(tab).marker?.label ?? null, labels.lookOf(tab).imageGlyph]).toEqual(["From a link", "Shared"]);
   });
 
   it("opens a document that a newer preview replaced with only the look its options give", async () => {
     const parts: IWindowPartContext[] = [];
     const notes = new WindowPartFixture("notes", log, t => {
       t.registerDocument(new DocumentContribution("notes.note", load));
-      t.openDocument("notes.note", "1", "Note 1", { preview: true, underline: "Shared" });
+      t.openDocument("notes.note", "1", "Note 1", { preview: true, imageGlyph: "Shared" });
       parts.push(t);
     });
     const { layout } = start([source("notes", notes)], [status("notes")]);
     const labels = TestBed.inject(TabLabelService);
     const first = new DocumentTab("notes.note", "1");
     await vi.waitFor(() => expect(layout.layout().documents.tabs).toEqual([first]));
-    const opened = labels.lookOf(first).underline;
+    const opened = labels.lookOf(first).imageGlyph;
 
     parts.forEach(t => t.openDocument("notes.note", "2", "Note 2", { preview: true }));
     const replaced = layout.layout().documents.tabs;
     parts.forEach(t => t.openDocument("notes.note", "1", "Note 1"));
 
-    expect([opened, replaced, labels.lookOf(first).underline]).toEqual(["Shared", [new DocumentTab("notes.note", "2")], null]);
+    expect([opened, replaced, labels.lookOf(first).imageGlyph]).toEqual(["Shared", [new DocumentTab("notes.note", "2")], null]);
   });
 
   it("drops a document's look when the part closes it and the looks of a module that no longer activates", async () => {
     const notes = new WindowPartFixture("notes", log, t => {
       t.registerDocument(new DocumentContribution("notes.note", load));
-      t.openDocument("notes.note", "1", "Note 1", { underline: "Shared" });
+      t.openDocument("notes.note", "1", "Note 1", { imageGlyph: "Shared" });
       if (log.filter(u => u === "activate notes").length === 1)
-        t.openDocument("notes.note", "2", "Note 2", { underline: "Draft" });
+        t.openDocument("notes.note", "2", "Note 2", { imageGlyph: "Draft" });
     });
     const clock = new WindowPartFixture("clock", log, t => {
       t.registerDocument(new DocumentContribution("clock.note", load));
-      t.openDocument("clock.note", "1", "Alarm", { underline: "Ringing" });
+      t.openDocument("clock.note", "1", "Alarm", { imageGlyph: "Ringing" });
     });
     const { host, layout } = start([source("notes", notes), source("clock", clock)], [status("clock"), status("notes")]);
     const labels = TestBed.inject(TabLabelService);
-    const underlines = (): readonly (string | null)[] => [new DocumentTab("notes.note", "1"), new DocumentTab("notes.note", "2"), new DocumentTab("clock.note", "1")].map(t => labels.lookOf(t).underline);
+    const glyphs = (): readonly (string | null)[] => [new DocumentTab("notes.note", "1"), new DocumentTab("notes.note", "2"), new DocumentTab("clock.note", "1")].map(t => labels.lookOf(t).imageGlyph);
     await vi.waitFor(() => expect([host.generation(), layout.layout().documents.tabs.length]).toEqual([1, 3]));
-    const opened = underlines();
+    const opened = glyphs();
 
     host.closeDocument("notes", "notes.note", "2");
-    const closed = underlines();
+    const closed = glyphs();
     bridge.responses.set("desktop.modules", { payload: { modules: [status("clock", ModuleState.Failed, "It broke."), status("notes")] } });
     bridge.publishStartup({ kind: "Connecting", details: [] });
     bridge.publishStartup({ kind: "Ready", details: [] });
     await vi.waitFor(() => expect(host.generation()).toBe(2));
 
-    expect([opened, closed, underlines()]).toEqual([["Shared", "Draft", "Ringing"], ["Shared", null, "Ringing"], ["Shared", null, null]]);
+    expect([opened, closed, glyphs()]).toEqual([["Shared", "Draft", "Ringing"], ["Shared", null, "Ringing"], ["Shared", null, null]]);
   });
 
   it("pads each contribution as it declares, else as its module chose, else as the shell does, and lays out Settings and Modules edge to edge", async () => {

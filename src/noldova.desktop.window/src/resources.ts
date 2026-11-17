@@ -572,7 +572,6 @@ export class Resources {
   public static readonly imageGlyphParameter: string = "imageGlyph";
   public static readonly statusParameter: string = "status";
   public static readonly markerParameter: string = "marker";
-  public static readonly underlineParameter: string = "underline";
   public static readonly breadcrumbIconWithoutBreadcrumb: string = "A breadcrumb's glyph comes with the breadcrumb it goes before.";
   public static readonly breadcrumbSeparator: string = " / ";
   public static readonly textParameter: string = "text";
