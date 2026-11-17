@@ -10,7 +10,6 @@ import "@noldova/context.core";
 
 import { ImageSize } from "../../models/image-size.js";
 import { Resources } from "../../resources.js";
-import { ImageSizeResources } from "./image-size.resources.js";
 
 export class ImageSizeReader {
   public read(bytes: Buffer, mimeType: string | null): ImageSize | null {
@@ -19,20 +18,20 @@ export class ImageSizeReader {
   }
 
   private static readPng(bytes: Buffer): ImageSize | null {
-    const isPng = bytes.length >= ImageSizeResources.pngHeaderEnd
-      && bytes.subarray(0, ImageSizeResources.pngSignature.length).equals(ImageSizeResources.pngSignature)
-      && bytes.toString(ImageSizeResources.pngHeaderEncoding, ImageSizeResources.pngHeaderStart, ImageSizeResources.pngWidthOffset) === ImageSizeResources.pngHeader;
-    return isPng ? new ImageSize(bytes.readUInt32BE(ImageSizeResources.pngWidthOffset), bytes.readUInt32BE(ImageSizeResources.pngHeightOffset)) : null;
+    const isPng = bytes.length >= Resources.pngHeaderEnd
+      && bytes.subarray(0, Resources.pngSignature.length).equals(Resources.pngSignature)
+      && bytes.toString(Resources.pngHeaderEncoding, Resources.pngHeaderStart, Resources.pngWidthOffset) === Resources.pngHeader;
+    return isPng ? new ImageSize(bytes.readUInt32BE(Resources.pngWidthOffset), bytes.readUInt32BE(Resources.pngHeightOffset)) : null;
   }
 
   private static readJpeg(bytes: Buffer): ImageSize | null {
-    if (bytes.length < ImageSizeResources.markerLength || bytes[0] !== ImageSizeResources.marker || bytes[1] !== ImageSizeResources.jpegStart)
+    if (bytes.length < Resources.jpegMarkerLength || bytes[0] !== Resources.jpegMarkerPrefix || bytes[1] !== Resources.jpegStartMarker)
       return null;
-    let offset = ImageSizeResources.markerLength;
-    while (offset + ImageSizeResources.frameEnd <= bytes.length && bytes[offset] === ImageSizeResources.marker) {
-      if (ImageSizeResources.frameMarkers.includes(bytes.readUInt8(offset + 1)))
-        return new ImageSize(bytes.readUInt16BE(offset + ImageSizeResources.frameWidthOffset), bytes.readUInt16BE(offset + ImageSizeResources.frameHeightOffset));
-      offset += ImageSizeResources.markerLength + bytes.readUInt16BE(offset + ImageSizeResources.markerLength);
+    let offset = Resources.jpegMarkerLength;
+    while (offset + Resources.jpegFrameEnd <= bytes.length && bytes[offset] === Resources.jpegMarkerPrefix) {
+      if (Resources.jpegFrameMarkers.includes(bytes.readUInt8(offset + 1)))
+        return new ImageSize(bytes.readUInt16BE(offset + Resources.jpegFrameWidthOffset), bytes.readUInt16BE(offset + Resources.jpegFrameHeightOffset));
+      offset += Resources.jpegMarkerLength + bytes.readUInt16BE(offset + Resources.jpegMarkerLength);
     }
     return null;
   }

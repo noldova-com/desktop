@@ -13,7 +13,6 @@ import { ArgumentException } from "@noldova/context.exceptions";
 
 import { WebAddressKind } from "../enums/web-address-kind.js";
 import { Resources } from "../resources.js";
-import { WebViewOriginCheckResources } from "./web-view-origin-check.resources.js";
 
 export class WebViewOriginCheck {
   private readonly localOrigins: ReadonlySet<string>;
@@ -31,9 +30,9 @@ export class WebViewOriginCheck {
 
   public static classify(address: string): WebAddressKind {
     const plain = WebViewOriginCheck.plainHost(address);
-    if (isIP(plain) === WebViewOriginCheckResources.ipv4Version)
+    if (isIP(plain) === Resources.ipv4Version)
       return WebViewOriginCheck.classifyIpv4(plain);
-    if (isIP(plain) !== WebViewOriginCheckResources.ipv6Version)
+    if (isIP(plain) !== Resources.ipv6Version)
       throw new ArgumentException(Resources.formatNotAnAddress(address), Resources.addressParameter);
 
     const hextets = WebViewOriginCheck.expandIpv6(plain);
@@ -44,14 +43,14 @@ export class WebViewOriginCheck {
       return WebAddressKind.Unspecified;
     if (isZero(0, last) && at(last) === 1)
       return WebAddressKind.Loopback;
-    const isMapped = isZero(0, WebViewOriginCheckResources.mappedMarkerHextet) && at(WebViewOriginCheckResources.mappedMarkerHextet) === WebViewOriginCheckResources.mappedIpv4Marker;
-    const isNat64 = at(0) === WebViewOriginCheckResources.nat64First && at(1) === WebViewOriginCheckResources.nat64Second && isZero(WebViewOriginCheckResources.nat64PrefixHextets, WebViewOriginCheckResources.embeddedIpv4Hextet);
-    if (isMapped || isZero(0, WebViewOriginCheckResources.embeddedIpv4Hextet) || isNat64)
-      return WebViewOriginCheck.classifyIpv4(WebViewOriginCheckResources.formatIpv4(at(WebViewOriginCheckResources.embeddedIpv4Hextet) >> WebViewOriginCheckResources.byteBits, at(WebViewOriginCheckResources.embeddedIpv4Hextet) & WebViewOriginCheckResources.byteMask,
-        at(last) >> WebViewOriginCheckResources.byteBits, at(last) & WebViewOriginCheckResources.byteMask));
-    if ((at(0) & WebViewOriginCheckResources.uniqueLocalMask) === WebViewOriginCheckResources.uniqueLocalPrefix)
+    const isMapped = isZero(0, Resources.mappedMarkerHextet) && at(Resources.mappedMarkerHextet) === Resources.mappedIpv4Marker;
+    const isNat64 = at(0) === Resources.nat64First && at(1) === Resources.nat64Second && isZero(Resources.nat64PrefixHextets, Resources.embeddedIpv4Hextet);
+    if (isMapped || isZero(0, Resources.embeddedIpv4Hextet) || isNat64)
+      return WebViewOriginCheck.classifyIpv4(Resources.formatIpv4(at(Resources.embeddedIpv4Hextet) >> Resources.byteBits, at(Resources.embeddedIpv4Hextet) & Resources.byteMask,
+        at(last) >> Resources.byteBits, at(last) & Resources.byteMask));
+    if ((at(0) & Resources.uniqueLocalMask) === Resources.uniqueLocalPrefix)
       return WebAddressKind.Private;
-    if ((at(0) & WebViewOriginCheckResources.linkLocalMask) === WebViewOriginCheckResources.linkLocalPrefix)
+    if ((at(0) & Resources.linkLocalMask) === Resources.linkLocalPrefix)
       return WebAddressKind.LinkLocal;
     return WebAddressKind.Public;
   }
@@ -126,7 +125,7 @@ export class WebViewOriginCheck {
       if (!t.startsWith(prefix))
         return false;
       const pattern = URL.parse(t.replace(Resources.webViewWildcardPrefix, String.empty));
-      return !Object.isNull(pattern) && pattern.port === url.port && url.hostname.endsWith(WebViewOriginCheckResources.formatSubdomainSuffix(pattern.hostname));
+      return !Object.isNull(pattern) && pattern.port === url.port && url.hostname.endsWith(Resources.formatSubdomainSuffix(pattern.hostname));
     });
   }
 
@@ -137,15 +136,15 @@ export class WebViewOriginCheck {
   }
 
   private static classifyIpv4(address: string): WebAddressKind {
-    const [a = 0, b = 0] = address.split(WebViewOriginCheckResources.ipv4Separator).map(Number);
+    const [a = 0, b = 0] = address.split(Resources.ipv4Separator).map(Number);
     if (a === 0)
       return WebAddressKind.Unspecified;
-    if (a === WebViewOriginCheckResources.loopbackFirst)
+    if (a === Resources.loopbackFirst)
       return WebAddressKind.Loopback;
-    if (a === WebViewOriginCheckResources.privateClassAFirst || (a === WebViewOriginCheckResources.privateClassBFirst && b >= WebViewOriginCheckResources.privateClassBSecondLow && b <= WebViewOriginCheckResources.privateClassBSecondHigh)
-      || (a === WebViewOriginCheckResources.privateClassCFirst && b === WebViewOriginCheckResources.privateClassCSecond) || (a === WebViewOriginCheckResources.sharedAddressFirst && b >= WebViewOriginCheckResources.sharedAddressSecondLow && b <= WebViewOriginCheckResources.sharedAddressSecondHigh))
+    if (a === Resources.privateClassAFirst || (a === Resources.privateClassBFirst && b >= Resources.privateClassBSecondLow && b <= Resources.privateClassBSecondHigh)
+      || (a === Resources.privateClassCFirst && b === Resources.privateClassCSecond) || (a === Resources.sharedAddressFirst && b >= Resources.sharedAddressSecondLow && b <= Resources.sharedAddressSecondHigh))
       return WebAddressKind.Private;
-    if (a === WebViewOriginCheckResources.linkLocalFirst && b === WebViewOriginCheckResources.linkLocalSecond)
+    if (a === Resources.linkLocalFirst && b === Resources.linkLocalSecond)
       return WebAddressKind.LinkLocal;
     return WebAddressKind.Public;
   }
@@ -153,13 +152,13 @@ export class WebViewOriginCheck {
   private static expandIpv6(address: string): readonly number[] {
     const parse = (part: string): number[] => part === String.empty
       ? []
-      : part.split(WebViewOriginCheckResources.ipv6Separator).flatMap(t => {
-        if (!t.includes(WebViewOriginCheckResources.ipv4Separator))
-          return [Number.parseInt(t, WebViewOriginCheckResources.hextetRadix)];
-        const [a = 0, b = 0, c = 0, d = 0] = t.split(WebViewOriginCheckResources.ipv4Separator).map(Number);
-        return [(a << WebViewOriginCheckResources.byteBits) | b, (c << WebViewOriginCheckResources.byteBits) | d];
+      : part.split(Resources.ipv6Separator).flatMap(t => {
+        if (!t.includes(Resources.ipv4Separator))
+          return [Number.parseInt(t, Resources.hextetRadix)];
+        const [a = 0, b = 0, c = 0, d = 0] = t.split(Resources.ipv4Separator).map(Number);
+        return [(a << Resources.byteBits) | b, (c << Resources.byteBits) | d];
       });
-    const [head = String.empty, tail] = address.split(WebViewOriginCheckResources.ipv6ZeroRun);
+    const [head = String.empty, tail] = address.split(Resources.ipv6ZeroRun);
     const first = parse(head);
     const last = Object.isUndefined(tail) ? [] : parse(tail);
     return [...first, ...new Array<number>(Resources.webViewHextets - first.length - last.length).fill(0), ...last];
