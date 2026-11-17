@@ -13,6 +13,6 @@ import { WebViewAction } from "@noldova/desktop.protocol";
 export class WebViewActionTests {
   @TestMethod
   public namesEveryActionByItsMember(): void {
-    Assert.areEqual("List,Navigate,Back,Forward,Reload,Stop,SetAllowedOrigins,ClearProfile,Send", Object.values(WebViewAction).join(","));
+    Assert.areEqual("List,Navigate,Back,Forward,Reload,Stop,SetAllowedOrigins,ClearProfile,Send,SetControlled", Object.values(WebViewAction).join(","));
   }
 }

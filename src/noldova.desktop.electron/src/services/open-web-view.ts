@@ -77,6 +77,7 @@ export class OpenWebView {
   private isAttached: boolean = false;
   private isFocusHeld: boolean = false;
   private isClosed: boolean = false;
+  private isControlled: boolean = false;
   private state: string = String.empty;
   private zoomFactor: number = 1;
   private search: { readonly text: string; readonly matchCase: boolean } | undefined;
@@ -180,6 +181,13 @@ export class OpenWebView {
 
   public setAllowedOrigins(origins: readonly string[]): void {
     this.allowed = [...origins];
+  }
+
+  public setControlled(isControlled: boolean): void {
+    if (this.isControlled === isControlled)
+      return;
+    this.isControlled = isControlled;
+    this.emit(WebViewEventKind.Controlled, { [Resources.isControlledField]: isControlled });
   }
 
   public async navigateAsync(url: string): Promise<JsonObject | null> {

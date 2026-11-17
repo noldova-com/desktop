@@ -36,6 +36,7 @@ export class WebViewHandle implements IWebViewHandle {
   public layer: IWebViewLayer<unknown> | null = null;
   public isWanted: boolean = false;
   public isShown: boolean = false;
+  public isControlled: boolean = false;
   public agentInputs: number = 0;
   public keptFocus: HTMLElement | null = null;
   public isFocusHeld: boolean = false;

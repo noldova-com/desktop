@@ -21,6 +21,8 @@ export interface IRuntimeWebViews {
 
   setAllowedOriginsAsync(id: string, origins: readonly string[]): Promise<void>;
 
+  setControlledAsync(id: string, isControlled: boolean): Promise<void>;
+
   clearProfileAsync(profileKey: string): Promise<void>;
 
   onViewEvent(listener: (event: WebViewEvent) => void): () => void;

@@ -21,5 +21,6 @@ export enum WebViewEventKind {
   Key = "Key",
   Zoom = "Zoom",
   Found = "Found",
-  Favicon = "Favicon"
+  Favicon = "Favicon",
+  Controlled = "Controlled"
 }

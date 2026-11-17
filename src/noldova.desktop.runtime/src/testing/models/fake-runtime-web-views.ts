@@ -20,6 +20,7 @@ export class FakeRuntimeWebViews extends Fake<IRuntimeWebViews> implements IRunt
   public readonly navigateAsync: IRuntimeWebViews["navigateAsync"] = (...args) => this.respondAsync("navigateAsync", args, this.answers.navigateAsync);
   public readonly actAsync: IRuntimeWebViews["actAsync"] = (...args) => this.respondAsync("actAsync", args, this.answers.actAsync);
   public readonly setAllowedOriginsAsync: IRuntimeWebViews["setAllowedOriginsAsync"] = (...args) => this.respondAsync("setAllowedOriginsAsync", args, this.answers.setAllowedOriginsAsync);
+  public readonly setControlledAsync: IRuntimeWebViews["setControlledAsync"] = (...args) => this.respondAsync("setControlledAsync", args, this.answers.setControlledAsync);
   public readonly clearProfileAsync: IRuntimeWebViews["clearProfileAsync"] = (...args) => this.respondAsync("clearProfileAsync", args, this.answers.clearProfileAsync);
   public readonly onViewEvent: IRuntimeWebViews["onViewEvent"] = listener => this.listen("onViewEvent", [listener], this.viewEvents, listener);
 

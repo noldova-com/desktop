@@ -423,6 +423,37 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async tellsOnlyTheWindowWhenAViewIsMarkedControlledAndKeepsTheMarkThroughAPlacementAndARuntimeRestartUntilTheViewCloses(): Promise<void> {
+    const [first, second] = [new FakeRuntimeConnection(), new FakeRuntimeConnection()];
+    const launcher = new FakeRuntimeLauncher(first, second);
+    const [electron] = await WebViewHostTests.startWithAsync(launcher);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    const marks = (): string => WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Controlled").map(t => String(WebViewHostTests.details(t)["isControlled"])).join(",");
+
+    const answers = [await this.commandAsync(launcher, first, WebViewAction.SetControlled, "1", true), await this.commandAsync(launcher, first, WebViewAction.SetControlled, "1", true)];
+    const marked = marks();
+    const kept = await WebViewHostTests.keepAsync(electron, [["browser", "1"]]);
+    const expected = WebViewHostTests.expect(electron, "1");
+    const guest = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
+    const attached = await WebViewHostTests.attachAsync(electron, "1", guest.contents.id);
+    const placed = marks();
+    launcher.listener?.onDisconnected(null);
+    answers.push(await this.commandAsync(launcher, second, WebViewAction.SetControlled, "1", true));
+    const restarted = marks();
+    answers.push(await this.commandAsync(launcher, second, WebViewAction.SetControlled, "1", false));
+    answers.push(await this.commandAsync(launcher, second, WebViewAction.SetControlled, "1", true));
+    electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "1");
+    answers.push(await this.commandAsync(launcher, second, WebViewAction.SetControlled, "1", false));
+
+    Assert.areEqual(JSON.stringify([null, null, null, null, null, { kind: "ViewClosed" }]), JSON.stringify(answers.map(t => t["value"] ?? t["failure"])));
+    Assert.areEqual("true|true|true|true,false,true", [marked, placed, restarted, marks()].join("|"));
+    Assert.areEqual(JSON.stringify([[true], true, { isAttached: true }]), JSON.stringify([kept, expected, attached]));
+    Assert.isFalse([...WebViewHostTests.runtimeEvents(first), ...WebViewHostTests.runtimeEvents(second)].some(t => t["kind"] === "Controlled"));
+    Assert.areEqual(1, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
+  }
+
+  @TestMethod
   public async readsTheScrollOfEveryViewOfAMoveAtOnceSoTheWindowWaitsForOneBoundWhenNoPageAnswers(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     await WebViewHostTests.openAsync(electron);

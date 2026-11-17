@@ -15441,6 +15441,21 @@ export interface IRuntimeWebViews {
   setAllowedOriginsAsync(id: string, origins: readonly string[]): Promise<void>;
 
   /**
+   * Marks whether an agent controls a view. While it does, the window keeps the view painted even while it is hidden, so a
+   * page it loads there draws and takes the relay's clicks and keys, behind the shown content and out of the person's reach;
+   * when control ends, a hidden view hides again. The main process keeps the mark for the view until the view closes, which
+   * ends it. The runtime part marks the whole span, from the agent's first call or its opening the view until it closes the
+   * view, the person takes over or stops it, or the session ends.
+   *
+   * @param id The view's id.
+   * @param isControlled Whether an agent controls the view.
+   * @returns A promise that settles once the main process applied it.
+   * @throws {WebViewFailureException} The promise rejects when the main
+   * process refuses or fails the call, or can't be reached.
+   */
+  setControlledAsync(id: string, isControlled: boolean): Promise<void>;
+
+  /**
    * Clears a profile's cookies, storage and cache, and ends the pending calls
    * of its views.
    *

@@ -33,13 +33,15 @@ export class ModuleWebViewsTests {
     const navigating = context.webViews.navigateAsync("1", "https://example.net/");
     const moving = context.webViews.actAsync("1", WebViewAction.Back);
     const allowing = context.webViews.setAllowedOriginsAsync("1", ["https://example.com"]);
+    const controlling = context.webViews.setControlledAsync("1", true);
     const clearing = context.webViews.clearProfileAsync("workspace-1");
     const sending = context.webViews.relay.sendAsync("1", "Page.captureScreenshot", { format: "png" }, 5000);
-    const answers = [{ kind: "Refused", origin: "https://example.net" }, { kind: "NoHistory" }, null, null, { data: "AAAA" }];
+    const answers = [{ kind: "Refused", origin: "https://example.net" }, { kind: "NoHistory" }, null, null, null, { data: "AAAA" }];
     center.answer(7, new WebViewAnswered(1, [{ id: "1", module: "notes", pane: { name: "notes.note", instance: "plan" }, profileKey: "workspace-1" }]));
     answers.forEach((t, index) => center.answer(7, new WebViewAnswered(index + 2, t)));
     const moves = [await navigating, await moving];
     await allowing;
+    await controlling;
     await clearing;
     const reply = await sending;
     const notMove = await Assert.throwsAsync(() => context.webViews.actAsync("1", WebViewAction.List), ArgumentException);
@@ -54,8 +56,9 @@ export class ModuleWebViewsTests {
       "{\"call\":2,\"module\":\"notes\",\"action\":\"Navigate\",\"view\":\"1\",\"value\":\"https://example.net/\"}",
       "{\"call\":3,\"module\":\"notes\",\"action\":\"Back\",\"view\":\"1\"}",
       "{\"call\":4,\"module\":\"notes\",\"action\":\"SetAllowedOrigins\",\"view\":\"1\",\"value\":[\"https://example.com\"]}",
-      "{\"call\":5,\"module\":\"notes\",\"action\":\"ClearProfile\",\"value\":\"workspace-1\"}",
-      "{\"call\":6,\"module\":\"notes\",\"action\":\"Send\",\"view\":\"1\",\"value\":{\"method\":\"Page.captureScreenshot\",\"params\":{\"format\":\"png\"},\"timeoutMilliseconds\":5000}}"
+      "{\"call\":5,\"module\":\"notes\",\"action\":\"SetControlled\",\"view\":\"1\",\"value\":true}",
+      "{\"call\":6,\"module\":\"notes\",\"action\":\"ClearProfile\",\"value\":\"workspace-1\"}",
+      "{\"call\":7,\"module\":\"notes\",\"action\":\"Send\",\"view\":\"1\",\"value\":{\"method\":\"Page.captureScreenshot\",\"params\":{\"format\":\"png\"},\"timeoutMilliseconds\":5000}}"
     ].join("\n"), sink.sent.map(([event]) => JSON.stringify(event.payload)).join("\n"));
   }
 
