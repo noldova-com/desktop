@@ -312,6 +312,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - The main process opens the window; the runtime never does.
 - The main process checks its installation's launch barrier as soon as it starts, and once the barrier passes it starts the runtime at once, without waiting for Electron to be ready, the window or its saved state.
   A dialog the barrier needs waits for Electron to be ready, and a start the barrier refuses exits without starting the runtime.
+  On Windows the runtime starts through an Electron utility process, which Electron creates only once it is ready, so there the start's own work runs at once and the runtime process waits for Electron to be ready.
   Until the window is open, the main process holds the start's state and the runtime's events, then gives the window the current state and the held events in order, so the window works the same whether the runtime is ready before it or after.
 - A new window is 1280 by 800 pixels, at most nine tenths of the primary display's work area on each side, and centred; saved bounds keep their size where they fit, and the window is never smaller than 640 by 480 pixels.
   Under Wayland the compositor places each window it shows, so the window opens at its saved size wherever the compositor puts it.
