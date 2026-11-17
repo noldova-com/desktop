@@ -272,6 +272,7 @@ describe("WebViewService", () => {
             getComputedStyle(behind).pointerEvents, getComputedStyle(handle.guest).pointerEvents];
           const cover = [getComputedStyle(front).backgroundColor, getComputedStyle(front).opacity, getComputedStyle(front).zIndex];
           const frame = boxOf(handle.frame);
+          const [left = 0, top = 0, width = 0, height = 0] = frame;
           const boxes = [boxOf(pane), boxOf(behind), boxOf(front)];
           control(handle, false);
           const ended = [getComputedStyle(handle.guest).visibility, getComputedStyle(behind).opacity, getComputedStyle(front).backgroundColor, getComputedStyle(front).zIndex];
@@ -281,7 +282,7 @@ describe("WebViewService", () => {
           expect(cover).toEqual([AppearanceFixture.readColor(theme, mode, isDocked ? "window" : "panel"), "1", "1"]);
           expect(frame).toEqual(boxes[0]);
           expect([boxes[1], boxes[2]]).toEqual([[1.5, 2, 20, 12.5], [1.5, 2, 20, 12.5]]);
-          expect([frame[0] >= 1.5, frame[1] >= 2, frame[0] + frame[2] <= 21.5, frame[1] + frame[3] <= 14.5, frame[2] > 0, frame[3] > 0]).toEqual([true, true, true, true, true, true]);
+          expect([left >= 1.5, top >= 2, left + width <= 21.5, top + height <= 14.5, width > 0, height > 0]).toEqual([true, true, true, true, true, true]);
           expect(ended).toEqual(["hidden", "0", "rgba(0, 0, 0, 0)", "auto"]);
         });
 
