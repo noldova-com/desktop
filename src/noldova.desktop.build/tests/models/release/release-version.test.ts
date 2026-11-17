@@ -15,11 +15,10 @@ import { ReleaseVersion } from "../../../src/models/release/release-version.js";
 @TestClass
 export class ReleaseVersionTests {
   @TestMethod
-  public readsAPlainVersionAndItsTag(): void {
+  public readsAPlainVersion(): void {
     const version = ReleaseVersion.parse("1.20.3", "RELEASE_VERSION");
 
     Assert.areEqual("1.20.3", version.text);
-    Assert.areEqual("v1.20.3", version.tag);
   }
 
   @TestMethod
@@ -31,17 +30,6 @@ export class ReleaseVersionTests {
     const error = Assert.throws(() => ReleaseVersion.parse(text, "RELEASE_VERSION"), BuildException);
 
     Assert.areEqual(`RELEASE_VERSION must be a plain version such as 0.0.2, not "${text}".`, error.message);
-  }
-
-  @TestMethod
-  public readsATagAndRefusesOneWithoutItsPrefix(): void {
-    const version = ReleaseVersion.parseTag("v0.0.2", "The latest release");
-    const error = Assert.throws(() => ReleaseVersion.parseTag("0.0.2", "The latest release"), BuildException);
-    const inner = Assert.throws(() => ReleaseVersion.parseTag("vnext", "The latest release"), BuildException);
-
-    Assert.areEqual("0.0.2", version.text);
-    Assert.areEqual("The latest release must be a tag such as v0.0.2, not \"0.0.2\".", error.message);
-    Assert.areEqual("The latest release must be a plain version such as 0.0.2, not \"next\".", inner.message);
   }
 
   @TestMethod

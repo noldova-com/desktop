@@ -14,13 +14,43 @@ import { Resources } from "../../resources.ts";
 
 export class ReleaseRequest {
   public readonly repository: string;
+  public readonly sourceRepository: string;
+  public readonly buildRepository: string;
   public readonly version: ReleaseVersion;
   public readonly revision: string;
+  public readonly tag: string;
+  private readonly tagPrefix: string;
 
-  private constructor(repository: string, version: ReleaseVersion, revision: string) {
+  private constructor(repository: string, sourceRepository: string, buildRepository: string, version: ReleaseVersion, revision: string, tagPrefix: string) {
     this.repository = repository;
+    this.sourceRepository = sourceRepository;
+    this.buildRepository = buildRepository;
     this.version = version;
     this.revision = revision;
+    this.tagPrefix = tagPrefix;
+    this.tag = `${tagPrefix}${version.text}`;
+  }
+
+  public get isSeparate(): boolean {
+    return this.repository.toLowerCase() !== this.sourceRepository.toLowerCase();
+  }
+
+  public get isBuiltElsewhere(): boolean {
+    return this.buildRepository.toLowerCase() !== this.sourceRepository.toLowerCase();
+  }
+
+  public get isBuiltApart(): boolean {
+    return this.isBuiltElsewhere && this.buildRepository.toLowerCase() !== this.repository.toLowerCase();
+  }
+
+  public ownsTag(tag: string): boolean {
+    return tag.startsWith(this.tagPrefix) && Resources.releaseVersionPattern.test(tag.slice(this.tagPrefix.length));
+  }
+
+  public parseTag(tag: string, source: string): ReleaseVersion {
+    if (!tag.startsWith(this.tagPrefix))
+      throw new BuildException(Resources.formatReleaseTagInvalid(source, tag, this.tagPrefix));
+    return ReleaseVersion.parse(tag.slice(this.tagPrefix.length), source);
   }
 
   public static read(environment: NodeJS.ProcessEnv): ReleaseRequest {
@@ -31,6 +61,22 @@ export class ReleaseRequest {
     const revision = environment[Resources.releaseRevisionVariable] ?? String.empty;
     if (!Resources.releaseRevisionPattern.test(revision))
       throw new BuildException(Resources.formatReleaseRevisionInvalid(revision));
-    return new ReleaseRequest(repository, version, revision);
+    const sourceRepository = ReleaseRequest.readOptional(environment, Resources.releaseSourceRepositoryVariable) ?? repository;
+    if (!Resources.releaseRepositoryPattern.test(sourceRepository))
+      throw new BuildException(Resources.formatReleaseRepositoryInvalid(sourceRepository, Resources.releaseSourceRepositoryVariable));
+    const buildRepository = ReleaseRequest.readOptional(environment, Resources.releaseBuildRepositoryVariable) ?? sourceRepository;
+    if (!Resources.releaseRepositoryPattern.test(buildRepository))
+      throw new BuildException(Resources.formatReleaseRepositoryInvalid(buildRepository, Resources.releaseBuildRepositoryVariable));
+    const tagPrefix = ReleaseRequest.readOptional(environment, Resources.releaseTagPrefixVariable) ?? Resources.releaseTagPrefix;
+    if (!Resources.releaseTagPrefixPattern.test(tagPrefix))
+      throw new BuildException(Resources.formatReleaseTagPrefixInvalid(tagPrefix));
+    if (tagPrefix === Resources.releaseTagPrefix && repository.toLowerCase() !== sourceRepository.toLowerCase())
+      throw new BuildException(Resources.formatReleaseTagPrefixNeeded(repository, sourceRepository));
+    return new ReleaseRequest(repository, sourceRepository, buildRepository, version, revision, tagPrefix);
+  }
+
+  private static readOptional(environment: NodeJS.ProcessEnv, variable: string): string | null {
+    const value = environment[variable] ?? String.empty;
+    return value.length === 0 ? null : value;
   }
 }

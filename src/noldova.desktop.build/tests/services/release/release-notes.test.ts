@@ -6,13 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { ProductIdentity } from "../../../src/models/packages/product-identity.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
-import { ReleaseVersion } from "../../../src/models/release/release-version.js";
+import { ReleaseRequest } from "../../../src/models/release/release-request.js";
 import { ReleaseNotes } from "../../../src/services/release/release-notes.js";
 
 @TestClass
@@ -76,6 +77,26 @@ export class ReleaseNotesTests {
   }
 
   @TestMethod
+  public namesTheSourceCommitOfAReleaseInAnotherRepository(): void {
+    const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], "example/downloads", ReleaseNotesTests.RUN, "example/sample-app", "example/downloads");
+
+    Assert.isTrue(notes.startsWith("Sample App 0.0.2 "), notes);
+    Assert.isTrue(notes.endsWith(`${ReleaseNotesTests.RUN}\n\nBuilt from example/sample-app at 0123456789abcdef0123456789abcdef01234567.`), notes);
+    Assert.isFalse(ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], []).includes("Built from"));
+  }
+
+  @TestMethod
+  public leavesOutTheRunOfABuildInARepositoryThatIsNeitherTheSourceNorTheRelease(): void {
+    const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], "example/downloads", "https://github.com/example/builds/actions/runs/7", "example/sample-app", "example/downloads", "example/builds");
+    const inRelease = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], "example/downloads", ReleaseNotesTests.RUN, "example/sample-app", "example/downloads", "example/downloads");
+
+    Assert.isFalse(notes.includes("example/builds"), notes);
+    Assert.isFalse(notes.includes("install check"), notes);
+    Assert.isTrue(notes.endsWith("accepted by a CI run only.\n\nBuilt from example/sample-app at 0123456789abcdef0123456789abcdef01234567."), notes);
+    Assert.isTrue(inRelease.includes(ReleaseNotesTests.RUN), inRelease);
+  }
+
+  @TestMethod
   public refusesARunAddressThatIsNotHttps(): void {
     for (const run of ["http://github.com/example/sample-app/actions/runs/1", "runs/1"]) {
       const error = Assert.throws(() => ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], ReleaseNotesTests.REPOSITORY, run), BuildException);
@@ -85,7 +106,7 @@ export class ReleaseNotesTests {
   }
 
   private static compose(targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[] = [], repository: string = ReleaseNotesTests.REPOSITORY,
-    run: string = ReleaseNotesTests.RUN): string {
+    run: string = ReleaseNotesTests.RUN, source: string = repository, releaseRepository: string = "example/sample-app", build: string = source): string {
     const product = ProductIdentity.fromManifest(JsonReader.fromValue({
       desktop: {
         product: {
@@ -98,10 +119,11 @@ export class ReleaseNotesTests {
           deviceFolders: { windows: "Sample/App", macos: "Sample/App", linux: "sample/app" },
           dataDirectoryVariable: "SAMPLE_APP_DATA_DIR",
           icons: "assets/icons",
-          releaseRepository: "example/sample-app"
+          releaseRepository
         }
       }
     }));
-    return ReleaseNotes.compose(product, targets, supported, signed, repository, ReleaseVersion.parse("0.0.2", "version"), run);
+    const request = ReleaseRequest.read({ RELEASE_REPOSITORY: repository, RELEASE_SOURCE_REPOSITORY: source, RELEASE_BUILD_REPOSITORY: build, RELEASE_TAG_PREFIX: repository === source ? String.empty : "sample-app-", RELEASE_VERSION: "0.0.2", RELEASE_REVISION: "0123456789abcdef0123456789abcdef01234567" });
+    return ReleaseNotes.compose(product, targets, supported, signed, request, run);
   }
 }
