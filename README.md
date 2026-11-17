@@ -355,6 +355,7 @@ The Test waits check refuses a fixed pause in any test file this table doesn't l
 
 | Test file | Why it pauses |
 |---|---|
+| `src/noldova.desktop.build/tests/fixtures/temporary-folder-runner.fixture.ts` | Given its test's end, 40 s after the test starts, it lets an npm install run until 17 s before that end, then reports what npm was doing and stops it within those 17 s: listing its processes gets at most 5 s, or 11 s on Windows, which takes no sample, and a macOS sample at most 6 s, each cut short to keep 6 s for the stop, and the stop gives the install 3 s to end at SIGTERM, then 1 s at SIGKILL. |
 | `src/noldova.desktop.build/tests/fixtures/wait.fixture.ts` | Between checks of a polled condition, until the test's limit. |
 | `src/noldova.desktop.cli/tests/fixtures/wait.fixture.ts` | Between checks of a polled condition, until the test's limit. |
 | `src/noldova.desktop.electron/tests/e2e/fixtures/wait.fixture.ts` | Between checks of a polled condition, until the test's limit. |
