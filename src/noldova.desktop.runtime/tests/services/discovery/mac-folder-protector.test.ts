@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { chmod, mkdir, realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -29,9 +29,21 @@ import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.
 export class MacFolderProtectorTests {
   private static readonly KEPT_VOLUME: string = "{ calls: [], readVolume(...values) { this.calls.push(values); return ['/System/Volumes/Data', false]; } }";
   private static readonly IGNORED: string = "the volume /Volumes/Shared is mounted with ownership ignored, so every account acts as the owner of its files";
+  private static readonly DETACH_ATTEMPTS: number = 5;
 
   private static volumes(fake: AddonModuleFixture, functions: readonly (keyof IPosixProcessAddon)[] = ["readVolume"]): NativeAddon<IPosixProcessAddon> {
     return new NativeAddon<IPosixProcessAddon>(fake.file, functions);
+  }
+
+  private static detach(mountPoint: string): void {
+    const failures: string[] = [];
+    for (let attempt = 1; attempt <= MacFolderProtectorTests.DETACH_ATTEMPTS; attempt++) {
+      const result = spawnSync("/usr/bin/hdiutil", ["detach", "-force", mountPoint], { encoding: "utf8" });
+      if (result.status === 0)
+        return;
+      failures.push(`attempt ${attempt}: exit ${String(result.status)}, signal ${String(result.signal)}${result.error === undefined ? "" : `, ${result.error.message}`}\n${result.stdout}${result.stderr}`);
+    }
+    throw new Error(`hdiutil could not detach ${mountPoint} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}`);
   }
 
   @TestMethod
@@ -180,7 +192,7 @@ export class MacFolderProtectorTests {
 
       Assert.areEqual(`the volume ${await realpath(mountPoint)} is mounted with ownership ignored, so every account acts as the owner of its files`, exception.access);
     } finally {
-      execFileSync("/usr/bin/hdiutil", ["detach", "-quiet", "-force", mountPoint]);
+      MacFolderProtectorTests.detach(mountPoint);
     }
   }
 }
