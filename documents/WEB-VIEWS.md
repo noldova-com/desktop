@@ -54,7 +54,7 @@ The window part reaches its views through `context.webViews`.
 The web engine paints no hidden page, and a document a hidden page loads, by a navigation or a form's post, starts hidden and never reaches its first paint, so the engine drops every click and key but a mouse move.
 An agent drives views the person doesn't look at, so while a view is marked controlled, the host keeps it painted when it is hidden:
 - It stays visible, at full opacity, in its place and at its size, behind the shown content, and takes no pointer.
-  A view behind another tab of its group keeps its tab's content painted too, since a child can't undo its parent's `visibility` or `opacity`; the tab's content lies under the shown tab, which then paints its card's own background, so nothing of the hidden page shows through.
+  A view behind another tab of its group keeps its tab's content painted too, since a child can't undo its parent's `opacity`; the tab's content lies under the shown tab, which then paints its card's own background, so nothing of the hidden page shows through.
   A view behind another view of its pane lies under that view.
 - The runtime part marks the whole span with `setControlledAsync`, from the agent's first call or its opening the view until it closes the view, the person takes over or stops it, or the session ends.
   The main process keeps the mark for the view, through a move of its tab and a restart of the runtime, and tells only the window, by a `Controlled` event; closing the view ends it.

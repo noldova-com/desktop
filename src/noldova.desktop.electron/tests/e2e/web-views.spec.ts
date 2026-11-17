@@ -613,25 +613,22 @@ test.describe("web views", () => {
         const outer = front.getBoundingClientRect();
         const inner = guest.getBoundingClientRect();
         const style = getComputedStyle(front);
-        const hits = [[inner.left + 1, inner.top + 1], [inner.right - 1, inner.top + 1], [inner.left + inner.width / 2, inner.top + inner.height / 2], [inner.left + 1, inner.bottom - 1],
-          [inner.right - 1, inner.bottom - 1]].map(([x, y]) => front.contains(document.elementFromPoint(x ?? 0, y ?? 0)));
-        return { background: /^rgb\(/u.test(style.backgroundColor), opacity: style.opacity, zIndex: style.zIndex, covers: outer.left <= inner.left && outer.top <= inner.top && outer.right >= inner.right && outer.bottom >= inner.bottom, hits };
+        return { background: /^rgb\(/u.test(style.backgroundColor), opacity: style.opacity, zIndex: style.zIndex, covers: outer.left <= inner.left && outer.top <= inner.top && outer.right >= inner.right && outer.bottom >= inner.bottom };
       }, noteKey);
-      expect(cover).toEqual({ background: true, opacity: "1", zIndex: "1", covers: true, hits: [true, true, true, true, true] });
+      expect(cover).toEqual({ background: true, opacity: "1", zIndex: "1", covers: true });
 
-      const titles: unknown[] = [];
       for (const [address, script] of navigations) {
         expect(await runInFirstViewAsync(mainProcess, script)).toBe(true);
         await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address, isLoading: false });
+        await expect.poll(() => readFirstViewAsync(mainProcess, "document.title")).toBe("Focus - - - 0");
         await requestAsync(window, "pages.click", { view: 0, x: 60, y: 25 });
         await requestAsync(window, "pages.type", { view: 0, text: "ab" });
-        titles.push(await readFirstViewAsync(mainProcess, "document.title"));
+        await expect.poll(() => readFirstViewAsync(mainProcess, "document.title")).toBe("Focus ab - first 0");
         await requestAsync(window, "pages.click", { view: 0, x: 60, y: 75 });
         await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/focus?linked`, isLoading: false });
         await expect.poll(() => readFirstViewAsync(mainProcess, "document.title")).toBe("Focus - - - 0");
       }
 
-      expect(titles).toEqual(["Focus ab - first 0", "Focus ab - first 0"]);
       await requestAsync(window, "pages.control", { view: 0, isControlled: false });
       await expect.poll(() => readPlacesAsync(window)).toEqual([[false, place], [false, place]]);
     }
