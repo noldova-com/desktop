@@ -391,11 +391,12 @@ export class WebViewHostTests {
 
   @TestMethod
   public async restoresAKeptViewInTheWebviewItsWindowExpectsBeforeItsOldPageIsDestroyedSoBackStillGoesBack(): Promise<void> {
-    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    const [electron, launcher, connection, process] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     await WebViewHostTests.openAsync(electron);
     const old = WebViewHostTests.view(electron, 0);
-    electron.webViews.session(WebViewHostTests.PARTITION).addresses.set("example.com", ["93.184.215.14"]);
+    const session = electron.webViews.session(WebViewHostTests.PARTITION);
+    session.addresses.set("example.com", ["93.184.215.14"]);
     await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", ["https://example.com"]);
     for (const page of ["a", "b", "c"])
       old.contents.show(`https://example.com/${page}`);
@@ -405,6 +406,7 @@ export class WebViewHostTests {
     const guest = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
     const claimed = electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION);
     electron.webViews.attached(window.webContents.id, guest.contents);
+    const fromOld = session.request({ id: 1, url: "https://example.com/late", webContentsId: old.contents.id, resourceType: "mainFrame" });
     old.contents.destroyed = true;
     old.contents.emit("destroyed");
     const attached = await WebViewHostTests.attachAsync(electron, "1", guest.contents.id);
@@ -414,6 +416,8 @@ export class WebViewHostTests {
     Assert.areEqual(JSON.stringify([[true], true, true]), JSON.stringify([kept, expected, claimed]));
     Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(attached));
     Assert.areEqual(JSON.stringify({ kind: "Started" }), JSON.stringify(back));
+    Assert.isFalse(fromOld);
+    Assert.areEqual(0, MainProcessStartFixture.readErrors(process, "A page load was refused").length);
     Assert.areEqual(`restore 2 ${["a", "b", "c"].map(t => `https://example.com/${t} state of https://example.com/${t}`).join(" ")},back`, guest.contents.calls.join(","));
     Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
   }
@@ -1399,15 +1403,15 @@ export class WebViewHostTests {
 
     const answers = [
       contents.openWindow("https://example.com/next", "https://example.com/page"),
-      contents.openWindow("https://example.net/other"),
-      contents.openWindow("https://example.com/data", "data:text/html,x")
+      contents.openWindow("https://example.net/other", String.empty, "new-window"),
+      contents.openWindow("https://example.com/data", "data:text/html,x", "background-tab")
     ];
     await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.runtimeEvents(connection)).length === 3);
 
     const expected = JSON.stringify([
-      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com" },
-      { address: "https://example.net/other", hadRecentInput: false, origin: null },
-      { address: "https://example.com/data", hadRecentInput: false, origin: null }
+      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab" },
+      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window" },
+      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab" }
     ]);
     Assert.areEqual("deny,deny,deny", answers.map(t => t?.action).join(","));
     Assert.areEqual(expected, JSON.stringify(WebViewHostTests.requested(WebViewHostTests.windowEvents(window))));

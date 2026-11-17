@@ -62,8 +62,10 @@ export class OwnershipLockTests {
   @TestMethod
   public async letsExactlyOneOfSeveralRacingProcessesOwnTheDirectory(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
-    const owners = await Promise.all([1, 2, 3, 4].map(() => OwnerProcessFixture.startAsync(folder.path)));
+    const owners = await Promise.all([1, 2, 3, 4].map(() => OwnerProcessFixture.loadAsync(folder.path)));
     try {
+      await Promise.all(owners.map(t => t.attemptAsync()));
+
       Assert.areEqual(1, owners.filter(t => t.hasAcquired).length);
       Assert.areEqual(3, owners.filter(t => t.outcome === "owned").length);
       Assert.throws(() => OwnershipLock.acquire(new DataDirectory(folder.path)), DataDirectoryOwnedException);
@@ -72,6 +74,22 @@ export class OwnershipLockTests {
       for (const owner of owners)
         await owner[Symbol.asyncDispose]();
     }
+  }
+
+  @TestMethod
+  public async holdsALoadedOwnerBackFromTheLockUntilItIsTold(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const directory = new DataDirectory(folder.path);
+    await using owner = await OwnerProcessFixture.loadAsync(folder.path);
+    const loaded = owner.outcome;
+    const isOwnedWhenLoaded = OwnershipLock.isOwned(directory);
+
+    await owner.attemptAsync();
+
+    Assert.areEqual("loaded", loaded);
+    Assert.isFalse(isOwnedWhenLoaded);
+    Assert.isTrue(owner.hasAcquired);
+    Assert.isTrue(OwnershipLock.isOwned(directory));
   }
 
   @TestMethod

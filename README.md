@@ -81,8 +81,7 @@ After the release, its dependents job calls the organization's shared `update-de
 Each repository the App's installation includes that pins Noldova Desktop's packages exactly at an older version, a module or an app, gets a pull request that moves the pins and refreshes its lock files; the shared workflow's README says how.
 
 Noldova Desktop ships no installers of its own: an app releases its installers by calling `.github/workflows/release-app.yml`, as [documents/BUILD.md](documents/BUILD.md) says, and CI packages Noldova Desktop's own app unsigned through `.github/workflows/package-app.yml`.
-A release builds each ARM64 target whose runner input is not empty; by default those are Linux, Windows and macOS arm64, on the runners the organization's `versions.yml` names.
-Linux and Windows ARM64 default to GitHub's hosted runners only for a public caller or one whose `RUNNER_TYPE` is `GITHUB`; a private caller on self-hosted runners builds them only where `RUNS_ON_SELF_HOSTED_LINUX_ARM64` and `RUNS_ON_SELF_HOSTED_WINDOWS_ARM64` are set, or it passes the inputs.
+A release builds each ARM64 target whose runner input is not empty; by default those are Linux, Windows and macOS arm64: the Windows and Linux x64 runners build Windows and Linux ARM64 too, and the organization's macOS ARM64 runner builds macOS ARM64, as the organization's `versions.yml` names them.
 A failed release runs again whole, as a new run, which builds and checks the archives again.
 
 ## Checks
@@ -109,7 +108,7 @@ The end-to-end workflows install the dependencies with `npm ci`, and the range j
 The packaging workflow proves the sandbox on the installed Debian package, as [BUILD.md](documents/BUILD.md#publication) says.
 The end-to-end workflow sets `kernel.core_pattern` to `core` so a crashed process ends at once, but only on GitHub-hosted runners, since the setting stays changed on the host; a self-hosted Linux runner should write a crashed process's core as a plain file rather than through systemd-coredump, or the specs that crash a web view's page may wait for the core to be collected.
 A test class in the `Packaging` category packages with electron-builder for real and runs in the whole run of `npm test`, in its own suite with its own limit, as the package tests' limits below say; such a test ends electron-builder's whole process tree when the run ends with the test still running.
-Beside the targets, the `package` job calls `.github/workflows/package-app.yml` to package Noldova Desktop's own app unsigned on each target, on every target a release lists, then installs, starts and quits it on each, macOS x64 included on GitHub's hosted `macos-15-intel`; on a self-hosted macOS x64 runner, which may have no window server, the maintainer checks its start before a release ([BUILD.md](documents/BUILD.md#publication)); CI never signs, passes no secret and keeps no release files, only the package report.
+Beside the targets, the `package` job calls `.github/workflows/package-app.yml` to package Noldova Desktop's own app unsigned on each target, on every target a release lists, then installs, starts and quits it on each, macOS x64 included on GitHub's hosted `macos-15-intel`, and each package's built files are checked to be its target's architecture alone ([BUILD.md](documents/BUILD.md#publication)); CI never signs, passes no secret and keeps no release files, only the package report.
 
 `npm run build` runs the `install` and `build` commands of `@noldova/desktop.build` from the package's source, the build an app runs through the package's bin, as [BUILD.md](documents/BUILD.md#the-build-package) says.
 `npm run build --silent -- --list-copies` runs `build --list-copies` alone, which builds nothing and lists each file the build copies unchanged into a package that the package's archive keeps, as the shared release workflow's archive check asks.
@@ -326,7 +325,7 @@ The time is the higher of the latest Linux and macOS runs, the sum of the file's
 | `tests/services/runtime-entry.test.ts` | 6.1 s | One test waits out the runtime's 5 s takeover time while another holder owns the data directory without publishing discovery. |
 | `tests/services/discovery/mac-folder-protector.test.ts` | 5.7 s | On macOS, one test creates a real disk image and attaches it with ownership ignored, then detaches it. |
 | `tests/services/environment/login-shell-environment.test.ts` | 4.2 s | Real login shells read profiles under a real file-system watch; one waits out a 1.5 s limit for a shell that never answers. |
-| `tests/services/ownership/ownership-lock.test.ts` | 3.3 s | Real processes race for the data directory's lock, and one owner is killed so the lock passes on. |
+| `tests/services/ownership/ownership-lock.test.ts` | 3.6 s | Real processes load, then race together for the data directory's lock, and one owner is killed so the lock passes on. |
 | `tests/services/modules/module-host.test.ts` | 3.2 s | 34 tests activate modules, most on a fresh SQLite database; one ends real programs that ignore the first signal, after the grace. |
 | `tests/services/lifetime/runtime-host.test.ts` | 3.1 s | 23 tests start a real runtime host with its database, lock and local socket, and wait for another holder to let go of the data directory. |
 | `tests/services/environment/line-process.test.ts` | 2.7 s | Real programs in their own process groups, started and ended. |

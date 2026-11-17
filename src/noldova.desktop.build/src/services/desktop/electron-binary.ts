@@ -18,11 +18,15 @@ export class ElectronBinary {
   private readonly directory: string;
   private readonly root: string;
   private readonly runner: ProcessRunner;
+  private readonly architecture: string;
+  private readonly environment: NodeJS.ProcessEnv;
 
-  public constructor(root: string, runner: ProcessRunner) {
+  public constructor(root: string, runner: ProcessRunner, architecture: string = process.arch, environment: NodeJS.ProcessEnv = process.env) {
     this.root = root;
     this.directory = path.join(root, ...Resources.electronPackageSegments);
     this.runner = runner;
+    this.architecture = architecture;
+    this.environment = environment;
   }
 
   public isInstalled(): boolean {
@@ -37,7 +41,8 @@ export class ElectronBinary {
 
     output.write(Resources.electronInstalling);
     await RetriedDownload.runAsync(Resources.electronSubject, output, async () => {
-      const result = await this.runner.captureAsync(process.execPath, [installer], this.root, Resources.downloadAttemptTimeout);
+      const result = await this.runner.captureAsync(process.execPath, [installer], this.root, Resources.downloadAttemptTimeout,
+        { ...this.environment, [Resources.electronArchitectureVariable]: this.architecture });
       if (result.isSuccessful && this.isInstalled())
         return null;
       return result.isSuccessful ? Resources.electronStillMissing : Resources.formatExitCodeProblem(result.exitCode, result.errorOutput);

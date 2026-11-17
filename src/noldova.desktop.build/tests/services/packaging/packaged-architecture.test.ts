@@ -42,14 +42,14 @@ export class PackagedArchitectureTests {
   @TestMethod
   public async acceptsABundleWhoseEveryMachOFileIsTheTargetsArchitectureCountingALinkedFileOnce(): Promise<void> {
     await PackagedArchitectureTests.withBundleAsync(PackagedArchitectureTests.ARM64, {}, async application => {
-      Assert.areEqual(`Every Mach-O file in ${application}, 7 in all, is arm64 alone.`, await PackagedArchitecture.verifyAsync(application, "arm64"));
+      Assert.areEqual(`Every Mach-O, PE and ELF file in ${application}, 7 in all, is arm64 alone.`, await PackagedArchitecture.verifyAsync(application, "arm64"));
     });
   }
 
   @TestMethod
   public async acceptsAnX64BundleWithNoUnpackedFolder(): Promise<void> {
     await PackagedArchitectureTests.withBundleAsync(PackagedArchitectureTests.X64, { addon: null }, async application => {
-      Assert.areEqual(`Every Mach-O file in ${application}, 6 in all, is x64 alone.`, await PackagedArchitecture.verifyAsync(application, "x64"));
+      Assert.areEqual(`Every Mach-O, PE and ELF file in ${application}, 6 in all, is x64 alone.`, await PackagedArchitecture.verifyAsync(application, "x64"));
     });
   }
 
@@ -58,7 +58,7 @@ export class PackagedArchitectureTests {
     for (const place of PackagedArchitectureTests.PLACE_NAMES)
       await PackagedArchitectureTests.withBundleAsync(PackagedArchitectureTests.ARM64, { [place]: PackagedArchitectureTests.X64 }, async application => {
         const file = path.join(application, ...PackagedArchitectureTests.PLACES[place]);
-        Assert.areEqual(`The installed ${file} is x64, not an arm64-only Mach-O file, so it would not run natively on arm64.`,
+        Assert.areEqual(`The file ${file} is x64, not an arm64-only Mach-O file, so it would not run natively on arm64.`,
           await PackagedArchitectureTests.messageAsync(application, "arm64"), place);
       });
   }
@@ -73,7 +73,7 @@ export class PackagedArchitectureTests {
     for (const [data, found] of cases)
       await PackagedArchitectureTests.withBundleAsync(PackagedArchitectureTests.ARM64, { library: data }, async application => {
         const file = path.join(application, ...PackagedArchitectureTests.PLACES.library);
-        Assert.areEqual(`The installed ${file} is ${found}, not an arm64-only Mach-O file, so it would not run natively on arm64.`,
+        Assert.areEqual(`The file ${file} is ${found}, not an arm64-only Mach-O file, so it would not run natively on arm64.`,
           await PackagedArchitectureTests.messageAsync(application, "arm64"));
       });
   }
@@ -83,6 +83,78 @@ export class PackagedArchitectureTests {
     await PackagedArchitectureTests.withBundleAsync(PackagedArchitectureTests.ARM64, {}, async application => {
       Assert.areEqual("The package's architecture ia32 is none of arm64, x64.", await PackagedArchitectureTests.messageAsync(application, "ia32"));
     });
+  }
+
+  @TestMethod
+  public async acceptsWindowsAndLinuxFilesOfTheTargetsArchitectureAndPassesOverOtherFiles(): Promise<void> {
+    await PackagedArchitectureTests.withFolderAsync({
+      "Sample.exe": PackagedArchitectureTests.pe(0xaa64),
+      "resources/app.asar.unpacked/node_modules/node-pty/prebuilds/win32-arm64/pty.node": PackagedArchitectureTests.pe(0xaa64),
+      "sample-app": PackagedArchitectureTests.elf(2, 1, 183),
+      "libffmpeg.so": PackagedArchitectureTests.elf(2, 1, 183),
+      "MZ.txt": Buffer.from("MZ is not a program"),
+      "dos.com": PackagedArchitectureTests.dos(),
+      "resources/app.asar": Buffer.from("sample")
+    }, async folder => {
+      Assert.areEqual(`Every Mach-O, PE and ELF file in ${folder}, 4 in all, is arm64 alone.`, await PackagedArchitecture.verifyAsync(folder, "arm64"));
+    });
+  }
+
+  @TestMethod
+  public async refusesAWindowsOrLinuxFileOfAnotherArchitecture(): Promise<void> {
+    const cases: readonly (readonly [Buffer, string, string])[] = [
+      [PackagedArchitectureTests.pe(0x8664), "x64", "PE"],
+      [PackagedArchitectureTests.pe(0x14c), "a PE file for machine 0x14c", "PE"],
+      [PackagedArchitectureTests.elf(2, 1, 62), "x64", "ELF"],
+      [PackagedArchitectureTests.elf(2, 1, 40), "an ELF file for machine 40", "ELF"],
+      [PackagedArchitectureTests.elf(1, 1, 40), "a 32-bit ELF file", "ELF"],
+      [PackagedArchitectureTests.elf(2, 2, 183), "a big-endian ELF file", "ELF"]
+    ];
+    for (const [data, found, kind] of cases)
+      await PackagedArchitectureTests.withFolderAsync({ "Sample.exe": PackagedArchitectureTests.pe(0xaa64), "bin/foreign": data }, async folder => {
+        Assert.areEqual(`The file ${path.join(folder, "bin", "foreign")} is ${found}, not an arm64-only ${kind} file, so it would not run natively on arm64.`,
+          await PackagedArchitectureTests.messageAsync(folder, "arm64"), found);
+      });
+  }
+
+  private static pe(machine: number): Buffer {
+    const file = Buffer.alloc(0x90);
+    file.writeUInt16LE(0x5a4d, 0);
+    file.writeUInt32LE(0x80, 0x3c);
+    file.writeUInt32LE(0x00004550, 0x80);
+    file.writeUInt16LE(machine, 0x84);
+    return file;
+  }
+
+  private static dos(): Buffer {
+    const file = Buffer.alloc(0x90);
+    file.writeUInt16LE(0x5a4d, 0);
+    file.writeUInt32LE(0x1000, 0x3c);
+    return file;
+  }
+
+  private static elf(fileClass: number, data: number, machine: number): Buffer {
+    const header = Buffer.alloc(64);
+    header.writeUInt32LE(0x464c457f, 0);
+    header[4] = fileClass;
+    header[5] = data;
+    header.writeUInt16LE(machine, 18);
+    return header;
+  }
+
+  private static async withFolderAsync(files: Readonly<Record<string, Buffer>>, run: (folder: string) => Promise<void>): Promise<void> {
+    const folder = await mkdtemp(path.join(tmpdir(), "packaged-architecture-"));
+    try {
+      for (const [name, data] of Object.entries(files)) {
+        const file = path.join(folder, ...name.split("/"));
+        await mkdir(path.dirname(file), { recursive: true });
+        await writeFile(file, data);
+      }
+      await run(folder);
+    }
+    finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   }
 
   private static thin(magic: number, type: number): Buffer {

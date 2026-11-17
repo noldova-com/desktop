@@ -20,6 +20,7 @@ export class WebViewEvent {
   private static readonly KINDS: readonly WebViewEventKind[] = Object.values(WebViewEventKind);
   private static readonly TEXT: (value: unknown) => boolean = t => Object.isString(t);
   private static readonly TEXT_OR_NULL: (value: unknown) => boolean = t => Object.isString(t) || Object.isNull(t);
+  private static readonly TEXT_OR_ABSENT: (value: unknown) => boolean = t => Object.isString(t) || Object.isUndefined(t);
   private static readonly FLAG: (value: unknown) => boolean = t => Object.isBoolean(t);
   private static readonly WHOLE: (value: unknown) => boolean = t => Number.isSafeInteger(t);
   private static readonly OBJECT: (value: unknown) => boolean = t => Object.isPlainObject(t);
@@ -38,7 +39,8 @@ export class WebViewEvent {
     [WebViewEventKind.Crashed]: new Map(),
     [WebViewEventKind.ProfileCleared]: new Map([[Resources.profileKeyField, WebViewEvent.TEXT]]),
     [WebViewEventKind.RequestRefused]: new Map([[Resources.requestField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT]]),
-    [WebViewEventKind.NewWindowRequested]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.hadRecentInputField, WebViewEvent.FLAG], [Resources.originField, WebViewEvent.TEXT_OR_NULL]]),
+    [WebViewEventKind.NewWindowRequested]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.hadRecentInputField, WebViewEvent.FLAG], [Resources.originField, WebViewEvent.TEXT_OR_NULL],
+      [Resources.dispositionField, WebViewEvent.TEXT_OR_ABSENT]]),
     [WebViewEventKind.Protocol]: new Map([[Resources.methodField, WebViewEvent.TEXT], [Resources.paramsField, WebViewEvent.OBJECT], [Resources.isCutField, WebViewEvent.FLAG]]),
     [WebViewEventKind.Dropped]: new Map([[Resources.countField, WebViewEvent.WHOLE]]),
     [WebViewEventKind.Key]: new Map([[Resources.nameField, WebViewEvent.TEXT]]),
@@ -89,7 +91,7 @@ export class WebViewEvent {
   private static hasDetails(kind: WebViewEventKind, details: JsonObject): boolean {
     const types = WebViewEvent.DETAILS[kind];
     const names = Object.keys(details);
-    if (names.length !== types.size || !names.every(t => types.has(t)))
+    if (!names.every(t => types.has(t)))
       return false;
     if (![...types].every(([name, isOfType]) => isOfType(details[name])))
       return false;

@@ -232,15 +232,15 @@ function readFirstViewAddressAsync(mainProcess: MainProcessFixture): Promise<{ a
   });
 }
 
-function clickInFirstViewAsync(mainProcess: MainProcessFixture, x: number, y: number): Promise<boolean> {
-  return mainProcess.application.evaluate(({ webContents }, [left, top]) => {
+function clickInFirstViewAsync(mainProcess: MainProcessFixture, x: number, y: number, button: "left" | "middle" = "left"): Promise<boolean> {
+  return mainProcess.application.evaluate(({ webContents }, [left, top, pressed]) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
     if (first === undefined)
       return false;
     for (const type of ["mouseDown", "mouseUp"] as const)
-      first.sendInputEvent({ type, x: left, y: top, button: "left", clickCount: 1 });
+      first.sendInputEvent({ type, x: left, y: top, button: pressed, clickCount: 1 });
     return true;
-  }, [x, y] as const);
+  }, [x, y, button] as const);
 }
 
 function isFirstDebuggerAttachedAsync(mainProcess: MainProcessFixture): Promise<boolean> {
@@ -1134,7 +1134,7 @@ test.describe("web views", () => {
     }
   });
 
-  test("a module that takes new-window requests gets a script's and a link's, the second saying the person's input came just before, opens each in a view of its own, and the host refuses a burst over five a second", async ({ mainProcess }) => {
+  test("a module that takes new-window requests gets a script's, a popup's, a link's and a middle-clicked link's with each disposition, the links saying the person's input came just before, opens each in a view of its own, and the host refuses a burst over five a second", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const server = await startServerAsync();
     try {
@@ -1149,19 +1149,26 @@ test.describe("web views", () => {
       await expect(view(window, 0)).toHaveText("Opener");
       const id = await view(window, 0).getAttribute("data-view");
 
+      const script = `${origin}/second false ${origin} foreground-tab\n`;
+      const popup = `${origin}/second false ${origin} new-window\n`;
+      const link = `${origin}/first true ${origin} foreground-tab\n`;
       expect(await runInFirstViewAsync(mainProcess, "window.open('/second')")).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${origin}/second false ${origin}\n`);
+      await expect(view(window, 0)).toHaveAttribute("data-requests", script);
       await expect(view(window, 1)).toHaveText("Second page");
+      expect(await runInFirstViewAsync(mainProcess, "window.open('/second', '_blank', 'popup')")).toBe(true);
+      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}`);
       expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${origin}/second false ${origin}\n${origin}/first true ${origin}\n`);
+      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}`);
       await expect(view(window, 1)).toHaveText("First page");
+      expect(await clickInFirstViewAsync(mainProcess, 20, 20, "middle")).toBe(true);
+      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}${origin}/first true ${origin} background-tab\n`);
       expect(await readPlacesAsync(window)).toHaveLength(2);
 
       await holdClockAsync(mainProcess, true);
       const burst = await runInFirstViewAsync(mainProcess, "for (let index = 0; index < 7; index++) window.open('/first?' + index)").finally(() => holdClockAsync(mainProcess, false));
       expect(burst).toBe(true);
       const countAsync = async (): Promise<[number, number]> => [
-        ((await view(window, 0).getAttribute("data-requests")) ?? String.empty).split("\n").filter(t => t.length > 0).length - 2,
+        ((await view(window, 0).getAttribute("data-requests")) ?? String.empty).split("\n").filter(t => t.length > 0).length - 4,
         (await eventsAsync(window)).filter(t => t === `${id} RequestRefused`).length
       ];
       await expect.poll(async () => (await countAsync()).reduce((sum, t) => sum + t, 0)).toBe(7);

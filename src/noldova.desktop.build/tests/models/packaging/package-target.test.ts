@@ -53,4 +53,11 @@ export class PackageTargetTests {
     Assert.areEqual("Packages are made for windows, macos and linux on x64 and arm64, not for freebsd on x64.", platform.message);
     Assert.areEqual("Packages are made for windows, macos and linux on x64 and arm64, not for linux on ia32.", architecture.message);
   }
+
+  @TestMethod
+  public buildsForTheArchitectureTheEnvironmentNamesAndOtherwiseForTheProcesssOwn(): void {
+    Assert.areEqual("arm64", PackageTarget.readArchitecture({ NOLDOVA_DESKTOP_ARCHITECTURE: "arm64" }, "x64"));
+    Assert.areEqual("x64", PackageTarget.readArchitecture({ NOLDOVA_DESKTOP_ARCHITECTURE: "" }, "x64"));
+    Assert.areEqual("arm64", PackageTarget.readArchitecture({}, "arm64"));
+  }
 }

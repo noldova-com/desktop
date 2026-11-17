@@ -220,6 +220,7 @@ export class Resources {
   public static readonly codeField: string = "code";
   public static readonly modifiersField: string = "modifiers";
   public static readonly originField: string = "origin";
+  public static readonly dispositionField: string = "disposition";
   public static readonly altModifier: number = 1;
   public static readonly ctrlModifier: number = 2;
   public static readonly metaModifier: number = 4;
