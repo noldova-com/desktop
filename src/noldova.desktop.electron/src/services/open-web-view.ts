@@ -668,7 +668,7 @@ export class OpenWebView {
       [Resources.addressField]: details.url,
       [Resources.hadRecentInputField]: !Object.isUndefined(this.lastInput) && now - this.lastInput <= Resources.recentInputMilliseconds,
       [Resources.originField]: origin === Resources.nullOrigin ? null : origin,
-      [Resources.dispositionField]: details.disposition
+      ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition }
     });
   }
 

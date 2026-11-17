@@ -9,5 +9,5 @@
 export interface IWindowOpenDetails {
   readonly url: string;
   readonly referrer: { readonly url: string };
-  readonly disposition: string;
+  readonly disposition?: string;
 }

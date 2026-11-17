@@ -44,6 +44,16 @@ export class WebViewEventTests {
   }
 
   @TestMethod
+  public carriesANewWindowRequestWithoutADisposition(): void {
+    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":true,\"origin\":null}}";
+
+    const event = WebViewEvent.fromJson(JsonReader.parse(text).toJson());
+
+    Assert.areEqual(text, JSON.stringify(event.toJson()));
+    Assert.isFalse(Object.hasOwn(event.details, "disposition"));
+  }
+
+  @TestMethod
   public carriesANewWindowRequestWhoseOriginIsUnknown(): void {
     const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":false,\"origin\":null,\"disposition\":\"foreground-tab\"}}";
 
@@ -70,7 +80,7 @@ export class WebViewEventTests {
       [WebViewEventKind.RequestRefused, { request: "camera", origin: "https://example.com" }],
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: "yes", origin: null, disposition: "new-window" }],
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: 1, disposition: "new-window" }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null }],
+      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, disposition: "new-window" }],
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: null }],
       [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: [], isCut: false }],
       [WebViewEventKind.Dropped, { count: 0 }],
