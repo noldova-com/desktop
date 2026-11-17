@@ -39,6 +39,11 @@ export class PackageTarget {
     return new PackageTarget(Resources.packagePlatforms.get(platform) ?? platform, architecture);
   }
 
+  public static readArchitecture(environment: NodeJS.ProcessEnv, processArchitecture: string): string {
+    const architecture = environment[Resources.targetArchitectureVariable] ?? String.empty;
+    return architecture.length > 0 ? architecture : processArchitecture;
+  }
+
   public get id(): string {
     return Resources.formatTargetId(this.platform, this.architecture);
   }

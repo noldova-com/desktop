@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
@@ -27,6 +27,7 @@ import { PackageLayout } from "../packaging/package-layout.ts";
 import { PackageReport } from "../../models/packaging/package-report.ts";
 import { PackageStage } from "../packaging/package-stage.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
+import { PackagedArchitecture } from "../packaging/packaged-architecture.ts";
 import { PackagedUnpackedFiles } from "../packaging/packaged-unpacked-files.ts";
 import type { PinnedPackage } from "../../models/packaging/pinned-package.ts";
 import { SigningCredentials } from "../packaging/signing-credentials.ts";
@@ -129,6 +130,8 @@ export class Package {
       this.output.write(await signing.finishAsync(files));
       this.output.write(Resources.formatSignatures(await signing.verifyAsync(files, product)));
     }
+    for (const folder of (await readdir(layout.output, { withFileTypes: true })).filter(t => t.isDirectory()))
+      this.output.write(Resources.formatOutputLine(await PackagedArchitecture.verifyAsync(path.join(layout.output, folder.name), target.architecture)));
     if (target.platform === Resources.macosTarget)
       for (const archive of files.filter(t => path.extname(t) === Resources.zipExtension))
         this.output.write(Resources.formatOutputLine(await new MacUpdateArchiveCheck(this.runner, layout.archiveCheck, this.environment).verifyAsync(archive, layout.output, product.name)));

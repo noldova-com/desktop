@@ -94,6 +94,8 @@ jobs:
         include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ fromJSON(matrix.runner) }}
     timeout-minutes: 105
+    env:
+      NOLDOVA_DESKTOP_ARCHITECTURE: ${{ matrix.architecture }}
     steps: &package-steps
       - name: Stop Spotlight indexing
         if: runner.os == 'macOS'
@@ -126,7 +128,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
-          architecture: ${{ matrix.architecture }}
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           package-manager-cache: false
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.registry-scope }}
@@ -144,7 +146,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
-          architecture: ${{ matrix.architecture }}
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           package-manager-cache: false
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.registry-scope }}
@@ -160,7 +162,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
-          architecture: ${{ matrix.architecture }}
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           package-manager-cache: false
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.registry-scope }}
@@ -168,7 +170,7 @@ jobs:
       - name: Verify the toolchain
         timeout-minutes: 1
         env:
-          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+          EXPECTED_ARCHITECTURE: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           EXPECTED_NODE: ${{ needs.versions.outputs.node-version }}
           EXPECTED_NPM: ${{ needs.versions.outputs.npm-version }}
         run: |
@@ -202,6 +204,8 @@ jobs:
       - name: Install Electron
         timeout-minutes: 5
         working-directory: ${{ inputs.app-folder }}
+        env:
+          npm_config_arch: ${{ matrix.architecture }}
         run: |
           for attempt in 1 2 3 4; do
             if node node_modules/electron/install.js; then
@@ -263,7 +267,7 @@ jobs:
                 if (process.platform === "linux") {
                   const { appimageChecksums, getAppImageTools, getFpmPath } = toolset("linux.js");
                   for (const version of Object.keys(appimageChecksums).filter(t => t !== "0.0.0"))
-                    await getAppImageTools(version, Arch[process.arch]);
+                    await getAppImageTools(version, Arch[process.env.NOLDOVA_DESKTOP_ARCHITECTURE]);
                   await getFpmPath();
                 } else {
                   await toolset("icons.js").getIconsToolsetPath();
@@ -349,7 +353,7 @@ jobs:
 
       - name: Install, start and quit the package
         id: smoke
-        if: matrix.platform != 'macos' || matrix.architecture != 'x64' || runner.environment == 'github-hosted'
+        if: (runner.arch == 'ARM64' && 'arm64' || 'x64') == matrix.architecture && (matrix.platform != 'macos' || matrix.architecture != 'x64' || runner.environment == 'github-hosted')
         timeout-minutes: 15
         working-directory: ${{ inputs.app-folder }}
         env:
@@ -564,4 +568,6 @@ jobs:
     runs-on: ${{ fromJSON(matrix.runner) }}
     environment: release
     timeout-minutes: 105
+    env:
+      NOLDOVA_DESKTOP_ARCHITECTURE: ${{ matrix.architecture }}
     steps: *package-steps

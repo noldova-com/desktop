@@ -65,7 +65,7 @@ export class ElectronBinaryTests {
     const chunks: string[] = [];
     output.on("data", (t: Buffer) => chunks.push(t.toString()));
 
-    await PausedTimersFixture.withoutPausesAsync(() => new ElectronBinary(folder.path, runner).installAsync(output), ElectronBinaryTests.PAUSE);
+    await PausedTimersFixture.withoutPausesAsync(() => new ElectronBinary(folder.path, runner, "arm64", { SAMPLE_SETTING: "kept" }).installAsync(output), ElectronBinaryTests.PAUSE);
 
     Assert.areEqual([
       ElectronBinaryTests.INSTALLING,
@@ -74,6 +74,7 @@ export class ElectronBinaryTests {
     ].join(String.empty), chunks.join(String.empty));
     Assert.areEqual(`${path.basename(process.execPath)} ${installer}`, [...new Set(runner.captured)].join("|"));
     Assert.areEqual(3, runner.captured.length);
+    Assert.areEqual("arm64|kept", [runner.environments[0]?.["npm_config_arch"], runner.environments[0]?.["SAMPLE_SETTING"]].join("|"));
   }
 
   @TestMethod

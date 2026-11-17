@@ -572,6 +572,39 @@ export class PackageTests {
   }
 
   @TestMethod
+  public async checksEveryFolderTheBuilderMadeHoldsTheTargetsArchitectureAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const layout = new PackageLayout(app.path);
+    const unpacked = path.join(layout.output, "linux-arm64-unpacked");
+
+    const result = await PackageTests.buildAsync(app, "linux", "arm64", true, [], {}, (t, u) => new StandInBuilderRunnerFixture(t, u, [], new Map([
+      [path.join(unpacked, "sample-app"), PackageTests.elf(183)],
+      [path.join(unpacked, "resources", "app.asar.unpacked", "node_modules", "node-pty", "prebuilds", "linux-arm64", "pty.node"), PackageTests.elf(183)],
+      [path.join(unpacked, "resources", "app.asar"), Buffer.from("sample")]
+    ])));
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith(`${Resources.formatNativeArchitectureVerified(unpacked, 2, "arm64")}\n`), result.output);
+    Assert.isTrue(existsSync(layout.report));
+  }
+
+  @TestMethod
+  public async refusesABuiltFileOfAnotherArchitectureBeforeItsReportAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const layout = new PackageLayout(app.path);
+    const addon = path.join(layout.output, "linux-arm64-unpacked", "resources", "app.asar.unpacked", "node_modules", "node-pty", "prebuilds", "linux-x64", "pty.node");
+
+    const result = await PackageTests.buildAsync(app, "linux", "arm64", true, [], {}, (t, u) => new StandInBuilderRunnerFixture(t, u, [], new Map([
+      [path.join(layout.output, "linux-arm64-unpacked", "sample-app"), PackageTests.elf(183)],
+      [addon, PackageTests.elf(62)]
+    ])));
+
+    Assert.areEqual(1, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith(`The file ${addon} is x64, not an arm64-only ELF file, so it would not run natively on arm64.\n`), result.output);
+    Assert.isFalse(existsSync(layout.report));
+  }
+
+  @TestMethod
   public async refusesABuildThatLeavesOutAPackageAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync();
     const layout = new PackageLayout(app.path);
@@ -665,6 +698,15 @@ export class PackageTests {
     const error = await Assert.throwsAsync(() => new Package(app.path, "linux", "x64", stage, runner, {}, new PassThrough(), []).runAsync([]), Error);
 
     Assert.isFalse(error instanceof BuildException, error.message);
+  }
+
+  private static elf(machine: number): Buffer {
+    const header = Buffer.alloc(64);
+    header.writeUInt32LE(0x464c457f, 0);
+    header[4] = 2;
+    header[5] = 1;
+    header.writeUInt16LE(machine, 18);
+    return header;
   }
 
   private static async buildAsync(app: InstalledAppFixture, platform: string, architecture: string, makesPackages: boolean, packageArguments: readonly string[] = [],
