@@ -81,8 +81,7 @@ After the release, its dependents job calls the organization's shared `update-de
 Each repository the App's installation includes that pins Noldova Desktop's packages exactly at an older version, a module or an app, gets a pull request that moves the pins and refreshes its lock files; the shared workflow's README says how.
 
 Noldova Desktop ships no installers of its own: an app releases its installers by calling `.github/workflows/release-app.yml`, as [documents/BUILD.md](documents/BUILD.md) says, and CI packages Noldova Desktop's own app unsigned through `.github/workflows/package-app.yml`.
-A release builds each ARM64 target whose runner input is not empty; by default those are Linux, Windows and macOS arm64, on the runners the organization's `versions.yml` names.
-Linux and Windows ARM64 default to GitHub's hosted runners only for a public caller or one whose `RUNNER_TYPE` is `GITHUB`; a private caller on self-hosted runners builds them only where `RUNS_ON_SELF_HOSTED_LINUX_ARM64` and `RUNS_ON_SELF_HOSTED_WINDOWS_ARM64` are set, or it passes the inputs.
+A release builds each ARM64 target whose runner input is not empty; by default those are Linux, Windows and macOS arm64: the Windows and Linux x64 runners build Windows and Linux ARM64 too, and the organization's macOS ARM64 runner builds macOS ARM64, as the organization's `versions.yml` names them.
 A failed release runs again whole, as a new run, which builds and checks the archives again.
 
 ## Checks

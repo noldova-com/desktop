@@ -3669,6 +3669,10 @@ export class Resources {
     return `Building ${packageName}'s ${kind} addon ${addon} failed with exit code ${exitCode}:\n${text}`;
   }
 
+  public static formatAddonArchitectureRefused(packageName: string, architecture: string, machineArchitecture: string): string {
+    return `${packageName}'s addons can't be built for ${architecture} on this ${machineArchitecture} machine, since node-gyp builds for the machine's own processor. Build on a ${architecture} machine, or name a folder of release builds in ${Resources.releaseAddonsVariable}.`;
+  }
+
   public static formatReleaseAddonMissing(target: string, packageName: string, addon: string, directory: string, build: string): string {
     return `${Resources.releaseAddonsVariable} lacks the ${target} build of ${packageName}'s addon ${addon}, ${directory}/${build}.`;
   }

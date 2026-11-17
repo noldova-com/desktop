@@ -42,7 +42,7 @@ on:
         type: string
         default: default
       runs-on-linux-arm64:
-        description: The runner of Linux ARM64, as the JSON runs-on takes; default takes the Linux x64 runner, which builds the ARM64 packages without starting them, and empty leaves the target out.
+        description: The runner of Linux ARM64, as the JSON runs-on takes; default takes the Linux x64 runner, which builds the ARM64 packages without starting them with a desktop.build newer than 0.0.2 only, and empty leaves the target out.
         type: string
         default: default
       runs-on-windows-x64:
@@ -50,7 +50,7 @@ on:
         type: string
         default: default
       runs-on-windows-arm64:
-        description: The runner of Windows ARM64, as the JSON runs-on takes; default takes the Windows x64 runner, which builds the ARM64 packages without starting them, and empty leaves the target out.
+        description: The runner of Windows ARM64, as the JSON runs-on takes; default takes the Windows x64 runner, which builds the ARM64 packages without starting them with a desktop.build newer than 0.0.2 only, and empty leaves the target out.
         type: string
         default: default
       runs-on-macos-x64:
