@@ -16,6 +16,7 @@ export class Resources {
   public static readonly typeMethod: string = "pages.type";
   public static readonly clickMethod: string = "pages.click";
   public static readonly focusMethod: string = "pages.focus";
+  public static readonly controlMethod: string = "pages.control";
   public static readonly dispatchMouseEventMethod: string = "Input.dispatchMouseEvent";
   public static readonly mouseTypes: readonly string[] = ["mousePressed", "mouseReleased"];
   public static readonly evaluateMethod: string = "Runtime.evaluate";
@@ -28,6 +29,7 @@ export class Resources {
   public static readonly captureTimeout: number = 5_000;
   public static readonly viewField: string = "view";
   public static readonly urlField: string = "url";
+  public static readonly isControlledField: string = "isControlled";
   public static readonly keyField: string = "key";
   public static readonly codeField: string = "code";
   public static readonly textField: string = "text";

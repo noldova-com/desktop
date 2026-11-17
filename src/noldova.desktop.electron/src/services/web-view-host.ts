@@ -34,7 +34,8 @@ import { WebViewOriginCheck } from "./web-view-origin-check.js";
 
 export class WebViewHost {
   private static readonly MOVES: readonly WebViewAction[] = [WebViewAction.Back, WebViewAction.Forward, WebViewAction.Reload, WebViewAction.Stop];
-  private static readonly WINDOW_EVENTS: readonly WebViewEventKind[] = [WebViewEventKind.Key, WebViewEventKind.Zoom, WebViewEventKind.Found, WebViewEventKind.Favicon];
+  private static readonly WINDOW_EVENTS: readonly WebViewEventKind[] = [WebViewEventKind.Key, WebViewEventKind.Zoom, WebViewEventKind.Found, WebViewEventKind.Favicon,
+    WebViewEventKind.Controlled];
 
   private readonly engine: IWebViewEngine;
   private readonly check: WebViewOriginCheck;
@@ -221,6 +222,9 @@ export class WebViewHost {
         open.setAllowedOrigins(origins);
         return new WebViewAnswered(command.call);
       }
+      case WebViewAction.SetControlled:
+        open.setControlled(command.value === true);
+        return new WebViewAnswered(command.call);
       case WebViewAction.Send: {
         const send = JsonReader.fromValue(command.value);
         return open.sendAsync(command.call, send.readString(Resources.methodField), send.readObject(Resources.paramsField).toJson(), send.readInteger(Resources.timeoutField));

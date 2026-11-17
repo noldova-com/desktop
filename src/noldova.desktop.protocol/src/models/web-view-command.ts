@@ -74,6 +74,8 @@ export class WebViewCommand {
         return Object.isString(value) && Resources.profileKeyPattern.test(value);
       case WebViewAction.Send:
         return WebViewCommand.isSend(value);
+      case WebViewAction.SetControlled:
+        return Object.isBoolean(value);
       default:
         return Object.isNull(value);
     }

@@ -49,6 +49,19 @@ The window part reaches its views through `context.webViews`.
 - A view behind another tab of its group keeps its place, its page and its size, takes no clicks or focus, and still takes `navigateAsync`, `actAsync` and finding; it is hidden by `visibility` and `opacity`, never removed, so a tab switch shows the next view with no blank frame, and its page keeps running.
 - While the person drags a tab or a toolbar item, the views take no pointer, so the drag passes over them.
 
+### A controlled view keeps painting
+
+The web engine paints no hidden page, and a document a hidden page loads, by a navigation or a form's post, starts hidden and never reaches its first paint, so the engine drops every click and key but a mouse move.
+An agent drives views the person doesn't look at, so while a view is marked controlled, the host keeps it painted when it is hidden:
+- It stays visible, at full opacity, in its place and at its size, behind the shown content, and takes no pointer.
+  A view behind another tab of its group keeps its tab's content painted too, since a child can't undo its parent's `opacity`; the tab's content lies under the shown tab, which then paints its card's own background, so nothing of the hidden page shows through.
+  A view behind another view of its pane lies under that view.
+- The runtime part marks the whole span with `setControlledAsync`, from the agent's first call or its opening the view until it closes the view, the person takes over or stops it, or the session ends.
+  The main process keeps the mark for the view, through a move of its tab and a restart of the runtime, and tells only the window, by a `Controlled` event; closing the view ends it.
+  A reload of the window closes its views, and the mark with them.
+  When the span ends, a hidden view hides again as it did before.
+- Only the views an agent controls pay for painting; a hidden view nobody controls stays hidden.
+
 ### Layers over a view
 
 A **layer** draws the part's component over the live page: an element of the window's page laid over the view's element.
@@ -98,6 +111,7 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 | `list()` | Lists the module's open views, each with its id, pane and profile key. |
 | `navigateAsync(id, url)`, `actAsync(id, action)` | Load an address, or go back, go forward, reload or stop, with the same answers as the bridge. |
 | `setAllowedOriginsAsync(id, origins)` | Sets the origins the view may load; the module sets them from the person's answers and the app's settings, never from a tool's arguments alone. |
+| `setControlledAsync(id, isControlled)` | Marks whether an agent controls the view, so the window [keeps it painted](#a-controlled-view-keeps-painting) while hidden; closing the view ends it. |
 | `clearProfileAsync(profileKey)` | Clears the profile's cookies, storage and cache, and ends the pending calls of its views. |
 | `onViewEvent(listener)` | Reports every event of the module's views but the relay's, with the view's id, and returns a release. |
 
@@ -113,6 +127,7 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 | `Zoom` | The view's new zoom `factor`; only the window part gets it. |
 | `Found` | A finished search's `matches` and its 1-based `active` match, 0 when none; only the window part gets it. |
 | `Favicon` | The page's icon as an `image`, a `data:image/png` URL of at most 64 by 64 pixels and 16 KB, or null when the page has none or none of its first four icons can be read; sent when the icon changes, after a navigation or when the page changes it, and only the window part gets it. The host fetches each icon itself, in the view's profile and without following a redirect, and only from an `http` or `https` origin the view allows, at an address that passes the view's own checks, so a loopback or private address must be a local entry; it reads at most 1 MB within 10 seconds, stops a read when the page navigates, names another icon, stops loading without one or the view closes, and the page's isolated world decodes and scales the bytes the host passes it, whose PNG the host checks is at most 64 by 64 pixels. |
+| `Controlled` | `isControlled`, when the runtime part [marks](#a-controlled-view-keeps-painting) whether an agent controls the view and the mark changes; only the window part gets it. |
 | `State` | The address, the title, whether it is loading, and `canGoBack` and `canGoForward`; sent whenever any of them changes. |
 | `LoadFailed` | The address, the engine's code and its description. |
 | `NavigationRefused` | The address, its origin, and whether a redirect led there. |
