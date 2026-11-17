@@ -17,4 +17,5 @@ export interface IDocumentUpdate {
   readonly imageGlyph?: string | null;
   readonly status?: IDocumentStatus | null;
   readonly marker?: IDocumentMarker | null;
+  readonly underline?: string | null;
 }

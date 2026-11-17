@@ -375,6 +375,14 @@ export interface IDocumentOptions {
   readonly marker?: IDocumentMarker;
 
   /**
+   * Ignored: a document tab no longer carries an underline. It goes at the
+   * next minor version.
+   *
+   * @deprecated Leave it out.
+   */
+  readonly underline?: string;
+
+  /**
    * The instance of an open document of the same name that the new document
    * opens right after, in that document's group, such as the page that asked
    * for a new one. A preview there replaces that group's preview, and opens
@@ -508,6 +516,14 @@ export interface IDocumentUpdate {
    * removes it.
    */
   readonly marker?: IDocumentMarker | null;
+
+  /**
+   * Ignored: a document tab no longer carries an underline. It goes at the
+   * next minor version.
+   *
+   * @deprecated Leave it out.
+   */
+  readonly underline?: string | null;
 }
 
 /**

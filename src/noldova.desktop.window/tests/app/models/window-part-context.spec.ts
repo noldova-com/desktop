@@ -400,6 +400,17 @@ describe("WindowPartContext", () => {
     expect(host.calls.filter(t => t.startsWith("open"))).toEqual(["open notes notes.note 1 Note 1"]);
   });
 
+  it("takes an older module's underline, even a blank one or null, and gives the host no look change for it", () => {
+    expect(() => {
+      context.openDocument("notes.note", "1", "Note 1", { underline: " " });
+      context.updateDocument("notes.note", "1", { underline: null });
+      context.updateDocument("notes.note", "1", { underline: " " });
+    }).not.toThrow();
+
+    expect(host.looks.map(([call]) => call)).toEqual(["open notes notes.note 1"]);
+    expect(host.calls.filter(t => t.startsWith("open"))).toEqual(["open notes notes.note 1 Note 1"]);
+  });
+
   it("gives the host the instance a document opens after, and none when left out", () => {
     context.openDocument("notes.note", "2", "Note 2", { after: "1" });
     context.openDocument("notes.note", "3", "Note 3", { preview: true, after: "2" });
