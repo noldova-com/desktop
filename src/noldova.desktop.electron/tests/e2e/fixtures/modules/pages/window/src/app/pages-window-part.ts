@@ -30,7 +30,7 @@ export class PagesWindowPart implements IWindowPart {
       context.openView("pages.side", "1", "Side page");
       return null;
     }));
-    context.registerCommand(new CommandContribution("pages.mark", "Mark the page", null, "Mod+Shift+Y", async () => {
+    context.registerCommand(new CommandContribution("pages.mark", "Mark the page", null, "Mod+Shift+L", async () => {
       context.updateDocument("pages.page", "1", { title: "Marked page" });
       return null;
     }, () => this.isMarkAllowed));

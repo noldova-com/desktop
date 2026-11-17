@@ -417,18 +417,18 @@ test.describe("web views", () => {
       expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/keys` })).toEqual({ kind: "Started", origin: null });
       await expect(view(window, 0)).toHaveText("Keys");
 
-      await pressInFirstViewAsync(mainProcess, "Y", [mod, "shift"]);
+      await pressInFirstViewAsync(mainProcess, "L", [mod, "shift"]);
       await pressInFirstViewAsync(mainProcess, "5");
-      await expect(view(window, 0)).toHaveText(/^Keys [Yy] 5$/);
+      await expect(view(window, 0)).toHaveText(/^Keys [Ll] 5$/);
       await expect(window.getByRole("tab", { name: /Marked page/ })).toHaveCount(0);
 
       await CommandSearchFixture.searchAsync(window, "Allow the mark");
       await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.allowMark");
       await window.keyboard.press("Enter");
-      await pressInFirstViewAsync(mainProcess, "Y", [mod, "shift"]);
+      await pressInFirstViewAsync(mainProcess, "L", [mod, "shift"]);
       await expect(window.getByRole("tab", { name: /Marked page/ })).toHaveCount(1);
       await pressInFirstViewAsync(mainProcess, "6");
-      await expect(view(window, 0)).toHaveText(/^Keys [Yy] 5 6$/);
+      await expect(view(window, 0)).toHaveText(/^Keys [Ll] 5 6$/);
     }
     finally {
       await stopServerAsync(server);
