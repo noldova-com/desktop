@@ -149,6 +149,7 @@ export class PackageConfiguration {
           nsis: {
             oneClick: true,
             perMachine: false,
+            packElevateHelper: false,
             deleteAppDataOnUninstall: false,
             shortcutName: product.name,
             uninstallDisplayName: product.name,
