@@ -17,7 +17,6 @@ export interface IDocumentOptions {
   readonly imageGlyph?: string;
   readonly status?: IDocumentStatus;
   readonly marker?: IDocumentMarker;
-  readonly underline?: string;
   readonly after?: string;
   readonly activate?: boolean;
 }

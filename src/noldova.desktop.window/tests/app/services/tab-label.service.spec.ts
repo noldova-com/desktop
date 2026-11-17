@@ -116,7 +116,7 @@ describe("TabLabelService", () => {
   it("keeps each document tab's look by its key, and gives a tab without one no look", () => {
     const labels = TestBed.inject(TabLabelService);
     const first = new DocumentTab("browser.page", "1");
-    const look = DocumentLook.none.updated({ underline: "Shared" });
+    const look = DocumentLook.none.updated({ imageGlyph: "public" });
     labels.setLook(first, look);
 
     expect([labels.lookOf(first), labels.lookOf(new DocumentTab("browser.page", "2"))]).toEqual([look, DocumentLook.none]);
@@ -126,7 +126,7 @@ describe("TabLabelService", () => {
     const labels = TestBed.inject(TabLabelService);
     const first = new DocumentTab("browser.page", "1");
     const second = new DocumentTab("browser.page", "2");
-    const look = DocumentLook.none.updated({ underline: "Shared" });
+    const look = DocumentLook.none.updated({ imageGlyph: "public" });
     labels.setLook(first, look);
     labels.setLook(second, look);
 

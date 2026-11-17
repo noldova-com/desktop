@@ -380,7 +380,7 @@ describe("LayoutService", () => {
   it("closes several tabs at once, passing over a tab that is not open, and drops the closed documents' looks", async () => {
     await loadAsync(prepared());
     const labels = TestBed.inject(TabLabelService);
-    const look = DocumentLook.none.updated({ underline: "Shared" });
+    const look = DocumentLook.none.updated({ imageGlyph: "public" });
     const kept = new DocumentTab("notes.kept", "1");
     [LayoutFixture.plan, LayoutFixture.todo, kept].forEach(t => labels.setLook(t, look));
 
