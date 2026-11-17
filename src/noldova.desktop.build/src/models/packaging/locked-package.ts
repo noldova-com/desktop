@@ -13,6 +13,7 @@ import "@noldova/context.core";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
+import { PackageNaming } from "../../services/packages/package-naming.ts";
 
 export class LockedPackage {
   public readonly location: string;
@@ -27,12 +28,16 @@ export class LockedPackage {
     const version = entry[Resources.manifestVersionField];
     const resolved = entry[Resources.lockResolvedField];
     const integrity = entry[Resources.lockIntegrityField];
+    if (entry[Resources.lockLinkField] === true)
+      throw new BuildException(Resources.formatLockedPackageLinked(location, String(resolved)));
     if (!Resources.lockedPackageName.test(name) || !Object.isString(version) || !Resources.lockedPackageVersion.test(version))
       throw new BuildException(Resources.formatLockedPackageInvalid(location));
     if (entry[Resources.lockInBundleField] === true)
       throw new BuildException(Resources.formatLockedPackageBundled(name, version, location));
     if (!Object.isUndefined(entry[Resources.manifestNameField]) && entry[Resources.manifestNameField] !== name)
       throw new BuildException(Resources.formatLockedPackageAlias(location, String(entry[Resources.manifestNameField]), name));
+    if (!isInstalled && Object.isString(resolved) && resolved.startsWith(Resources.archiveScheme) && !LockedPackage.isOwnArchive(name, resolved))
+      throw new BuildException(Resources.formatLockedArchiveRefused(name, version, location, resolved));
     if (!Object.isString(resolved) || !LockedPackage.isShippable(resolved, isInstalled))
       throw new BuildException(isInstalled
         ? Resources.formatLockedPackageUnlocked(name, version, location)
@@ -59,6 +64,10 @@ export class LockedPackage {
     return Resources.formatLockedArchiveName(this.name, this.version);
   }
 
+  public get isArchive(): boolean {
+    return this.resolved.startsWith(Resources.archiveScheme);
+  }
+
   public locateArchive(root: string): string {
     return path.resolve(root, this.resolved.slice(Resources.archiveScheme.length));
   }
@@ -68,8 +77,13 @@ export class LockedPackage {
   }
 
   private static isShippable(resolved: string, isInstalled: boolean): boolean {
-    if (isInstalled)
-      return resolved.startsWith(Resources.archiveScheme);
-    return URL.canParse(resolved) && Resources.registrySchemes.includes(new URL(resolved).protocol);
+    if (resolved.startsWith(Resources.archiveScheme))
+      return true;
+    return !isInstalled && URL.canParse(resolved) && Resources.registrySchemes.includes(new URL(resolved).protocol);
+  }
+
+  private static isOwnArchive(name: string, resolved: string): boolean {
+    const file = resolved.slice(Resources.archiveScheme.length);
+    return PackageNaming.isNoldova(name) && path.posix.dirname(file) === Resources.archivesFolder && path.posix.extname(file) === Resources.packageArchiveExtension;
   }
 }

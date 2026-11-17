@@ -47,6 +47,42 @@ export class LockedPackageTests {
   }
 
   @TestMethod
+  public readsANoldovaPackageLockedToItsArchiveInTheRepositorysPackagesFolder(): void {
+    const locked = new LockedPackage("node_modules/@noldova/sample", { ...LockedPackageTests.ENTRY, resolved: "file:_packages/noldova-sample-1.2.3-beta.1.tgz" });
+    const root = path.resolve("root");
+
+    Assert.isFalse(locked.isInstalled);
+    Assert.isTrue(locked.isArchive);
+    Assert.areEqual(path.resolve(root, "_packages/noldova-sample-1.2.3-beta.1.tgz"), locked.locateArchive(root));
+  }
+
+  @TestMethod
+  public refusesALockedFileThatIsNotANoldovaArchiveDirectlyInThePackagesFolder(): void {
+    const cases: readonly (readonly [string, string])[] = [
+      ["node_modules/@noldova/sample", "file:archives/sample.tgz"],
+      ["node_modules/@noldova/sample", "file:_packages/nested/sample.tgz"],
+      ["node_modules/@noldova/sample", "file:_packages/../sample.tgz"],
+      ["node_modules/@noldova/sample", "file:../other/_packages/sample.tgz"],
+      ["node_modules/@noldova/sample", "file:_packages/sample"],
+      ["node_modules/sample", "file:_packages/sample-1.2.3-beta.1.tgz"]
+    ];
+    for (const [location, resolved] of cases) {
+      const error = Assert.throws(() => new LockedPackage(location, { ...LockedPackageTests.ENTRY, resolved }), BuildException);
+
+      Assert.areEqual(`${location.slice("node_modules/".length)}@1.2.3-beta.1 at ${location} in package-lock.json is locked to ${resolved}; `
+        + "a locked file ships only as a .tgz archive of a Noldova package directly in the repository's own _packages folder.", error.message, resolved);
+    }
+  }
+
+  @TestMethod
+  public refusesALinkedFolder(): void {
+    const error = Assert.throws(() => new LockedPackage("node_modules/@noldova/sample", { resolved: "packages/sample", link: true }), BuildException);
+
+    Assert.areEqual("node_modules/@noldova/sample in package-lock.json links to the folder packages/sample; a linked folder cannot ship, "
+      + "so lock the package to its archive in the repository's own _packages folder.", error.message);
+  }
+
+  @TestMethod
   public refusesAnInvalidNameOrVersion(): void {
     const cases: readonly (readonly [string, unknown])[] = [["node_modules/Sample Name", "1.0.0"], ["node_modules/sample", "latest"], ["node_modules/sample", 1]];
     for (const [location, version] of cases) {
@@ -68,7 +104,7 @@ export class LockedPackageTests {
 
   @TestMethod
   public refusesAPackageNotResolvedToARegistryTarball(): void {
-    for (const resolved of ["file:archives/sample.tgz", "git+ssh://example.com/sample.git", "not a url", undefined]) {
+    for (const resolved of ["git+ssh://example.com/sample.git", "not a url", undefined]) {
       const error = Assert.throws(() => new LockedPackage("node_modules/sample", { ...LockedPackageTests.ENTRY, resolved }), BuildException);
 
       Assert.areEqual("sample@1.2.3-beta.1 at node_modules/sample in package-lock.json is not resolved to a registry tarball, so it cannot ship.", error.message);

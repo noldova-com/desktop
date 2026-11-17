@@ -42,7 +42,7 @@ export class CompanyPackage {
       throw new BuildException(Resources.formatCompanyPackageMismatch(locked.location, locked.id));
     const dependencies = manifest[Resources.manifestDependenciesField];
     const bundled = Object.keys(Object.isPlainObject(dependencies) ? dependencies : {}).filter(t => windowPackages.has(t));
-    const archive = locked.isInstalled ? await CompanyPackage.verifyArchiveAsync(locked, root) : null;
+    const archive = locked.isArchive ? await CompanyPackage.verifyArchiveAsync(locked, root) : null;
     if (!Object.isNull(archive) && bundled.length === 0)
       return new CompanyPackage(locked, archive[0]);
 

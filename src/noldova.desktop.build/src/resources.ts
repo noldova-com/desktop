@@ -1565,6 +1565,7 @@ export class Resources {
   public static readonly lockedPackageVersion: RegExp = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$/;
   public static readonly lockResolvedField: string = "resolved";
   public static readonly lockInBundleField: string = "inBundle";
+  public static readonly lockLinkField: string = "link";
   public static readonly omittedOptionalsField: string = "omittedOptionals";
   public static readonly omittedOptionalsShape: string = `The root package.json's ${Resources.omittedOptionalsSection} must map each package, as <name>@<version>, to `
     + "{ \"dependencies\": [<optional dependency name>, ...], \"reason\": \"<why the app never loads them>\" }.";
@@ -3954,6 +3955,15 @@ export class Resources {
 
   public static formatLockedPackageUnlocked(name: string, version: string, location: string): string {
     return `${name}@${version} at ${location} is installed but not locked in package-lock.json, and only a package installed from the app's own archive may ship unlocked.`;
+  }
+
+  public static formatLockedPackageLinked(location: string, resolved: string): string {
+    return `${location} in package-lock.json links to the folder ${resolved}; a linked folder cannot ship, so lock the package to its archive in the repository's own ${Resources.archivesFolder} folder.`;
+  }
+
+  public static formatLockedArchiveRefused(name: string, version: string, location: string, resolved: string): string {
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved}; a locked file ships only as a ${Resources.packageArchiveExtension} archive of a Noldova package `
+      + `directly in the repository's own ${Resources.archivesFolder} folder.`;
   }
 
   public static formatLockedPackageUnresolved(name: string, version: string, location: string): string {

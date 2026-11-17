@@ -275,6 +275,30 @@ export class CompanyPackageTests {
     Assert.areEqual(`${file} no longer matches the integrity npm recorded when it installed sample@1.0.0; build the app's packages and install the app again.`, changed.message);
   }
 
+  @TestMethod
+  public async shipsTheArchiveALockedNoldovaPackageIsLockedToInThePackagesFolderOnceItMatches(): Promise<void> {
+    await using root = await CompanyPackageTests.createRootAsync({ name: "@noldova/sample", version: "1.0.0" }, "@noldova/sample");
+    const archive = TarballFixture.create({ "package.json": JSON.stringify({ name: "@noldova/sample", version: "1.0.0" }) });
+    const file = path.join(root.path, "_packages", "noldova-sample-1.0.0.tgz");
+    const runner = new PackRunner(0);
+    const pack = (): Promise<CompanyPackage> => CompanyPackage.packAsync(new LockedPackage("node_modules/@noldova/sample", { version: "1.0.0",
+      resolved: "file:_packages/noldova-sample-1.0.0.tgz", integrity: `sha512-${createHash("sha512").update(archive).digest("base64")}` }), root.path,
+      path.join(root.path, "packed"), new NpmCommand(runner, { npm_execpath: "npm-cli.js" }), new Set());
+
+    const gone = await Assert.throwsAsync(pack, BuildException);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, "changed");
+    const changed = await Assert.throwsAsync(pack, BuildException);
+    await writeFile(file, archive);
+    const packed = await pack();
+
+    Assert.areEqual(`@noldova/sample@1.0.0 was installed from ${file}, which can no longer be read; build the app's packages and install the app again.`, gone.message);
+    Assert.areEqual(`${file} no longer matches the integrity npm recorded when it installed @noldova/sample@1.0.0; build the app's packages and install the app again.`,
+      changed.message);
+    Assert.areEqual(file, packed.file);
+    Assert.areEqual(0, runner.calls.length);
+  }
+
   private static lockRegistry(): LockedPackage {
     return new LockedPackage("node_modules/sample", { version: "1.0.0", resolved: "https://registry.example.com/sample-1.0.0.tgz", integrity: "sha512-AAAA" });
   }
@@ -284,9 +308,9 @@ export class CompanyPackageTests {
       integrity: `sha512-${createHash("sha512").update(archive).digest("base64")}` }, true);
   }
 
-  private static async createRootAsync(manifest: object | null): Promise<{ path: string } & AsyncDisposable> {
+  private static async createRootAsync(manifest: object | null, name: string = "sample"): Promise<{ path: string } & AsyncDisposable> {
     const root = await mkdtemp(path.join(tmpdir(), "company-package-"));
-    const installed = path.join(root, "node_modules", "sample");
+    const installed = path.join(root, "node_modules", ...name.split("/"));
     await mkdir(installed, { recursive: true });
     if (!Object.isNull(manifest))
       await writeFile(path.join(installed, "package.json"), JSON.stringify(manifest));
