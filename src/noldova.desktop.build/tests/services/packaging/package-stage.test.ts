@@ -84,7 +84,7 @@ export class PackageStageTests {
     await app.installAsync(InstalledAppFixture.CLI, null, { "shared-type": "1.0.0" }, { [context]: ">=0.0.2 <0.1.0" });
     await app.installAsync(InstalledAppFixture.ELECTRON);
     await app.addThirdPartyAsync("shared-type", "MIT", { LICENSE: "Shared license" });
-    const npm = new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary")), process.env);
+    const npm = new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary"), TemporaryFolderRunnerFixture.STALL_LIMIT), process.env);
     const stage = new PackageStage(app.path, npm, new StandInBuildFixture(app.path));
 
     await stage.stageAsync(PackageTarget.fromProcess("linux", "x64"), new PassThrough(), null, null);
@@ -116,6 +116,26 @@ export class PackageStageTests {
 
     Assert.isTrue(error.message.startsWith(PackageStageTests.FAILED), error.message);
     Assert.areEqual(JSON.stringify({ "shared-type": 2 }), JSON.stringify(written["overrides"]));
+  }
+
+  @TestMethod
+  public async reportsAnInstallStillRunningAtTheStallLimitWithWhatItWasDoing(): Promise<void> {
+    const folder = await mkdtemp(path.join(tmpdir(), "package-stage-"));
+    try {
+      const runner = await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), 500);
+      const script = "setTimeout(() => {}, 5000)";
+
+      const error = await Assert.throwsAsync(() => runner.captureAsync(process.execPath, ["-e", script, folder], tmpdir(), 600_000), BuildException);
+
+      const lines = error.message.split("\n");
+      Assert.areEqual(`${path.basename(process.execPath)} -e ${script} ${folder} was still running after 500 ms.`, lines[0]);
+      Assert.isTrue(lines.includes(process.platform === "win32" ? "Its process was not found among this process's children." : "It ended at SIGTERM."), error.message);
+      Assert.areEqual(process.platform === "darwin", lines.includes("Its sample:"), error.message);
+      Assert.areEqual(`npm wrote no log in ${path.join(folder, "temporary", "npm-logs")}.`, lines.at(-1));
+    }
+    finally {
+      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
+    }
   }
 
   @TestMethod
@@ -232,7 +252,7 @@ export class PackageStageTests {
   }
 
   private static async createNpmAsync(root: string): Promise<NpmCommand> {
-    return new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(root, "temporary")), process.env);
+    return new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(root, "temporary"), TemporaryFolderRunnerFixture.STALL_LIMIT), process.env);
   }
 
   private static async stageAsync(stage: PackageStage, platform: string, windowsPublisher: string | null): Promise<string> {
@@ -253,7 +273,7 @@ export class PackageStageTests {
       const manifest = JsonReader.parse(await readFile(path.join(app.path, "package.json"), "utf8")).toJson();
       await app.writeAppFileAsync("package.json", JSON.stringify({ ...manifest, overrides }));
     }
-    const npm = new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary")), process.env);
+    const npm = new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary"), TemporaryFolderRunnerFixture.STALL_LIMIT), process.env);
     const stage = new PackageStage(app.path, npm, new StandInBuildFixture(app.path));
 
     const failure = await stage.stageAsync(PackageTarget.fromProcess("linux", "x64"), new PassThrough(), null, null).then(() => null, (error: unknown) => {
@@ -286,7 +306,7 @@ export class PackageStageTests {
       path: stage,
       cache: path.join(folder, "cache"),
       archives,
-      npm: new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary")), process.env),
+      npm: new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), TemporaryFolderRunnerFixture.STALL_LIMIT), process.env),
       [Symbol.asyncDispose]: () => rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 })
     };
   }
