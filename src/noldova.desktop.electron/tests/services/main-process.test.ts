@@ -706,21 +706,20 @@ export class MainProcessTests {
       const electron = new FakeElectron();
       electron.dialog.answers.push(0);
       const environment = { SystemRoot: process.env["SystemRoot"] };
+      const mainProcess = new FakeMainProcessEnvironment(process.platform, [`--device-dir=${folder}`], environment);
       const installations: Installation[] = [];
       const launcher = new FakeRuntimeLauncher();
-      await MainProcessStartFixture.startAsync(electron, new FakeMainProcessEnvironment(process.platform, [`--device-dir=${folder}`], environment), launcher, undefined, undefined, undefined, installations);
-      const [installation] = installations;
-      Assert.isDefined(installation);
       const [holder] = await ProcessPresence.create(process.platform).stampAsync([[process.pid, "main"]]);
       Assert.isDefined(holder);
-      await mkdir(installation.folder, { recursive: true });
-      await writeFile(installation.barrierFile, JSON.stringify(new UpdateBarrier(holder, "0.3.0", UpdateBarrierState.Preparing, null).toJson()));
+      const installation = await MainProcessStartFixture.writeBarrierAsync(mainProcess, folder, JSON.stringify(new UpdateBarrier(holder, "0.3.0", UpdateBarrierState.Preparing, null).toJson()));
+      await MainProcessStartFixture.startAsync(electron, mainProcess, launcher, undefined, undefined, undefined, installations);
 
       await electron.app.becomeReadyAsync();
       electron.app.emit("activate");
       await Condition.waitAsync(() => electron.app.calls.includes("exit 0"));
       electron.app.emit("activate");
 
+      Assert.areEqual(installation.folder, installations[0]?.folder);
       Assert.areEqual(0, electron.windows.length);
       Assert.areEqual(0, launcher.calls.length);
       Assert.areEqual(JSON.stringify(["Noldova Desktop Sample is installing an update."]), JSON.stringify(electron.dialog.boxes.map(t => t.options.message)));
@@ -738,12 +737,9 @@ export class MainProcessTests {
       const electron = new FakeElectron();
       const environment = { SystemRoot: process.env["SystemRoot"] };
       const mainProcess = new FakeMainProcessEnvironment(process.platform, [`--device-dir=${folder}`], environment);
-      const installations: Installation[] = [];
-      await MainProcessStartFixture.startAsync(electron, mainProcess, new FakeRuntimeLauncher(), undefined, undefined, undefined, installations);
-      const [installation] = installations;
-      Assert.isDefined(installation);
-      await mkdir(installation.folder, { recursive: true });
-      await writeFile(installation.barrierFile, JSON.stringify(new UpdateBarrier(new UpdateProcess(process.pid, 1, 2, "main"), "0.3.0", UpdateBarrierState.Closing, null).toJson()));
+      const installation = await MainProcessStartFixture.writeBarrierAsync(mainProcess, folder,
+        JSON.stringify(new UpdateBarrier(new UpdateProcess(process.pid, 1, 2, "main"), "0.3.0", UpdateBarrierState.Closing, null).toJson()));
+      await MainProcessStartFixture.startAsync(electron, mainProcess, new FakeRuntimeLauncher());
 
       await MainProcessStartFixture.openAsync(electron);
 
@@ -803,17 +799,15 @@ export class MainProcessTests {
       electron.dialog.failure = new Error("No display");
       const environment = { SystemRoot: process.env["SystemRoot"] };
       const mainProcess = new FakeMainProcessEnvironment(process.platform, [`--device-dir=${folder}`], environment);
-      const installations: Installation[] = [];
-      await MainProcessStartFixture.startAsync(electron, mainProcess, new FakeRuntimeLauncher(), undefined, undefined, undefined, installations);
-      const [installation] = installations;
-      Assert.isDefined(installation);
-      await mkdir(installation.folder, { recursive: true });
-      await writeFile(installation.barrierFile, "{\"holder\":");
+      const launcher = new FakeRuntimeLauncher();
+      await MainProcessStartFixture.writeBarrierAsync(mainProcess, folder, "{\"holder\":");
+      await MainProcessStartFixture.startAsync(electron, mainProcess, launcher);
 
       await electron.app.becomeReadyAsync();
       await Condition.waitAsync(() => electron.app.calls.includes("exit 0"));
 
       Assert.areEqual(0, electron.windows.length);
+      Assert.areEqual(0, launcher.calls.length);
       Assert.areEqual(1, MainProcessStartFixture.readErrors(mainProcess, "The launch barrier could not be settled: Error: No display").length);
     }
     finally {
@@ -827,9 +821,14 @@ export class MainProcessTests {
     electron.dialog.failure = new Error("No display");
     const process = new FakeMainProcessEnvironment("linux");
 
-    await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(new UpdateInProgressException(UpdateBarrierStatus.Held)), electron, undefined, process);
+    const launcher = new FakeRuntimeLauncher(new UpdateInProgressException(UpdateBarrierStatus.Held));
+
+    await MainProcessStartFixture.startAsync(electron, process, launcher);
+    await Condition.waitAsync(() => launcher.calls.length === 1);
+    await electron.app.becomeReadyAsync();
     await Condition.waitAsync(() => electron.app.calls.includes("exit 0"));
-    MainProcessStartFixture.firstWindow(electron).destroy();
+    for (const window of electron.windows)
+      window.destroy();
 
     Assert.areEqual(1, electron.dialog.boxes.length);
     Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The launch barrier could not be settled: Error: No display").length);
@@ -1073,17 +1072,48 @@ export class MainProcessTests {
   }
 
   @TestMethod
-  public tellsItsWindowHowStartingTheRuntimeGoes(): Promise<void> {
-    return MainProcessStartFixture.startReadyAsync("linux").then(electron => {
-      const window = MainProcessStartFixture.firstWindow(electron);
+  public async tellsItsWindowHowStartingTheRuntimeGoesWhenTheRuntimeIsReadyAfterTheWindowOpens(): Promise<void> {
+    const connection = Promise.withResolvers<FakeRuntimeConnection>();
+    const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(connection.promise));
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const before = electron.ipcMain.invoke("desktop:readStartup", MainProcessStartFixture.trustedEvent("linux"));
 
-      Assert.areEqual(JSON.stringify([
-        ["desktop:startupState", { kind: "Connecting", details: [] }],
-        ["desktop:startupState", { kind: "Ready", details: [] }]
-      ]), JSON.stringify(window.webContents.sent));
-      Assert.areEqual(JSON.stringify({ kind: "Ready", details: [] }), JSON.stringify(electron.ipcMain.invoke("desktop:readStartup", MainProcessStartFixture.trustedEvent("linux"))));
-      Assert.isNull(electron.ipcMain.invoke("desktop:readStartup", { sender: { id: 1 }, senderFrame: null }));
-    });
+    connection.resolve(new FakeRuntimeConnection());
+    await Condition.waitAsync(() => MainProcessTests.isReady(electron));
+
+    Assert.areEqual(JSON.stringify({ kind: "Connecting", details: [] }), JSON.stringify(before));
+    Assert.areEqual(JSON.stringify([
+      ["desktop:startupState", { kind: "Connecting", details: [] }],
+      ["desktop:startupState", { kind: "Ready", details: [] }]
+    ]), JSON.stringify(window.webContents.sent.filter(t => t[0] === "desktop:startupState")));
+    Assert.isNull(electron.ipcMain.invoke("desktop:readStartup", { sender: { id: 1 }, senderFrame: null }));
+  }
+
+  @TestMethod
+  public async startsTheRuntimeBeforeElectronIsReadyAndGivesItsWindowTheStateAndTheEventsItHeld(): Promise<void> {
+    const launcher = new FakeRuntimeLauncher();
+    const electron = new FakeElectron();
+    await MainProcessStartFixture.startAsync(electron, new FakeMainProcessEnvironment("linux"), launcher);
+    await Condition.waitAsync(() => launcher.connections.length === 1);
+    await setImmediate();
+    launcher.listener?.onEvent(new Event(ShellEvents.modulesChanged, { sequence: 1 }));
+    launcher.listener?.onEvent(new Event(ShellEvents.modulesChanged, { sequence: 2 }));
+    const isReadyAtStart = electron.app.isReady;
+    const windowsAtStart = electron.windows.length;
+
+    await MainProcessStartFixture.openAsync(electron);
+    await setImmediate();
+    const window = MainProcessStartFixture.firstWindow(electron);
+
+    Assert.isFalse(isReadyAtStart);
+    Assert.areEqual(0, windowsAtStart);
+    Assert.areEqual(1, launcher.calls.length);
+    Assert.areEqual(JSON.stringify([
+      ["desktop:startupState", { kind: "Ready", details: [] }],
+      ["desktop:runtimeEvent", ShellEvents.modulesChanged.text, { sequence: 1 }],
+      ["desktop:runtimeEvent", ShellEvents.modulesChanged.text, { sequence: 2 }]
+    ]), JSON.stringify(window.webContents.sent.filter(t => t[0] === "desktop:startupState" || t[0] === "desktop:runtimeEvent")));
+    Assert.isTrue(MainProcessTests.isReady(electron));
   }
 
   @TestMethod
@@ -1094,9 +1124,11 @@ export class MainProcessTests {
     ]);
     const electron = new FakeElectron(true, true);
     await MainProcessStartFixture.startAsync(electron, process, new FakeRuntimeLauncher(handover));
-    await MainProcessStartFixture.openAsync(electron);
     await Condition.waitAsync(() => electron.app.calls.includes("quit"));
+    await electron.app.becomeReadyAsync();
+    await setImmediate();
 
+    Assert.areEqual(0, electron.windows.length);
     Assert.areEqual(
       JSON.stringify([["/opt/noldova-desktop/noldova-desktop", "--data-dir=/work/data", "--user-data-dir=/work/profile", "--device-dir=/work/device"]]),
       JSON.stringify(process.started));
@@ -1110,9 +1142,11 @@ export class MainProcessTests {
     process.startFailure = new Error("spawn /opt/noldova-desktop/noldova-desktop ENOENT");
     const electron = new FakeElectron(true, true);
     await MainProcessStartFixture.startAsync(electron, process, new FakeRuntimeLauncher(handover));
-    await MainProcessStartFixture.openAsync(electron);
     await Condition.waitAsync(() => electron.app.calls.includes("quit"));
+    await electron.app.becomeReadyAsync();
+    await setImmediate();
 
+    Assert.areEqual(0, electron.windows.length);
     Assert.areEqual(JSON.stringify(["The newer Noldova Desktop Sample could not be started for the hand-over, so this one quits without it: Error: spawn /opt/noldova-desktop/noldova-desktop ENOENT"]),
       JSON.stringify(MainProcessStartFixture.readErrors(process, "The newer Noldova Desktop Sample")));
   }

@@ -53,6 +53,7 @@ export class FakeElectron implements IElectron {
 
   public constructor(hasLock: boolean = true, isPackaged: boolean = false) {
     this.app = new FakeApplicationHost(hasLock, isPackaged);
+    this.dialog.isAppReady = () => this.app.isReady;
     this.nativeUpdater.onInstall = () => {
       for (const window of this.windows)
         window.close();

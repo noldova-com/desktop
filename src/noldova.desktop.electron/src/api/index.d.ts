@@ -6460,7 +6460,7 @@ export declare class UpdateBarrierGate {
    * }
    * ```
    */
-  public constructor(installation: Pick<Installation, "readAsync" | "readTextAsync" | "checkAsync" | "removeAsync">, productVersion: string, dialog: IDialogHost, log: (text: string) => void);
+  public constructor(installation: Pick<Installation, "readAsync" | "readTextAsync" | "checkAsync" | "removeAsync">, productVersion: string, dialog: Pick<IDialogHost, "showMessageBox">, log: (text: string) => void);
 
   /**
    * Checks the barrier and, when it holds, asks as {@link askAsync} does. A barrier that cannot be read lets the
@@ -6628,8 +6628,10 @@ export declare class MainProcess {
 
   /**
    * Starts the main process: chooses the data directory and keeps Electron's profile in its `mainProcess` folder (unless
-   * `--user-data-dir=` gives one), claims the single-instance lock, then opens the window when Electron is ready and
-   * starts or attaches to the runtime, which runs from the main process's program in Node mode. The files it reads
+   * `--user-data-dir=` gives one), claims the single-instance lock, checks the launch barrier and, once it passes, starts
+   * or attaches to the runtime at once, without waiting for Electron, which runs from the main process's program in Node
+   * mode. It opens the window when Electron is ready and gives it the start's state and the runtime events held until
+   * then, so the window works the same whether the runtime is ready before it or after. The files it reads
    * before Electron is ready (the folders a restarted version kept, the app's icons, the checkout's path and the shipped
    * dictionaries) are read without blocking, so an ES module entry point awaits the returned promise at its top level,
    * which Electron waits for before it becomes ready.
