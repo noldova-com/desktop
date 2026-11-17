@@ -46,7 +46,9 @@ export class LockedPackage {
       ? integrity.split(Resources.integritySeparator).find(t => t.startsWith(Resources.integrityPrefix))?.slice(Resources.integrityPrefix.length)
       : undefined;
     if (Object.isUndefined(sha512))
-      throw new BuildException(Resources.formatLockedPackageNoIntegrity(name, version, location));
+      throw new BuildException(!isInstalled && resolved.startsWith(Resources.archiveScheme)
+        ? Resources.formatLockedArchiveNoIntegrity(name, version, location, resolved)
+        : Resources.formatLockedPackageNoIntegrity(name, version, location));
 
     this.location = location;
     this.name = name;
@@ -84,6 +86,7 @@ export class LockedPackage {
 
   private static isOwnArchive(name: string, resolved: string): boolean {
     const file = resolved.slice(Resources.archiveScheme.length);
-    return PackageNaming.isNoldova(name) && path.posix.dirname(file) === Resources.archivesFolder && path.posix.extname(file) === Resources.packageArchiveExtension;
+    return PackageNaming.isNoldova(name) && file === path.posix.normalize(file) && Resources.ownArchiveFolder.test(path.posix.dirname(file))
+      && path.posix.extname(file) === Resources.packageArchiveExtension;
   }
 }

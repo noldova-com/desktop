@@ -1566,6 +1566,7 @@ export class Resources {
   public static readonly lockResolvedField: string = "resolved";
   public static readonly lockInBundleField: string = "inBundle";
   public static readonly lockLinkField: string = "link";
+  public static readonly ownArchiveFolder: RegExp = /^(?:\.\.\/)*_packages$/u;
   public static readonly omittedOptionalsField: string = "omittedOptionals";
   public static readonly omittedOptionalsShape: string = `The root package.json's ${Resources.omittedOptionalsSection} must map each package, as <name>@<version>, to `
     + "{ \"dependencies\": [<optional dependency name>, ...], \"reason\": \"<why the app never loads them>\" }.";
@@ -3963,7 +3964,12 @@ export class Resources {
 
   public static formatLockedArchiveRefused(name: string, version: string, location: string, resolved: string): string {
     return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved}; a locked file ships only as a ${Resources.packageArchiveExtension} archive of a Noldova package `
-      + `directly in the repository's own ${Resources.archivesFolder} folder.`;
+      + `directly in the ${Resources.archivesFolder} folder of the app's folder or of a folder above it.`;
+  }
+
+  public static formatLockedArchiveNoIntegrity(name: string, version: string, location: string, resolved: string): string {
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved} with no SHA-512 integrity, so its archive cannot be verified; `
+      + `the step that locks it must write "integrity": "sha512-<the archive's SHA-512 digest in base64>" beside its "resolved".`;
   }
 
   public static formatLockedPackageUnresolved(name: string, version: string, location: string): string {
