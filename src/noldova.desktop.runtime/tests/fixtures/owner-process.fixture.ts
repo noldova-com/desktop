@@ -17,52 +17,48 @@ import { DataDirectory, DataDirectoryOwnedException, OwnershipLock } from "@nold
 export class OwnerProcessFixture implements AsyncDisposable {
   private static readonly ACQUIRED: string = "acquired";
   private static readonly OWNED: string = "owned";
-  private static readonly START_TIMEOUT: number = 10_000;
+  private static readonly LOADED: string = "loaded";
 
   private readonly child: ChildProcessByStdio<Writable, Readable, null>;
+  private state: string;
 
-  public readonly outcome: string;
-
-  private constructor(child: ChildProcessByStdio<Writable, Readable, null>, outcome: string) {
+  private constructor(child: ChildProcessByStdio<Writable, Readable, null>, state: string) {
     this.child = child;
-    this.outcome = outcome;
+    this.state = state;
+  }
+
+  public get outcome(): string {
+    return this.state;
   }
 
   public get hasAcquired(): boolean {
-    return this.outcome === OwnerProcessFixture.ACQUIRED;
+    return this.state === OwnerProcessFixture.ACQUIRED;
   }
 
   public static async startAsync(root: string): Promise<OwnerProcessFixture> {
+    const owner = await OwnerProcessFixture.loadAsync(root);
+    await owner.attemptAsync();
+    return owner;
+  }
+
+  public static async loadAsync(root: string): Promise<OwnerProcessFixture> {
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url), root], { stdio: ["pipe", "pipe", "inherit"], windowsHide: true });
     child.stdout.setEncoding("utf8");
-    let timer: NodeJS.Timeout | undefined;
-    try {
-      const outcome = await Promise.race([
-        once(child.stdout, "data").then(t => String(t[0]).trim()),
-        once(child, "exit").then(t => `exited with ${String(t[0])}`),
-        new Promise<string>(t => {
-          timer = setTimeout(() => t("did not report in time"), OwnerProcessFixture.START_TIMEOUT);
-        })
-      ]);
-      return new OwnerProcessFixture(child, outcome);
-    }
-    finally {
-      clearTimeout(timer);
-    }
+    return new OwnerProcessFixture(child, await OwnerProcessFixture.readAsync(child));
   }
 
   public static run(root: string): void {
-    let lock: OwnershipLock;
-    try {
-      lock = OwnershipLock.acquire(new DataDirectory(root));
-    }
-    catch (error) {
-      process.stdout.write(`${error instanceof DataDirectoryOwnedException ? OwnerProcessFixture.OWNED : String(error)}\n`);
+    process.stdin.once("data", () => OwnerProcessFixture.attempt(root));
+    process.stdout.write(`${OwnerProcessFixture.LOADED}\n`);
+  }
+
+  public async attemptAsync(): Promise<void> {
+    if (this.state !== OwnerProcessFixture.LOADED)
       return;
-    }
-    process.stdout.write(`${OwnerProcessFixture.ACQUIRED}\n`);
-    process.stdin.on("end", () => lock.release());
-    process.stdin.resume();
+
+    const report = OwnerProcessFixture.readAsync(this.child);
+    this.child.stdin.write("\n");
+    this.state = await report;
   }
 
   public async stopAsync(): Promise<void> {
@@ -80,6 +76,27 @@ export class OwnerProcessFixture implements AsyncDisposable {
   public async [Symbol.asyncDispose](): Promise<void> {
     if (Object.isNull(this.child.exitCode) && Object.isNull(this.child.signalCode))
       await this.killAsync();
+  }
+
+  private static attempt(root: string): void {
+    let lock: OwnershipLock;
+    try {
+      lock = OwnershipLock.acquire(new DataDirectory(root));
+    }
+    catch (error) {
+      process.stdout.write(`${error instanceof DataDirectoryOwnedException ? OwnerProcessFixture.OWNED : String(error)}\n`);
+      process.stdin.destroy();
+      return;
+    }
+    process.stdout.write(`${OwnerProcessFixture.ACQUIRED}\n`);
+    process.stdin.on("end", () => lock.release());
+  }
+
+  private static readAsync(child: ChildProcessByStdio<Writable, Readable, null>): Promise<string> {
+    return Promise.race([
+      once(child.stdout, "data").then(t => String(t[0]).trim()),
+      once(child, "close").then(t => `exited with ${String(t[0])}`)
+    ]);
   }
 }
 
