@@ -34,6 +34,8 @@ Each version's section is written by the pull request that changes the version, 
   Within 0.0.x the protocol also accepts an event without it, and `IWindowOpenDetails` gains an optional `disposition`.
 - Web views refuse the app's own endpoint ports on a loopback address, even when an allowed origin names them; the protocol adds `desktop.webViewBlockedPorts`, `desktop.readWebViewBlockedPorts` and `desktop.webViewPortsBlocked`.
 - A web view's page that navigates its own top frame elsewhere than its view allows, including to `about:srcdoc`, raises `NavigationRefused`, which a misread of the engine's event had dropped.
+- A runtime part marks the span an agent controls a web view with `IRuntimeWebViews.setControlledAsync(id, isControlled)`, and a controlled view behind another tab keeps painting, under the shown tab, so the agent's clicks and keys reach the pages it loads there; the protocol adds `WebViewAction.SetControlled` and the window's `Controlled` event.
+  An app that implements `IRuntimeWebViews` itself adds `setControlledAsync`.
 - A web view moved to another group restores its kept page in its new place even when its old page is still being torn down.
 - On Linux only the app's own main process, running the app's program on its own `app.asar`, connects as `ShellClients.mainProcess`, as on macOS and Windows; `IMainProcessCheck` has an optional `accept(socket)`.
 - On macOS a private folder on a volume mounted with ownership ignored is refused with a `FolderNotPrivateException` naming the volume.
