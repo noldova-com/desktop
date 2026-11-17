@@ -31,6 +31,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   private static readonly SETTLE_LIMIT: number = 3000;
   private static readonly KILL_LIMIT: number = 1000;
   private static readonly STOP_RESERVE: number = 6000;
+  private static readonly WINDOWS_PROCESSES: string = "Get-Process | ForEach-Object { '{0} {1} - {2:HH:mm:ss} {3}' -f $_.Id, $_.Parent.Id, $_.StartTime, $_.Path }";
   private static readonly execute = promisify(execFile);
 
   private readonly folder: string;
@@ -90,7 +91,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     const report = [`${path.basename(command)} ${commandArguments.join(" ")} was still running after ${Math.round(stall)} ms.`];
     try {
       const id = child.pid ?? -1;
-      const rows = await this.listProcessesAsync(id);
+      const rows = await this.listProcessesAsync();
       const tree = rows.filter(t => t.id === id);
       for (const row of tree)
         tree.push(...rows.filter(t => t.parent === row.id));
@@ -111,7 +112,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     return Object.isNull(this.end) ? 0 : Math.floor(this.end - performance.now() - TemporaryFolderRunnerFixture.STOP_RESERVE);
   }
 
-  private async listProcessesAsync(id: number): Promise<readonly { id: number, parent: number, line: string }[]> {
+  private async listProcessesAsync(): Promise<readonly { id: number, parent: number, line: string }[]> {
     const limit = Math.min(process.platform === "win32" ? TemporaryFolderRunnerFixture.LIST_LIMIT + TemporaryFolderRunnerFixture.SAMPLE_LIMIT : TemporaryFolderRunnerFixture.LIST_LIMIT, this.left());
     if (limit <= 0)
       return [{ id: Number.NaN, parent: Number.NaN, line: "The listing was skipped: no time was left." }];
@@ -119,7 +120,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
       const { stdout } = !Object.isNull(this.listing)
         ? await TemporaryFolderRunnerFixture.execute(this.listing[0], [...this.listing[1]], { timeout: limit })
         : process.platform === "win32"
-        ? await TemporaryFolderRunnerFixture.execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", TemporaryFolderRunnerFixture.formatWindowsTree(id)], { timeout: limit })
+        ? await TemporaryFolderRunnerFixture.execute("pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", TemporaryFolderRunnerFixture.WINDOWS_PROCESSES], { timeout: limit })
         : await TemporaryFolderRunnerFixture.execute("ps", ["-ww", "-A", "-o", "pid=,ppid=,stat=,etime=,command="], { timeout: limit });
       return stdout.split("\n").map(t => t.trim()).filter(t => t.length > 0).map(t => {
         const [row, parent] = t.split(/\s+/);
@@ -129,15 +130,6 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     catch (error) {
       return [{ id: Number.NaN, parent: Number.NaN, line: `The listing failed: ${String(error)}` }];
     }
-  }
-
-  private static formatWindowsTree(id: number): string {
-    return [
-      `$rows = @(Get-CimInstance Win32_Process -Filter 'ProcessId=${id} or ParentProcessId=${id}')`,
-      `$queue = @($rows | Where-Object { $_.ProcessId -ne ${id} } | ForEach-Object { $_.ProcessId })`,
-      "while ($queue.Count -gt 0) { $found = @(Get-CimInstance Win32_Process -Filter (($queue | ForEach-Object { \"ParentProcessId=$_\" }) -join ' or ')); $rows += $found; $queue = @($found | ForEach-Object { $_.ProcessId }) }",
-      "$rows | ForEach-Object { '{0} {1} - {2:HH:mm:ss} {3}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate, $_.CommandLine }"
-    ].join("; ");
   }
 
   private async sampleAsync(id: number): Promise<string> {
