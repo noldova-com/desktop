@@ -50,10 +50,14 @@ export class AuthenticodeCheckTests {
     "$ErrorActionPreference = 'Stop'",
     "$organizations = $env:NOLDOVA_TEST_ORGANIZATIONS.Split([char]10)",
     "$files = $env:NOLDOVA_TEST_FILES.Split([char]10)",
+    "$usages = [System.Security.Cryptography.OidCollection]::new()",
+    "$null = $usages.Add([System.Security.Cryptography.Oid]::new('1.3.6.1.5.5.7.3.3'))",
     "for ($index = 0; $index -lt $files.Count; $index++) {",
-    "  $certificate = New-SelfSignedCertificate -Type CodeSigningCert -Subject \"CN=Sample Vendor, O=$($organizations[$index])\" -CertStoreLocation Cert:\\CurrentUser\\My",
-    "  try { $null = Set-AuthenticodeSignature -LiteralPath $files[$index] -Certificate $certificate }",
-    "  finally { Remove-Item -LiteralPath \"Cert:\\CurrentUser\\My\\$($certificate.Thumbprint)\" -DeleteKey }",
+    "  $request = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(\"CN=Sample Vendor, O=$($organizations[$index])\",",
+    "    [System.Security.Cryptography.RSA]::Create(2048), [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)",
+    "  $request.CertificateExtensions.Add([System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]::new($usages, $false))",
+    "  $certificate = $request.CreateSelfSigned([DateTimeOffset]::Now.AddDays(-1), [DateTimeOffset]::Now.AddDays(1))",
+    "  $null = Set-AuthenticodeSignature -LiteralPath $files[$index] -Certificate $certificate",
     "}"
   ].join("\n");
   private static readonly CONPTY: string = path.join(AuthenticodeCheckTests.MODULES, "node-pty", "prebuilds", "win32-x64", "conpty", "conpty.dll");
@@ -168,8 +172,8 @@ export class AuthenticodeCheckTests {
       const scripts = organizations.map((_, i) => path.join(folder, `sample-${i}.ps1`));
       for (const script of scripts)
         await writeFile(script, "Write-Output 'sample'\r\n");
-      const signed = await new ProcessRunner().captureAsync("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand",
-        Buffer.from(AuthenticodeCheckTests.SELF_SIGNING, "utf16le").toString("base64")], folder, 120_000,
+      const signed = await new ProcessRunner().captureAsync(Resources.powershellCommand, [...Resources.powershellOptions,
+        Buffer.from(AuthenticodeCheckTests.SELF_SIGNING, Resources.powershellScriptEncoding).toString(Resources.powershellCommandEncoding)], folder, Resources.authenticodeTimeout,
         { ...process.env, NOLDOVA_TEST_ORGANIZATIONS: organizations.join("\n"), NOLDOVA_TEST_FILES: scripts.join("\n") });
       Assert.isTrue(signed.isSuccessful, signed.text);
 
