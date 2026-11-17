@@ -413,7 +413,7 @@ export class WebViewHostTests {
 
     Assert.areEqual(JSON.stringify([[true], true, true]), JSON.stringify([kept, expected, claimed]));
     Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(attached));
-    Assert.areEqual(JSON.stringify({ kind: "Started", origin: null }), JSON.stringify(back));
+    Assert.areEqual(JSON.stringify({ kind: "Started" }), JSON.stringify(back));
     Assert.areEqual(`restore 2 ${["a", "b", "c"].map(t => `https://example.com/${t} state of https://example.com/${t}`).join(" ")},back`, guest.contents.calls.join(","));
     Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
   }
