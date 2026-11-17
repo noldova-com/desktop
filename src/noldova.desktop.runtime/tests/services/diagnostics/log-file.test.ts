@@ -355,16 +355,35 @@ export class LogFileTests {
     return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
       const lines = Array.from({ length: 5 }, (_, i) => log.format(`record ${i + 1}`));
       log.open();
+      await mkdir(path.join(previous, "held"), { recursive: true });
       using slow = new SlowWriteFixture(false);
       const written = lines.map(t => log.appendAsync(t));
       await slow.calledAsync(1);
-      await mkdir(path.join(previous, "held"), { recursive: true });
 
       log.flush();
 
       await Assert.throwsAsync(() => written[4] ?? Promise.resolve(), Error);
       await Promise.all(written.slice(0, 4));
       Assert.areEqual(1, slow.calls);
+      Assert.areEqual(lines.slice(0, 4).join(String.empty), await readFile(file, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public settlesEachWaitingLineWhenTheFirstWriteEndsBeforeWritingThemAtOnce(): Promise<void> {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file, previous) => {
+      const lines = Array.from({ length: 5 }, (_, i) => log.format(`record ${i + 1}`));
+      log.open();
+      await mkdir(path.join(previous, "held"), { recursive: true });
+      using slow = new SlowWriteFixture(false);
+      const written = lines.map(t => log.appendAsync(t));
+      await slow.calledAsync(2);
+
+      log.flush();
+
+      await Assert.throwsAsync(() => written[4] ?? Promise.resolve(), Error);
+      await Promise.all(written.slice(0, 4));
+      Assert.areEqual(2, slow.calls);
       Assert.areEqual(lines.slice(0, 4).join(String.empty), await readFile(file, "utf8"));
     });
   }
