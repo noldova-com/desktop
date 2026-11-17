@@ -183,7 +183,7 @@ export class MacFolderProtectorTests {
       for (let attempt = 1; attempt <= 5; attempt++) {
         const began = Date.now();
         const result = spawnSync("/usr/bin/hdiutil", ["detach", "-force", mountPoint], { encoding: "utf8" });
-        console.log(`PROBE202 detach ${attempt}: status ${result.status} in ${Date.now() - began} ms; out ${result.stdout.trim()} | err ${result.stderr.trim()}`);
+        console.log(`PROBE202 ${new Date(began).toISOString()} detach ${attempt}: status ${result.status} in ${Date.now() - began} ms; out ${result.stdout.trim()} | err ${result.stderr.trim()}`);
         if (result.status === 0)
           break;
         const open = spawnSync("/usr/sbin/lsof", ["+D", mountPoint], { encoding: "utf8" });
