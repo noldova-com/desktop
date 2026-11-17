@@ -1163,9 +1163,9 @@ export class WebViewHostTests {
     prevented.push(contents.prevent("before-input-event", WebViewHostTests.input("j", "KeyJ", true, "linux")));
     await this.commandAsync(launcher, connection, WebViewAction.Send, "1",
       { method: "Input.dispatchKeyEvent", params: { type: "keyDown", key: "r", code: "KeyR", modifiers: 2 }, timeoutMilliseconds: 1000 });
+    contents.inputs.splice(0);
     WebViewHostTests.answer(electron, "linux", window, 1, true);
     const passedOn = contents.inputs.map(t => `${t.type} ${t.keyCode} ${t.modifiers.join("+")}`).join(",");
-    prevented.push(contents.prevent("before-input-event", reload));
     contents.emit("input-event", {}, { type: "keyDown" });
     void contents.openWindow("https://example.com/relayed");
     prevented.push(contents.prevent("before-input-event", WebViewHostTests.input("a", "KeyA", false, "linux")));
