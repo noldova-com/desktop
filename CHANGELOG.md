@@ -38,6 +38,7 @@ Each version's section is written by the pull request that changes the version, 
 - On Linux only the app's own main process, running the app's program on its own `app.asar`, connects as `ShellClients.mainProcess`, as on macOS and Windows; `IMainProcessCheck` has an optional `accept(socket)`.
 - On macOS a private folder on a volume mounted with ownership ignored is refused with a `FolderNotPrivateException` naming the volume.
 - The runtime's and the main process's log lines no longer block their process on the disk.
+- The runtime answers a client's handshake that arrived within the handshake time even when the runtime was busy past it, instead of closing the connection.
 - A choice row shows the checked row's own icon when it has one.
 - A document a running part opens while the window reconnects to the runtime opens in front.
 - An update that folded its check into an ended update's check learns at once that the barrier is gone.
