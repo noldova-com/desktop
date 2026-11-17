@@ -30,7 +30,7 @@ export class WorkflowStepFixture {
     const pathKey = Object.keys(process.env).find(t => t.toUpperCase() === "PATH") ?? "PATH";
     const searched = isPathKept ? `${bin}${path.delimiter}${process.env[pathKey] ?? ""}` : bin;
     const result = spawnSync(WorkflowStepFixture.BASH, ["--noprofile", "--norc", "-eo", "pipefail", step], { cwd: folder, encoding: "utf8",
-      env: { ...process.env, [pathKey]: searched, RUNNER_TEMP: folder, ...environment } });
+      env: { ...process.env, [pathKey]: searched, RUNNER_TEMP: folder.split(path.sep).join("/"), ...environment } });
     return { status: result.status, output: result.stdout };
   }
 }
