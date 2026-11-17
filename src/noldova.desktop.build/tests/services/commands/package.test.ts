@@ -49,6 +49,7 @@ export class PackageTests {
   private static readonly MAC_CREDENTIALS: NodeJS.ProcessEnv = Object.fromEntries(
     ["MAC_CERTIFICATE", "MAC_CERTIFICATE_PASSWORD", "APPLE_API_KEY_P8", "APPLE_API_KEY_ID", "APPLE_API_ISSUER"].map(t => [t, "test-value"]));
   private static readonly PRODUCT_NAME: string = "Sample App";
+  private static readonly PRODUCT_VERSION: string = "1.2.3";
   private static readonly FEED: string = "https://updates.example.test/app/";
 
   @TestMethod
@@ -558,7 +559,7 @@ export class PackageTests {
 
     const result = await PackageTests.buildAsync(app, "linux", "x64", true, ["--update-feed", PackageTests.FEED], { PATH: "/usr/bin", SAMPLE_SECRET: "test-value" });
     const report = JsonReader.parse(await readFile(layout.report, "utf8"));
-    const files = PackageTarget.fromProcess("linux", "x64").listFileNames(PackageTests.PRODUCT_NAME).map(t => path.join(layout.output, t));
+    const files = PackageTarget.fromProcess("linux", "x64").listFileNames(PackageTests.PRODUCT_NAME, PackageTests.PRODUCT_VERSION).map(t => path.join(layout.output, t));
 
     Assert.areEqual(0, result.exitCode, result.output);
     Assert.isTrue(result.output.endsWith(Resources.formatPackagesMade(files)), result.output);
@@ -575,7 +576,7 @@ export class PackageTests {
   public async refusesABuildThatLeavesOutAPackageAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync();
     const layout = new PackageLayout(app.path);
-    const files = PackageTarget.fromProcess("linux", "x64").listFileNames(PackageTests.PRODUCT_NAME).map(t => path.join(layout.output, t));
+    const files = PackageTarget.fromProcess("linux", "x64").listFileNames(PackageTests.PRODUCT_NAME, PackageTests.PRODUCT_VERSION).map(t => path.join(layout.output, t));
 
     const result = await PackageTests.buildAsync(app, "linux", "x64", false);
 
@@ -633,7 +634,7 @@ export class PackageTests {
     await using app = await InstalledAppFixture.createAsync();
     const layout = new PackageLayout(app.path);
     const application = path.join(layout.output, "mac", `${PackageTests.PRODUCT_NAME}.app`);
-    const [image = String.empty, archive = String.empty] = PackageTarget.fromProcess("darwin", "x64").listFileNames(PackageTests.PRODUCT_NAME).map(t => path.join(layout.output, t));
+    const [image = String.empty, archive = String.empty] = PackageTarget.fromProcess("darwin", "x64").listFileNames(PackageTests.PRODUCT_NAME, PackageTests.PRODUCT_VERSION).map(t => path.join(layout.output, t));
     const runners: SignedMacBuilderRunnerFixture[] = [];
 
     const result = await PackageTests.buildAsync(app, "darwin", "x64", true, ["--signed"], { ...PackageTests.MAC_CREDENTIALS }, (t, u) => {
@@ -675,7 +676,7 @@ export class PackageTests {
     await app.installAsync(InstalledAppFixture.ELECTRON);
     await app.writeAppFileAsync("node_modules/electron/dist/electron", String.empty);
     const layout = new PackageLayout(app.path);
-    const files = makesPackages ? PackageTarget.fromProcess(platform, architecture).listFileNames(PackageTests.PRODUCT_NAME).map(t => path.join(layout.output, t)) : [];
+    const files = makesPackages ? PackageTarget.fromProcess(platform, architecture).listFileNames(PackageTests.PRODUCT_NAME, PackageTests.PRODUCT_VERSION).map(t => path.join(layout.output, t)) : [];
     const temporary = await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary"));
     const runner = createRunner(temporary, files);
     const stage = new PackageStage(app.path, new NpmCommand(temporary, process.env), new StandInBuildFixture(app.path));

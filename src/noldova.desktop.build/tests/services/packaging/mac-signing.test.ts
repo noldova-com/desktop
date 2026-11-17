@@ -52,7 +52,7 @@ export class MacSigningTests {
   private static readonly PAUSE: number = 5_000;
   private static readonly PRODUCT: ProductIdentity = new ProductIdentity("Sample App", "Sample", "sample-app", "com.example.sample", "com.example.sample.development",
     ".sample/app", ["Sample/App", "Sample/App", "sample/app"], "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app");
-  private static readonly IMAGE: string = path.join(tmpdir(), "Sample-macos-arm64.dmg");
+  private static readonly IMAGE: string = path.join(tmpdir(), "Sample-1.2.3-macos-arm64.dmg");
   private static readonly STAPLED: ProcessResult = new ProcessResult(0, "Processing: Sample.dmg\nThe staple and validate action worked!\n", String.empty);
   private static readonly NETWORK_LOST: ProcessResult = new ProcessResult(68, [
     "Processing: Sample.dmg",

@@ -95,11 +95,11 @@ export class SmokeRunnerFixture extends ProcessRunner {
     }
     else if (name === "sudo" && commandArguments.includes("apt-get") && commandArguments.includes("remove"))
       await rm(this.debianFolder, { recursive: true, force: true });
-    if (name === `${SmokeRunnerFixture.PRODUCT_NAME}-windows-x64.exe`)
+    if (name === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-windows-x64.exe`)
       await this.installWindowsAsync(environment ?? {});
     else if (name.startsWith("Uninstall "))
       await this.uninstallWindowsAsync(commandArguments);
-    else if (name === `${SmokeRunnerFixture.PRODUCT_NAME}-linux-x64.AppImage`)
+    else if (name === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-linux-x64.AppImage`)
       await this.extractAppImageAsync(directory);
     else if (name === "ditto")
       await this.copyBundleAsync(String(commandArguments[1]));

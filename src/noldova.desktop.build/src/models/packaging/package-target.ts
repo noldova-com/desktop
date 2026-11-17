@@ -51,11 +51,11 @@ export class PackageTarget {
     return [...Resources.packageFormats.keys()].flatMap(t => Resources.packageArchitectures.map(u => new PackageTarget(t, u)));
   }
 
-  public formatFileName(productName: string, extension: string): string {
-    return Resources.formatTargetFileName(productName, this.platform, this.architecture, extension);
+  public formatFileName(productName: string, version: string, extension: string): string {
+    return Resources.formatTargetFileName(productName, version, this.platform, this.architecture, extension);
   }
 
-  public listFileNames(productName: string): readonly string[] {
-    return this.extensions.map(t => this.formatFileName(productName, t));
+  public listFileNames(productName: string, version: string): readonly string[] {
+    return this.extensions.map(t => this.formatFileName(productName, version, t));
   }
 }

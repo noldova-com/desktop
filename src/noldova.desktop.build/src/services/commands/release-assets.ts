@@ -47,7 +47,7 @@ export class ReleaseAssets {
       const product = await ProductIdentity.readAsync(this.root);
       const layout = new PackageLayout(this.root);
       await ReleaseAssets.requireFeedAsync(layout.stagedProduct, feed ?? product.updateFeed);
-      const names = await new ReleaseFileSet(product.name, [target]).writeAsync(layout.output, target, manifest.productVersion, new Date().toISOString());
+      const names = await new ReleaseFileSet(product.name, manifest.productVersion, [target]).writeAsync(layout.output, target, new Date().toISOString());
       this.output.write(Resources.formatReleaseFiles(target.platform, target.architecture, manifest.productVersion, names));
       return 0;
     }

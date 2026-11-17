@@ -42,7 +42,7 @@ export class PackageConfigurationTests {
   @TestMethod
   public unpacksEachAddonAndEachNativeFileItIsGiven(): void {
     const root = path.resolve("sample-app");
-    const configuration = new PackageConfiguration(root, PackageConfigurationTests.PRODUCT, new PackageTarget("linux", "x64"), path.join(root, "stage"), path.join(root, "out"),
+    const configuration = new PackageConfiguration(root, PackageConfigurationTests.PRODUCT, "1.2.3", new PackageTarget("linux", "x64"), path.join(root, "stage"), path.join(root, "out"),
       path.join(root, "electron"), "44.5.1", false, null, false);
     const helpers = ["node_modules/node-pty/build/Release/conpty/OpenConsole.exe", "node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper"];
 
@@ -92,7 +92,7 @@ export class PackageConfigurationTests {
   @TestMethod
   public signsEveryProgramLibraryAndAddonOnWindowsWhateverTheCaseOfItsExtension(): void {
     const root = path.resolve("sample-app");
-    const configuration = new PackageConfiguration(root, PackageConfigurationTests.PRODUCT, new PackageTarget("windows", "x64"), path.join(root, "stage"),
+    const configuration = new PackageConfiguration(root, PackageConfigurationTests.PRODUCT, "1.2.3", new PackageTarget("windows", "x64"), path.join(root, "stage"),
       path.join(root, "out"), path.join(root, "electron"), "44.5.1", true, "CN=Sample, O=Sample", false);
     const windows = PackageConfigurationTests.read(configuration).readObject("win");
     const signed = windows.readStringArray("signExts");
@@ -126,7 +126,7 @@ export class PackageConfigurationTests {
     Assert.isFalse(json.hasField("forceCodeSigning"));
     Assert.isFalse(windows.hasField("signtoolOptions"));
     Assert.isFalse(windows.hasField("signExts"));
-    Assert.areEqual("Sample App-windows-x64.${ext}", windows.readString("artifactName"));
+    Assert.areEqual("Sample App-1.2.3-windows-x64.${ext}", windows.readString("artifactName"));
     Assert.areEqual(path.join(PackageConfigurationTests.ROOT, "assets", "icons", "icon-dark.ico"), windows.readString("icon"));
     Assert.areEqual(JSON.stringify([{ target: "nsis", arch: ["x64"] }]), JSON.stringify(windows.readValue("target")));
     Assert.areEqual(JSON.stringify([{ from: path.join(PackageConfigurationTests.ROOT, "_build", "package", "command", "sample-app.cmd"), to: "bin/sample-app.cmd" }]),
@@ -176,7 +176,7 @@ export class PackageConfigurationTests {
 
     Assert.isTrue(json.readObject("electronFuses").readBoolean("enableCookieEncryption"));
     Assert.areEqual("1.0.3", json.readObject("toolsets").readString("appimage"));
-    Assert.areEqual("sample-app|Sample App-linux-arm64.${ext}", `${linux.readString("executableName")}|${linux.readString("artifactName")}`);
+    Assert.areEqual("sample-app|Sample App-1.2.3-linux-arm64.${ext}", `${linux.readString("executableName")}|${linux.readString("artifactName")}`);
     Assert.areEqual(JSON.stringify({ entry: { Name: "Sample App", StartupWMClass: "com.example.sample" } }), JSON.stringify(linux.readValue("desktop")));
     Assert.areEqual("Copyright (c) Sample|com.example.sample|Sample App", [json.readString("copyright"), json.readString("appId"), json.readString("productName")].join("|"));
   }
@@ -194,7 +194,7 @@ export class PackageConfigurationTests {
   public namesTheProductsWebsiteAsTheDebianPackagesHomepageWhenItHasOne(): void {
     const manifest = JsonReader.fromValue({ desktop: { product: { ...PackageConfigurationTests.PRODUCT_FIELDS, about: { website: "https://sample.example" } } } });
     const root = PackageConfigurationTests.ROOT;
-    const configuration = new PackageConfiguration(root, ProductIdentity.fromManifest(manifest), new PackageTarget("linux", "arm64"), path.join(root, "stage"), path.join(root, "out"),
+    const configuration = new PackageConfiguration(root, ProductIdentity.fromManifest(manifest), "1.2.3", new PackageTarget("linux", "arm64"), path.join(root, "stage"), path.join(root, "out"),
       path.join(root, "electron"), "44.5.1", false, null, false);
 
     Assert.areEqual(JSON.stringify({ homepage: "https://sample.example" }), JSON.stringify(PackageConfigurationTests.read(configuration).readValue("extraMetadata")));
@@ -220,7 +220,7 @@ export class PackageConfigurationTests {
   public namesTheTargetsPackageFiles(): void {
     const configuration = PackageConfigurationTests.create(new PackageTarget("macos", "arm64"), false, null, false);
 
-    Assert.areEqual("Sample App-macos-arm64.dmg,Sample App-macos-arm64.zip", configuration.fileNames.join(","));
+    Assert.areEqual("Sample App-1.2.3-macos-arm64.dmg,Sample App-1.2.3-macos-arm64.zip", configuration.fileNames.join(","));
   }
 
   @TestMethod
@@ -276,7 +276,7 @@ export class PackageConfigurationTests {
 
   private static create(target: PackageTarget, isSigned: boolean, publisher: string | null, hasWebViews: boolean, root: string = PackageConfigurationTests.ROOT):
     PackageConfiguration {
-    return new PackageConfiguration(root, PackageConfigurationTests.PRODUCT, target, path.join(root, "stage"), path.join(root, "out"), path.join(root, "electron"), "44.5.1",
+    return new PackageConfiguration(root, PackageConfigurationTests.PRODUCT, "1.2.3", target, path.join(root, "stage"), path.join(root, "out"), path.join(root, "electron"), "44.5.1",
       isSigned, publisher, hasWebViews);
   }
 

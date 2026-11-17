@@ -3976,8 +3976,8 @@ export class Resources {
     return `${platform}-${architecture}`;
   }
 
-  public static formatTargetFileName(productName: string, platform: string, architecture: string, extension: string): string {
-    return `${productName}-${platform}-${architecture}.${extension}`;
+  public static formatTargetFileName(productName: string, version: string, platform: string, architecture: string, extension: string): string {
+    return `${productName}-${version}-${platform}-${architecture}.${extension}`;
   }
 
   public static formatTarEntryType(type: string): string {
