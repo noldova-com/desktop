@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { chmod, mkdir, realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -180,7 +180,19 @@ export class MacFolderProtectorTests {
 
       Assert.areEqual(`the volume ${await realpath(mountPoint)} is mounted with ownership ignored, so every account acts as the owner of its files`, exception.access);
     } finally {
-      execFileSync("/usr/bin/hdiutil", ["detach", "-quiet", "-force", mountPoint]);
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        const began = Date.now();
+        const result = spawnSync("/usr/bin/hdiutil", ["detach", "-force", mountPoint], { encoding: "utf8" });
+        console.log(`PROBE202 detach ${attempt}: status ${result.status} in ${Date.now() - began} ms; out ${result.stdout.trim()} | err ${result.stderr.trim()}`);
+        if (result.status === 0)
+          break;
+        const open = spawnSync("/usr/sbin/lsof", ["+D", mountPoint], { encoding: "utf8" });
+        console.log(`PROBE202 lsof: ${open.stdout.trim()} | ${open.stderr.trim()}`);
+        const info = spawnSync("/usr/bin/hdiutil", ["info"], { encoding: "utf8" });
+        console.log(`PROBE202 info: ${info.stdout.trim()}`);
+        if (attempt === 5)
+          throw new Error("PROBE202 detach failed 5 times");
+      }
     }
   }
 }
