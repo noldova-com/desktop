@@ -479,7 +479,12 @@ export declare enum WebViewAction {
   /**
    * Sends the view a debugging call the module declares; its value holds `method`, `params` and `timeoutMilliseconds`.
    */
-  Send = "Send"
+  Send = "Send",
+
+  /**
+   * Marks whether an agent controls the view, which keeps it painted while hidden; its value is a boolean.
+   */
+  SetControlled = "SetControlled"
 }
 
 /**
@@ -564,7 +569,12 @@ export declare enum WebViewEventKind {
   /**
    * The page's icon changed; its details are the `image`, a `data:image/png` URL of at most 64 by 64 pixels and 16 KB, or null when the page has none or it can't be read. Only the window part gets it.
    */
-  Favicon = "Favicon"
+  Favicon = "Favicon",
+
+  /**
+   * The runtime part marked whether an agent controls the view; its details are `isControlled`. Only the window part gets it.
+   */
+  Controlled = "Controlled"
 }
 
 /**

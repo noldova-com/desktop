@@ -600,8 +600,7 @@ test.describe("web views", () => {
       expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/focus` })).toEqual({ kind: "Started", origin: null });
       await expect(view(window, 0)).toHaveText("Focus - - - 0");
       const pane = await window.locator("[data-fixture-content=pages-content]").boundingBox();
-      await window.locator("[data-fixture-content=pages-control]").click();
-      await expect(window.locator("[data-fixture-content=pages-control]")).toHaveAttribute("data-controlled", "true");
+      await requestAsync(window, "pages.control", { view: 0, isControlled: true });
       await TabDragFixture.tab(window, noteKey).click();
       await expect(window.locator("[data-fixture-content=notes-note-1]")).toBeVisible();
       const place = pane === null ? null : { x: Math.round(pane.x), y: Math.round(pane.y), width: Math.round(pane.width), height: Math.round(pane.height) };
@@ -633,11 +632,7 @@ test.describe("web views", () => {
       }
 
       expect(titles).toEqual(["Focus ab - first 0", "Focus ab - first 0"]);
-      await TabDragFixture.tab(window, "document/pages.page/1").click();
-      await window.locator("[data-fixture-content=pages-control]").click();
-      await expect(window.locator("[data-fixture-content=pages-control]")).toHaveAttribute("data-controlled", "false");
-      await TabDragFixture.tab(window, noteKey).click();
-      await expect(window.locator("[data-fixture-content=notes-note-1]")).toBeVisible();
+      await requestAsync(window, "pages.control", { view: 0, isControlled: false });
       await expect.poll(() => readPlacesAsync(window)).toEqual([[false, place], [false, place]]);
     }
     finally {

@@ -1651,6 +1651,28 @@ export declare class FakeRuntimeWebViews extends Fake<IRuntimeWebViews> implemen
   public readonly setAllowedOriginsAsync: IRuntimeWebViews["setAllowedOriginsAsync"];
 
   /**
+   * Stands in for {@link IRuntimeWebViews.setControlledAsync}. Records each
+   * call, which {@link Fake.callsOf} reads, and returns what the answer that
+   * {@link Fake.answer} gives returns; while unanswered, the promise it returns
+   * rejects rather than the call throwing.
+   *
+   * @throws {UnansweredCallException} As the rejection of the promise it
+   * returns, naming the member, while the test has given it no answer, as the
+   * real member fails.
+   *
+   * @example
+   * ```ts
+   * import type { IRuntimeWebViews } from "@noldova/desktop.runtime";
+   * import type { FakeRuntimeWebViews } from "@noldova/desktop.runtime/testing";
+   *
+   * export function answerSetControlledAsync(fake: FakeRuntimeWebViews, value: Awaited<ReturnType<IRuntimeWebViews["setControlledAsync"]>>): void {
+   *   fake.answer("setControlledAsync", () => Promise.resolve(value));
+   * }
+   * ```
+   */
+  public readonly setControlledAsync: IRuntimeWebViews["setControlledAsync"];
+
+  /**
    * Stands in for {@link IRuntimeWebViews.clearProfileAsync}. Records each
    * call, which {@link Fake.callsOf} reads, and returns what the answer that
    * {@link Fake.answer} gives returns; while unanswered, the promise it returns

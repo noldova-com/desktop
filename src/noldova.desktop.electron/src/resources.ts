@@ -85,6 +85,7 @@ export class Resources {
   public static readonly pageFaviconUpdatedEvent: "page-favicon-updated" = "page-favicon-updated";
   public static readonly imageField: string = "image";
   public static readonly factorField: string = "factor";
+  public static readonly isControlledField: string = "isControlled";
   public static readonly matchesField: string = "matches";
   public static readonly activeField: string = "active";
   public static readonly textField: string = "text";

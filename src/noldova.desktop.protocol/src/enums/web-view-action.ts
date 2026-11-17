@@ -15,5 +15,6 @@ export enum WebViewAction {
   Stop = "Stop",
   SetAllowedOrigins = "SetAllowedOrigins",
   ClearProfile = "ClearProfile",
-  Send = "Send"
+  Send = "Send",
+  SetControlled = "SetControlled"
 }

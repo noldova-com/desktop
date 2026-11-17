@@ -29,7 +29,8 @@ export class WebViewEventTests {
     [WebViewEventKind.Key, { name: "reload" }],
     [WebViewEventKind.Zoom, { factor: 1.25 }],
     [WebViewEventKind.Found, { matches: 4, active: 2 }],
-    [WebViewEventKind.Favicon, { image: "data:image/png;base64,iVBORw0KGgo=" }]
+    [WebViewEventKind.Favicon, { image: "data:image/png;base64,iVBORw0KGgo=" }],
+    [WebViewEventKind.Controlled, { isControlled: true }]
   ]);
 
   @TestMethod
@@ -84,7 +85,9 @@ export class WebViewEventTests {
       [WebViewEventKind.Favicon, { image: "https://example.com/favicon.ico" }],
       [WebViewEventKind.Favicon, { image: "data:image/png;base64,iVBORw0KGgo" }],
       [WebViewEventKind.Favicon, { image: `data:image/png;base64,${"A".repeat(21_852)}` }],
-      [WebViewEventKind.Favicon, { image: 1 }]
+      [WebViewEventKind.Favicon, { image: 1 }],
+      [WebViewEventKind.Controlled, {}],
+      [WebViewEventKind.Controlled, { isControlled: "true" }]
     ];
 
     for (const [kind, details] of refused)

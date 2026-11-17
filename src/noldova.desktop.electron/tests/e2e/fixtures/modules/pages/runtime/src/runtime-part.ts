@@ -34,6 +34,13 @@ export class RuntimePart implements IRuntimePart {
         return { kind: answer.kind, origin: answer.origin };
       }
     });
+    context.registerMethod(Resources.controlMethod, {
+      handleAsync: async request => {
+        const view = Number(RuntimePart.field(request.payload, Resources.viewField));
+        await views.setControlledAsync(RuntimePart.find(views, view), RuntimePart.field(request.payload, Resources.isControlledField) === true);
+        return null;
+      }
+    });
     context.registerMethod(Resources.listMethod, {
       handleAsync: async () => views.list().map(t => ({ id: t.id, pane: t.pane.name.text, instance: t.pane.instance, profileKey: t.profileKey }))
     });

@@ -47,6 +47,10 @@ export class ModuleWebViews implements IRuntimeWebViews {
     await this.center.commandAsync(this.moduleId, WebViewAction.SetAllowedOrigins, id, [...origins]);
   }
 
+  public async setControlledAsync(id: string, isControlled: boolean): Promise<void> {
+    await this.center.commandAsync(this.moduleId, WebViewAction.SetControlled, id, isControlled);
+  }
+
   public async clearProfileAsync(profileKey: string): Promise<void> {
     await this.center.commandAsync(this.moduleId, WebViewAction.ClearProfile, null, profileKey);
   }

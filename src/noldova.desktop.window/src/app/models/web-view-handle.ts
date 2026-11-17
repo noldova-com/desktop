@@ -72,11 +72,6 @@ export class WebViewHandle implements IWebViewHandle {
       this.host.hide(this);
   }
 
-  public setControlled(isControlled: boolean): void {
-    if (!this.isClosedValue)
-      this.host.control(this, isControlled);
-  }
-
   public openLayerAsync<T>(load: () => Promise<Type<T>>): Promise<IWebViewLayer<T>> {
     return this.host.openLayerAsync(this, load);
   }

@@ -22,7 +22,6 @@ export interface IWebViewHandle {
   mount(host: HTMLElement): void;
   show(): void;
   hide(): void;
-  setControlled(isControlled: boolean): void;
   openLayerAsync<T>(load: () => Promise<Type<T>>): Promise<IWebViewLayer<T>>;
   navigateAsync(url: string): Promise<WebViewNavigation>;
   goBackAsync(): Promise<WebViewNavigation>;

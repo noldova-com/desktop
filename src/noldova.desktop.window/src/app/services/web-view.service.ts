@@ -116,15 +116,6 @@ export class WebViewService {
     this.apply(handle);
   }
 
-  public control(handle: WebViewHandle, isControlled: boolean): void {
-    if (handle.isControlled === isControlled)
-      return;
-    handle.isControlled = isControlled;
-    this.applyVisibility(handle);
-    this.applyPointerEvents(handle);
-    this.paint(handle.tab);
-  }
-
   public async openLayerAsync<T>(handle: WebViewHandle, load: () => Promise<Type<T>>): Promise<IWebViewLayer<T>> {
     const component = await load();
     handle.layer?.close();
@@ -222,6 +213,8 @@ export class WebViewService {
     catch (error) {
       this.errors.handleError(error);
     }
+    if (event.kind === WebViewEventKind.Controlled)
+      this.control(handle, event.details[Resources.isControlledField] === true);
     if (event.kind === WebViewEventKind.Closed)
       this.forget(handle);
   }
@@ -292,6 +285,15 @@ export class WebViewService {
       else
         this.close(handle);
     }
+  }
+
+  private control(handle: WebViewHandle, isControlled: boolean): void {
+    if (handle.isControlled === isControlled)
+      return;
+    handle.isControlled = isControlled;
+    this.applyVisibility(handle);
+    this.applyPointerEvents(handle);
+    this.paint(handle.tab);
   }
 
   private apply(handle: WebViewHandle): void {

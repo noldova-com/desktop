@@ -115,6 +115,10 @@ describe("WebViewService", () => {
     handle.guest.dispatchEvent(new Event("dom-ready"));
   }
 
+  function control(handle: WebViewHandle, isControlled: boolean): void {
+    bridge.publishWebViewEvent({ module: "notes", view: handle.id, kind: "Controlled", details: { isControlled } });
+  }
+
   function rem(value: number): number {
     return value / Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
   }
@@ -260,7 +264,7 @@ describe("WebViewService", () => {
           handle.mount(pane);
           handle.show();
 
-          handle.setControlled(true);
+          control(handle, true);
           liveViews.hide(plan, grid);
           const front = liveViews.show(todo, grid, isDocked).element;
           TestBed.tick();
@@ -269,7 +273,7 @@ describe("WebViewService", () => {
           const cover = [getComputedStyle(front).backgroundColor, getComputedStyle(front).opacity, getComputedStyle(front).zIndex];
           const frame = boxOf(handle.frame);
           const boxes = [boxOf(pane), boxOf(behind), boxOf(front)];
-          handle.setControlled(false);
+          control(handle, false);
           const ended = [getComputedStyle(handle.guest).visibility, getComputedStyle(behind).opacity, getComputedStyle(front).backgroundColor, getComputedStyle(front).zIndex];
           grid.remove();
 
@@ -288,14 +292,14 @@ describe("WebViewService", () => {
     first.mount(host);
     second.mount(host);
     first.show();
-    other.setControlled(true);
+    control(other, true);
 
-    second.setControlled(true);
+    control(second, true);
     const under = [getComputedStyle(second.guest).visibility, second.frame.style.zIndex, getComputedStyle(second.guest).pointerEvents, getComputedStyle(first.guest).visibility,
       first.frame.style.zIndex, getComputedStyle(first.guest).pointerEvents];
     const boxes = [boxOf(first.frame), boxOf(second.frame)];
-    first.setControlled(true);
-    first.setControlled(true);
+    control(first, true);
+    control(first, true);
     const shown = [first.frame.style.zIndex, getComputedStyle(first.guest).pointerEvents];
     liveViews.hide(plan, slot);
     const front = liveViews.show(todo, slot, false).element;
@@ -311,7 +315,7 @@ describe("WebViewService", () => {
     first.close();
     const none = classes();
     other.close();
-    other.setControlled(false);
+    control(other, false);
 
     expect(under).toEqual(["visible", "-1", "none", "visible", String.empty, "auto"]);
     expect(boxes).toEqual([[1.5, 2, 20, 12.5], [1.5, 2, 20, 12.5]]);

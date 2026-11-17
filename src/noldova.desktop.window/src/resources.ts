@@ -1091,6 +1091,7 @@ export class Resources {
   public static readonly noPointerEvents: string = "none";
   public static readonly zIndexProperty: string = "z-index";
   public static readonly behindZIndex: string = "-1";
+  public static readonly isControlledField: string = "isControlled";
   public static readonly webViewViewField: string = "view";
   public static readonly webViewPartitionField: string = "partition";
   public static readonly webViewKeysField: string = "keys";

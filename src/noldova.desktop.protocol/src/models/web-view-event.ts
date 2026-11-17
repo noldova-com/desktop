@@ -44,7 +44,8 @@ export class WebViewEvent {
     [WebViewEventKind.Key]: new Map([[Resources.nameField, WebViewEvent.TEXT]]),
     [WebViewEventKind.Zoom]: new Map([[Resources.factorField, WebViewEvent.FACTOR]]),
     [WebViewEventKind.Found]: new Map([[Resources.matchesField, WebViewEvent.COUNT], [Resources.activeField, WebViewEvent.COUNT]]),
-    [WebViewEventKind.Favicon]: new Map([[Resources.imageField, WebViewEvent.ICON]])
+    [WebViewEventKind.Favicon]: new Map([[Resources.imageField, WebViewEvent.ICON]]),
+    [WebViewEventKind.Controlled]: new Map([[Resources.isControlledField, WebViewEvent.FLAG]])
   };
 
   public readonly module: string;

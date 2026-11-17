@@ -338,6 +338,7 @@ export class Resources {
   public static readonly profileKeyField: string = "profileKey";
   public static readonly addressField: string = "address";
   public static readonly isLoadingField: string = "isLoading";
+  public static readonly isControlledField: string = "isControlled";
   public static readonly canGoBackField: string = "canGoBack";
   public static readonly canGoForwardField: string = "canGoForward";
   public static readonly originField: string = "origin";
