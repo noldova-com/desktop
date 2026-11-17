@@ -205,12 +205,12 @@ jobs:
               break
             fi
             if [ "$attempt" -eq 2 ] \
-              || ! cat "$logs"/*.log 2>/dev/null | grep -qE $'^[0-9]+ error code (ETIMEDOUT|ECONNRESET)\r?$' \
-              || ! cat "$logs"/*.log 2>/dev/null | grep -qE $'^[0-9]+ error syscall read\r?$'; then
+              || ! grep -qsE $'^[0-9]+ error code (ETIMEDOUT|ECONNRESET)\r?$' "$logs"/*.log \
+              || ! grep -qsE $'^[0-9]+ error syscall read\r?$' "$logs"/*.log; then
               exit "$status"
             fi
             echo "npm ci stopped on a stalled read, which npm doesn't retry, so it runs once more. Its last requests:"
-            cat "$logs"/*.log | grep -E '^[0-9]+ http fetch ' | tail -n 5 || true
+            grep -hsE '^[0-9]+ http fetch ' "$logs"/*.log | tail -n 5 || true
           done
           for script in preinstall install postinstall prepublish preprepare prepare postprepare; do
             npm run --if-present "$script"
