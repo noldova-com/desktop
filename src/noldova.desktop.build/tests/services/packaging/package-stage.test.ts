@@ -129,7 +129,7 @@ export class PackageStageTests {
 
       const lines = error.message.split("\n");
       Assert.areEqual(`${path.basename(process.execPath)} -e ${script} ${folder} was still running after 500 ms.`, lines[0]);
-      Assert.isTrue(lines.includes(process.platform === "win32" ? "Its process was not found among this process's children." : "It ended at SIGTERM."), error.message);
+      Assert.isTrue(lines.includes("It ended at SIGTERM."), error.message);
       Assert.areEqual(process.platform === "darwin", lines.includes("Its sample:"), error.message);
       Assert.areEqual(`npm wrote no log in ${path.join(folder, "temporary", "npm-logs")}.`, lines.at(-1));
     }

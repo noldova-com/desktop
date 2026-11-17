@@ -26,6 +26,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   private static readonly SAMPLE_LINES: number = 120;
   private static readonly TIMING_LENGTH: number = 6000;
   private static readonly SETTLE_LIMIT: number = 3000;
+  private static readonly WINDOWS_PROCESSES: string = "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} - {2:HH:mm:ss} {3}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate, $_.CommandLine }";
   private static readonly execute = promisify(execFile);
 
   private readonly folder: string;
@@ -82,10 +83,10 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   }
 
   private static async listProcessesAsync(): Promise<readonly { id: number, parent: number, command: string, line: string }[]> {
-    if (process.platform === "win32")
-      return [];
     try {
-      const { stdout } = await TemporaryFolderRunnerFixture.execute("ps", ["-ww", "-A", "-o", "pid=,ppid=,stat=,etime=,command="]);
+      const { stdout } = process.platform === "win32"
+        ? await TemporaryFolderRunnerFixture.execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", TemporaryFolderRunnerFixture.WINDOWS_PROCESSES])
+        : await TemporaryFolderRunnerFixture.execute("ps", ["-ww", "-A", "-o", "pid=,ppid=,stat=,etime=,command="]);
       return stdout.split("\n").map(t => t.trim()).filter(t => t.length > 0).map(t => {
         const [id, parent, , , ...command] = t.split(/\s+/);
         return { id: Number(id), parent: Number(parent), command: command.join(" "), line: t };
