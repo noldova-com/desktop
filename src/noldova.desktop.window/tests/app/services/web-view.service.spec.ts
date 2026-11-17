@@ -29,6 +29,7 @@ import { PaneKeysService } from "../../../src/app/services/pane-keys.service";
 import { TabDragService } from "../../../src/app/services/tab-drag.service";
 import { WebViewService } from "../../../src/app/services/web-view.service";
 import { WindowPartHostService } from "../../../src/app/services/window-part-host.service";
+import { AppearanceFixture } from "@noldova/ui.components.angular/testing";
 import { LayoutFixture } from "../../fixtures/layout.fixture";
 import { LayoutServiceFixture } from "../../fixtures/layout-service.fixture";
 import { PreloadBridgeFixture } from "../../fixtures/preload-bridge.fixture";
@@ -99,6 +100,7 @@ describe("WebViewService", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    AppearanceFixture.reset();
     host.remove();
     slot.remove();
     PreloadBridgeFixture.remove();
@@ -239,6 +241,83 @@ describe("WebViewService", () => {
     expect([handle.frame.parentElement, getComputedStyle(handle.guest).visibility, Object.isNull(handle.guest.closest("[inert]"))]).toEqual([pane, "visible", true]);
     expect(boxOf(handle.guest).slice(2)).toEqual([20, 12.5]);
     expect(bridge.webViewCalls.filter(t => !t.startsWith("open"))).toEqual(["attach notes 1 7"]);
+  });
+
+  for (const mode of AppearanceFixture.modes)
+    for (const theme of AppearanceFixture.themes)
+      for (const isDocked of [false, true])
+        it(`keeps a controlled view painted under the tab shown over it, which covers it with its ${isDocked ? "docked" : "document"} card's background in the ${theme.id} theme in ${mode} mode, and hides it again when control ends`, async () => {
+          AppearanceFixture.apply(theme, mode);
+          const grid = document.createElement("div");
+          Object.assign(grid.style, { position: "fixed", left: "1.5rem", top: "2rem", width: "20rem", height: "12.5rem", display: "grid",
+            gridTemplateRows: "auto minmax(0, 1fr)", gridTemplateColumns: "minmax(0, 1fr)" });
+          document.body.append(grid);
+          const handle = await openAsync();
+          const behind = liveViews.show(plan, grid, isDocked).element;
+          const pane = document.createElement("div");
+          Object.assign(pane.style, { position: "relative", flex: "1" });
+          behind.append(pane);
+          handle.mount(pane);
+          handle.show();
+
+          handle.setControlled(true);
+          liveViews.hide(plan, grid);
+          const front = liveViews.show(todo, grid, isDocked).element;
+          TestBed.tick();
+          const painted = [getComputedStyle(handle.guest).visibility, getComputedStyle(behind).visibility, getComputedStyle(behind).opacity, getComputedStyle(behind).zIndex,
+            getComputedStyle(behind).pointerEvents, getComputedStyle(handle.guest).pointerEvents];
+          const cover = [getComputedStyle(front).backgroundColor, getComputedStyle(front).opacity, getComputedStyle(front).zIndex];
+          const frame = boxOf(handle.frame);
+          const boxes = [boxOf(pane), boxOf(behind), boxOf(front)];
+          handle.setControlled(false);
+          const ended = [getComputedStyle(handle.guest).visibility, getComputedStyle(behind).opacity, getComputedStyle(front).backgroundColor, getComputedStyle(front).zIndex];
+          grid.remove();
+
+          expect(painted).toEqual(["visible", "visible", "1", "0", "none", "none"]);
+          expect(cover).toEqual([AppearanceFixture.readColor(theme, mode, isDocked ? "window" : "panel"), "1", "1"]);
+          expect(frame).toEqual(boxes[0]);
+          expect([boxes[1], boxes[2]]).toEqual([[1.5, 2, 20, 12.5], [1.5, 2, 20, 12.5]]);
+          expect([frame[0] >= 1.5, frame[1] >= 2, frame[0] + frame[2] <= 21.5, frame[1] + frame[3] <= 14.5, frame[2] > 0, frame[3] > 0]).toEqual([true, true, true, true, true, true]);
+          expect(ended).toEqual(["hidden", "0", "rgba(0, 0, 0, 0)", "auto"]);
+        });
+
+  it("keeps a controlled view under the view of its pane that shows, paints a tab's content while any of its views is controlled, and ends control as each view closes", async () => {
+    const first = await openAsync();
+    const second = await openAsync();
+    const other = await service.openAsync("notes", pane, todo, "workspace-1", TestBed.inject(Injector));
+    first.mount(host);
+    second.mount(host);
+    first.show();
+    other.setControlled(true);
+
+    second.setControlled(true);
+    const under = [getComputedStyle(second.guest).visibility, second.frame.style.zIndex, getComputedStyle(second.guest).pointerEvents, getComputedStyle(first.guest).visibility,
+      first.frame.style.zIndex, getComputedStyle(first.guest).pointerEvents];
+    const boxes = [boxOf(first.frame), boxOf(second.frame)];
+    first.setControlled(true);
+    first.setControlled(true);
+    const shown = [first.frame.style.zIndex, getComputedStyle(first.guest).pointerEvents];
+    liveViews.hide(plan, slot);
+    const front = liveViews.show(todo, slot, false).element;
+    const behind = liveViews.show(plan, document.createElement("div"), false).element;
+    liveViews.hide(plan, behind.parentElement ?? slot);
+    const classes = (): boolean[] => [behind.classList.contains("nol-tab-content-painted"), front.classList.contains("nol-tab-content-covering")];
+    const moved = classes();
+    liveViews.show(plan, slot, false);
+    liveViews.hide(plan, slot);
+    const painted = classes();
+    second.close();
+    const oneLeft = classes();
+    first.close();
+    const none = classes();
+    other.close();
+    other.setControlled(false);
+
+    expect(under).toEqual(["visible", "-1", "none", "visible", String.empty, "auto"]);
+    expect(boxes).toEqual([[1.5, 2, 20, 12.5], [1.5, 2, 20, 12.5]]);
+    expect(shown).toEqual([String.empty, "auto"]);
+    expect([moved, painted, oneLeft, none]).toEqual([[true, false], [true, true], [true, true], [false, false]]);
+    expect([other.isClosed, other.isControlled]).toEqual([true, true]);
   });
 
   it("binds the view's page each time its element attaches, and closes a view the main process won't bind", async () => {

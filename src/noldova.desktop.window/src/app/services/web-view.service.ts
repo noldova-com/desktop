@@ -116,6 +116,15 @@ export class WebViewService {
     this.apply(handle);
   }
 
+  public control(handle: WebViewHandle, isControlled: boolean): void {
+    if (handle.isControlled === isControlled)
+      return;
+    handle.isControlled = isControlled;
+    this.applyVisibility(handle);
+    this.applyPointerEvents(handle);
+    this.paint(handle.tab);
+  }
+
   public async openLayerAsync<T>(handle: WebViewHandle, load: () => Promise<Type<T>>): Promise<IWebViewLayer<T>> {
     const component = await load();
     handle.layer?.close();
@@ -291,13 +300,22 @@ export class WebViewService {
       return;
     handle.isShown = isShown;
     this.applyVisibility(handle);
+    this.applyPointerEvents(handle);
   }
 
   private applyVisibility(handle: WebViewHandle): void {
-    if (handle.isShown)
+    if (handle.isShown || handle.isControlled)
       handle.frame.style.removeProperty(Resources.visibilityProperty);
     else
       handle.frame.style.setProperty(Resources.visibilityProperty, Resources.hiddenVisibility);
+    if (!handle.isShown && handle.isControlled)
+      handle.frame.style.setProperty(Resources.zIndexProperty, Resources.behindZIndex);
+    else
+      handle.frame.style.removeProperty(Resources.zIndexProperty);
+  }
+
+  private paint(tab: Tab): void {
+    this.liveViews.paint(tab.key, [...this.handles.values()].some(t => t.tab.key === tab.key && t.isControlled));
   }
 
   private passThrough(isDragging: boolean): void {
@@ -307,7 +325,7 @@ export class WebViewService {
   }
 
   private applyPointerEvents(handle: WebViewHandle): void {
-    if (this.isDragging)
+    if (this.isDragging || (handle.isControlled && !handle.isShown))
       handle.guest.style.setProperty(Resources.pointerEventsProperty, Resources.noPointerEvents);
     else
       handle.guest.style.removeProperty(Resources.pointerEventsProperty);
@@ -323,6 +341,8 @@ export class WebViewService {
     this.paneKeys.remove(handle.id);
     handle.layer?.close();
     handle.frame.remove();
+    if (handle.isControlled)
+      this.paint(handle.tab);
   }
 
   private static moves(tab: Tab, from: Layout, to: Layout): boolean {

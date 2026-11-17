@@ -36,6 +36,7 @@ export class WebViewHandle implements IWebViewHandle {
   public layer: IWebViewLayer<unknown> | null = null;
   public isWanted: boolean = false;
   public isShown: boolean = false;
+  public isControlled: boolean = false;
   public agentInputs: number = 0;
   public keptFocus: HTMLElement | null = null;
   public isFocusHeld: boolean = false;
@@ -69,6 +70,11 @@ export class WebViewHandle implements IWebViewHandle {
   public hide(): void {
     if (!this.isClosedValue)
       this.host.hide(this);
+  }
+
+  public setControlled(isControlled: boolean): void {
+    if (!this.isClosedValue)
+      this.host.control(this, isControlled);
   }
 
   public openLayerAsync<T>(load: () => Promise<Type<T>>): Promise<IWebViewLayer<T>> {

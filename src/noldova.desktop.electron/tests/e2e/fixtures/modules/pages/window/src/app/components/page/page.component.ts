@@ -33,6 +33,7 @@ export class PageComponent {
   protected readonly views: WritableSignal<readonly { id: string; event: string; title: string; keys: string; requests: string; zoom: string; found: string; icons: string; icon: string }[]> = signal([]);
   protected readonly failure: WritableSignal<string> = signal(String.empty);
   protected readonly layer: WritableSignal<string> = signal("none");
+  protected readonly isControlled: WritableSignal<boolean> = signal(false);
   private readonly context: IWindowPartContext = inject(WindowPartTokens.context);
   private readonly content: Signal<ElementRef<HTMLElement>> = viewChild.required<ElementRef<HTMLElement>>("content");
   private readonly handles: IWebViewHandle[] = [];
@@ -48,6 +49,11 @@ export class PageComponent {
     afterNextRender(() => {
       this.openAsync().catch((error: unknown) => this.failure.set(`The web views did not open: ${String(error)}`));
     });
+  }
+
+  protected control(): void {
+    this.isControlled.update(t => !t);
+    this.handles[0]?.setControlled(this.isControlled());
   }
 
   private async openAsync(): Promise<void> {

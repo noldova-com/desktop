@@ -3324,20 +3324,6 @@ export interface IWebViewContents {
   setZoomFactor(factor: number): void;
 
   /**
-   * Reads whether the page may be throttled, and kept from painting, while it is hidden.
-   *
-   * @returns `true` when it may.
-   */
-  getBackgroundThrottling(): boolean;
-
-  /**
-   * Sets whether the page may be throttled, and kept from painting, while it is hidden; turning it off also makes a hidden page's current document paint, a new one included.
-   *
-   * @param isAllowed `true` to let it be throttled.
-   */
-  setBackgroundThrottling(isAllowed: boolean): void;
-
-  /**
    * Starts a search of the page's text, or steps through the matches of the running one; the result comes in `found-in-page` events.
    *
    * @param text The text to find, never empty.

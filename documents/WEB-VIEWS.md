@@ -19,6 +19,7 @@ The window part reaches its views through `context.webViews`.
 | `openAsync(pane, profileKey)` | Opens a view for the pane on the module's profile with that key, and returns its handle; a pane holds up to 32 views, such as a browser's tabs. |
 | `handle.mount(host)` | Puts the view in the part's element, which it fills, so that element is positioned, such as with `position: relative`; views mounted in one element lie over each other, and mounting a view in another element moves it there. |
 | `handle.show()`, `handle.hide()` | Shows or hides the view; showing it hides the pane's other views, and the host also hides it while its pane is hidden. |
+| `handle.setControlled(isControlled)` | Marks whether an agent controls the view, so it [keeps painting](#a-controlled-view-keeps-painting) while hidden; the part marks the whole span, and closing the view ends it. |
 | `handle.openLayerAsync(load)` | Shows the part's component over the live view, in the view's [layer](#layers-over-a-view); returns `{ componentRef, closed, close() }`. |
 | `handle.navigateAsync(url)` | Loads an address, after the origin check; returns `Started` or `Refused` with the origin. |
 | `handle.goBackAsync()`, `handle.goForwardAsync()`, `handle.reloadAsync()`, `handle.stopAsync()` | Move through the view's history, reload or stop it; returns `Started`, `Refused` with the origin, or `NoHistory`. |
@@ -48,6 +49,17 @@ The window part reaches its views through `context.webViews`.
 - Since the view is an element of the window's page, the module's own menus, and Noldova Desktop's own menus, dialogs, cards and notifications, lie over it like over any other element, and the page under them stays live.
 - A view behind another tab of its group keeps its place, its page and its size, takes no clicks or focus, and still takes `navigateAsync`, `actAsync` and finding; it is hidden by `visibility` and `opacity`, never removed, so a tab switch shows the next view with no blank frame, and its page keeps running.
 - While the person drags a tab or a toolbar item, the views take no pointer, so the drag passes over them.
+
+### A controlled view keeps painting
+
+The web engine paints no hidden page, and a document a hidden page loads, by a navigation or a form's post, starts hidden and never reaches its first paint, so the engine drops every click and key but a mouse move.
+An agent drives views the person doesn't look at, so while a view is marked controlled, the host keeps it painted when it is hidden:
+- It stays visible, at full opacity, in its place and at its size, behind the shown content, and takes no pointer.
+  A view behind another tab of its group keeps its tab's content painted too, since a child can't undo its parent's `visibility` or `opacity`; the tab's content lies under the shown tab, which then paints its card's own background, so nothing of the hidden page shows through.
+  A view behind another view of its pane lies under that view.
+- The part marks the whole span, from the agent's first call or its opening the view until it closes the view, the person takes over or stops it, or the session ends; closing the view ends it too.
+  When the span ends, a hidden view hides again as it did before.
+- Only the views an agent controls pay for painting; a hidden view nobody controls stays hidden.
 
 ### Layers over a view
 
@@ -149,7 +161,6 @@ The runtime part sends its views calls of the window's web engine's debugging pr
 - Any other call the relay sends reaches the page as sent, and the person's focus stays theirs.
   Before each such call, the host turns on `Emulation.setFocusEmulationEnabled` for the page, once until it is released, so the page keeps its focus state: it sees no `blur` when the focus leaves it, or between an agent's click and the typing after it, and its field keeps its focus.
   The page reads `document.hasFocus()` as true while the emulation is on.
-  Each such call also turns the page's background throttling off first, keeping the value it found until the focus is released, when it puts that value back on the same page: a page in a hidden tab is hidden too, and a document it loads there, by a navigation or a form's post, starts hidden and never paints, while the engine drops every input but a mouse move until a document's first paint, so the call wakes the document it reaches.
   The host tells the window when the call starts; once the engine answers, the host makes a round trip to the page's renderer, in a world the page's scripts can't reach, and only then tells the window the call has ended.
   A call that times out is answered as `TimedOut` at its deadline, but the window hears that it ended only once the call and the round trip settle, so a focus change that lands late still finds the call open.
 - A mouse press, `DOM.focus` or a script can focus one of the page's elements, which makes the view the window's focused element.

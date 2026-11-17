@@ -971,6 +971,25 @@ export interface IWebViewHandle {
   hide(): void;
 
   /**
+   * Marks whether an agent controls the view. While it does, the view keeps painting even while it is hidden, so a page it
+   * navigates to while hidden draws and takes the agent's clicks and keys: it stays visible and in place, behind the shown
+   * content, which covers it, and takes no clicks from the person. When control ends, a hidden view hides again. Closing the
+   * view ends control. The part marks the whole span, from the agent's first call or its opening the view until it closes the
+   * view, the person takes over or stops it, or the session ends. Only the views an agent controls pay the cost of painting.
+   *
+   * @param isControlled Whether an agent controls the view.
+   * @example
+   * ```ts
+   * import type { IWebViewHandle } from "@noldova/desktop.window";
+   *
+   * export function follow(view: IWebViewHandle, isControlled: boolean): void {
+   *   view.setControlled(isControlled);
+   * }
+   * ```
+   */
+  setControlled(isControlled: boolean): void;
+
+  /**
    * Shows the part's component over the live view: the page keeps drawing and taking every click, key and scroll, and the layer's
    * elements are the window's markup, which the page can't read, style or reach. The component is created with the part's
    * {@link WindowPartTokens} and lies in the window's page, above the view's element, so it takes the window's style sheets, theme,

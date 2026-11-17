@@ -25,6 +25,7 @@ export class LiveViewService {
   private readonly views: Map<string, LiveView> = new Map();
   private readonly leaveListeners: Set<(tab: Tab) => void> = new Set();
   private readonly enterListeners: Set<(tab: Tab, element: HTMLElement) => void> = new Set();
+  private readonly painted: Set<string> = new Set();
   private readonly destroyedValue: WritableSignal<number> = signal(0);
   private readonly shownValue: WritableSignal<ReadonlySet<string>> = signal(new Set());
 
@@ -64,6 +65,7 @@ export class LiveViewService {
     view.ref.setInput(Resources.dockedInput, isDocked);
     if (view.slot === slot && !view.isConcealed)
       return view.ref.instance;
+    const from = view.slot;
     if (view.isConcealed)
       LiveViewService.changesOf(view).reattach();
     if (view.slot === slot)
@@ -77,6 +79,9 @@ export class LiveViewService {
         listener(tab, view.element);
       view.enter(slot);
     }
+    this.cover(slot);
+    if (from !== slot)
+      this.cover(from);
     view.ref.setInput(Resources.shownInput, true);
     this.mark(tab.key, true);
     view.ref.changeDetectorRef.markForCheck();
@@ -89,11 +94,22 @@ export class LiveViewService {
     if (Object.isUndefined(view) || view.slot !== slot || view.isConcealed)
       return;
     view.conceal();
+    this.cover(slot);
     this.mark(tab.key, false);
     view.ref.setInput(Resources.shownInput, false);
     LiveViewService.changesOf(view).detach();
     if (!this.layout.layout().isOpen(tab))
       this.remove(view);
+  }
+
+  public paint(key: string, isPainted: boolean): void {
+    if (this.painted.has(key) === isPainted)
+      return;
+    if (isPainted)
+      this.painted.add(key);
+    else
+      this.painted.delete(key);
+    this.cover(this.views.get(key)?.slot ?? null);
   }
 
   public destroy(owns: (tab: Tab) => boolean): void {
@@ -130,11 +146,24 @@ export class LiveViewService {
     this.shownValue.set(shown);
   }
 
+  private cover(slot: HTMLElement | null): void {
+    if (Object.isNull(slot))
+      return;
+    const views = [...this.views.values()].filter(t => t.slot === slot);
+    const isPainting = views.some(t => t.isConcealed && this.painted.has(t.tab.key));
+    for (const view of views) {
+      view.element.classList.toggle(Resources.paintedTabContentClass, view.isConcealed && this.painted.has(view.tab.key));
+      view.element.classList.toggle(Resources.coveringTabContentClass, !view.isConcealed && isPainting);
+    }
+  }
+
   private remove(view: LiveView): void {
+    const slot = view.slot;
     this.views.delete(view.tab.key);
     this.mark(view.tab.key, false);
     view.dispose();
     view.element.remove();
     view.ref.destroy();
+    this.cover(slot);
   }
 }

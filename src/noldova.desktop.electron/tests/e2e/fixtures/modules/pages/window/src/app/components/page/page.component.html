@@ -15,4 +15,5 @@ LICENSE file in the root directory of this source tree.
 @for (view of views(); track view.id) {
   <p class="nol-pages-page-view" [attr.data-fixture-content]="'pages-view-' + $index" [attr.data-view]="view.id" [attr.data-event]="view.event" [attr.data-keys]="view.keys" [attr.data-requests]="view.requests" [attr.data-zoom]="view.zoom" [attr.data-found]="view.found" [attr.data-icons]="view.icons" [attr.data-icon]="view.icon">{{ view.title }}</p>
 }
+<button type="button" data-fixture-content="pages-control" [attr.data-controlled]="isControlled()" (click)="control()">Control the first view</button>
 <p class="nol-pages-page-failure" data-fixture-content="pages-failure" [attr.data-layer]="layer()">{{ failure() }}</p>

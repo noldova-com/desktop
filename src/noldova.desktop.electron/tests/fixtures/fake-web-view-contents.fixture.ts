@@ -37,8 +37,6 @@ export class FakeWebViewContents implements IWebViewContents {
   public restoredUrl: string | null = null;
   public findRequest: number = 0;
   public zoomFactor: number = 1;
-  public isThrottled: boolean = true;
-  public throttling: boolean[] = [];
   public readonly inputs: IWebViewKeyEvent[] = [];
   public readonly texts: string[] = [];
   public readonly isolated: string[] = [];
@@ -129,15 +127,6 @@ export class FakeWebViewContents implements IWebViewContents {
   public setZoomFactor(factor: number): void {
     this.zoomFactor = factor;
     this.calls.push(`zoom ${factor}`);
-  }
-
-  public getBackgroundThrottling(): boolean {
-    return this.isThrottled;
-  }
-
-  public setBackgroundThrottling(isAllowed: boolean): void {
-    this.isThrottled = isAllowed;
-    this.throttling.push(isAllowed);
   }
 
   public findInPage(text: string, options: { readonly forward: boolean; readonly findNext: boolean; readonly matchCase: boolean }): number {

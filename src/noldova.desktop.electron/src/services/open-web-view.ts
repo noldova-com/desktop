@@ -76,7 +76,6 @@ export class OpenWebView {
   private isCrashed: boolean = false;
   private isAttached: boolean = false;
   private isFocusHeld: boolean = false;
-  private wakened: { readonly guest: IWebViewContents; readonly isThrottled: boolean } | null = null;
   private isClosed: boolean = false;
   private state: string = String.empty;
   private zoomFactor: number = 1;
@@ -268,10 +267,8 @@ export class OpenWebView {
         this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
       if (isUncounted)
         this.uncountedInputs += 1;
-      if (isPageCall) {
+      if (isPageCall)
         this.startPageCall();
-        this.wake(guest);
-      }
       const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
       if (isInput)
         void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
@@ -287,10 +284,6 @@ export class OpenWebView {
 
   public releaseFocus(): void {
     const guest = this.guest;
-    const wakened = this.wakened;
-    this.wakened = null;
-    if (!Object.isNull(wakened) && wakened.guest === guest && !wakened.guest.isDestroyed())
-      wakened.guest.setBackgroundThrottling(wakened.isThrottled);
     if (!this.isFocusHeld || Object.isNull(guest))
       return;
     this.isFocusHeld = false;
@@ -683,14 +676,6 @@ export class OpenWebView {
     this.relayedPresses = this.relayedPresses.filter(t => t !== press);
     if (isUncounted)
       this.uncountedInputs -= 1;
-  }
-
-  private wake(guest: IWebViewContents): void {
-    if (guest.isDestroyed())
-      return;
-    if (this.wakened?.guest !== guest)
-      this.wakened = { guest, isThrottled: guest.getBackgroundThrottling() };
-    guest.setBackgroundThrottling(false);
   }
 
   private async holdFocusAsync(guest: IWebViewContents): Promise<void> {
