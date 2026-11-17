@@ -196,7 +196,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
           npm_config_ignore_scripts: 'true'
-          APP_FOLDER: ${{ inputs.app-folder }}
         run: |
           for attempt in 1 2; do
             logs="$(mktemp -d "${RUNNER_TEMP//\\//}/npm-ci-logs-XXXXXX")"
@@ -213,24 +212,6 @@ jobs:
             echo "npm ci stopped on a stalled read, which npm doesn't retry, so it runs once more. Its last requests:"
             grep -hsE '^[0-9]+ http fetch ' "$logs"/*.log | tail -n 5 || true
           done
-          archives="${RUNNER_TEMP//\\//}/company-archives"
-          left_out=$(node -e '
-            const { existsSync, readFileSync } = require("node:fs");
-            const path = require("node:path");
-            const root = process.argv[1];
-            const lock = JSON.parse(readFileSync(path.join(root, "package-lock.json"), "utf8"));
-            for (const [location, entry] of Object.entries(lock.packages ?? {})) {
-              const name = location.split("node_modules/").pop();
-              const isCompany = name.startsWith("@noldova/") || name.startsWith("@noldova-com/");
-              if (isCompany && name.split("/").length === 2 && String(entry.resolved).startsWith("https://") && !existsSync(path.join(root, location)))
-                console.log(`${name}@${entry.version}`);
-            }' "$APP_FOLDER")
-          if [ -n "$left_out" ]; then
-            mapfile -t specs <<< "$left_out"
-            echo "npm ci leaves out these company packages for this runner's processor or system, so the package step takes them from $archives: ${specs[*]}"
-            mkdir -p "$archives"
-            npm pack --ignore-scripts --loglevel=error --pack-destination "$archives" "${specs[@]}"
-          fi
           for script in preinstall install postinstall prepublish preprepare prepare postprepare; do
             npm run --if-present "$script"
           done
@@ -241,7 +222,38 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
           npm_config_ignore_scripts: 'true'
           PREPARE: ${{ inputs.prepare }}
-        run: eval "$PREPARE"
+          APP_FOLDER: ${{ inputs.app-folder }}
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          (eval "$PREPARE")
+          archives="${RUNNER_TEMP//\\//}/company-archives"
+          left_out=$(node -e '
+            const { existsSync, readFileSync } = require("node:fs");
+            const path = require("node:path");
+            const [root, platform, cpu] = process.argv.slice(1);
+            const os = { windows: "win32", macos: "darwin", linux: "linux" }[platform];
+            const fits = (list, value) => {
+              const items = [list ?? "any"].flat();
+              if (items.length === 1 && items[0] === "any")
+                return true;
+              const negated = items.filter(t => t.startsWith("!"));
+              return !negated.includes(`!${value}`) && (items.includes(value) || negated.length === items.length);
+            };
+            const lock = JSON.parse(readFileSync(path.join(root, "package-lock.json"), "utf8"));
+            for (const [location, entry] of Object.entries(lock.packages ?? {})) {
+              const name = location.split("node_modules/").pop();
+              const isCompany = (name.startsWith("@noldova/") || name.startsWith("@noldova-com/")) && name.split("/").length === 2;
+              const isForTarget = fits(entry.os, os) && fits(entry.cpu, cpu) && (os !== "linux" || fits(entry.libc, "glibc"));
+              if (isCompany && isForTarget && String(entry.resolved).startsWith("https://") && !existsSync(path.join(root, location)))
+                console.log(`${name}@${entry.version}`);
+            }' "$APP_FOLDER" "$TARGET_PLATFORM" "$TARGET_ARCHITECTURE")
+          if [ -n "$left_out" ]; then
+            mapfile -t specs <<< "$left_out"
+            echo "The app's install leaves out these company packages for this target's processor or system, so the package step takes them from $archives: ${specs[*]}"
+            mkdir -p "$archives"
+            npm pack --ignore-scripts --loglevel=error --pack-destination "$archives" "${specs[@]}"
+          fi
 
       - name: Install Electron
         timeout-minutes: 5
