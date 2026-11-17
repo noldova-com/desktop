@@ -124,6 +124,27 @@ describe("TestHangGuard", () => {
     assert.deepEqual(errors, ["The Angular tests stopped: tests/a.spec.ts reported nothing for 60 s before its first test: while it loaded or collected its tests."]);
   });
 
+  it("ignores what Vitest reports for a file after its end, from an update the browser sent before it", () => {
+    const { guard, errors, ends } = watch();
+
+    guard.onTestModuleStart(file("tests/a.spec.ts"));
+    guard.onTestCaseReady(test("tests/a.spec.ts", "A > opens"));
+    guard.onTestModuleEnd(file("tests/a.spec.ts"));
+    guard.onTestCaseResult(test("tests/a.spec.ts", "A > opens"));
+    guard.onHookEnd({ name: "afterAll", entity: file("tests/a.spec.ts") });
+    guard.onTestModuleStart(file("tests/b.spec.ts"));
+    for (const name of ["B > one", "B > two", "B > three"]) {
+      mock.timers.tick(LIMIT / 2);
+      guard.onTestCaseReady(test("tests/b.spec.ts", name));
+      guard.onTestCaseResult(test("tests/b.spec.ts", name));
+    }
+    guard.onTestModuleEnd(file("tests/b.spec.ts"));
+    mock.timers.tick(LIMIT * 2);
+
+    assert.deepEqual(errors, []);
+    assert.equal(ends(), 0);
+  });
+
   it("ends the run when Vitest reports nothing between files", () => {
     const { guard, errors, ends } = watch();
 
