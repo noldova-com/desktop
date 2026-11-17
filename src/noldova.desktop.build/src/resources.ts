@@ -3967,6 +3967,18 @@ export class Resources {
       + `directly in the ${Resources.archivesFolder} folder of the app's folder or of a folder above it.`;
   }
 
+  public static formatLockedArchiveMisnamed(name: string, version: string, location: string, resolved: string, expected: string): string {
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved}; its archive must be named ${expected}, the name npm pack gives ${name}@${version}.`;
+  }
+
+  public static formatLockedArchiveOutside(id: string, archive: string, repository: string): string {
+    return `${id} is locked to ${archive}, which is outside the repository at ${repository}; an app ships only the archives in its own repository's ${Resources.archivesFolder} folders.`;
+  }
+
+  public static formatLockedArchiveThroughLink(id: string, archive: string, real: string): string {
+    return `${id} is locked to ${archive}, which a link leads to ${real}; an app ships an archive only from its repository's own ${Resources.archivesFolder} folder, not through a link.`;
+  }
+
   public static formatLockedArchiveNoIntegrity(name: string, version: string, location: string, resolved: string): string {
     return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved} with no SHA-512 integrity, so its archive cannot be verified; `
       + `the step that locks it must write "integrity": "sha512-<the archive's SHA-512 digest in base64>" beside its "resolved".`;

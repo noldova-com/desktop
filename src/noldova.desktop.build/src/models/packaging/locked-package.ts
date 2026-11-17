@@ -13,6 +13,7 @@ import "@noldova/context.core";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
+import { BuildLayout } from "../../services/packages/build-layout.ts";
 import { PackageNaming } from "../../services/packages/package-naming.ts";
 
 export class LockedPackage {
@@ -36,8 +37,13 @@ export class LockedPackage {
       throw new BuildException(Resources.formatLockedPackageBundled(name, version, location));
     if (!Object.isUndefined(entry[Resources.manifestNameField]) && entry[Resources.manifestNameField] !== name)
       throw new BuildException(Resources.formatLockedPackageAlias(location, String(entry[Resources.manifestNameField]), name));
-    if (!isInstalled && Object.isString(resolved) && resolved.startsWith(Resources.archiveScheme) && !LockedPackage.isOwnArchive(name, resolved))
-      throw new BuildException(Resources.formatLockedArchiveRefused(name, version, location, resolved));
+    if (!isInstalled && Object.isString(resolved) && resolved.startsWith(Resources.archiveScheme)) {
+      if (!LockedPackage.isOwnArchive(name, resolved))
+        throw new BuildException(Resources.formatLockedArchiveRefused(name, version, location, resolved));
+      const expected = BuildLayout.nameArchive(name, version);
+      if (path.posix.basename(resolved) !== expected)
+        throw new BuildException(Resources.formatLockedArchiveMisnamed(name, version, location, resolved, expected));
+    }
     if (!Object.isString(resolved) || !LockedPackage.isShippable(resolved, isInstalled))
       throw new BuildException(isInstalled
         ? Resources.formatLockedPackageUnlocked(name, version, location)
