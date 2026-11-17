@@ -25,6 +25,7 @@ export class TestHangGuard {
   private readonly running: Map<string, string> = new Map();
   private readonly finished: Map<string, string> = new Map();
   private readonly hooks: Map<string, string> = new Map();
+  private readonly ended: Set<string> = new Set();
   private run: NodeJS.Timeout | undefined = undefined;
   private unfinished: number = 0;
   private isStopped: boolean = false;
@@ -63,6 +64,7 @@ export class TestHangGuard {
   };
   public readonly onTestModuleEnd: (module: IReportedModule) => void = module => {
     this.forget(module.relativeModuleId);
+    this.ended.add(module.relativeModuleId);
     this.unfinished -= 1;
     if (this.unfinished > 0)
       this.touchRun();
@@ -81,6 +83,8 @@ export class TestHangGuard {
   }
 
   private watch(file: string): void {
+    if (this.ended.has(file))
+      return;
     clearTimeout(this.watches.get(file));
     this.watches.set(file, setTimeout(() => this.stop(this.describeFile(file)), this.limit).unref());
     this.touchRun();
