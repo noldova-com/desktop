@@ -245,9 +245,15 @@ jobs:
       - name: Remove libfuse2, which a stock Ubuntu does not install
         if: runner.os == 'Linux'
         timeout-minutes: 5
+        env:
+          HOSTED: ${{ runner.environment == 'github-hosted' }}
         run: |
           for name in libfuse2 libfuse2t64; do
             if dpkg-query -W -f='${Status}' "$name" 2>/dev/null | grep 'ok installed' > /dev/null; then
+              if [ "$HOSTED" != true ]; then
+                echo "::error::$name is installed on this self-hosted runner, which has no root to remove it; remove it from the runner's image."
+                exit 1
+              fi
               sudo apt-get remove -y "$name"
             fi
           done
@@ -381,10 +387,18 @@ jobs:
         working-directory: ${{ inputs.app-folder }}
         env:
           WINDOWS_PUBLISHER: ${{ matrix.signed == 'true' && matrix.platform == 'windows' && secrets.WINDOWS_PUBLISHER || '' }}
+          HOSTED: ${{ runner.environment == 'github-hosted' }}
         run: |
           if [ "$RUNNER_OS" = Linux ]; then
-            sudo apt-get update
-            xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --deb --require-sandbox
+            if ! command -v xvfb-run > /dev/null; then
+              echo "::error::xvfb-run is missing on this runner; install the xvfb package on it."
+              exit 1
+            fi
+            if [ "$HOSTED" = true ]; then
+              xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --deb --require-sandbox
+            else
+              echo "::notice::Skipped the Debian package's install smoke, which needs root: this self-hosted runner has none, and CI's run on a GitHub-hosted runner covers it."
+            fi
             if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
               xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-fallback
             else
