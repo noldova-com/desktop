@@ -9,6 +9,7 @@
 import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
 
+import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewKeyEvent } from "../interfaces/i-web-view-key-event.js";
 import { Resources } from "../resources.js";
 
@@ -31,6 +32,20 @@ export class WebViewKeyInput {
     if (type === Resources.charType)
       return WebViewKeyInput.type(text.length > 0 ? text : key, modifiers);
     return type === Resources.keyUpType ? press("keyUp") : [];
+  }
+
+  public static fromInput(input: IWebViewInput, platform: string): readonly IWebViewKeyEvent[] {
+    const flags = (input.alt ? Resources.altModifier : 0) | (input.control ? Resources.ctrlModifier : 0) | (input.meta ? Resources.metaModifier : 0) | (input.shift ? Resources.shiftModifier : 0);
+    const modifiers = [
+      ...Resources.keyModifierNames.filter(([flag]) => (flags & flag) !== 0).map(([, name]) => name),
+      ...input.isAutoRepeat ? [Resources.autoRepeatModifier] : []
+    ];
+    const keyCode = Resources.webViewKeyNames.get(input.key) ?? input.key;
+    if (!Resources.keyDownInputs.includes(input.type))
+      return [{ type: "keyUp", keyCode, modifiers }];
+    const text = Resources.webViewKeyTexts.get(input.key) ?? input.key;
+    const typesText = [...text].length === 1 && !input.meta && (input.alt ? input.control || platform === Resources.macPlatform : !input.control);
+    return [{ type: "keyDown", keyCode, modifiers }, ...typesText ? WebViewKeyInput.type(text, modifiers) : []];
   }
 
   private static type(text: string, modifiers: readonly string[]): IWebViewKeyEvent[] {

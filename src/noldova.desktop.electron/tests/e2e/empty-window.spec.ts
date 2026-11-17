@@ -42,7 +42,7 @@ test.describe("the empty window", () => {
     const bridge = await PageBridgeFixture.evaluateAsync(mainProcess.window, t => Object.keys(t).sort());
 
     expect({ ...globals, bridge }).toEqual({ require: "undefined", process: "undefined", module: "undefined", buffer: "undefined", bridge: [
-      "actOnStartup", "actOnUpdate", "actOnWebView", "actOnWindow", "addToDictionary", "answerClose", "answerQuit", "answerUpdateSave", "appearance", "attachWebView", "chooseFilePath", "chooseFiles", "chooseFolder", "closeWebView", "copyDetails", "copyImage", "copyText",
+      "actOnStartup", "actOnUpdate", "actOnWebView", "actOnWindow", "addToDictionary", "answerClose", "answerQuit", "answerUpdateSave", "answerWebViewShortcut", "appearance", "attachWebView", "chooseFilePath", "chooseFiles", "chooseFolder", "closeWebView", "copyDetails", "copyImage", "copyText",
       "edit", "expectWebView", "findInWebView", "grantFiles", "installCommand", "keepAppearance", "keepSpelling", "keepWebViews", "logError", "logModule", "navigateWebView", "notifyAppearance", "notifyReady", "onCloseRequest", "onEvent", "onFieldMenu",
       "onFullScreen", "onMaximized", "onMenuCommand", "onNotificationOpened", "onQuitQuestion", "onStartup", "onTrayAvailable", "onUpdate", "onUpdateSaveRequest", "onWebViewEvent", "onWebViewInput", "onWebViewShortcut", "openFile", "openLink", "openLogFolder", "openWebView",
       "platform", "processor", "readBuild", "readFullScreen", "readLayout", "readMaximized", "readSpelling", "readStartup", "readTrayAvailable", "readUpdate", "releaseWebViewFocus", "replaceMisspelling", "request", "saveFile",

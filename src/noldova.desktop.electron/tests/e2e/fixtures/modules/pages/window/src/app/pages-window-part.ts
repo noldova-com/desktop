@@ -9,6 +9,8 @@
 import { CommandContribution, DockSide, DocumentContribution, type IWindowPart, type IWindowPartContext, ViewContribution } from "@noldova/desktop.window";
 
 export class PagesWindowPart implements IWindowPart {
+  private isMarkAllowed: boolean = false;
+
   public readonly moduleId: string = "pages";
 
   public async activateAsync(context: IWindowPartContext): Promise<void> {
@@ -26,6 +28,14 @@ export class PagesWindowPart implements IWindowPart {
     }));
     context.registerCommand(new CommandContribution("pages.openSide", "Open the side page", null, null, async () => {
       context.openView("pages.side", "1", "Side page");
+      return null;
+    }));
+    context.registerCommand(new CommandContribution("pages.mark", "Mark the page", null, "Mod+Shift+Y", async () => {
+      context.updateDocument("pages.page", "1", { title: "Marked page" });
+      return null;
+    }, () => this.isMarkAllowed));
+    context.registerCommand(new CommandContribution("pages.allowMark", "Allow the mark", null, null, async () => {
+      this.isMarkAllowed = true;
       return null;
     }));
   }

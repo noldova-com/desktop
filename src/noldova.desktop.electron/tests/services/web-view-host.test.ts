@@ -1025,7 +1025,7 @@ export class WebViewHostTests {
     Assert.areEqual([true, true, false, true, isF5Declared, false, false, true, true].join(","), prevented.join(","));
     Assert.areEqual(JSON.stringify(["reload", "newTab", ...isF5Declared ? ["reload"] : []]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Key").map(t => WebViewHostTests.details(t)["name"])));
-    Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
+    Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac, press: 1 }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
     Assert.isFalse(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Key"));
     Assert.isTrue(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Opened"));
   }
@@ -1056,6 +1056,7 @@ export class WebViewHostTests {
 
     contents.loading = true;
     const whileLoading = [press("r", "KeyR", true), press("Escape", "Escape", false), press("k", "KeyK", true)];
+    WebViewHostTests.answer(electron, platform, window, 1, true);
     contents.loading = false;
     const afterLoading = [press("Escape", "Escape", false), press("r", "KeyR", true)];
     await Condition.waitAsync(() => WebViewHostTests.shortcuts(window).length > 0);
@@ -1064,8 +1065,9 @@ export class WebViewHostTests {
     Assert.areEqual("true,true,true|false,true", `${whileLoading.join(",")}|${afterLoading.join(",")}`);
     Assert.areEqual(JSON.stringify(["reload", "stop", "reload"]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Key").map(t => WebViewHostTests.details(t)["name"])));
-    Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
+    Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac, press: 1 }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
     Assert.isFalse(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Key"));
+    Assert.areEqual(0, contents.inputs.length);
   }
 
   @TestMethod
@@ -1096,6 +1098,98 @@ export class WebViewHostTests {
 
     Assert.areEqual("false,true,false,true,true,true,true", prevented.join(","));
     Assert.areEqual(5, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Key").length);
+  }
+
+  @TestMethod
+  @TestData("linux")
+  @TestData("darwin")
+  public async givesADeclinedShortcutBackToThePageAsPressedWithTheKeysHeldBehindItInOrder(platform: string): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync(undefined, platform);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    electron.ipcMain.send("desktop:webViewShortcuts", MainProcessStartFixture.trustedEvent(platform, window.id), ["Mod+T"]);
+    await WebViewHostTests.openAsync(electron, WebViewHostTests.PANE, "workspace-1", "browser", platform);
+    const contents = WebViewHostTests.view(electron, 0).contents;
+    const isMac = platform === "darwin";
+    const mod = isMac ? "meta" : "control";
+    const newPage = WebViewHostTests.input("t", "KeyT", true, platform);
+    const press = (input: JsonObject): boolean => contents.prevent("before-input-event", input);
+    const sent = (): string => contents.inputs.map(t => `${t.type} ${t.keyCode} ${t.modifiers.join("+")}`).join(",");
+
+    const held = [
+      press(newPage),
+      press({ ...newPage, isAutoRepeat: true }),
+      press({ ...newPage, type: "keyUp" }),
+      press(WebViewHostTests.input("a", "KeyA", false, platform)),
+      press(WebViewHostTests.input("a", "KeyA", false, platform, "keyUp"))
+    ];
+    const beforeAnswer = sent();
+    WebViewHostTests.answer(electron, platform, window, 1, false);
+    const replayed = sent();
+    const passed = [
+      press({ ...newPage, code: "KeyQ" }),
+      press({ ...newPage, isAutoRepeat: true }),
+      press(WebViewHostTests.input("a", "KeyA", false, platform, "keyDown", true)),
+      press({ ...newPage, type: "keyUp" }),
+      press(WebViewHostTests.input("a", "KeyA", false, platform)),
+      press(WebViewHostTests.input("a", "KeyA", false, platform, "keyUp")),
+      press(WebViewHostTests.input("a", "KeyA", false, platform, "char")),
+      press(newPage),
+      press({ ...newPage, isAutoRepeat: true }),
+      press(WebViewHostTests.input("b", "KeyB", false, platform))
+    ];
+    contents.inputs.splice(0);
+    WebViewHostTests.answer(electron, platform, window, 2, true);
+
+    Assert.areEqual("true,true,true,true,true", held.join(","));
+    Assert.areEqual(String.empty, beforeAnswer);
+    Assert.areEqual(`keyDown t ${mod},keyDown t ${mod}+isautorepeat,keyUp t ${mod},keyDown a ,char a ,keyUp a `, replayed);
+    Assert.areEqual("false,false,false,false,false,false,false,true,true,true", passed.join(","));
+    Assert.areEqual(`keyDown t ${mod}+isautorepeat,keyDown b ,char b `, sent());
+    Assert.areEqual(JSON.stringify([1, 2]), JSON.stringify(WebViewHostTests.shortcuts(window).map(t => t["press"])));
+  }
+
+  @TestMethod
+  public async replaysOnlyAPressItForwardedOnceAndNeverForASenderThatIsNotTheWindow(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    electron.ipcMain.send("desktop:webViewShortcuts", MainProcessStartFixture.trustedEvent("linux", window.id), ["Mod+T"]);
+    await WebViewHostTests.openAsync(electron);
+    const contents = WebViewHostTests.view(electron, 0).contents;
+
+    contents.prevent("before-input-event", WebViewHostTests.input("t", "KeyT", true, "linux"));
+    for (const [press, hasRun] of [[2, false], ["1", false], [1.5, false], [null, false], [1, "no"], [1, null]])
+      WebViewHostTests.answer(electron, "linux", window, press, hasRun);
+    electron.ipcMain.send("desktop:webViewShortcutAnswer", MainProcessStartFixture.trustedEvent("linux", window.id + 1), 1, false);
+    const beforeAnswer = contents.inputs.length;
+    WebViewHostTests.answer(electron, "linux", window, 1, false);
+    WebViewHostTests.answer(electron, "linux", window, 1, false);
+
+    Assert.areEqual(0, beforeAnswer);
+    Assert.areEqual("keyDown t control", contents.inputs.map(t => `${t.type} ${t.keyCode} ${t.modifiers.join("+")}`).join(","));
+  }
+
+  @TestMethod
+  public async dropsTheAnswerForAViewThatClosedAndGivesNothingBackToAPageThatIsGone(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const event = MainProcessStartFixture.trustedEvent("linux", window.id);
+    electron.ipcMain.send("desktop:webViewShortcuts", event, ["Mod+T"]);
+    await WebViewHostTests.openAsync(electron);
+    await WebViewHostTests.openAsync(electron);
+    const [closing, gone] = [0, 1].map(t => WebViewHostTests.view(electron, t).contents);
+    const newPage = WebViewHostTests.input("t", "KeyT", true, "linux");
+    const typed = WebViewHostTests.input("a", "KeyA", false, "linux");
+
+    const held = [closing.prevent("before-input-event", newPage), closing.prevent("before-input-event", typed), gone.prevent("before-input-event", newPage), gone.prevent("before-input-event", typed)];
+    electron.ipcMain.send("desktop:webViewClose", event, "browser", "1");
+    WebViewHostTests.answer(electron, "linux", window, 1, false);
+    gone.destroyed = true;
+    gone.emit("destroyed");
+    WebViewHostTests.answer(electron, "linux", window, 2, false);
+
+    Assert.areEqual("true,true,true,true", held.join(","));
+    Assert.areEqual(0, closing.inputs.length + gone.inputs.length);
+    Assert.areEqual(JSON.stringify([1, 2]), JSON.stringify(WebViewHostTests.shortcuts(window).map(t => t["press"])));
   }
 
   @TestMethod
@@ -1520,13 +1614,17 @@ export class WebViewHostTests {
         { type, key, code, isAutoRepeat: false, control: isMac ? other : mod, alt: modifiers.alt === true, shift: modifiers.shift === true, meta: isMac ? mod : other });
     };
 
-    const prevented = [
+    const beforeAnswer = [
       press("=", "Equal"),
       press("+", "Equal", { mod: true, shift: true }),
       press("+", "NumpadAdd"),
       press("-", "Minus"),
       press("-", "NumpadSubtract"),
-      press("0", "Digit0"),
+      press("0", "Digit0")
+    ];
+    WebViewHostTests.answer(electron, platform, window, 1, true);
+    const prevented = [
+      ...beforeAnswer,
       press("0", "Numpad0"),
       press("+", String.empty),
       press("=", "Equal", {}),
@@ -1706,6 +1804,10 @@ export class WebViewHostTests {
   private static input(key: string, code: string, isMod: boolean, platform: string, type: string = "keyDown", isAutoRepeat: boolean = false): JsonObject {
     const isMac = platform === "darwin";
     return { type, key, code, isAutoRepeat, control: isMod && !isMac, alt: false, shift: false, meta: isMod && isMac };
+  }
+
+  private static answer(electron: FakeElectron, platform: string, window: FakeMainProcessWindow, press: unknown, hasRun: unknown): void {
+    electron.ipcMain.send("desktop:webViewShortcutAnswer", MainProcessStartFixture.trustedEvent(platform, window.id), press, hasRun);
   }
 
   private static shortcuts(window: FakeMainProcessWindow): JsonObject[] {

@@ -402,6 +402,39 @@ test.describe("web views", () => {
     }
   });
 
+  test("a shortcut pressed in a module's web view while its command is disabled reaches the page before the keys after it, and once enabled runs the command without the page seeing it", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const mod = process.platform === "darwin" ? "meta" : "control";
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/keys` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Keys");
+
+      await pressInFirstViewAsync(mainProcess, "Y", [mod, "shift"]);
+      await pressInFirstViewAsync(mainProcess, "5");
+      await expect(view(window, 0)).toHaveText(/^Keys [Yy] 5$/);
+      await expect(window.getByRole("tab", { name: /Marked page/ })).toHaveCount(0);
+
+      await CommandSearchFixture.searchAsync(window, "Allow the mark");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.allowMark");
+      await window.keyboard.press("Enter");
+      await pressInFirstViewAsync(mainProcess, "Y", [mod, "shift"]);
+      await expect(window.getByRole("tab", { name: /Marked page/ })).toHaveCount(1);
+      await pressInFirstViewAsync(mainProcess, "6");
+      await expect(view(window, 0)).toHaveText(/^Keys [Yy] 5 6$/);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
   test("a key pressed in a module's web view runs the window's shortcut, reaches the window part as a key the module declares, or else reaches the page, and a key the runtime part sends through the relay is passed on, never taken for the person's", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const mod = process.platform === "darwin" ? "meta" : "control";
