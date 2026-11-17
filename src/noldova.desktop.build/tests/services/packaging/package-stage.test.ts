@@ -154,7 +154,7 @@ export class PackageStageTests {
   public async stopsAStalledInstallBeforeTheTestsEndWhenTheListingHangs(): Promise<void> {
     const [, lines, isInTime] = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, [process.execPath, ["-e", "setInterval(() => {}, 1_000)"]]);
 
-    Assert.isTrue(lines.some(t => t.startsWith("The listing failed: ")), lines.join("\n"));
+    Assert.isTrue(lines.some(t => t.startsWith("The listing failed: Error: Command failed: ")), lines.join("\n"));
     Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
     Assert.isTrue(isInTime, lines.join("\n"));
   }

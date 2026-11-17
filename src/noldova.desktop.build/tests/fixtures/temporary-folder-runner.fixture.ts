@@ -108,7 +108,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   }
 
   private left(): number {
-    return Object.isNull(this.end) ? 0 : this.end - performance.now() - TemporaryFolderRunnerFixture.STOP_RESERVE;
+    return Object.isNull(this.end) ? 0 : Math.floor(this.end - performance.now() - TemporaryFolderRunnerFixture.STOP_RESERVE);
   }
 
   private async listProcessesAsync(id: number): Promise<readonly { id: number, parent: number, line: string }[]> {
