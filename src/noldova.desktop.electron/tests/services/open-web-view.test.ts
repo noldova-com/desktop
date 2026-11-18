@@ -665,8 +665,9 @@ export class OpenWebViewTests {
     old.destroyed = true;
     old.emit("destroyed");
     const without = harness.open.contents;
-    const send = await harness.open.sendAsync(4, OpenWebViewTests.SCREENSHOT, { format: "png" }, 1000);
+    const sending = harness.open.sendAsync(4, OpenWebViewTests.SCREENSHOT, { format: "png" }, 1000);
     const isBound = await harness.open.bindAsync(fresh);
+    const send = await sending;
     old.emit("render-process-gone", {}, { reason: "crashed" });
     old.show("https://example.com/");
     old.debugger.lose();
@@ -675,7 +676,9 @@ export class OpenWebViewTests {
 
     Assert.isNull(without);
     Assert.isTrue(isFramePrevented);
-    Assert.areEqual("4 null Unavailable", OpenWebViewTests.describe(send));
+    Assert.areEqual("4 {} none", OpenWebViewTests.describe(send));
+    Assert.isFalse(old.debugger.methods().includes(OpenWebViewTests.SCREENSHOT));
+    Assert.isTrue(fresh.debugger.methods().includes(OpenWebViewTests.SCREENSHOT));
     Assert.isTrue(isBound);
     Assert.areEqual(8, harness.open.contents?.id);
     Assert.areEqual(String.empty, harness.describe());
@@ -710,6 +713,96 @@ export class OpenWebViewTests {
     Assert.areEqual(2, zoom);
     Assert.areEqual(JSON.stringify([{ kind: "Started" }, { kind: "Started" }]), JSON.stringify([await first, await second]));
     Assert.areEqual("zoom 2,load https://example.com/b", harness.contents.calls.join(","));
+  }
+
+  @TestMethod
+  public async sendsACommandThatArrivesBeforeItsPageBindsOnceThePageIsAttached(): Promise<void> {
+    const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
+    harness.contents.debugger.replies.set(OpenWebViewTests.SCREENSHOT, () => Promise.resolve({ data: "AA==" }));
+
+    const answering = harness.open.sendAsync(4, OpenWebViewTests.SCREENSHOT, { format: "png" }, 1000);
+    const sentBefore = harness.contents.debugger.methods().join(",");
+    await harness.open.bindAsync(harness.contents);
+
+    Assert.areEqual(String.empty, sentBefore);
+    Assert.areEqual("4 {\"data\":\"AA==\"} none", OpenWebViewTests.describe(await answering));
+    Assert.areEqual("Page.enable,Page.setInterceptFileChooserDialog,Emulation.setFocusEmulationEnabled,Page.captureScreenshot", harness.contents.debugger.methods().join(","));
+    Assert.areEqual(0, harness.waits.count(1000));
+  }
+
+  @TestMethod
+  public async endsACommandWaitingForItsPageWhenItsTimeRunsOutAndSendsNothingLater(): Promise<void> {
+    const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
+
+    const answering = harness.open.sendAsync(6, OpenWebViewTests.SCREENSHOT, { format: "png" }, 2500);
+    harness.waits.elapse(2500);
+    const answer = await answering;
+    await harness.open.bindAsync(harness.contents);
+
+    Assert.areEqual("6 null TimedOut", OpenWebViewTests.describe(answer));
+    Assert.areEqual("Page.enable,Page.setInterceptFileChooserDialog", harness.contents.debugger.methods().join(","));
+  }
+
+  @TestMethod
+  public async endsACommandWaitingForItsPageWhenItClosesAndSendsNothingLater(): Promise<void> {
+    const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
+
+    const answering = harness.open.sendAsync(9, OpenWebViewTests.SCREENSHOT, { format: "png" }, 1000);
+    harness.open.close();
+    const answer = await answering;
+    const isBound = await harness.open.bindAsync(harness.contents);
+
+    Assert.areEqual("9 null ViewClosed", OpenWebViewTests.describe(answer));
+    Assert.isFalse(isBound);
+    Assert.areEqual(0, harness.contents.debugger.sent.length);
+    Assert.areEqual(0, harness.waits.count(1000));
+  }
+
+  @TestMethod
+  public async refusesACommandItsDeclarationDoesntAllowAtOnceWhileItWaitsForItsPage(): Promise<void> {
+    const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
+
+    const answer = await harness.open.sendAsync(2, OpenWebViewTests.SCREENSHOT, { format: "jpeg" }, 1000);
+
+    Assert.areEqual("2 null NotAllowed", OpenWebViewTests.describe(answer));
+    Assert.areEqual(0, harness.waits.count(1000));
+  }
+
+  @TestMethod
+  public async loadsOnlyANavigationThatArrivesWhileItsPageBindsAndNotTheOneWaitingFromBefore(): Promise<void> {
+    const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.session.addresses.set("example.com", ["93.184.216.34"]);
+    const enabled = Promise.withResolvers<unknown>();
+    harness.contents.debugger.replies.set("Page.enable", () => enabled.promise);
+
+    const waiting = harness.open.navigateAsync("https://example.com/a");
+    const binding = harness.open.bindAsync(harness.contents);
+    const latest = await harness.open.navigateAsync("https://example.com/b");
+    enabled.resolve({});
+
+    Assert.isTrue(await binding);
+    Assert.areEqual(JSON.stringify([{ kind: "Started" }, { kind: "Started" }]), JSON.stringify([await waiting, latest]));
+    Assert.areEqual("load https://example.com/b", harness.contents.calls.join(","));
+  }
+
+  @TestMethod
+  public async loadsAPageThatCommitsWhileANewPageBindsOnlyOnce(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.session.addresses.set("example.com", ["93.184.216.34"]);
+    harness.contents.show("https://example.com/a");
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const enabled = Promise.withResolvers<unknown>();
+    fresh.debugger.replies.set("Page.enable", () => enabled.promise);
+
+    const binding = harness.open.bindAsync(fresh);
+    await harness.open.navigateAsync("https://example.com/b");
+    fresh.show("https://example.com/b");
+    enabled.resolve({});
+
+    Assert.isTrue(await binding);
+    Assert.areEqual("load https://example.com/b", fresh.calls.join(","));
   }
 
   @TestMethod

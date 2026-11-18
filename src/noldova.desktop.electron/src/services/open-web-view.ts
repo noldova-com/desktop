@@ -52,6 +52,7 @@ export class OpenWebView {
   private readonly lost: () => void;
   private readonly input: (kind: string) => void;
   private readonly endings: Set<(kind: WebViewFailureKind) => void> = new Set();
+  private readonly attachWaits: Map<(guest: IWebViewContents) => void, (kind: WebViewFailureKind) => void> = new Map();
   private readonly redirects: Set<number> = new Set();
   private readonly refusedRequests: Set<number> = new Set();
   private readonly relayKeys: IKeyStroke[] = [];
@@ -171,7 +172,8 @@ export class OpenWebView {
     this.listen(guest);
     this.state = JSON.stringify(this.readState(guest));
     this.restoreZoom();
-    const [failure] = await Promise.all([this.attachAsync(guest), isPristine ? this.startAsync(guest, true) : null]);
+    const count = this.navigationCount;
+    const [failure] = await Promise.all([this.attachAsync(guest), isPristine ? this.startAsync(guest, true, count) : null]);
     if (!Object.isNull(failure)) {
       if (this.guest === guest)
         this.loseUnlessEnding(guest, failure);
@@ -180,7 +182,7 @@ export class OpenWebView {
     if (this.guest !== guest)
       return false;
     if (!isPristine)
-      await this.startAsync(guest, false);
+      await this.startAsync(guest, false, count);
     return true;
   }
 
@@ -245,8 +247,7 @@ export class OpenWebView {
   }
 
   public async sendAsync(call: number, method: string, params: JsonObject, timeoutMilliseconds: number): Promise<WebViewAnswered> {
-    const guest = this.guest;
-    if (this.isCrashed || !this.isAttached || Object.isNull(guest))
+    if (this.isCrashed || this.isClosed)
       return OpenWebView.fail(call, this.isCrashed ? WebViewFailureKind.Crashed : WebViewFailureKind.Unavailable);
     if (method === Resources.focusEmulationMethod)
       return OpenWebView.fail(call, WebViewFailureKind.NotAllowed, Resources.focusEmulationRefused);
@@ -259,39 +260,26 @@ export class OpenWebView {
     if (!Object.isNull(relayKey))
       this.relayKeys.push(relayKey);
     const abort = new AbortController();
-    const isInput = method.startsWith(Resources.inputDomainPrefix);
-    const isPageCall = method !== Resources.insertTextMethod && method !== Resources.dispatchKeyEventMethod;
-    const presses = this.countPresses(method, params);
-    const press = presses > 0 ? Symbol(method) : null;
-    const isUncounted = isInput && !Resources.pressFreeInputMethods.includes(method);
     return new Promise<WebViewAnswered>(resolve => {
       const finish = (answer: WebViewAnswered): void => {
         this.endings.delete(end);
+        this.attachWaits.delete(go);
         abort.abort();
         this.forgetRelayKey(relayKey);
         resolve(answer);
       };
       const end = (kind: WebViewFailureKind): void => finish(OpenWebView.fail(call, kind));
-      this.endings.add(end);
+      const go = (guest: IWebViewContents): void => {
+        this.attachWaits.delete(go);
+        this.endings.add(end);
+        this.relay(guest, call, method, params, finish);
+      };
       this.waitAsync(timeoutMilliseconds, abort.signal).then(() => end(WebViewFailureKind.TimedOut), () => undefined);
-      if (isInput)
-        this.relayedInputs += 1;
-      if (!Object.isNull(press))
-        this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
-      if (isUncounted)
-        this.uncountedInputs += 1;
-      if (isPageCall)
-        this.startPageCall();
-      const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
-      if (isInput)
-        void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
-      const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
-      if (isPageCall)
-        void handled.then(() => this.endPageCall(), () => this.endPageCall());
-      handled.then(
-        reply => finish(OpenWebView.answer(call, reply)),
-        (error: unknown) => finish(new WebViewAnswered(call, null,
-          new WebViewFailure(WebViewFailureKind.Protocol, Resources.webViewServerErrorCode, error instanceof Error ? error.message : String(error)))));
+      const guest = this.guest;
+      if (this.isAttached && !Object.isNull(guest))
+        go(guest);
+      else
+        this.attachWaits.set(go, end);
     });
   }
 
@@ -380,6 +368,7 @@ export class OpenWebView {
     this.isClosed = true;
     this.favicon.close();
     this.end(WebViewFailureKind.ViewClosed);
+    this.endAttachWaits(WebViewFailureKind.ViewClosed);
     this.settleFinds(null);
     this.pendingUrl = undefined;
     for (const settle of this.navigations.splice(0))
@@ -393,6 +382,32 @@ export class OpenWebView {
     }
     this.isAttached = false;
     this.isFocusHeld = false;
+  }
+
+  private relay(guest: IWebViewContents, call: number, method: string, params: JsonObject, finish: (answer: WebViewAnswered) => void): void {
+    const isInput = method.startsWith(Resources.inputDomainPrefix);
+    const isPageCall = method !== Resources.insertTextMethod && method !== Resources.dispatchKeyEventMethod;
+    const presses = this.countPresses(method, params);
+    const press = presses > 0 ? Symbol(method) : null;
+    const isUncounted = isInput && !Resources.pressFreeInputMethods.includes(method);
+    if (isInput)
+      this.relayedInputs += 1;
+    if (!Object.isNull(press))
+      this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
+    if (isUncounted)
+      this.uncountedInputs += 1;
+    if (isPageCall)
+      this.startPageCall();
+    const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
+    if (isInput)
+      void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
+    const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
+    if (isPageCall)
+      void handled.then(() => this.endPageCall(), () => this.endPageCall());
+    handled.then(
+      reply => finish(OpenWebView.answer(call, reply)),
+      (error: unknown) => finish(new WebViewAnswered(call, null,
+        new WebViewFailure(WebViewFailureKind.Protocol, Resources.webViewServerErrorCode, error instanceof Error ? error.message : String(error)))));
   }
 
   private listen(guest: IWebViewContents): void {
@@ -505,11 +520,19 @@ export class OpenWebView {
       this.isAttached = true;
       await guest.debugger.sendCommand(Resources.pageEnableMethod, {});
       await guest.debugger.sendCommand(Resources.interceptFileChooserMethod, { [Resources.enabledField]: true });
+      if (this.isBound(guest) && this.isAttached)
+        for (const go of [...this.attachWaits.keys()])
+          go(guest);
       return null;
     }
     catch (error) {
       return String(error);
     }
+  }
+
+  private endAttachWaits(kind: WebViewFailureKind): void {
+    for (const end of [...this.attachWaits.values()])
+      end(kind);
   }
 
   private endFind(): void {
@@ -579,7 +602,7 @@ export class OpenWebView {
     return Object.isUndefined(url) ? Promise.resolve(null) : this.navigateAsync(url);
   }
 
-  private async startAsync(guest: IWebViewContents, isPristine: boolean): Promise<void> {
+  private async startAsync(guest: IWebViewContents, isPristine: boolean, count: number): Promise<void> {
     const pending = this.pendingUrl;
     const kept = isPristine && Object.isUndefined(pending) ? this.kept : null;
     const scroll = this.keptScroll;
@@ -587,7 +610,8 @@ export class OpenWebView {
     this.kept = null;
     this.keptScroll = null;
     const navigations = this.navigations.splice(0);
-    const answer = Object.isNull(kept) ? await this.goToAsync(pending ?? this.committedUrl) : await this.restoreAsync(guest, kept, scroll);
+    const answer = this.navigationCount !== count ? OpenWebView.started()
+      : Object.isNull(kept) ? await this.goToAsync(pending ?? this.committedUrl) : await this.restoreAsync(guest, kept, scroll);
     for (const settle of navigations)
       settle(answer);
   }
@@ -759,6 +783,7 @@ export class OpenWebView {
   private crash(): void {
     this.isCrashed = true;
     this.end(WebViewFailureKind.Crashed);
+    this.endAttachWaits(WebViewFailureKind.Crashed);
     this.endFind();
     this.emit(WebViewEventKind.Crashed);
   }

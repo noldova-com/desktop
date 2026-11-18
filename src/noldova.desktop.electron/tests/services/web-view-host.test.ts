@@ -213,7 +213,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async keepsAViewWithoutAPageOpenAndAnswersWhatNeedsThePageWithoutIt(): Promise<void> {
+  public async keepsAViewWithoutAPageOpenAnswersWhatNeedsThePageWithoutItAndSendsACommandOnceItsPageAttaches(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     const event = MainProcessStartFixture.trustedEvent("linux");
@@ -225,14 +225,16 @@ export class WebViewHostTests {
       await electron.ipcMain.invoke("desktop:webViewFind", event, "browser", "1", "next"),
       await electron.ipcMain.invoke("desktop:webViewZoom", event, "browser", "1", 2)
     ];
-    const send = await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
+    const sending = this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
     const back = await this.commandAsync(launcher, connection, WebViewAction.Back, "1");
     const listed = await this.commandAsync(launcher, connection, WebViewAction.List);
     const view = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
     await WebViewHostTests.attachAsync(electron, "1", view.contents.id);
+    const send = await sending;
 
     Assert.areEqual("null,null,null,2", answers.map(t => JSON.stringify(t)).join(","));
-    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(send["failure"]));
+    Assert.areEqual(JSON.stringify({}), JSON.stringify(send["value"]));
+    Assert.isTrue(view.contents.debugger.methods().includes("Page.captureScreenshot"));
     Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(back["failure"]));
     Assert.areEqual(JSON.stringify([{ id: "1", module: "browser", pane: WebViewHostTests.PANE, profileKey: "workspace-1" }]), JSON.stringify(listed["value"]));
     Assert.areEqual("zoom 2", view.contents.calls.join(","));
@@ -508,7 +510,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async letsGoOfADestroyedPageWithoutClosingTheViewAndTakesTheNextOne(): Promise<void> {
+  public async letsGoOfADestroyedPageWithoutClosingTheViewAndTakesTheNextOneForTheCommandsThatWait(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     await WebViewHostTests.openAsync(electron);
@@ -516,12 +518,15 @@ export class WebViewHostTests {
 
     gone.contents.destroyed = true;
     gone.contents.emit("destroyed");
-    const send = await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
+    const sending = this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
     const listed = await this.commandAsync(launcher, connection, WebViewAction.List);
     const fresh = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
     const answer = await WebViewHostTests.attachAsync(electron, "1", fresh.contents.id);
+    const send = await sending;
 
-    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(send["failure"]));
+    Assert.areEqual(JSON.stringify({}), JSON.stringify(send["value"]));
+    Assert.isFalse(gone.contents.debugger.methods().includes("Page.captureScreenshot"));
+    Assert.isTrue(fresh.contents.debugger.methods().includes("Page.captureScreenshot"));
     Assert.areEqual(1, JsonReader.fromValue(listed).readObjectArray("value").length);
     Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(answer));
     Assert.areEqual(0, gone.contents.debugger.detaches);
