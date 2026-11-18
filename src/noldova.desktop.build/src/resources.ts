@@ -431,7 +431,7 @@ export class Resources {
   public static readonly shortcutTimeout: number = 120_000;
   public static readonly shortcutScript: string = [
     Resources.powershellStopLine,
-    `(Microsoft.PowerShell.Utility\New-Object -ComObject WScript.Shell).CreateShortcut($env:${Resources.shortcutVariable}).TargetPath`
+    `(Microsoft.PowerShell.Utility\\New-Object -ComObject WScript.Shell).CreateShortcut($env:${Resources.shortcutVariable}).TargetPath`
   ].join(Resources.lineSeparator);
   public static readonly packageLayoutFolderSegments: readonly string[] = [Resources.buildFolder, "package"];
   public static readonly packageStageFolder: string = "app";

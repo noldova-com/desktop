@@ -311,6 +311,8 @@ export class PackageInstallerTests {
         `Uninstall Sample App.exe /S _?=${runner.app} (verbatim)`, "Sample App-1.2.3-windows-x64.exe /S", `Uninstall Sample App.exe /S _?=${runner.app} (verbatim)`]),
         JSON.stringify(runner.calls));
       Assert.isTrue((runner.calls[2] ?? String.empty).startsWith("powershell.exe -NoProfile -NonInteractive -EncodedCommand "));
+      const script = Buffer.from((runner.calls[2] ?? String.empty).split(" ").at(-1) ?? String.empty, "base64").toString("utf16le");
+      Assert.isTrue(script.endsWith("\n(Microsoft.PowerShell.Utility\\New-Object -ComObject WScript.Shell).CreateShortcut($env:NOLDOVA_DESKTOP_SHORTCUT).TargetPath"), script);
       Assert.isTrue(existsSync(path.join(folder, "Uninstall Sample App.exe")));
       Assert.isFalse(existsSync(runner.old));
       Assert.isFalse(existsSync(makers));
