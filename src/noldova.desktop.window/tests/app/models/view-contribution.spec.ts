@@ -50,6 +50,20 @@ describe("ViewContribution", () => {
       .toThrowError("Only a view with instances can be renamable.");
   });
 
+  it("keeps the default group and order its options give, and group 0 with no order without them", () => {
+    const plain = new ViewContribution("files.tree", "Files", "folder", DockSide.Left, true, load);
+    const placed = new ViewContribution("git.branches", "Git", "branch", DockSide.Right, true, load, undefined, { defaultGroup: 0, defaultOrder: 20 });
+    const lower = new ViewContribution("teamrun.plans", "Plans", "list", DockSide.Right, true, load, undefined, { defaultGroup: 1, defaultOrder: 0 });
+
+    expect([[plain.defaultGroup, plain.defaultOrder], [placed.defaultGroup, placed.defaultOrder], [lower.defaultGroup, lower.defaultOrder]]).toEqual([[0, null], [0, 20], [1, 0]]);
+  });
+
+  for (const options of [{ defaultGroup: -1 }, { defaultGroup: 1.5 }, { defaultGroup: Number.NaN }, { defaultOrder: -10 }, { defaultOrder: 2.5 }, { defaultOrder: Number.POSITIVE_INFINITY }])
+    it(`refuses the default place ${JSON.stringify(options)}`, () => {
+      expect(() => new ViewContribution("git.branches", "Git", "branch", DockSide.Right, true, load, undefined, options))
+        .toThrowError("A view's default group and default order are whole numbers of 0 or more.");
+    });
+
   it("refuses a tab-row place that is not <module id>.<name>", () => {
     expect(() => new ViewContribution("terminal.session", "Terminal", "terminal", DockSide.Bottom, false, load, undefined, { tabRowPlace: "tabRow" })).toThrowError(ArgumentException);
   });

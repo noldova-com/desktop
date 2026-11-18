@@ -1158,6 +1158,26 @@ describe("WindowPartHostService", () => {
     expect(log).toEqual(["activate terminal", "deactivate terminal", "activate terminal"]);
   });
 
+  it("gives the registry each view's default group and order, so a new layout orders one group's tabs across modules", async () => {
+    const tasks = new WindowPartFixture("tasks", log, t => {
+      t.registerView(new ViewContribution("tasks.list", "Tasks", "task", DockSide.Right, true, load, undefined, { defaultOrder: 10 }));
+      t.registerView(new ViewContribution("tasks.pages", "Pages", "article", DockSide.Right, true, load, undefined, { defaultOrder: 30 }));
+      t.registerView(new ViewContribution("tasks.plans", "Plans", "list", DockSide.Right, true, load, undefined, { defaultGroup: 1, defaultOrder: 10 }));
+    });
+    const git = new WindowPartFixture("git", log, t => {
+      t.registerView(new ViewContribution("git.branches", "Git", "branch", DockSide.Right, true, load, undefined, { defaultGroup: 0, defaultOrder: 20 }));
+    });
+    const { layout } = start([source("tasks", tasks, [], ["tasks.list", "tasks.pages", "tasks.plans"], [], [], [], [], []), source("git", git, [], ["git.branches"], [], [], [], [], [])],
+      [status("tasks"), status("git")]);
+
+    await vi.waitFor(() => expect(layout.registry().hasView("git.branches")).toBe(true));
+
+    expect([layout.registry().view("git.branches"), layout.registry().view("tasks.plans")])
+      .toEqual([new ViewType("git.branches", DockSide.Right, true, false, null, false, 0, 20), new ViewType("tasks.plans", DockSide.Right, true, false, null, false, 1, 10)]);
+    expect(Layout.createDefault(layout.registry()).dock(DockSide.Right).root?.groups.map(t => t.tabs.map(u => u.name)))
+      .toEqual([["tasks.list", "git.branches", "tasks.pages"], ["tasks.plans"]]);
+  });
+
   it("marks a part's renamable views and documents in the registry, and tells it each title a person keeps", async () => {
     const heard: string[] = [];
     const part = new WindowPartFixture("notes", log, t => {

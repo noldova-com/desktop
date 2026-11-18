@@ -23,6 +23,8 @@ import { Layout } from "../../../src/app/models/layout/layout";
 import { LayoutMetrics } from "../../../src/app/models/layout/layout-metrics";
 import { LayoutReader } from "../../../src/app/services/layout.reader";
 import { ToolbarLayout } from "../../../src/app/models/layout/toolbar-layout";
+import { ViewRegistry } from "../../../src/app/models/layout/view-registry";
+import { ViewType } from "../../../src/app/models/layout/view-type";
 import { ViewTab } from "../../../src/app/models/layout/view-tab";
 import { WindowPartSource } from "../../../src/app/models/window-part-source";
 import { SideDropTarget } from "../../../src/app/models/layout/side-drop-target";
@@ -329,6 +331,29 @@ describe("LayoutService", () => {
     await store.writeAsync({ version: 99 });
     expect(await service.loadAsync()).toBe(false);
     expect(service.layout().toJson()).toEqual(Layout.createDefault(registry).toJson());
+  });
+
+  it("keeps a saved layout as it was when the views name default groups and orders, until Reset the layout lays them out", async () => {
+    const grouped = new ViewRegistry([
+      new ViewType("files.tree", DockSide.Left, true, false, null, false, 0, 20),
+      new ViewType("files.search", DockSide.Left, true, false, null, false, 1, 10),
+      new ViewType("git.changes", DockSide.Left, true, false, null, false, 0, 10),
+      new ViewType("terminal.shell", DockSide.Bottom, false)
+    ], ["notes.note", "desktop.settings"]);
+    const saved = Layout.createDefault(registry);
+    service.setRegistry(grouped);
+
+    await store.writeAsync(saved.toJson());
+
+    expect(await service.loadAsync()).toBe(true);
+    expect(service.layout().toJson()).toEqual(saved.toJson());
+
+    service.reset();
+    expect(service.layout().toJson()).toEqual(Layout.createDefault(grouped).toJson());
+    expect(service.layout().dock(DockSide.Left).root?.groups.map(t => [t.tabs.map(u => u.name), t.active?.name])).toEqual([
+      [["git.changes", "files.tree"], "git.changes"],
+      [["files.search"], "files.search"]
+    ]);
   });
 
   it("passes on a failure other than an unreadable layout", async () => {

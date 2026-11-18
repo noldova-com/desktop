@@ -22,7 +22,13 @@ describe("ViewType", () => {
   it("has no instances and no tab-row place unless it is given them", () => {
     const type = new ViewType("files.tree", DockSide.Right, true);
 
-    expect([type.hasInstances, type.tabRowPlace, type.isRenamable]).toEqual([false, null, false]);
+    expect([type.hasInstances, type.tabRowPlace, type.isRenamable, type.defaultGroup, type.defaultOrder]).toEqual([false, null, false, 0, null]);
+  });
+
+  it("keeps its default group and order", () => {
+    const type = new ViewType("git.branches", DockSide.Right, true, false, null, false, 1, 20);
+
+    expect([type.defaultGroup, type.defaultOrder]).toEqual([1, 20]);
   });
 
   it("never shows a view with instances by default, and keeps its tab-row place", () => {
