@@ -1511,7 +1511,7 @@ export class WebViewHostTests {
       new WebViewCommand(++this.calls, "browser", WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: {}, timeoutMilliseconds: 1000 }).toJson()));
     await Condition.waitAsync(() => WebViewHostTests.windowEvents(window).some(t => t["kind"] === "Closed") && WebViewHostTests.answers(connection).length === 1);
 
-    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(WebViewHostTests.answers(connection)[0]?.["failure"]));
+    Assert.areEqual(JSON.stringify({ kind: "ViewClosed" }), JSON.stringify(WebViewHostTests.answers(connection)[0]?.["failure"]));
     Assert.areEqual(2, reattached);
     Assert.areEqual(1, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
     Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "A web view lost its defaults, so it was closed.").length);
