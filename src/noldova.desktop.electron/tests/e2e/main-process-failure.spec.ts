@@ -53,9 +53,12 @@ test("an error the main process does not catch is logged with its stack and asks
     void Promise.reject(new Error("A rejection the test left unhandled in the main process."));
   });
 
+  const rejection = "main process failed with an unhandled rejection: Error: A rejection the test left unhandled in the main process.";
+  await expect.poll(() => mainProcess.failures.findIndex(t => t.endsWith(rejection))).toBeGreaterThanOrEqual(0);
+  expect(mainProcess.failures[mainProcess.failures.findIndex(t => t.endsWith(rejection)) + 1]).toMatch(/^main: at /);
   const logFile = path.join(mainProcess.dataDirectory, "logs", "main.log");
-  await expect.poll(async () => await readFile(logFile, "utf8")).toContain("unhandled rejection: Error: A rejection the test left unhandled in the main process.\n    at ");
   const log = await readFile(logFile, "utf8");
+  expect(log).not.toContain(rejection);
   expect(log).toContain("The main process's main process failed with an uncaught exception: Error: A failure the test threw in the main process.\n    at ");
   expect(log).toMatch(/ The person chose Open log folder\.\n\S+ The person chose Restart Noldova Desktop Sample\.\n/);
   expect(await mainProcess.application.evaluate(() => globalThis.desktopFailureCalls)).toHaveLength(5);
