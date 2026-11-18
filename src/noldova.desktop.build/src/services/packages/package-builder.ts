@@ -19,6 +19,7 @@ import { TypeScriptCompiler } from "../toolchain/typescript-compiler.ts";
 import type { AddonBuilder } from "./addon-builder.ts";
 import { ArchiveReader } from "./archive.reader.ts";
 import type { BuildLayout } from "./build-layout.ts";
+import { LockedInstallCheck } from "./locked-install-check.ts";
 import type { PackageManifest } from "../../models/packages/package-manifest.ts";
 import type { PackageVersions } from "../../models/packages/package-versions.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
@@ -124,7 +125,9 @@ export class PackageBuilder {
 
   public async installAsync(subject: string, folder: string, archives: readonly string[]): Promise<void> {
     const installed = archives.filter(t => existsSync(t));
-    PackageBuilder.require(await this.npm.runAsync([...Resources.npmInstallArguments, ...installed], folder), Resources.formatInstallingOperation(subject));
+    const peers = installed.length === 0 ? [] : await LockedInstallCheck.listLockedSpecsAsync(folder);
+    PackageBuilder.require(await this.npm.runAsync([...Resources.npmInstallArguments, ...installed, ...peers], folder), Resources.formatInstallingOperation(subject));
+    await LockedInstallCheck.checkAsync(folder);
   }
 
   public async compileTestsAsync(manifest: PackageManifest): Promise<void> {
