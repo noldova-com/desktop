@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { existsSync } from "node:fs";
 import { copyFile, cp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
@@ -45,13 +46,16 @@ export class PackageStage {
   private readonly npm: NpmCommand;
   private readonly build: PackagedBuild;
 
-  public constructor(root: string, npm: NpmCommand, build: PackagedBuild) {
+  private readonly companyArchives: string | null;
+
+  public constructor(root: string, npm: NpmCommand, build: PackagedBuild, companyArchives: string | null = null) {
     this.root = root;
     this.layout = new PackageLayout(root);
     this.assets = new PackageAssets(root);
     this.modules = new ModuleCatalog(root);
     this.npm = npm;
     this.build = build;
+    this.companyArchives = companyArchives;
   }
 
   public get folder(): string {
@@ -59,7 +63,7 @@ export class PackageStage {
   }
 
   public static async installAsync(npm: NpmCommand, folder: string, root: RootManifest, fields: Readonly<Record<string, unknown>>, cache: string,
-    archives: ReadonlyMap<string, string>): Promise<void> {
+    archives: ReadonlyMap<string, string>, target: PackageTarget): Promise<void> {
     const overrides = root.overrides;
     if (!Object.isUndefined(overrides) && !Object.isPlainObject(overrides))
       throw new BuildException(Resources.stageOverridesInvalid);
@@ -67,9 +71,12 @@ export class PackageStage {
       ? {}
       : { overrides: Object.fromEntries(Object.entries(overrides).map(([name, value]: [string, unknown]) => [name, archives.has(name) ? PackageStage.refer(name, value) : value])) };
     await writeFile(path.join(folder, Resources.packageManifestFileName), Resources.formatJsonFile({ ...fields, ...written }));
-    const result = await npm.runAsync([...Resources.stageInstallArguments, cache, ...archives.values()], folder);
+    const result = await npm.runAsync([...Resources.stageInstallArguments, cache, ...target.installArguments, ...archives.values()], folder);
     if (!result.isSuccessful)
       throw new BuildException(Resources.formatStageInstallFailed(result.exitCode, result.text));
+    const leftOut = [...archives.keys()].filter(t => !existsSync(path.join(folder, Resources.nodeModulesFolder, ...t.split(Resources.pathSegmentSeparator), Resources.packageManifestFileName)));
+    if (leftOut.length > 0)
+      throw new BuildException(Resources.formatStageArchivesLeftOut(leftOut));
   }
 
   public async stageAsync(target: PackageTarget, output: Writable, updateFeed: string | null, windowsPublisher: string | null): Promise<void> {
@@ -116,9 +123,11 @@ export class PackageStage {
       private: true,
       main: path.posix.join(...Resources.electronMainSegments),
       dependencies: Object.fromEntries([...packages.map(t => [t.name, versions.of(t.name)] as const), ...roots, ...company.filter(t => PackageNaming.isContext(t.locked.name))
-        .map(t => [t.locked.name, t.locked.version] as const)].sort(([left], [right]) => left.localeCompare(right)))
+        .map(t => [t.locked.name, t.locked.version] as const)].sort(([left], [right]) => left.localeCompare(right))),
+      optionalDependencies: Object.fromEntries([...company, ...thirdParty].map(t => t.locked).filter(t => t.isPlatformBound).map(t => [t.name, t.version] as const)
+        .sort(([left], [right]) => left.localeCompare(right)))
     }, this.layout.npmCache, new Map([...packages.map(t => [t.name, archives.locateArchive(t, versions.of(t.name))] as const), ...company.map(t => [t.locked.name, t.file] as const),
-      ...thirdParty.map(t => [t.locked.name, t.file] as const)]));
+      ...thirdParty.map(t => [t.locked.name, t.file] as const)]), target);
     const foreign = await ForeignAddons.removeAsync(this.folder, target);
     output.write(Resources.formatStagePackages(packages.map(t => t.name)));
     output.write(Resources.formatStageForeignAddons(foreign));
@@ -138,7 +147,7 @@ export class PackageStage {
     await rm(this.layout.company, { recursive: true, force: true });
     const packed: CompanyPackage[] = [];
     for (const item of locked)
-      packed.push(await CompanyPackage.packAsync(item, this.root, this.layout.company, this.npm, windowPackages));
+      packed.push(await CompanyPackage.packAsync(item, this.root, this.layout.company, this.npm, windowPackages, this.companyArchives));
     return packed;
   }
 

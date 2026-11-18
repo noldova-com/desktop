@@ -30,20 +30,16 @@ export class CompanyPackage {
     this.file = file;
   }
 
-  public static async packAsync(locked: LockedPackage, root: string, folder: string, npm: NpmCommand, windowPackages: ReadonlySet<string>): Promise<CompanyPackage> {
+  public static async packAsync(locked: LockedPackage, root: string, folder: string, npm: NpmCommand, windowPackages: ReadonlySet<string>, archives: string | null = null):
+    Promise<CompanyPackage> {
     const installed = path.join(root, ...locked.location.split(Resources.pathSegmentSeparator));
-    let manifest: JsonObject;
-    try {
-      manifest = JsonReader.parse(await readFile(path.join(installed, Resources.packageManifestFileName), Resources.textEncoding)).toJson();
-    }
-    catch (error) {
-      throw new BuildException(Resources.formatCompanyPackageUnreadable(locked.id, locked.location), new ExceptionOptions(error));
-    }
+    const fetched = locked.isArchive || Object.isNull(archives) || existsSync(installed) ? null : await CompanyPackage.readFetchedAsync(locked, archives);
+    const manifest = Object.isNull(fetched) ? await CompanyPackage.readInstalledAsync(locked, installed, archives) : CompanyPackage.readArchivedManifest(locked, fetched);
     if (manifest[Resources.manifestNameField] !== locked.name || manifest[Resources.manifestVersionField] !== locked.version)
-      throw new BuildException(Resources.formatCompanyPackageMismatch(locked.location, locked.id));
+      throw new BuildException(Resources.formatCompanyPackageMismatch(Object.isNull(fetched) ? locked.location : fetched[0], locked.id));
     const dependencies = manifest[Resources.manifestDependenciesField];
     const bundled = Object.keys(Object.isPlainObject(dependencies) ? dependencies : {}).filter(t => windowPackages.has(t));
-    const archive = locked.isArchive ? await CompanyPackage.verifyArchiveAsync(locked, root) : null;
+    const archive = locked.isArchive ? await CompanyPackage.verifyArchiveAsync(locked, root) : fetched;
     if (!Object.isNull(archive) && bundled.length === 0)
       return new CompanyPackage(locked, archive[0]);
 
@@ -63,6 +59,43 @@ export class CompanyPackage {
     if (!result.isSuccessful)
       throw new BuildException(Resources.formatCompanyPackFailed(locked.id, locked.location, result.exitCode, result.text));
     return new CompanyPackage(locked, path.join(folder, BuildLayout.nameArchive(locked.name, locked.version)));
+  }
+
+  public static readArchivesFolder(environment: NodeJS.ProcessEnv): string | null {
+    const folder = environment[Resources.companyArchivesVariable] ?? String.empty;
+    return folder.length > 0 ? folder : null;
+  }
+
+  private static async readInstalledAsync(locked: LockedPackage, installed: string, archives: string | null): Promise<JsonObject> {
+    try {
+      return JsonReader.parse(await readFile(path.join(installed, Resources.packageManifestFileName), Resources.textEncoding)).toJson();
+    }
+    catch (error) {
+      throw new BuildException(Object.isNull(archives)
+        ? Resources.formatCompanyPackageUnreadable(locked.id, locked.location)
+        : Resources.formatCompanyPackageUnreadableOrUnfetched(locked.id, locked.location, path.join(archives, BuildLayout.nameArchive(locked.name, locked.version))),
+      new ExceptionOptions(error));
+    }
+  }
+
+  private static async readFetchedAsync(locked: LockedPackage, archives: string): Promise<readonly [string, Buffer] | null> {
+    const file = path.join(archives, BuildLayout.nameArchive(locked.name, locked.version));
+    if (!existsSync(file))
+      return null;
+    const data = await readFile(file);
+    if (!locked.matches(data))
+      throw new BuildException(Resources.formatFetchedCompanyArchiveMismatch(file, locked.id));
+    return [file, data];
+  }
+
+  private static readArchivedManifest(locked: LockedPackage, [archive, data]: readonly [string, Buffer]): JsonObject {
+    const text = TarArchive.fromGzip(data, archive).topLevelFiles.get(Resources.packageManifestFileName)?.toString(Resources.textEncoding);
+    try {
+      return JsonReader.parse(text ?? String.empty).toJson();
+    }
+    catch (error) {
+      throw new BuildException(Resources.formatCompanyManifestMissing(archive, locked.id), new ExceptionOptions(error));
+    }
   }
 
   private static async verifyArchiveAsync(locked: LockedPackage, root: string): Promise<readonly [string, Buffer]> {

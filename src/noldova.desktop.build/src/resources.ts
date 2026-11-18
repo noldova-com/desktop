@@ -92,6 +92,7 @@ export class Resources {
   public static readonly addonExtension: string = ".node";
   public static readonly releaseAddonsVariable: string = "RELEASE_ADDONS";
   public static readonly targetArchitectureVariable: string = "NOLDOVA_DESKTOP_ARCHITECTURE";
+  public static readonly companyArchivesVariable: string = "NOLDOVA_DESKTOP_COMPANY_ARCHIVES";
   public static readonly electronArchitectureVariable: string = "npm_config_arch";
   public static readonly addonWindowsTargets: readonly string[] = ["win32-x64", "win32-arm64"];
   public static readonly addonPosixTargets: readonly string[] = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
@@ -2351,6 +2352,14 @@ export class Resources {
     return `${String(error)}\nDetaching the disk image after the failed copy failed too: ${String(detachError)}`;
   }
 
+  public static formatInstallPlatformArguments(system: string, architecture: string, library: string | null): readonly string[] {
+    return [`--os=${system}`, `--cpu=${architecture}`, ...Object.isNull(library) ? [] : [`--libc=${library}`]];
+  }
+
+  public static formatStageArchivesLeftOut(names: readonly string[]): string {
+    return `Installing the packages into the stage left out ${names.join(", ")}, which the stage ships for this target.`;
+  }
+
   public static formatStageInstallFailed(exitCode: number | null, output: string): string {
     return `Installing the packages into the stage failed with exit code ${exitCode}; it uses only the build's archives and never the registry:\n${output}`;
   }
@@ -3917,6 +3926,15 @@ export class Resources {
 
   public static formatCompanyPackageUnreadable(id: string, location: string): string {
     return `${id} could not be read at ${location}, where npm ci installs it after checking it against package-lock.json; the stage takes the company's packages only from there.`;
+  }
+
+  public static formatCompanyPackageUnreadableOrUnfetched(id: string, location: string, archive: string): string {
+    return `${id} could not be read at ${location}, where npm ci installs it after checking it against package-lock.json, or at ${archive}, `
+      + `where the install packs a company package that npm ci leaves out for another processor or system; the stage takes the company's packages only from there.`;
+  }
+
+  public static formatFetchedCompanyArchiveMismatch(archive: string, id: string): string {
+    return `${archive} does not match the integrity package-lock.json locks for ${id}, so it cannot ship.`;
   }
 
   public static formatCompanyPackageMismatch(location: string, id: string): string {
