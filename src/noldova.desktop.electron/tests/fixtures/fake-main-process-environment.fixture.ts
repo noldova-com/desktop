@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { lstat, readlink, realpath } from "node:fs/promises";
+import { lstat, readdir, readlink, realpath } from "node:fs/promises";
 import path from "node:path";
 import { Writable } from "node:stream";
 
@@ -40,11 +40,12 @@ export class FakeMainProcessEnvironment implements IMainProcessEnvironment {
   public readonly relaunched: { readonly command: readonly string[]; readonly environment: NodeJS.ProcessEnv; readonly workingDirectory: string }[] = [];
   public readonly startedApart: { readonly command: readonly string[]; readonly environment: NodeJS.ProcessEnv }[] = [];
   public readonly ended: number[] = [];
+  public readonly probed: number[] = [];
   public processId: number = 1000;
   public webViews: ReadonlyMap<string, WebViewDeclaration> = new Map();
   public webViewsFailure: Error | null = null;
   public readonly programs: FakeProgramHost = new FakeProgramHost();
-  public files: IMainProcessFiles = { lstat, readlink, realpath, rename: (from: string) => Promise.reject(new Error(`EPERM: ${from}`)) };
+  public files: IMainProcessFiles = { lstat, readlink, realpath, rename: (from: string) => Promise.reject(new Error(`EPERM: ${from}`)), readdir };
   public readonly presence: ProcessPresence = ProcessPresence.create(process.platform);
   public readonly exceptionListeners: ((error: unknown) => void)[] = [];
   public readonly rejectionListeners: ((reason: unknown) => void)[] = [];
@@ -83,6 +84,10 @@ export class FakeMainProcessEnvironment implements IMainProcessEnvironment {
     if (!Object.isNull(this.endFailure))
       throw this.endFailure;
     this.ended.push(processId);
+  }
+
+  public probeProcess(processId: number): void {
+    this.probed.push(processId);
   }
 
   public onUncaughtException(listener: (error: unknown) => void): void {

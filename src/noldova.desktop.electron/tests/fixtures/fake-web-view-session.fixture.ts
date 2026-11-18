@@ -21,6 +21,7 @@ export class FakeWebViewSession implements IWebViewSession {
   public checkHandler: (() => boolean) | null = null;
   public deviceHandler: (() => boolean) | null = null;
   public readonly addresses: Map<string, readonly string[]> = new Map();
+  public readonly lookups: Map<string, Promise<readonly string[]>> = new Map();
   public readonly icons: Map<string, Uint8Array | Error> = new Map();
   public readonly iconReads: string[] = [];
   public readonly iconHolds: Promise<void>[] = [];
@@ -63,6 +64,9 @@ export class FakeWebViewSession implements IWebViewSession {
   }
 
   public resolveHostAsync(host: string): Promise<readonly string[]> {
+    const held = this.lookups.get(host);
+    if (!Object.isUndefined(held))
+      return held;
     const addresses = this.addresses.get(host);
     return Object.isUndefined(addresses) ? Promise.reject(new Error("ERR_NAME_NOT_RESOLVED")) : Promise.resolve(addresses);
   }

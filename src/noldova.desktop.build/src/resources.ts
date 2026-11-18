@@ -429,6 +429,13 @@ export class Resources {
   public static readonly shortcutExtension: string = ".lnk";
   public static readonly shortcutVariable: string = "NOLDOVA_DESKTOP_SHORTCUT";
   public static readonly shortcutTimeout: number = 120_000;
+  public static readonly uninstallerVariable: string = "NOLDOVA_DESKTOP_UNINSTALLER";
+  public static readonly uninstallFolderVariable: string = "NOLDOVA_DESKTOP_UNINSTALL_FOLDER";
+  public static readonly uninstallWaitScript: string = [
+    Resources.powershellStopLine,
+    `$uninstall = Microsoft.PowerShell.Management\\Start-Process -FilePath $env:${Resources.uninstallerVariable} -ArgumentList @('/S', "_?=$env:${Resources.uninstallFolderVariable}") -Wait -PassThru`,
+    "exit $uninstall.ExitCode"
+  ].join(Resources.lineSeparator);
   public static readonly shortcutScript: string = [
     Resources.powershellStopLine,
     `(Microsoft.PowerShell.Utility\\New-Object -ComObject WScript.Shell).CreateShortcut($env:${Resources.shortcutVariable}).TargetPath`
@@ -2430,6 +2437,10 @@ export class Resources {
 
   public static formatInstallFolderKept(folder: string): string {
     return `Uninstalling the app left its install folder ${folder}.`;
+  }
+
+  public static formatCopiedUninstallerHeld(uninstaller: string, error: unknown, holders: string): string {
+    return `The copy of the uninstaller ${uninstaller} could not be removed after it and every process it started had exited: ${String(error)}${Resources.lineSeparator}${holders}`;
   }
 
   public static formatUninstallerNotRemoved(uninstaller: string, error: unknown): string {

@@ -84,7 +84,7 @@ jobs:
           while IFS='|' read -r target runner architecture platform _; do
             entry="{\"target\":\"$target\",\"runner\":$runner,\"architecture\":\"$architecture\",\"platform\":\"$platform\",\"signed\":\"false\"}"
             targets="$targets${targets:+,}$entry"
-            if [ "$target" = macos-arm64 ]; then
+            if [ "$platform" = macos ] && [ "$architecture" = arm64 ]; then
               no_folder="$entry"
             fi
           done <<< "$table"
@@ -106,7 +106,7 @@ jobs:
     with:
       targets: ${{ needs.package-targets.outputs.no-folder-targets }}
       signed: false
-      prepare: npm pkg delete desktop.product.installFolder && npm run build
+      prepare: npm pkg delete desktop.product.installFolder && [ "$(npm pkg get desktop.product.installFolder)" = '{}' ] && npm run build
       artifact-suffix: -without-folder
 
   code-changes:

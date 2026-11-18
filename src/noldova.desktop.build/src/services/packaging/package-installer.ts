@@ -63,8 +63,16 @@ export class PackageInstaller {
     await this.runInstallerAsync(this.locatePackage(target, product, version, Resources.installerTarget), Resources.silentInstallArguments, installFolder, folder, environment);
     const uninstaller = path.join(folder, path.basename(PackageInstaller.locateUninstaller(installFolder, product)));
     await copyFile(PackageInstaller.locateUninstaller(installFolder, product), uninstaller);
-    await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
-      Resources.installerTimeout, environment, true);
+    const command = Buffer.from(Resources.uninstallWaitScript, Resources.powershellScriptEncoding).toString(Resources.powershellCommandEncoding);
+    await this.runner.requireAsync(Resources.windowsPowershellCommand, [...Resources.powershellOptions, command], folder, Resources.installerTimeout,
+      { ...environment, [Resources.uninstallerVariable]: uninstaller, [Resources.uninstallFolderVariable]: installFolder });
+    try {
+      await rm(uninstaller);
+    }
+    catch (error) {
+      throw new BuildException(Resources.formatCopiedUninstallerHeld(uninstaller, error, await new FileHolders(this.runner, folder, environment).describeAsync([uninstaller])),
+        new ExceptionOptions(error));
+    }
     if (existsSync(path.dirname(installFolder)))
       throw new BuildException(Resources.formatInstallFolderKept(path.dirname(installFolder)));
   }

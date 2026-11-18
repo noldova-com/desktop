@@ -775,6 +775,8 @@ export class Resources {
   public static readonly installFolderStagingPrefix: string = ".";
   public static readonly dittoProgram: string = "/usr/bin/ditto";
   public static readonly installFolderStagingSeparator: string = "-";
+  public static readonly installFolderStagingProcessPattern: RegExp = /^[1-9]\d*$/u;
+  public static readonly missingProcessErrorCode: string = "ESRCH";
   public static readonly plistProgram: string = "/usr/bin/plutil";
   public static readonly bundleInformationSegments: readonly string[] = ["Contents", "Info.plist"];
   public static readonly bundleIdentifierKey: string = "CFBundleIdentifier";
@@ -832,6 +834,7 @@ export class Resources {
   public static readonly helpRole: "help" = "help";
   public static readonly pngMimeType: string = "image/png";
   public static readonly killSignal: NodeJS.Signals = "SIGKILL";
+  public static readonly probeSignal: number = 0;
   public static readonly argumentSeparator: string = " ";
   public static readonly mediaSourceParts: number = 3;
   public static readonly pipedStdio: "pipe" = "pipe";
