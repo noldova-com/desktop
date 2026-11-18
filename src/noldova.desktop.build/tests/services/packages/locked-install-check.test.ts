@@ -32,7 +32,7 @@ export class LockedInstallCheckTests {
   @TestMethod
   public async acceptsAnInstallThatHoldsTheLockfilesVersionsBesideTheBuiltArchivesAndItsOptionalPackages(): Promise<void> {
     await using tree = await LockedInstallCheckTests.createAsync({
-      "node_modules/@angular/common": { version: "22.2.6" },
+      "node_modules/@angular/common": { version: "22.2.6", resolved: "https://registry.npmjs.org/@angular/common/-/common-22.2.6.tgz" },
       "node_modules/@angular/forms": { version: "22.2.6", peer: true },
       "node_modules/@noldova/window": { version: "0.0.6", resolved: "file:_packages/noldova-window-0.0.6.tgz" },
       "node_modules/@noldova/window/node_modules/tslib": { version: "2.8.1" },
