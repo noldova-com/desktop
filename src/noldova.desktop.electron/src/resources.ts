@@ -1721,6 +1721,10 @@ export class Resources {
     return `The window was shown before it was painted, ${seconds} s after it opened, because ${page}.`;
   }
 
+  public static formatPagePaintedLate(seconds: number): string {
+    return `The window's page painted ${seconds} s after it opened, after the window was shown unpainted.`;
+  }
+
   public static formatRendererGone(reason: string, exitCode: number): string {
     return `The window's page stopped: ${reason}, exit code ${exitCode}.`;
   }

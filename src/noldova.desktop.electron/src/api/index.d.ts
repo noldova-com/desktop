@@ -6373,6 +6373,7 @@ export declare class OpenWindow implements IQuitPrompt {
 
   /**
    * Notes that the page has painted, and shows the window if its startup has settled.
+   * When the window was already shown unpainted, it logs how long after opening the page painted.
    *
    * @example
    * ```ts
