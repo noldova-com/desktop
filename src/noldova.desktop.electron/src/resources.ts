@@ -769,6 +769,14 @@ export class Resources {
   public static readonly uncaughtExceptionEvent: "uncaughtException" = "uncaughtException";
   public static readonly unhandledRejectionEvent: "unhandledRejection" = "unhandledRejection";
   public static readonly quitExitCode: number = 0;
+  public static readonly appBundleExtension: string = ".app";
+  public static readonly bundleFromProgramSegments: readonly string[] = ["..", "..", ".."];
+  public static readonly macApplicationsFolder: string = "/Applications";
+  public static readonly installFolderStagingPrefix: string = ".";
+  public static readonly dittoProgram: string = "/usr/bin/ditto";
+  public static readonly moveProgram: string = "/bin/mv";
+  public static readonly removeProgram: string = "/bin/rm";
+  public static readonly removeRecursiveOption: string = "-rf";
   public static readonly failureExitCode: number = 1;
   public static readonly mainWindow: string = "main";
   public static readonly deviceNotIdentified: string = "This device has no identity, so the window's layout and Do not disturb are not kept.";
@@ -992,6 +1000,30 @@ export class Resources {
 
   public static get applicationName(): string {
     return ProductInfo.current.name;
+  }
+
+  public static get installFolder(): string | null {
+    return ProductInfo.current.installFolder;
+  }
+
+  public static formatInstallFolderMoved(bundle: string, target: string): string {
+    return `Moved ${bundle} into its install folder, as ${target}, and moved the old copy to the Trash.`;
+  }
+
+  public static formatInstallFolderOldCopyKept(bundle: string, target: string, reason: string): string {
+    return `Copied ${bundle} into its install folder, as ${target}, but the old copy could not be moved to the Trash: ${reason}`;
+  }
+
+  public static formatInstallFolderNotWritable(bundle: string, target: string, reason: string): string {
+    return `${bundle} could not be copied to ${target}, so it keeps running where it is: ${reason}`;
+  }
+
+  public static formatInstallFolderTargetExists(bundle: string, target: string): string {
+    return `${bundle} stays where it is, since ${target} already exists.`;
+  }
+
+  public static formatInstallFolderStagingLeft(staging: string, reason: string): string {
+    return `The unfinished copy ${staging} could not be removed: ${reason}`;
   }
 
   public static get appUserModelId(): string {

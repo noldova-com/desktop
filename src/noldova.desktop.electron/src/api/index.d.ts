@@ -1037,6 +1037,52 @@ export declare class AppImageHandoff implements IUpdateHandoff {
 }
 
 /**
+ * The one-time move of a macOS app that names an install folder, from `/Applications/<Product>.app`, where an earlier
+ * release installed it, into `/Applications/<Folder>/<Product>.app`. The data folder stays where it is.
+ */
+export declare class InstallFolderMove {
+  /**
+   * Creates the move.
+   *
+   * @param app The application, which waits until ready, starts the moved copy and exits.
+   * @param shell The shell that moves the old copy to the Trash.
+   * @param process The main process's platform, program, command line, environment, programs and files.
+   * @param log The main process's log, which the move writes to and flushes before it exits.
+   * @example
+   * ```ts
+   * import { InstallFolderMove, type IApplicationHost, type IMainProcessEnvironment, type IMainProcessLog, type IShellHost } from "@noldova/desktop.electron";
+   *
+   * export function createMove(app: IApplicationHost, shell: IShellHost, process: IMainProcessEnvironment, log: IMainProcessLog): InstallFolderMove {
+   *   return new InstallFolderMove(app, shell, process, log);
+   * }
+   * ```
+   */
+  public constructor(app: Pick<IApplicationHost, "whenReady" | "releaseSingleInstanceLock" | "relaunch" | "exit">, shell: Pick<IShellHost, "trashItem">,
+    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "programs" | "files">, log: IMainProcessLog);
+
+  /**
+   * Moves a packaged macOS app running from `/Applications/<Product>.app` into its install folder once: copies it there
+   * with `ditto`, unless the folder already holds it, moves the old copy to the Trash, starts the copy in the folder
+   * with the same arguments and exits. Where it can't write the folder, it removes its unfinished copy, logs why and
+   * keeps running where it is.
+   *
+   * @param isPackaged Whether this is a packaged build; a development build never moves.
+   * @param productName The product's name, that of its `.app` bundle.
+   * @param installFolder The folder the app installs in, or `null` when it names none.
+   * @returns `true` once it started the copy in the folder and is exiting, or `false` when the app keeps running here.
+   * @example
+   * ```ts
+   * import type { InstallFolderMove } from "@noldova/desktop.electron";
+   *
+   * export async function shouldStopAsync(move: InstallFolderMove): Promise<boolean> {
+   *   return await move.runAsync(true, "Sample", "Sample Makers");
+   * }
+   * ```
+   */
+  public runAsync(isPackaged: boolean, productName: string, installFolder: string | null): Promise<boolean>;
+}
+
+/**
  * The handoff of an update on Linux for a copy installed from the Debian package: hashes the downloaded `.deb` again and
  * installs it with `pkexec /usr/bin/dpkg --install`, which asks for an administrator's permission. No process takes the
  * update over; {@link AppImageRestart} starts the new version.
@@ -2394,8 +2440,10 @@ export interface IApplicationHost {
    *   app.exit(0);
    * }
    * ```
+   *
+   * @param options Another program to start, with its own arguments; by default this one, with the same command line.
    */
-  relaunch(): void;
+  relaunch(options?: { execPath: string, args: string[] }): void;
 
   /**
    * Exits at once, without closing the windows or asking them first.
@@ -2921,6 +2969,23 @@ export interface IShellHost {
    * ```
    */
   showItemInFolder(fullPath: string): void;
+
+  /**
+   * Moves a file or a folder to the system's trash, from where the person can put it back.
+   *
+   * @param path The file's or folder's absolute path.
+   * @returns A promise that settles once it is in the trash.
+   * @throws Error asynchronously when the system cannot move it there.
+   * @example
+   * ```ts
+   * import type { IShellHost } from "@noldova/desktop.electron";
+   *
+   * export async function discardAsync(host: IShellHost, copy: string): Promise<void> {
+   *   await host.trashItem(copy);
+   * }
+   * ```
+   */
+  trashItem(path: string): Promise<void>;
 }
 
 /**

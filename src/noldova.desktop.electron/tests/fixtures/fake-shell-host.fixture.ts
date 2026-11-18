@@ -15,6 +15,8 @@ export class FakeShellHost implements IShellHost {
   public readonly links: string[] = [];
   public linkFailure: Error | null = null;
   public readonly shownFiles: string[] = [];
+  public readonly trashed: string[] = [];
+  public trashFailure: Error | null = null;
 
   public openPath(path: string): Promise<string> {
     this.opened.push(path);
@@ -28,5 +30,10 @@ export class FakeShellHost implements IShellHost {
 
   public showItemInFolder(fullPath: string): void {
     this.shownFiles.push(fullPath);
+  }
+
+  public trashItem(path: string): Promise<void> {
+    this.trashed.push(path);
+    return Object.isNull(this.trashFailure) ? Promise.resolve() : Promise.reject(this.trashFailure);
   }
 }

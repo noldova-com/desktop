@@ -207,6 +207,72 @@ export class PackageInstallerTests {
   }
 
   @TestMethod
+  public async installsAnAppThatNamesAFolderInItBesideANeighbourTheUninstallLeaves(): Promise<void> {
+    await PackageInstallerTests.withFolderAsync(async (folder, installFolder) => {
+      const product = PackageInstallerTests.foldered("Sample Makers");
+      const makers = path.join(path.dirname(installFolder), "Sample Makers");
+      const app = path.join(makers, "Sample App");
+      const neighbour = path.join(makers, "Smoke Neighbour", "Smoke Neighbour.exe");
+      const uninstaller = path.join(app, "Uninstall Sample App.exe");
+      await PackageInstallerTests.writeAsync(path.join(folder, "_build", "package", "electron", "ffmpeg.dll"), "library");
+      const installing = new ScriptedRunner(async () => {
+        Assert.isTrue(existsSync(neighbour));
+        for (const file of ["Sample App.exe", "ffmpeg.dll", path.join("bin", "sample-app.cmd"), "Uninstall Sample App.exe"])
+          await PackageInstallerTests.writeAsync(path.join(app, file), file);
+        return new ProcessResult(0, String.empty, String.empty);
+      });
+      const local = { LOCALAPPDATA: path.dirname(path.dirname(installFolder)), SystemRoot: "C:\\Windows" };
+
+      const installed = await new PackageInstaller(folder, installing, local).installAsync(new PackageTarget("windows", "x64"), product, "1.2.3", folder);
+      await new PackageInstaller(folder, new WindowsRunner(uninstaller, null), local).uninstallWindowsAsync(product, folder);
+
+      Assert.areEqual(path.join(app, "Sample App.exe"), installed.program);
+      Assert.isFalse(existsSync(makers));
+    });
+  }
+
+  @TestMethod
+  public async refusesAnUninstallThatRemovedTheNeighbourInItsFolder(): Promise<void> {
+    await PackageInstallerTests.withFolderAsync(async (folder, installFolder) => {
+      const product = PackageInstallerTests.foldered("Sample Makers");
+      const makers = path.join(path.dirname(installFolder), "Sample Makers");
+      const uninstaller = path.join(makers, "Sample App", "Uninstall Sample App.exe");
+      await PackageInstallerTests.writeAsync(uninstaller, String.empty);
+      const local = { LOCALAPPDATA: path.dirname(path.dirname(installFolder)), SystemRoot: "C:\\Windows" };
+
+      const error = await Assert.throwsAsync(() => new PackageInstaller(folder, new WindowsRunner(uninstaller, null), local).uninstallWindowsAsync(product, folder),
+        BuildException);
+
+      Assert.areEqual(`Uninstalling the app removed ${path.join(makers, "Smoke Neighbour", "Smoke Neighbour.exe")}, which belongs to another app in its install folder.`,
+        error.message);
+    });
+  }
+
+  @TestMethod
+  public async removesALeftoverNeighbourAndItsFolderOnlyWhenNoOtherAppIsThere(): Promise<void> {
+    await PackageInstallerTests.withFolderAsync(async (folder, installFolder) => {
+      const product = PackageInstallerTests.foldered("Sample Makers");
+      const makers = path.join(path.dirname(installFolder), "Sample Makers");
+      const other = path.join(makers, "Other App", "Other App.exe");
+      const local = { LOCALAPPDATA: path.dirname(path.dirname(installFolder)), SystemRoot: "C:\\Windows" };
+      const runner = new WindowsRunner(path.join(makers, "Sample App", "Uninstall Sample App.exe"), null);
+      const remove = (): Promise<string | null> => new PackageInstaller(folder, runner, local).removeWindowsLeftoverAsync(product, folder, new UserPath(runner, folder));
+      await PackageInstallerTests.writeAsync(path.join(makers, "Sample App", "Sample App.exe"), String.empty);
+      await PackageInstallerTests.writeAsync(path.join(makers, "Smoke Neighbour", "Smoke Neighbour.exe"), String.empty);
+      await PackageInstallerTests.writeAsync(other, String.empty);
+
+      const shared = await remove();
+      await rm(path.dirname(other), { recursive: true });
+      await PackageInstallerTests.writeAsync(path.join(makers, "Smoke Neighbour", "Smoke Neighbour.exe"), String.empty);
+      const alone = await remove();
+
+      Assert.areEqual(`Removed what an earlier run left installed: ${path.join(makers, "Sample App")} and ${path.join(makers, "Smoke Neighbour")}.`, shared);
+      Assert.areEqual(`Removed what an earlier run left installed: ${path.join(makers, "Smoke Neighbour")}.`, alone);
+      Assert.isFalse(existsSync(makers));
+    });
+  }
+
+  @TestMethod
   public async refusesAWindowsInstallWithoutAnElectronLibrary(): Promise<void> {
     await PackageInstallerTests.withFolderAsync(async (folder, installFolder, installer) => {
       await PackageInstallerTests.writeAsync(path.join(folder, "_build", "package", "electron", "ffmpeg.dll"), "library");
@@ -307,6 +373,38 @@ export class PackageInstallerTests {
   }
 
   @TestMethod
+  public async runsTheMacAppFromThePayloadOfItsInstallerPackageOnceThePackageInstallsItInItsFolder(): Promise<void> {
+    await PackageInstallerTests.withFolderAsync(async folder => {
+      const expanded = path.join(folder, "expanded");
+      const component = path.join(expanded, "Sample App.pkg");
+      const runner = PackageInstallerTests.createExpandingRunner(component, "<pkg-info format-version=\"2\" install-location=\"/Applications/Sample &amp; Makers\" auth=\"root\"/>");
+      const installer = path.join(folder, "_build", "package", "out", "Sample App-1.2.3-macos-arm64.pkg");
+
+      const installed = await new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "arm64", true), PackageInstallerTests.foldered("Sample & Makers"),
+        "1.2.3", folder);
+
+      const application = path.join(component, "Payload", "Sample App.app");
+      const program = path.join(application, "Contents", "MacOS", "Sample App");
+      Assert.areEqual(JSON.stringify(new InstalledPackage(program, program, path.join(application, "Contents", "Resources"), null)), JSON.stringify(installed));
+      Assert.areEqual(`pkgutil --expand-full ${installer} ${expanded}`, runner.calls.join("|"));
+    });
+  }
+
+  @TestMethod
+  public async refusesAnInstallerPackageThatInstallsOutsideTheFolder(): Promise<void> {
+    await PackageInstallerTests.withFolderAsync(async folder => {
+      const information = "<pkg-info format-version=\"2\" install-location=\"/Applications\" auth=\"root\"/>";
+      const runner = PackageInstallerTests.createExpandingRunner(path.join(folder, "expanded", "Sample App.pkg"), information);
+
+      const error = await Assert.throwsAsync(() => new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "arm64", true),
+        PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder), BuildException);
+
+      Assert.areEqual(`The installer package ${path.join(folder, "_build", "package", "out", "Sample App-1.2.3-macos-arm64.pkg")} installs elsewhere than `
+        + `/Applications/Sample Makers:\n${information}`, error.message);
+    });
+  }
+
+  @TestMethod
   public async detachesTheDiskImageAndPassesOnAFailedCopy(): Promise<void> {
     await PackageInstallerTests.withFolderAsync(async folder => {
       const runner = new ScriptedRunner(command => Promise.resolve(new ProcessResult(command === "ditto" ? 1 : 0, String.empty, "ditto: No space left on device")));
@@ -380,5 +478,20 @@ export class PackageInstallerTests {
     finally {
       await rm(folder, { recursive: true, force: true });
     }
+  }
+
+  private static foldered(installFolder: string): ProductIdentity {
+    return new ProductIdentity("Sample App", "Sample", "sample-app", "com.example.sample", "com.example.sample.development", ".sample/app", ["Sample/App", "Sample/App", "sample/app"],
+      "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app", undefined, null, null, undefined, null, installFolder);
+  }
+
+  private static createExpandingRunner(component: string, information: string): ScriptedRunner {
+    return new ScriptedRunner(async command => {
+      if (command === "pkgutil") {
+        await PackageInstallerTests.writeAsync(path.join(component, "Payload", "Sample App.app", "Contents", "MacOS", "Sample App"), "app");
+        await PackageInstallerTests.writeAsync(path.join(component, "PackageInfo"), information);
+      }
+      return new ProcessResult(0, String.empty, String.empty);
+    });
   }
 }

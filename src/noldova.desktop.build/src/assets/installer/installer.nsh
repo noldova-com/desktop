@@ -74,6 +74,27 @@
   Pop $R0
 !macroend
 
+!macro customInit
+  !ifdef MENU_FILENAME
+    Push $R0
+    Push $R1
+    Push $R2
+    !insertmacro GetDParameter $R0
+    ${If} $R0 == ""
+      ${GetParent} $INSTDIR $R0
+      ${GetFileName} $R0 $R1
+      ${GetFileName} $INSTDIR $R2
+      ${If} $R1 != "${MENU_FILENAME}"
+      ${OrIf} $R2 != "${PRODUCT_FILENAME}"
+        StrCpy $INSTDIR "$R0\${MENU_FILENAME}\${PRODUCT_FILENAME}"
+      ${EndIf}
+    ${EndIf}
+    Pop $R2
+    Pop $R1
+    Pop $R0
+  !endif
+!macroend
+
 !macro customInstall
   Push $R0
   Push $R1
@@ -150,5 +171,16 @@
     Pop $R1
     Pop $R0
     !insertmacro removeProgramFiles
+    !ifdef MENU_FILENAME
+      Push $R0
+      Push $R1
+      ${GetParent} $INSTDIR $R0
+      ${GetFileName} $R0 $R1
+      ${If} $R1 == "${MENU_FILENAME}"
+        RMDir $R0
+      ${EndIf}
+      Pop $R1
+      Pop $R0
+    !endif
   ${EndIf}
 !macroend

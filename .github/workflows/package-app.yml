@@ -445,6 +445,13 @@ jobs:
               exit 1
             fi
           else
+            if [ "$RUNNER_OS" = macOS ] && compgen -G "_build/package/out/*.pkg" > /dev/null; then
+              if [ "$HOSTED" = true ]; then
+                npm run package:smoke -- --pkg
+              else
+                echo "::notice::Skipped installing the installer package into /Applications, which needs root: this self-hosted runner has none, and CI's run on a GitHub-hosted runner covers it. The smoke below runs the app from the package's payload."
+              fi
+            fi
             npm run package:smoke
           fi
 
@@ -510,7 +517,7 @@ jobs:
           TARGET: ${{ matrix.platform }}-${{ matrix.architecture }}
         run: |
           shopt -s nullglob
-          packages=("$PRODUCT"-*.exe "$PRODUCT"-*.dmg "$PRODUCT"-*.zip "$PRODUCT"-*.AppImage "$PRODUCT"-*.deb)
+          packages=("$PRODUCT"-*.exe "$PRODUCT"-*.dmg "$PRODUCT"-*.pkg "$PRODUCT"-*.zip "$PRODUCT"-*.AppImage "$PRODUCT"-*.deb)
           updates=(latest-*.yml)
           missing=()
           others=()
@@ -566,6 +573,7 @@ jobs:
           path: &release-files |
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.exe
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.dmg
+            ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.pkg
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.zip
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.AppImage
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.deb

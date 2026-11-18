@@ -44,6 +44,7 @@ export class BuildProductTests {
       Assert.isNull(product.readValue("updateFeed"));
       Assert.isNull(product.readValue("windowsPublisher"));
       Assert.isFalse(product.hasField("permissionsModule"));
+      Assert.isFalse(product.hasField("installFolder"));
     }
     finally {
       await rm(root, { recursive: true, force: true });
@@ -52,7 +53,7 @@ export class BuildProductTests {
 
   @TestMethod
   public async takesAPackagedVariantsFeedOrElseTheProductsAsync(): Promise<void> {
-    const root = await BuildProductTests.createRootAsync({ permissionsModule: "permissions" });
+    const root = await BuildProductTests.createRootAsync({ permissionsModule: "permissions", installFolder: "Sample" });
     try {
       const output = path.join(root, "out");
       const product = new BuildProduct(root);
@@ -65,6 +66,7 @@ export class BuildProductTests {
       Assert.areEqual(BuildProductTests.FEED, variantFeed);
       Assert.areEqual(BuildProductTests.RELEASE_FEED, productFeed.readValue("updateFeed"));
       Assert.areEqual("permissions", productFeed.readString("permissionsModule"));
+      Assert.areEqual("Sample", productFeed.readString("installFolder"));
     }
     finally {
       await rm(root, { recursive: true, force: true });

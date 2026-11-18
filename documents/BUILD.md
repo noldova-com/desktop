@@ -31,6 +31,7 @@ The organization's security standard, `https://github.com/noldova-com/.github/bl
     and optionally `permissionsModule`, the id of the module that answers permission requests and manages remembered answers, as [PERMISSIONS.md](PERMISSIONS.md#answering) says, which the build refuses unless it is one of `modules`;
     and optionally `about`, what the window's About shows of the app, each field optional: `description`, one line; `website` and `releases`, https addresses; and `licenses`, text; the build refuses a value About can't show, naming its field;
     and optionally `updateFeed`, the app's own update feed, an https folder URL ending in `/` with no user info, query or fragment, such as one that counts update checks and forwards to the release, as [Updates](#updates) says; the build refuses any other value;
+    and optionally `installFolder`, one folder name, such as the publisher's, that the app installs in beside the other apps that name it, as [Install folder](#install-folder) says; the build refuses a name with a path separator, a character Windows refuses in a file name, a quote, `$`, a backquote, a control character, or a space or dot at either end;
   - `modules`, the modules the app includes, in a list outside Noldova Desktop's packages, so adding a module changes that list and no source of Noldova Desktop; each is a module in the app's tree or in an installed package, as [MODULES.md](MODULES.md#modules-from-packages) says;
   - `supportedTargets` and `signedPlatforms`, as below.
 - Noldova Desktop's packages never spell a value of the identity in their production source: they take it from the build's product file, and the Product identity check of `npm test` refuses a value spelled there.
@@ -82,7 +83,7 @@ The organization's security standard, `https://github.com/noldova-com/.github/bl
   `desktop.supportedTargets` lists a target, by an id such as `windows-x64`, only once its build and its native acceptance are verified: a release built, packaged and published it, and its own package passed `package-smoke` on that processor, whose program, frameworks and addons are built for that processor alone and whose app starts and answers `status` there.
   An app's release builds Linux x64, Windows x64 and the other x64 targets its `desktop.supportedTargets` lists, so leaving `macos-x64` off the list stops its packaging and signing, and putting it back restores them; an app without the field builds every x64 target.
   A left-out target's `latest-<platform>-<arch>.yml` is no longer published, so its installed builds stop finding updates until it is listed again: each automatic check keeps "The update feed answered with HTTP status 404." as its reason, and a requested check shows it as failed.
-- The formats are an NSIS installer on Windows, a DMG and the ZIP its updater downloads on macOS, and an AppImage and a Debian package on Linux.
+- The formats are an NSIS installer on Windows, a DMG, or a `.pkg` for an app that names an [install folder](#install-folder), and the ZIP its updater downloads on macOS, and an AppImage and a Debian package on Linux.
   The NSIS installer is one-click and installs for the current user alone, and the updater installs an update the same way, so nothing needs elevation: the installer leaves out electron-builder's `elevate.exe` helper, an x86 program that would otherwise fail the check that every built file is the target's architecture alone.
   electron-builder 26 makes the DMG with dmgbuild, whose command line tries 5 times, about 20 seconds, to detach the image's volume, while macOS can hold it busy for longer, so a macOS build whose electron-builder fails with dmgbuild's "Unable to detach device cleanly" runs electron-builder once more, saying so; any other failure, a second one, or another target's fails at once.
   The Debian package installs into `/opt/<app name>/`, links `/usr/bin/<slug>` to its program, and keeps Chromium's sandbox on without any change to the kernel's settings: electron-builder's after-install script makes `chrome-sandbox` setuid root, mode 4755, where root can't create a user namespace and leaves it 755 where it can, and, where AppArmor is enabled and takes the profile, installs `/etc/apparmor.d/<slug>`, which allows the program user namespaces and is loaded at once; the package's `homepage` is the product's website, or its release repository on GitHub, and its maintainer the product's publisher.
@@ -181,6 +182,8 @@ Each target is packaged through electron-builder for its platform and processor,
   A notarized disk image gets its ticket with `xcrun stapler staple`, and a signed macOS disk image and each app in a package are checked with `codesign`, `spctl` and `xcrun stapler validate`.
   `stapler staple` and `stapler validate` both ask Apple's ticket service, so when their output shows a network error (`NSURLErrorDomain`) they are tried again, up to 3 attempts 5 seconds apart, and any other failure, such as a missing ticket, fails the package at once.
   Linux packages are not signed.
+  An app that names an install folder ships a `.pkg` on macOS, which is signed with a Developer ID Installer certificate, read from the `MAC_INSTALLER_CERTIFICATE` secret, a base64 `.p12`, and `MAC_INSTALLER_CERTIFICATE_PASSWORD`, which packaging passes to electron-builder as `CSC_INSTALLER_LINK` and `CSC_INSTALLER_KEY_PASSWORD`; a signed build refuses to start without them, and electron-builder notarizes the `.pkg` itself.
+  A signed `.pkg` is checked with `pkgutil --check-signature`, which must name a Developer ID Installer, `spctl --assess --type install` and `xcrun stapler validate`, and the app in its payload as any other app.
 
 ## Publication
 
@@ -316,6 +319,19 @@ Before the handoff replaces its files, every process of the installation stops w
   8. sets the barrier to `HandedOff` and calls the handoff.
 - **Failure:** any failure before the handoff, including a process that can't be checked, a step that runs out of time or a backup that fails, stops the update and removes the barrier, so every process carries on; uncertainty never counts as a stop.
   A failed backup's reason is shown to the person.
+
+## Install folder
+
+- An app that names `desktop.product.installFolder` installs inside that folder, beside the other apps that name it, and an app that names none installs as before.
+- On macOS it ships a `.pkg` in place of the DMG, beside the ZIP its updater downloads, which installs `/Applications/<folder>/<app name>.app`, upgrades a copy already there and never moves it elsewhere.
+  An installed app running from exactly `/Applications/<app name>.app`, never from a translocated or any other path, moves itself once as it starts, unless the folder already holds the app, when it logs that and leaves both copies: it copies itself into the folder through a hidden staging copy, moves the old copy to the Trash, and starts again from the folder; where it can't write the folder it logs why and keeps running in place, and where it can't move the old copy to the Trash it logs that and leaves it.
+- On Windows the installer installs in `%LOCALAPPDATA%\Programs\<folder>\<slug>`, unless the person names a folder with `/D`, and puts the Start menu entry in a `<folder>` folder; an update from an install outside the folder removes the old install and its shortcut, as the updating installer removes every older version.
+  Uninstalling removes only the app's own folder, and then the `<folder>` folder with a plain `RMDir`, which leaves it while another app is in it; the Start menu's `<folder>` folder goes the same way.
+  The Windows smoke of such an app places an empty `Smoke Neighbour` app in the folder before it installs, fails when the uninstall removed it, and then removes it and the folder.
+- On Linux the Debian package installs into `/opt/<folder>/<app name>/`: packaging rewrites electron-builder's file mapping, the `.desktop` entry's program and the after-install, after-remove and AppArmor templates to that folder, and fails when one of them no longer names `/opt/<app name>`; the AppImage is unchanged.
+- The data folder never moves.
+- `package:smoke --pkg`, on macOS alone and for an app that names a folder, first expands the `.pkg` and refuses it unless it installs into `/Applications/<folder>`; it then places an empty `Smoke Neighbour.app` in the folder, installs the `.pkg` with `sudo --non-interactive installer`, smokes the installed app, checks that the neighbour is still there, and removes both and the package's receipt.
+  `package-app.yml` runs it before the plain smoke when the build made a `.pkg`, on a GitHub-hosted runner alone, since it needs `sudo` without a password, and says so on any other runner.
 
 ## Installation scope
 

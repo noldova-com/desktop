@@ -42,9 +42,9 @@ export class ReleaseAssets {
       return Resources.usageExitCode;
     }
     try {
-      const target = PackageTarget.fromProcess(this.platform, this.architecture);
       const manifest = await RootManifest.readAsync(this.root);
       const product = await ProductIdentity.readAsync(this.root);
+      const target = PackageTarget.fromProcess(this.platform, this.architecture).withInstallFolder(product.installFolder);
       const layout = new PackageLayout(this.root);
       await ReleaseAssets.requireFeedAsync(layout.stagedProduct, feed ?? product.updateFeed);
       const names = await new ReleaseFileSet(product.name, manifest.productVersion, [target]).writeAsync(layout.output, target, new Date().toISOString());

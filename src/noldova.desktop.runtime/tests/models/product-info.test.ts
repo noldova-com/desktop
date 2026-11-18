@@ -29,6 +29,7 @@ export class ProductInfoTests {
     windowsPublisher: "CN=Fixture Works, O=Fixture Works, C=US",
     updateFeed: "https://example.com/feed/",
     permissionsModule: "studio",
+    installFolder: "Fixture Works",
     version: "1.2.3",
     build: "abc123"
   };
@@ -42,16 +43,17 @@ export class ProductInfoTests {
 
       Assert.areEqual(
         "Fixture Studio|fixture-studio|org.fixtureworks.studio|org.fixtureworks.studio.development|.fixtureworks/studio|Fixture Works/Studio|Fixture Works/Studio Mac|" +
-          "fixtureworks/studio|FIXTURE_STUDIO_DATA_DIR|FIXTURE_STUDIO_CHECKOUT|assets/fixture-icons|CN=Fixture Works, O=Fixture Works, C=US|https://example.com/feed/|studio|1.2.3|abc123",
+          "fixtureworks/studio|FIXTURE_STUDIO_DATA_DIR|FIXTURE_STUDIO_CHECKOUT|assets/fixture-icons|CN=Fixture Works, O=Fixture Works, C=US|https://example.com/feed/|studio|Fixture Works|1.2.3|abc123",
         [product.name, product.slug, product.applicationId, product.developmentApplicationId, product.dataFolder, product.windowsDeviceFolder,
           product.macosDeviceFolder, product.linuxDeviceFolder, product.dataDirectoryVariable, product.checkoutVariable, product.icons, product.windowsPublisher, product.updateFeed,
-          product.permissionsModule, product.version, product.build].join("|"));
+          product.permissionsModule, product.installFolder, product.version, product.build].join("|"));
       await writeFile(file, JSON.stringify({ ...ProductInfoTests.PRODUCT, updateFeed: null, windowsPublisher: null }));
       const unsigned = ProductInfo.read(file);
       Assert.isNull(unsigned.updateFeed);
       Assert.isNull(unsigned.windowsPublisher);
-      await writeFile(file, JSON.stringify(Object.fromEntries(Object.entries(ProductInfoTests.PRODUCT).filter(([key]) => key !== "permissionsModule"))));
+      await writeFile(file, JSON.stringify(Object.fromEntries(Object.entries(ProductInfoTests.PRODUCT).filter(([key]) => key !== "permissionsModule" && key !== "installFolder"))));
       Assert.isNull(ProductInfo.read(file).permissionsModule);
+      Assert.isNull(ProductInfo.read(file).installFolder);
     });
   }
 

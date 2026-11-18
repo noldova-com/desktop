@@ -225,6 +225,7 @@ export class Resources {
   public static readonly windowsPublisherField: string = "windowsPublisher";
   public static readonly updateFeedField: string = "updateFeed";
   public static readonly permissionsModuleField: string = "permissionsModule";
+  public static readonly installFolderField: string = "installFolder";
   public static readonly versionField: string = "version";
   public static readonly holderField: string = "holder";
   public static readonly stateField: string = "state";

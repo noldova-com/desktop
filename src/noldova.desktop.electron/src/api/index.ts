@@ -196,6 +196,7 @@ export { SquirrelHandoff } from "../services/squirrel-handoff.js";
 export { AppImageRestart } from "../services/app-image-restart.js";
 export { DebianHandoff } from "../services/debian-handoff.js";
 export { DebianPackage } from "../services/debian-package.js";
+export { InstallFolderMove } from "../services/install-folder-move.js";
 export { InstallerStart } from "../services/installer-start.js";
 export { ShipItProcess } from "../services/ship-it-process.js";
 export { UpdateWorkQuestion } from "../services/update-work-question.js";
