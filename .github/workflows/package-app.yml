@@ -434,7 +434,7 @@ jobs:
             else
               echo "::notice::Skipped the Debian package's install smoke, which needs root: this self-hosted runner has none, and CI's run on a GitHub-hosted runner covers it."
             fi
-            if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
+            if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ] && ! unshare -Ur true 2>/dev/null; then
               xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-fallback
             else
               xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke

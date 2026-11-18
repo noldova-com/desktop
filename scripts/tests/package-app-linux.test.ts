@@ -46,6 +46,21 @@ describe("package-app.yml's Linux steps", () => {
     assert.ok(!result.output.includes(SKIPPED));
   });
 
+  it("requires the AppImage's fallback where AppArmor refuses unprivileged user namespaces, as on a GitHub-hosted runner", async () => {
+    const result = await runAsync(SMOKE, { ...SMOKE_FAKES, "sysctl": "echo 1", "unshare": "exit 1" }, true, false);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(result.calls.filter(t => t.startsWith("xvfb-run") || t.startsWith("unshare")),
+      [`${SCREEN} -- --deb --require-sandbox`, "unshare -Ur true", `${SCREEN} -- --require-fallback`, `${SCREEN} -- --no-sandbox`]);
+  });
+
+  it("lets the smoke's own probe decide where the setting is on but a user namespace still starts", async () => {
+    const result = await runAsync(SMOKE, { ...SMOKE_FAKES, "sysctl": "echo 1", "unshare": "exit 0" }, false, false);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(result.calls.filter(t => t.startsWith("xvfb-run") || t.startsWith("unshare")), ["unshare -Ur true", SCREEN, `${SCREEN} -- --no-sandbox`]);
+  });
+
   it("skips only the Debian package's smoke on a self-hosted runner and says so", async () => {
     const result = await runAsync(SMOKE, SMOKE_FAKES, false, false);
 
