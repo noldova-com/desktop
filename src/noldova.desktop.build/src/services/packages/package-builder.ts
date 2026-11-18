@@ -43,9 +43,9 @@ export class PackageBuilder {
     this.protocolVersion = protocolVersion;
   }
 
-  public async buildSourceAsync(manifest: PackageManifest, archives: readonly string[]): Promise<void> {
+  public async buildSourceAsync(manifest: PackageManifest, packages: readonly PackageManifest[]): Promise<void> {
     await this.packSourceAsync(manifest);
-    await this.installAsync(manifest.name, this.layout.root, archives);
+    await this.installAsync(manifest.name, this.layout.root, packages);
   }
 
   public async packSourceAsync(manifest: PackageManifest): Promise<void> {

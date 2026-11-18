@@ -76,7 +76,6 @@ export class PackageBuild {
       return packages;
 
     const versions = await this.readVersionsAsync(all);
-    const archives = packages.map(t => this.layout.locateArchive(t, versions.of(t.name)));
     const common = await this.hashCommonInputsAsync();
     const builder = await this.createBuilderAsync(versions);
     const archiveHashes = new Map<string, string>();
@@ -85,7 +84,7 @@ export class PackageBuild {
       const artifacts = this.listSourceArtifacts(manifest, versions);
       const isCurrent = await PackageBuild.isCurrentAsync(this.layout.locateRecord(manifest), inputs, artifacts);
       if (!isCurrent)
-        await builder.buildSourceAsync(manifest, archives);
+        await builder.buildSourceAsync(manifest, packages);
       await (await PackageBuild.hashRecordAsync(inputs, artifacts)).writeAsync(this.layout.locateRecord(manifest));
       archiveHashes.set(manifest.name, await ContentHash.ofFileAsync(this.layout.locateArchive(manifest, versions.of(manifest.name))));
       output.write(Resources.formatPackageBuilt(manifest.name, isCurrent));
