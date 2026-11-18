@@ -310,7 +310,7 @@ export class PackageInstallerTests {
       Assert.areEqual(JSON.stringify([`Sample App-1.2.3-windows-x64.exe /S /D=${runner.old} (verbatim)`, "Sample App-1.2.3-windows-x64.exe /S", runner.calls[2],
         `Uninstall Sample App.exe /S _?=${runner.app} (verbatim)`, "Sample App-1.2.3-windows-x64.exe /S", `Uninstall Sample App.exe /S _?=${runner.app} (verbatim)`]),
         JSON.stringify(runner.calls));
-      Assert.isTrue(runner.calls[2]?.startsWith("powershell.exe -NoProfile -NonInteractive -EncodedCommand "));
+      Assert.isTrue((runner.calls[2] ?? String.empty).startsWith("powershell.exe -NoProfile -NonInteractive -EncodedCommand "));
       Assert.isTrue(existsSync(path.join(folder, "Uninstall Sample App.exe")));
       Assert.isFalse(existsSync(runner.old));
       Assert.isFalse(existsSync(makers));
