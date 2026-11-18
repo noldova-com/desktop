@@ -4062,6 +4062,16 @@ export class Resources {
     return `Packages built on Angular packages and installed: ${count}.\n`;
   }
 
+  public static formatLockedSpec(name: string, version: string): string {
+    return `${name}@${version}`;
+  }
+
+  public static formatUnlockedInstall(location: string, version: string, held: string | null): string {
+    return `Installing the built packages put ${location} at ${version}, `
+      + (Object.isNull(held) ? "which package-lock.json doesn't hold" : `where package-lock.json holds ${held}`)
+      + "; the install takes only the lockfile's versions, so lock it there with npm install and commit the lockfile.";
+  }
+
   public static formatSecondCopy(name: string, location: string): string {
     return `The app's install holds a second copy of ${name}, at ${location}; the app holds one copy of each Angular, Noldova Desktop, context and kit package, at the top of its node_modules, so a package takes them only as peer dependencies.`;
   }
