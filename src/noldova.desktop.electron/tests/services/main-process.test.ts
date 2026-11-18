@@ -1792,13 +1792,15 @@ export class MainProcessTests {
     const name = ProductInfo.current.name;
     const program = `/Applications/${name}.app/Contents/MacOS/${name}`;
     const electron = new FakeElectron(true, true);
-    void electron.app.becomeReadyAsync();
     const process = new FakeMainProcessEnvironment("darwin", [program]);
     process.execPath = program;
     process.files = { lstat: () => Promise.reject(new Error("ENOENT")), readlink: () => Promise.reject(new Error("EINVAL")), realpath: t => Promise.resolve(t) };
     const launcher = new FakeRuntimeLauncher();
 
-    const settings = await MainProcessStartFixture.startAsync(electron, process, launcher);
+    const starting = MainProcessStartFixture.startAsync(electron, process, launcher);
+    await Condition.waitAsync(() => electron.app.calls.some(t => t.startsWith("setPath")));
+    await electron.app.becomeReadyAsync();
+    const settings = await starting;
 
     Assert.areEqual("Noldova", ProductInfo.current.installFolder);
     Assert.areEqual(0, settings.length);

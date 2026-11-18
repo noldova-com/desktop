@@ -591,13 +591,13 @@ export class PackageSmokeTests {
     await using parent = await PackageSmokeTests.createParentAsync();
     const runner = new SmokeRunnerFixture();
 
-    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "darwin", runner, ["--pkg"]);
+    const error = await Assert.throwsAsync(() => PackageSmokeTests.smokeAsync(app, parent.path, "darwin", runner, ["--pkg"]), Error);
 
-    Assert.areEqual(1, result.exitCode);
-    Assert.isTrue(result.output.includes(`installed /Applications/Sample Makers/Sample App.app and left /Applications/Sample Makers/Smoke Neighbour.app beside it.`),
-      result.output);
-    Assert.areEqual(["sudo --non-interactive rm -rf /Applications/Sample Makers/Sample App.app /Applications/Sample Makers/Smoke Neighbour.app",
-      "sudo --non-interactive pkgutil --forget com.example.sample"].join("\n"), runner.captured.filter(t => t.startsWith("sudo")).slice(-2).join("\n"));
+    Assert.isTrue(error.message.includes(path.join("/Applications/Sample Makers/Sample App.app")), error.message);
+    Assert.areEqual(["test -e /Applications/Sample Makers/Smoke Neighbour.app",
+      "sudo --non-interactive rm -rf /Applications/Sample Makers/Sample App.app /Applications/Sample Makers/Smoke Neighbour.app",
+      "sudo --non-interactive pkgutil --forget com.example.sample"].join("\n"),
+      runner.captured.filter(t => t.startsWith("sudo") || t.startsWith("test -e")).slice(-3).join("\n"));
   }
 
   @TestMethod
