@@ -249,7 +249,10 @@ jobs:
                 console.log(`${name}@${entry.version}`);
             }' "$APP_FOLDER" "$TARGET_PLATFORM" "$TARGET_ARCHITECTURE")
           if [ -n "$left_out" ]; then
-            mapfile -t specs <<< "$left_out"
+            specs=()
+            while IFS= read -r spec; do
+              specs+=("$spec")
+            done <<< "$left_out"
             echo "The app's install leaves out these company packages for this target's processor or system, so the package step takes them from $archives: ${specs[*]}"
             mkdir -p "$archives"
             npm pack --ignore-scripts --loglevel=error --pack-destination "$archives" "${specs[@]}"
