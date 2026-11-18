@@ -208,6 +208,29 @@ export class PackageBuildTests {
   }
 
   @TestMethod
+  public async namesEachPeerTheBuiltPackagesDeclareAtTheLockfilesVersionButNotABuiltPackage(): Promise<void> {
+    const { PROTOCOL, RUNTIME } = PackageBuildTests;
+    const lockfile = { name: "app", lockfileVersion: 3, packages: {
+      "node_modules/@noldova/ui.components.angular": { version: "0.0.12" },
+      "node_modules/@noldova/desktop.protocol": { version: "0.0.1" }
+    } };
+    await using tree = await SourceTreeFixture.createAsync({
+      ...PackageBuildTests.BUILD_ROOT,
+      ...PackageBuildTests.describePackage(PROTOCOL),
+      ...PackageBuildTests.describePackage(RUNTIME, [PROTOCOL], { peerDependencies: { "@noldova/desktop.protocol": "__VERSION__", "@noldova/ui.components.angular": ">=0.0.5 <0.1.0" } }),
+      "package-lock.json": JSON.stringify(lockfile)
+    });
+    const runner = new PackageToolsRunnerFixture(tree.path, { installedLockfile: JSON.stringify(lockfile) });
+
+    await PackageBuildTests.create(tree, runner).buildAsync(new PassThrough());
+
+    const last = runner.installed.at(-1) ?? [];
+    Assert.isTrue(last.includes(PackageBuildTests.archive(RUNTIME)), JSON.stringify(runner.installed));
+    Assert.isTrue(last.includes("@noldova/ui.components.angular@0.0.12"), JSON.stringify(runner.installed));
+    Assert.isFalse(runner.installed.flat().includes("@noldova/desktop.protocol@0.0.1"), JSON.stringify(runner.installed));
+  }
+
+  @TestMethod
   public async failsTheBuildNamingAPackageTheInstallPutAtAVersionTheLockfileDoesNotHold(): Promise<void> {
     await using tree = await SourceTreeFixture.createAsync({
       ...PackageBuildTests.BUILD_ROOT,

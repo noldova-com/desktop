@@ -17,14 +17,14 @@ import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
 
 export class LockedInstallCheck {
-  public static async listLockedSpecsAsync(root: string): Promise<readonly string[]> {
+  public static async listLockedSpecsAsync(root: string, builtPeers: readonly string[] = []): Promise<readonly string[]> {
     const lockfile = path.join(root, Resources.packageLockFileName);
     if (!existsSync(lockfile))
       return [];
     const locked = await LockedInstallCheck.readPackagesAsync(lockfile);
     const installedLockfile = path.join(root, ...Resources.installedLockfileSegments);
     const installed = existsSync(installedLockfile) ? await LockedInstallCheck.readPackagesAsync(installedLockfile) : {};
-    const names = new Set(Object.values(locked).flatMap(t => Object.keys(LockedInstallCheck.toRecord(LockedInstallCheck.toRecord(t)[Resources.lockfilePeerDependenciesField]))));
+    const names = new Set([...builtPeers, ...Object.values(locked).flatMap(t => Object.keys(LockedInstallCheck.toRecord(LockedInstallCheck.toRecord(t)[Resources.lockfilePeerDependenciesField])))]);
     const top = Resources.formatPackageLockKey(String.empty);
     for (const location of Object.keys(installed)) {
       const name = location.slice(top.length);

@@ -123,9 +123,11 @@ export class PackageBuilder {
     return differences;
   }
 
-  public async installAsync(subject: string, folder: string, archives: readonly string[]): Promise<void> {
-    const installed = archives.filter(t => existsSync(t));
-    const peers = installed.length === 0 ? [] : await LockedInstallCheck.listLockedSpecsAsync(folder);
+  public async installAsync(subject: string, folder: string, manifests: readonly PackageManifest[]): Promise<void> {
+    const built = manifests.filter(t => existsSync(this.layout.locateArchive(t, this.versions.of(t.name))));
+    const installed = built.map(t => this.layout.locateArchive(t, this.versions.of(t.name)));
+    const own = new Set(built.map(t => t.name));
+    const peers = installed.length === 0 ? [] : await LockedInstallCheck.listLockedSpecsAsync(folder, built.flatMap(t => t.peerDependencies).filter(t => !own.has(t)));
     PackageBuilder.require(await this.npm.runAsync([...Resources.npmInstallArguments, ...installed, ...peers], folder), Resources.formatInstallingOperation(subject));
     await LockedInstallCheck.checkAsync(folder);
   }
