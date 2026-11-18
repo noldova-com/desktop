@@ -1083,7 +1083,6 @@ export class MainProcessTests {
 
     Assert.areEqual(JSON.stringify({ kind: "Connecting", details: [] }), JSON.stringify(before));
     Assert.areEqual(JSON.stringify([
-      ["desktop:startupState", { kind: "Connecting", details: [] }],
       ["desktop:startupState", { kind: "Ready", details: [] }]
     ]), JSON.stringify(window.webContents.sent.filter(t => t[0] === "desktop:startupState")));
     Assert.isNull(electron.ipcMain.invoke("desktop:readStartup", { sender: { id: 1 }, senderFrame: null }));
@@ -1108,8 +1107,8 @@ export class MainProcessTests {
     Assert.isFalse(isReadyAtStart);
     Assert.areEqual(0, windowsAtStart);
     Assert.areEqual(1, launcher.calls.length);
+    Assert.areEqual(JSON.stringify({ kind: "Ready", details: [] }), JSON.stringify(electron.ipcMain.invoke("desktop:readStartup", MainProcessStartFixture.trustedEvent("linux"))));
     Assert.areEqual(JSON.stringify([
-      ["desktop:startupState", { kind: "Ready", details: [] }],
       ["desktop:runtimeEvent", ShellEvents.modulesChanged.text, { sequence: 1 }],
       ["desktop:runtimeEvent", ShellEvents.modulesChanged.text, { sequence: 2 }]
     ]), JSON.stringify(window.webContents.sent.filter(t => t[0] === "desktop:startupState" || t[0] === "desktop:runtimeEvent")));
