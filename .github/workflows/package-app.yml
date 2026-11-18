@@ -93,7 +93,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@dfe2589ebc0fc5bc0ea5dbff9b9ad68c2d94a23d # v2.37.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@55fa60e7fc524fa07e0a1e4f374f3cd14550a0ba # v2.39.0
     permissions: {}
 
   package:
@@ -436,16 +436,19 @@ jobs:
               exit 1
             fi
             if [ "$HOSTED" = true ]; then
-              xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --deb --require-sandbox
+              xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --deb --require-sandbox
             else
               echo "::notice::Skipped the Debian package's install smoke, which needs root: this self-hosted runner has none, and CI's run on a GitHub-hosted runner covers it."
             fi
-            if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
-              xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-fallback
+            if [ "$HOSTED" != true ]; then
+              echo "::notice::Requiring Chromium's sandbox: the self-hosted runners' AppArmor profile noldova-runner-chromium gives the AppImage's mount a user namespace."
+              xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-sandbox
+            elif [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
+              xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-fallback
             else
-              xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke
+              xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke
             fi
-            TMPDIR="$RUNNER_TEMP" APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --no-sandbox
+            TMPDIR="$RUNNER_TEMP" APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --no-sandbox
             if ! compgen -G "$RUNNER_TEMP/appimage_extracted_*" > /dev/null; then
               echo "::error::The extract-and-run smoke left no extraction in the job's temporary folder, so TMPDIR did not reach the AppImage."
               exit 1
@@ -460,6 +463,17 @@ jobs:
             fi
             npm run package:smoke
           fi
+
+      - name: Keep the virtual display's log
+        if: always() && runner.os == 'Linux' && (steps.smoke.outcome == 'failure' || steps.smoke.outcome == 'cancelled')
+        timeout-minutes: 5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: virtual-display-log-${{ matrix.platform }}-${{ matrix.architecture }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/xvfb.log
+          retention-days: ${{ inputs.revision == '' && 1 || 14 }}
+          if-no-files-found: ignore
+          overwrite: true
 
       - name: Remove a Windows install the smoke left
         if: always() && runner.os == 'Windows' && steps.smoke.outcome != 'skipped'
