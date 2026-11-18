@@ -708,6 +708,10 @@ export class WebViewHostTests {
     launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 5, ports: [4600] }));
     await setImmediate();
     const whileUpdating = passes();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await Condition.waitAsync(() => window.webContents.sent.some(t => t[0] === "desktop:updateSaveRequest"));
+    const saveRequest = window.webContents.sent.find(t => t[0] === "desktop:updateSaveRequest");
+    await electron.ipcMain.invoke("desktop:updateSaveAnswer", MainProcessStartFixture.trustedEvent("linux"), saveRequest?.[1], []);
     launcher.listener?.onDisconnected(null);
     await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(second).length === 1);
     const fromTheNextRuntime = passes();
