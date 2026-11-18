@@ -23,7 +23,7 @@ export class FakeMainProcessEnvironment implements IMainProcessEnvironment {
   public readonly argv: readonly string[];
   public readonly env: NodeJS.ProcessEnv;
   public readonly platform: string;
-  public readonly execPath: string = "/electron/electron";
+  public execPath: string = "/electron/electron";
   public readonly homeFolder: string;
   public temporaryFolder: string = path.resolve("work", "temporary");
   public accountHomeFolder: string = path.resolve("work", "account");

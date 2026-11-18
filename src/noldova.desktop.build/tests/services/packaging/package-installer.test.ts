@@ -56,8 +56,9 @@ class WindowsRunner extends ProcessRunner {
     this.registry = registry;
   }
 
-  public override async captureAsync(command: string, commandArguments: readonly string[]): Promise<ProcessResult> {
-    this.calls.push([path.basename(command), ...commandArguments].join(" "));
+  public override async captureAsync(command: string, commandArguments: readonly string[], _directory: string, _timeout: number, _environment?: NodeJS.ProcessEnv,
+    isVerbatim: boolean = false): Promise<ProcessResult> {
+    this.calls.push([path.basename(command), ...commandArguments, ...isVerbatim ? ["(verbatim)"] : []].join(" "));
     if (command === this.uninstaller) {
       const folder = path.dirname(this.uninstaller);
       for (const entry of await readdir(folder))
@@ -100,7 +101,7 @@ export class PackageInstallerTests {
 
       Assert.areEqual(`Removed what an earlier run left installed: ${installFolder} and ${command} on the user's Path.`, removed);
       Assert.areEqual(JSON.stringify({ type: "REG_EXPAND_SZ", value: "%USERPROFILE%\\tools;C:\\other" }), JSON.stringify(runner.registry));
-      Assert.areEqual(`Uninstall Sample App.exe /S _?=${installFolder}`, runner.calls.find(t => t.startsWith("Uninstall")));
+      Assert.areEqual(`Uninstall Sample App.exe /S _?=${installFolder} (verbatim)`, runner.calls.find(t => t.startsWith("Uninstall")));
       Assert.isFalse(existsSync(installFolder));
     });
   }

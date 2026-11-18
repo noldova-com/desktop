@@ -145,7 +145,7 @@ export class PackageInstaller {
     const uninstaller = this.locateUninstaller(product);
     const environment = this.createInstallerEnvironment();
     await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
-      Resources.installerTimeout, environment);
+      Resources.installerTimeout, environment, true);
     try {
       await rm(uninstaller, { maxRetries: Resources.removeRetries, retryDelay: Resources.removeRetryDelay });
     }

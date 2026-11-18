@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,7 @@ import { BuildException } from "../../../src/exceptions/build.exception.js";
 import type { IBuilderRun } from "../../../src/interfaces/i-builder-run.js";
 import { PackageBuilder } from "../../../src/services/packaging/package-builder.js";
 import { PackageConfiguration } from "../../../src/services/packaging/package-configuration.js";
+import { ProgramRunFixture } from "../../fixtures/program-run.fixture.js";
 
 @TestClass
 export class PackageBuilderTests {
@@ -104,22 +105,50 @@ export class PackageBuilderTests {
 
     await PackageBuilder.runAsync(exports, ["/app/_build/package/electron-builder.json"]);
     const refusal = await Assert.throwsAsync(() => PackageBuilder.runAsync({ build: "electron-builder" }, []), BuildException);
+    const absent = await Assert.throwsAsync(() => PackageBuilder.runAsync({}, []), BuildException);
 
     Assert.areEqual("/app/_build/package/electron-builder.json never", runs.join("|"));
     Assert.areEqual("electron-builder exports no build function, so the package cannot be built.", refusal.message);
+    Assert.areEqual(refusal.message, absent.message);
   }
 
   @TestMethod
   public async takesElectronBuilderFromTheAppsRootAndFailsWhereTheAppHasNone(): Promise<void> {
     const folder = await mkdtemp(path.join(tmpdir(), "package-builder-root-"));
     try {
-      const builder = fileURLToPath(PackageBuilder.locateBuilder(process.cwd()));
+      const builder = PackageBuilder.locateBuilder(process.cwd());
 
       Assert.areEqual(path.dirname(fileURLToPath(import.meta.resolve("electron-builder"))), path.dirname(builder));
       Assert.throws(() => PackageBuilder.locateBuilder(folder), Error);
     }
     finally {
       await rm(folder, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  public async runsAsAProgramWithTheAppsElectronBuilderAndFailsWhenItExportsNoBuildAsync(): Promise<void> {
+    const folder = await mkdtemp(path.join(tmpdir(), "package-builder-program-"));
+    try {
+      const builder = path.join(folder, "node_modules", "electron-builder");
+      await mkdir(builder, { recursive: true });
+      await writeFile(path.join(builder, "package.json"), JSON.stringify({ name: "electron-builder", main: "index.js" }));
+      await writeFile(path.join(builder, "index.js"),
+        "exports.build = async options => require(\"node:fs\").writeFileSync(\"ran.txt\", options.config + \" \" + options.publish);\n");
+      const program = import.meta.resolve("../../../src/services/packaging/package-builder.js");
+
+      const ran = await ProgramRunFixture.runAsync(program, ["/app/_build/package/electron-builder.json"], folder);
+      const written = await readFile(path.join(folder, "ran.txt"), "utf8");
+      await writeFile(path.join(builder, "index.js"), "exports.version = \"26.16.1\";\n");
+      const refused = await ProgramRunFixture.runAsync(program, [], folder);
+
+      Assert.areEqual(0, ran.exitCode, ran.output);
+      Assert.areEqual("/app/_build/package/electron-builder.json never", written);
+      Assert.areEqual(1, refused.exitCode);
+      Assert.isTrue(refused.output.includes("electron-builder exports no build function, so the package cannot be built."), refused.output);
+    }
+    finally {
+      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
     }
   }
 

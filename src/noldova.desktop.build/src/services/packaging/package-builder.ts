@@ -9,7 +9,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
 import "@noldova/context.core";
 
@@ -32,7 +31,12 @@ export class PackageBuilder {
   }
 
   public static locateBuilder(root: string): string {
-    return pathToFileURL(createRequire(import.meta.url).resolve(path.join(root, Resources.nodeModulesFolder, Resources.builderModule))).href;
+    return createRequire(import.meta.url).resolve(path.join(root, Resources.nodeModulesFolder, Resources.builderModule));
+  }
+
+  public static loadBuilder(root: string): object {
+    const exports: object = createRequire(import.meta.url)(PackageBuilder.locateBuilder(root));
+    return exports;
   }
 
   public static formatOptions(commandArguments: readonly string[]): IBuilderRun {
@@ -65,4 +69,4 @@ export class PackageBuilder {
 }
 
 if (import.meta.main)
-  await PackageBuilder.runAsync(await import(PackageBuilder.locateBuilder(process.cwd())), process.argv.slice(Resources.commandArgumentsOffset));
+  await PackageBuilder.runAsync(PackageBuilder.loadBuilder(process.cwd()), process.argv.slice(Resources.commandArgumentsOffset));

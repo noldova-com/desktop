@@ -573,6 +573,21 @@ export class PackageTests {
   }
 
   @TestMethod
+  public async namesTheInstallFolderToTheBuilderOnlyForAnAppThatNamesOneAsync(): Promise<void> {
+    await using foldered = await InstalledAppFixture.createAsync({ installFolder: "Sample Makers" });
+    await using plain = await InstalledAppFixture.createAsync();
+
+    const named = await PackageTests.buildAsync(foldered, "linux", "x64", true);
+    const unnamed = await PackageTests.buildAsync(plain, "linux", "x64", true);
+
+    Assert.areEqual(0, named.exitCode, named.output);
+    Assert.areEqual(0, unnamed.exitCode, unnamed.output);
+    Assert.areEqual(`${new PackageLayout(foldered.path).configuration}|Sample Makers`, named.calls[0]?.slice(1).join("|"));
+    Assert.areEqual(new PackageLayout(plain.path).configuration, unnamed.calls[0]?.slice(1).join("|"));
+    Assert.isTrue(named.calls[0]?.[0]?.includes("package-builder") ?? false, JSON.stringify(named.calls));
+  }
+
+  @TestMethod
   public async checksEveryFolderTheBuilderMadeHoldsTheTargetsArchitectureAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync();
     const layout = new PackageLayout(app.path);
@@ -713,7 +728,7 @@ export class PackageTests {
   private static async buildAsync(app: InstalledAppFixture, platform: string, architecture: string, makesPackages: boolean, packageArguments: readonly string[] = [],
     environment: NodeJS.ProcessEnv = {},
     createRunner: (temporary: TemporaryFolderRunnerFixture, files: readonly string[]) => StandInBuilderRunnerFixture = (t, u) => new StandInBuilderRunnerFixture(t, u)):
-    Promise<{ readonly exitCode: number; readonly output: string; readonly environments: readonly NodeJS.ProcessEnv[] }> {
+    Promise<{ readonly exitCode: number; readonly output: string; readonly environments: readonly NodeJS.ProcessEnv[]; readonly calls: readonly (readonly string[])[] }> {
     await app.installAsync(InstalledAppFixture.CLI);
     await app.installAsync(InstalledAppFixture.ELECTRON);
     await app.writeAppFileAsync("node_modules/electron/dist/electron", String.empty);
@@ -726,7 +741,7 @@ export class PackageTests {
     const chunks: string[] = [];
     output.on("data", (t: Buffer) => chunks.push(t.toString()));
     const exitCode = await new Package(app.path, platform, architecture, stage, runner, environment, output, []).runAsync(packageArguments);
-    return { exitCode, output: chunks.join(String.empty), environments: runner.environments };
+    return { exitCode, output: chunks.join(String.empty), environments: runner.environments, calls: runner.calls };
   }
 
   private static async packageTermsAsync(accepted: string, files: Readonly<Record<string, string>>, version: string = "1.0.0"): Promise<readonly [string, string | null]> {

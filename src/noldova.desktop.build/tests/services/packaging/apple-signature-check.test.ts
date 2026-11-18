@@ -209,6 +209,19 @@ export class AppleSignatureCheckTests {
   }
 
   @TestMethod
+  public refusesAnInstallerPackageWhoseTicketStaplerValidateCannotReachAppleFor(): Promise<void> {
+    const lost = Array.from({ length: 3 }, () => AppleSignatureCheckTests.NETWORK_LOST);
+    return AppleSignatureCheckTests.withInstallerAsync(new InstallerRunner(lost), async (check, runner, installer) => {
+      const message = await AppleSignatureCheckTests.messageAsync(check.verifyAsync([installer], "Sample"));
+
+      Assert.isTrue(message.startsWith(`The installer package ${installer} lacks a stapled ticket confirmed by stapler validate, which lost its network connection `
+        + "on all 3 attempts:\n"), message);
+      Assert.areEqual(3, runner.validations);
+      Assert.areEqual(0, runner.required.length);
+    });
+  }
+
+  @TestMethod
   public refusesAnInstallerPackageWhosePayloadHoldsNoApp(): Promise<void> {
     return AppleSignatureCheckTests.withInstallerAsync(new InstallerRunner([AppleSignatureCheckTests.STAPLED], "Developer ID Installer", false), async (check, _runner, installer) => {
       const message = await AppleSignatureCheckTests.messageAsync(check.verifyAsync([installer], "Sample"));

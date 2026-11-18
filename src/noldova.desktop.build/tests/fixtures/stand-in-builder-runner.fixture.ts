@@ -21,6 +21,7 @@ export class StandInBuilderRunnerFixture extends ProcessRunner {
   private readonly built: ReadonlyMap<string, Buffer>;
 
   public readonly environments: NodeJS.ProcessEnv[] = [];
+  public readonly calls: (readonly string[])[] = [];
 
   public constructor(runner: ProcessRunner, files: readonly string[], failures: readonly string[] = [], built: ReadonlyMap<string, Buffer> = new Map()) {
     super();
@@ -34,9 +35,10 @@ export class StandInBuilderRunnerFixture extends ProcessRunner {
     return this.runner.captureAsync(command, commandArguments, directory, timeout, environment);
   }
 
-  public override async runAsync(_command: string, _commandArguments: readonly string[], _directory: string, environment?: NodeJS.ProcessEnv, watch?: (text: string) => void):
+  public override async runAsync(_command: string, commandArguments: readonly string[], _directory: string, environment?: NodeJS.ProcessEnv, watch?: (text: string) => void):
     Promise<number | null> {
     this.environments.push(environment ?? {});
+    this.calls.push(commandArguments);
     const failure = this.failures.shift();
     if (!Object.isUndefined(failure)) {
       const middle = Math.floor(failure.length / 2);
