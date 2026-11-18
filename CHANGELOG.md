@@ -4,6 +4,22 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.5
+
+- An app can name an install folder, `desktop.product.installFolder` in its `package.json`, such as its publisher's name, and installs inside it beside the other apps that name it; an app that names none installs as before.
+  On macOS such an app ships a `.pkg` in place of the disk image, which installs `/Applications/<folder>/<app name>.app`, and a signed one is signed with a Developer ID Installer certificate from the new `MAC_INSTALLER_CERTIFICATE` and `MAC_INSTALLER_CERTIFICATE_PASSWORD` secrets of `package-app.yml` and `release-app.yml`, without which a signed build stops.
+  A copy running from `/Applications/<app name>.app` moves itself into the folder once as it starts, and moves the old copy to the Trash.
+  On Windows it installs in `%LOCALAPPDATA%\Programs\<folder>\<app name>`, with its Start menu entry in a `<folder>` folder; an update moves an install from the old default, `Programs\<slug>`, and its shortcuts and Path entry with it, while an install placed with `/D` stays.
+  The Debian package installs into `/opt/<folder>/<app name>`; the AppImage is unchanged.
+- `@noldova/desktop.electron`'s `IMainProcessEnvironment.files` is an `IMainProcessFiles`, `IShownPathFiles` plus `rename` and `readdir`, and `IMainProcessEnvironment` gains `probeProcess`: an app or test double that implements the environment itself adds all three.
+- `package-app.yml` takes an optional `artifact-suffix` input, appended to its artifacts' names, so one run can call it twice; left empty, the names are unchanged.
+- A call to a web view whose page is still binding waits for the page within its own timeout, rather than failing at once as `Unavailable`, and calls that waited go out in the order they came.
+  A navigation that reaches a web view while its page binds is the only one that loads, so the page no longer loads twice.
+- `package-app.yml`'s Linux smoke keeps the virtual display's own output in a file, and uploads it as `virtual-display-log-<platform>-<architecture>-<attempt>` when the smoke fails.
+- `package-app.yml`'s AppImage smoke on a self-hosted runner requires Chromium's sandbox; on a GitHub-hosted runner it decides as before.
+- `@noldova/desktop.window.app` takes `@noldova/ui.components.angular` 0.0.12.
+- The workflows call the organization's shared workflows at v2.39.0.
+
 ## 0.0.4
 
 - An app's ARM64 package built on an x64 runner, as a release builds Linux and Windows ARM64 by default, ships its company packages bound to ARM64, which `npm ci` leaves out on the runner.
