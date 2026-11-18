@@ -56,6 +56,13 @@ describe("package-app.yml's Linux steps", () => {
     assert.ok(result.output.includes(SKIPPED), result.output);
   });
 
+  it("smokes the installed package with the sandbox's fallback where unprivileged user namespaces are restricted", async () => {
+    const result = await runAsync(SMOKE, { ...SMOKE_FAKES, "sysctl": "echo 1" }, false, false);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(result.calls.filter(t => t.startsWith("xvfb-run")), [`${SCREEN} -- --require-fallback`, `${SCREEN} -- --no-sandbox`]);
+  });
+
   it("fails naming xvfb when the runner has no xvfb-run", async () => {
     const result = await runAsync(SMOKE, { "sysctl": "echo 0" }, false, false);
 
