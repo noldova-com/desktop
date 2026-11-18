@@ -15,20 +15,27 @@ import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
 
 export class PackagedArchitecture {
-  public static async verifyAsync(folder: string, architecture: string): Promise<string> {
+  public static async verifyAsync(folder: string, architecture: string, platform: string): Promise<string> {
     if (Object.isUndefined(Resources.machCpuTypes[architecture]))
       throw new BuildException(Resources.formatNativeArchitectureUnknown(architecture, Object.keys(Resources.machCpuTypes)));
-    let count = 0;
+    const runnable = platform === Resources.windowsTarget
+      ? Resources.windowsRunnablePeMachines.filter(([target]) => target === architecture).map(([, machine]) => machine)
+      : [architecture];
+    const held: string[] = [];
     for (const file of await PackagedArchitecture.listFilesAsync(folder)) {
       const native = await PackagedArchitecture.describeAsync(file);
       if (Object.isNull(native))
         continue;
       const [kind, found] = native;
-      if (found !== architecture)
-        throw new BuildException(Resources.formatNativeArchitectureMismatch(file, found, kind, architecture));
-      count++;
+      const isAppsOwn = path.dirname(file) === folder || path.extname(file) === Resources.addonExtension;
+      const accepted = kind === Resources.peKind && !isAppsOwn ? runnable : [architecture];
+      if (!accepted.includes(found))
+        throw new BuildException(accepted.length === 1 ? Resources.formatNativeArchitectureMismatch(file, found, kind, architecture)
+          : Resources.formatWindowsMachineMismatch(file, found, architecture, accepted));
+      held.push(found);
     }
-    return Resources.formatNativeArchitectureVerified(folder, count, architecture);
+    return runnable.length === 1 ? Resources.formatNativeArchitectureVerified(folder, held.length, architecture)
+      : Resources.formatWindowsMachinesVerified(folder, architecture, runnable, runnable.map(t => [t, held.filter(h => h === t).length] as const));
   }
 
   private static async listFilesAsync(folder: string): Promise<readonly string[]> {

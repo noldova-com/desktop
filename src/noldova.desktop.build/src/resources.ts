@@ -485,7 +485,10 @@ export class Resources {
   public static readonly peHeaderOffsetField: number = 0x3c;
   public static readonly peSignatureLength: number = 6;
   public static readonly peMachineOffset: number = 4;
-  public static readonly peMachines: Readonly<Record<string, number>> = { arm64: 0xaa64, x64: 0x8664 };
+  public static readonly peMachines: Readonly<Record<string, number>> = { arm64: 0xaa64, x64: 0x8664, x86: 0x14c };
+  public static readonly windowsRunnablePeMachines: readonly (readonly [string, string])[] = [
+    ["x64", "x64"], ["x64", "x86"], ["arm64", "arm64"], ["arm64", "x64"], ["arm64", "x86"]
+  ];
   public static readonly peKind: string = "PE";
   public static readonly elfClassOffset: number = 4;
   public static readonly elf64BitClass: number = 2;
@@ -2501,6 +2504,17 @@ export class Resources {
 
   public static formatNativeArchitectureVerified(folder: string, count: number, architecture: string): string {
     return `Every Mach-O, PE and ELF file in ${folder}, ${count} in all, is ${architecture} alone.`;
+  }
+
+  public static formatWindowsMachineMismatch(file: string, found: string, architecture: string, accepted: readonly string[]): string {
+    return `The file ${file} is ${found}, not a PE file that Windows runs on ${architecture}, which runs ${accepted.join(Resources.listSeparator)}.`;
+  }
+
+  public static formatWindowsMachinesVerified(folder: string, architecture: string, accepted: readonly string[], held: readonly (readonly [string, number])[]): string {
+    const count = held.reduce((total, [, files]) => total + files, 0);
+    const kinds = held.filter(([, files]) => files > 0).map(([machine, files]) => `${files} ${machine}`);
+    return `Every Mach-O, PE and ELF file in ${folder}, ${count} in all, is one Windows runs on ${architecture}, which runs ${accepted.join(Resources.listSeparator)}: `
+      + `${kinds.length === 0 ? "none" : kinds.join(Resources.listSeparator)}.`;
   }
 
   public static formatMachCpuType(type: number): string {

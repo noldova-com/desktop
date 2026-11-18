@@ -136,7 +136,7 @@ export class Package {
       this.output.write(Resources.formatSignatures(await signing.verifyAsync(files, product)));
     }
     for (const folder of (await readdir(layout.output, { withFileTypes: true })).filter(t => t.isDirectory()))
-      this.output.write(Resources.formatOutputLine(await PackagedArchitecture.verifyAsync(path.join(layout.output, folder.name), target.architecture)));
+      this.output.write(Resources.formatOutputLine(await PackagedArchitecture.verifyAsync(path.join(layout.output, folder.name), target.architecture, target.platform)));
     if (target.platform === Resources.macosTarget)
       for (const archive of files.filter(t => path.extname(t) === Resources.zipExtension))
         this.output.write(Resources.formatOutputLine(await new MacUpdateArchiveCheck(this.runner, layout.archiveCheck, this.environment).verifyAsync(archive, layout.output, product.name)));
