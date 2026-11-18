@@ -151,7 +151,7 @@ export class PackageSmoke {
     if (!Object.isNull(this.system))
       this.output.write(Resources.formatOutputLine(await this.system.verifyAsync()));
     if (target.platform === Resources.macosTarget)
-      this.output.write(Resources.formatOutputLine(await PackagedArchitecture.verifyAsync(path.resolve(installed.program, ...Resources.macBundleFromProgram), target.architecture)));
+      this.output.write(Resources.formatOutputLine(await PackagedArchitecture.verifyAsync(path.resolve(installed.program, ...Resources.macBundleFromProgram), target.architecture, target.platform)));
     await this.checkCookieEncryptionAsync(target, installed);
     this.output.write(Resources.formatOutputLine(await PackagedPublisherCheck.verifyAsync(path.join(installed.resources, Resources.packagedArchiveFile), publisher.length === 0 ? null : publisher)));
     this.output.write(Resources.formatOutputLine(await PackagedUnpackedFiles.verifyAsync(installed.resources, new PackageLayout(this.root).configuration)));
