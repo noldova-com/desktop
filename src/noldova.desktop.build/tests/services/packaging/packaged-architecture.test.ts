@@ -121,11 +121,11 @@ export class PackagedArchitectureTests {
   @TestMethod
   public async acceptsOnAWindowsTargetEveryPeMachineWindowsRunsThere(): Promise<void> {
     const cases: readonly (readonly [string, Readonly<Record<string, Buffer>>, string])[] = [
-      ["x64", { "Sample.exe": PackagedArchitectureTests.pe(0x8664), "git/mingw64/bin/git.exe": PackagedArchitectureTests.pe(0x8664),
-        "git/usr/libexec/getprocaddr32.exe": PackagedArchitectureTests.pe(0x14c) }, "3 in all, is one Windows runs on x64, which runs x64, x86: 2 x64, 1 x86."],
+      ["x64", { "Sample.exe": PackagedArchitectureTests.pe(0x8664), "resources/git/mingw64/bin/git.exe": PackagedArchitectureTests.pe(0x8664),
+        "resources/git/usr/libexec/getprocaddr32.exe": PackagedArchitectureTests.pe(0x14c) }, "3 in all, is one Windows runs on x64, which runs x64, x86: 2 x64, 1 x86."],
       ["x64", { "Sample.exe": PackagedArchitectureTests.pe(0x8664) }, "1 in all, is one Windows runs on x64, which runs x64, x86: 1 x64."],
-      ["arm64", { "Sample.exe": PackagedArchitectureTests.pe(0xaa64), "git/usr/bin/ssh.exe": PackagedArchitectureTests.pe(0x8664),
-        "git/usr/bin/getprocaddr64.exe": PackagedArchitectureTests.pe(0x8664), "git/usr/libexec/getprocaddr32.exe": PackagedArchitectureTests.pe(0x14c),
+      ["arm64", { "Sample.exe": PackagedArchitectureTests.pe(0xaa64), "resources/git/usr/bin/ssh.exe": PackagedArchitectureTests.pe(0x8664),
+        "resources/git/usr/bin/getprocaddr64.exe": PackagedArchitectureTests.pe(0x8664), "resources/git/usr/libexec/getprocaddr32.exe": PackagedArchitectureTests.pe(0x14c),
         "sample-app": PackagedArchitectureTests.elf(2, 1, 183) }, "5 in all, is one Windows runs on arm64, which runs arm64, x64, x86: 2 arm64, 2 x64, 1 x86."],
       ["arm64", { "README.txt": Buffer.from("no programs") }, "0 in all, is one Windows runs on arm64, which runs arm64, x64, x86: none."]
     ];
@@ -149,6 +149,23 @@ export class PackagedArchitectureTests {
       await PackagedArchitectureTests.withFolderAsync({ "Sample.exe": PackagedArchitectureTests.pe(architecture === "x64" ? 0x8664 : 0xaa64), "bin/foreign": data }, async folder => {
         Assert.areEqual(`The file ${path.join(folder, "bin", "foreign")} ${refused}`, await PackagedArchitectureTests.messageAsync(folder, architecture, "windows"), refused);
       });
+  }
+
+  @TestMethod
+  public async keepsAWindowsPackagesRootFilesAndNativeModulesToItsOwnArchitecture(): Promise<void> {
+    const cases: readonly (readonly [string, string, number, string])[] = [
+      ["arm64", "Sample.exe", 0x8664, "x64"],
+      ["arm64", "ffmpeg.dll", 0x14c, "x86"],
+      ["arm64", "resources/app.asar.unpacked/node_modules/node-pty/prebuilds/win32-x64/pty.node", 0x8664, "x64"],
+      ["x64", "Sample.exe", 0x14c, "x86"],
+      ["x64", "resources/app.asar.unpacked/native/win32-x64/posix-process.node", 0x14c, "x86"]
+    ];
+    for (const [architecture, name, machine, found] of cases)
+      await PackagedArchitectureTests.withFolderAsync({ "resources/git/usr/bin/sh.exe": PackagedArchitectureTests.pe(0x8664), [name]: PackagedArchitectureTests.pe(machine) },
+        async folder => {
+          Assert.areEqual(`The file ${path.join(folder, ...name.split("/"))} is ${found}, not an ${architecture}-only PE file, so it would not run natively on ${architecture}.`,
+            await PackagedArchitectureTests.messageAsync(folder, architecture, "windows"), name);
+        });
   }
 
   @TestMethod

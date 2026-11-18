@@ -27,7 +27,8 @@ export class PackagedArchitecture {
       if (Object.isNull(native))
         continue;
       const [kind, found] = native;
-      const accepted = kind === Resources.peKind ? runnable : [architecture];
+      const isAppsOwn = path.dirname(file) === folder || path.extname(file) === Resources.addonExtension;
+      const accepted = kind === Resources.peKind && !isAppsOwn ? runnable : [architecture];
       if (!accepted.includes(found))
         throw new BuildException(accepted.length === 1 ? Resources.formatNativeArchitectureMismatch(file, found, kind, architecture)
           : Resources.formatWindowsMachineMismatch(file, found, architecture, accepted));
