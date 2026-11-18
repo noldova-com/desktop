@@ -30,6 +30,14 @@ export class SettingOptionTests {
   }
 
   @TestMethod
+  public refusesAKeyTokenInItsTitleThatIsNotAKey(): void {
+    const exception = Assert.throws(() => new SettingOption("send", "{key:Mod+Entr}"), ArgumentException);
+
+    Assert.areEqual("title", exception.parameterName);
+    Assert.areEqual("{key:Mod+Enter}", new SettingOption("send", "{key:Mod+Enter}").title);
+  }
+
+  @TestMethod
   public takesAnEmptyValueWithATitle(): void {
     const option = SettingOption.fromJson(JsonReader.parse("{\"value\":\"\",\"title\":\"Provider default\"}").toJson());
 

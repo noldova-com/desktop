@@ -13,6 +13,7 @@ import { JsonReader, type JsonObject, type JsonValue } from "@noldova/context.js
 import { SettingLocality } from "../enums/setting-locality.js";
 import { Resources } from "../resources.js";
 import { WireContract } from "../services/wire-contract.js";
+import { KeyText } from "./key-text.js";
 import { QualifiedName } from "./qualified-name.js";
 import { SettingType } from "./setting-type.js";
 
@@ -46,6 +47,8 @@ export class SettingDefinition {
     const blank = [[title, Resources.titleField], [description, Resources.descriptionField], [page, Resources.pageField], [group, Resources.groupField]].find(([text]) => String.isNullOrWhitespace(text));
     if (!Object.isUndefined(blank))
       throw new ArgumentException(Resources.settingTextInvalid, blank[1]);
+    KeyText.check(title, Resources.titleField);
+    KeyText.check(description, Resources.descriptionField);
     if (!type.accepts(defaultValue))
       throw new ArgumentException(Resources.settingDefaultInvalid, Resources.defaultField);
     if (new Set(scopes.map(t => t.text)).size !== scopes.length || (locality === SettingLocality.Device && scopes.length > 0))

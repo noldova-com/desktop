@@ -61,6 +61,20 @@ export class SettingDefinitionTests {
   }
 
   @TestMethod
+  public refusesAKeyTokenInItsTextThatIsNotAKey(): void {
+    const name = SettingDefinitionTests.NAME;
+    const type = SettingType.boolean();
+    const shared = SettingLocality.Shared;
+    const title = Assert.throws(() => new SettingDefinition(name, "Send with {key:Mod+Entr}", "Sends.", type, true, shared, [], "Chat", "Composer"), ArgumentException);
+    const description = Assert.throws(() => new SettingDefinition(name, "Send", "Sends with {key:Cmd+Enter}.", type, true, shared, [], "Chat", "Composer"), ArgumentException);
+    const kept = new SettingDefinition(name, "Send with {key:Mod+Enter}", "{key:Alt+Enter} adds a line.", type, true, shared, [], "Chat", "Composer");
+
+    Assert.areEqual("title,description", [title.parameterName, description.parameterName].join(","));
+    Assert.isTrue(title.message.startsWith("\"Mod+Entr\" is not a key."), title.message);
+    Assert.areEqual("Send with {key:Mod+Enter}|{key:Alt+Enter} adds a line.", `${kept.title}|${kept.description}`);
+  }
+
+  @TestMethod
   @TestData("type", "{\"kind\":\"Color\"}", "$.type.kind")
   @TestData("default", "\"yes\"", "$.default")
   @TestData("locality", "\"Everywhere\"", "$.locality")

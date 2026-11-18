@@ -143,6 +143,7 @@ export class Resources {
   public static readonly isVisibleField: string = "isVisible";
   public static readonly isPaintedField: string = "isPainted";
   public static readonly keyParameterName: string = "key";
+  public static readonly keyTokenPattern: RegExp = /\{key:([^{}]*)\}/gu;
   public static readonly commandTitleInvalid: string = "A command's title must not be blank.";
   public static readonly commandIconInvalid: string = "A command's icon, when it has one, must not be blank.";
   public static readonly notificationKeyInvalid: string = "A notification's key, when it has one, must not be blank.";

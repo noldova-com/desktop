@@ -5169,9 +5169,10 @@ export declare class SettingOption {
    *
    * @param value The stored value; empty, such as for a "Provider default"
    * option, or not blank.
-   * @param title The title people see; not blank.
+   * @param title The title people see; not blank, and it may name keys by
+   * `{key:<chord>}` tokens, as `KeyText` reads them.
    * @throws ArgumentException synchronously when the value is only white
-   * space or the title is blank.
+   * space, the title is blank, or a key token in it names no key.
    *
    * @example
    * ```ts
@@ -5623,8 +5624,10 @@ export declare class SettingDefinition {
    * Creates the definition.
    *
    * @param name The setting's name.
-   * @param title The title; not blank.
-   * @param description The description; not blank.
+   * @param title The title; not blank, and it may name keys by
+   * `{key:<chord>}` tokens, as `KeyText` reads them.
+   * @param description The description; not blank, and it may name keys by
+   * `{key:<chord>}` tokens.
    * @param type The values it accepts.
    * @param defaultValue The default; a value the type accepts.
    * @param locality Where the value is kept.
@@ -5632,9 +5635,10 @@ export declare class SettingDefinition {
    * device setting.
    * @param page The Settings page; not blank.
    * @param group The group on the page; not blank.
-   * @throws ArgumentException synchronously when a text is blank, the type
-   * does not accept the default, or the scopes repeat or are given for a
-   * device setting.
+   * @throws ArgumentException synchronously when a text is blank, a key
+   * token in the title or description names no key, the type does not
+   * accept the default, or the scopes repeat or are given for a device
+   * setting.
    *
    * @example
    * ```ts
@@ -6494,6 +6498,54 @@ export declare class KeyChord {
    * ```
    */
   public toString(): string;
+}
+
+/**
+ * Text that names keys by tokens, such as `Send with {key:Mod+Enter}`: each
+ * `{key:<chord>}` holds a chord as `KeyChord` reads it, and shows as that
+ * chord's label on the platform, such as `Send with Ctrl+Enter` on Windows
+ * and Linux. Text without a token, and braces that don't form one, stay as
+ * they are.
+ */
+export declare class KeyText {
+  /**
+   * Checks that every key token in a text names a key.
+   *
+   * @param text The text.
+   * @param parameterName The name of the field the text is in, which the
+   * exception names.
+   * @throws ArgumentException synchronously when a token names no key, or
+   * names both Mod and Ctrl.
+   *
+   * @example
+   * ```ts
+   * import { KeyText } from "@noldova/desktop.protocol";
+   *
+   * export function readTitle(title: string): string {
+   *   KeyText.check(title, "title");
+   *   return title;
+   * }
+   * ```
+   */
+  public static check(text: string, parameterName: string): void;
+
+  /**
+   * Returns a text with each key token replaced by its chord's label on a
+   * platform, as `KeyChord.label` gives it.
+   *
+   * @param text The text, whose tokens `check` accepts.
+   * @param platform The platform, as in `process.platform`.
+   * @returns The text people see there.
+   * @throws ArgumentException synchronously when a token names no key.
+   *
+   * @example
+   * ```ts
+   * import { KeyText } from "@noldova/desktop.protocol";
+   *
+   * export const title: string = KeyText.format("Send with {key:Mod+Enter}", "win32");
+   * ```
+   */
+  public static format(text: string, platform: string): string;
 }
 
 /**

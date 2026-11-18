@@ -391,6 +391,9 @@ A module adds settings only through `settings.json`, whose field `settings` list
 | `page`, `group` | Where Settings shows it; General takes a module's settings after Noldova Desktop's own, while Keyboard shortcuts and About take none. |
 
 - The build refuses a file whose settings differ from those `module.json` declares, and an action whose command the module doesn't declare.
+- A setting's `title` and `description`, and a `Choice` option's `title`, may name a key by a token, `{key:<key>}`, with the key written as [Commands and keys](#commands-and-keys) says, such as `Send with {key:Mod+Enter}`.
+  Settings shows each token as the key's label on that platform, the same label menus and Keyboard shortcuts show: `{key:Mod+Enter}` shows as `Ctrl+Enter` on Windows and Linux and `⌘↩` on macOS, and `{key:Alt+Enter}` as `Alt+Enter` and `⌥↩`.
+  Noldova Desktop refuses the module's settings when a token names no key, as it refuses a blank title; braces that don't form a token show as written.
 - A module that needs a richer screen, such as a table with actions, declares a page of its own in `settings.json`'s optional `pages`, each with exactly a `name`, `<id>.<name>`, which `contributes.settingsPages` lists, and a `title`; the build refuses a page title that is already a page's, a module's settings' or Noldova Desktop's own, and a page without a window part.
   A module that depends on the page's module may name that page's title as its settings' `page`, such as a switch for one option of the screen that page shows, and those settings show on that page; the page's own module, or any other module, may not.
   Its window part registers each page's component with `registerSettingsPage(new SettingsPageContribution(name, load))`, and Settings shows it as [WINDOW.md](WINDOW.md#settings-and-modules) says; a module may instead open a document of its own, which an action's button may open.
