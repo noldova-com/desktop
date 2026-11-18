@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { chmod, readdir, rm, rmdir, stat } from "node:fs/promises";
+import { chmod, copyFile, mkdir, readFile, readdir, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -15,6 +15,7 @@ import { ExceptionOptions } from "@noldova/context.exceptions";
 
 import type { ProductIdentity } from "../../models/packages/product-identity.ts";
 import type { ProcessRunner } from "../processes/process-runner.ts";
+import { AppleSignatureCheck } from "./apple-signature-check.ts";
 import { ProcessTimeoutException } from "../../exceptions/process-timeout.exception.ts";
 import { FileHolders } from "./file-holders.ts";
 import { InstalledPackage } from "../../models/packaging/installed-package.ts";
@@ -36,53 +37,67 @@ export class PackageInstaller {
   }
 
   public async installAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<InstalledPackage> {
-    const output = new PackageLayout(this.root).output;
-    const locate = (extension: string): string => path.join(output, target.formatFileName(product.name, version, extension));
+    const locate = (extension: string): string => this.locatePackage(target, product, version, extension);
     switch (target.platform) {
       case Resources.windowsTarget:
         return this.installWindowsAsync(locate(Resources.installerTarget), product, folder);
       case Resources.macosTarget:
-        return this.copyFromDiskImageAsync(locate(Resources.diskImageTarget), product, folder);
+        return Object.isNull(product.installFolder)
+          ? this.copyFromDiskImageAsync(locate(Resources.diskImageTarget), product, folder)
+          : this.expandInstallerAsync(locate(Resources.macInstallerTarget), product, product.installFolder, folder);
       default:
         return this.unpackAppImageAsync(locate(Resources.appImageTarget), product, folder);
     }
   }
 
-  public async uninstallWindowsAsync(product: ProductIdentity, folder: string): Promise<void> {
+  public async uninstallWindowsAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<void> {
     const installFolder = this.locateWindowsFolder(product);
-    const uninstaller = this.locateUninstaller(product);
+    await this.uninstallInPlaceAsync(installFolder, product, folder);
+    const neighbour = this.locateWindowsNeighbour(product);
+    if (Object.isNull(neighbour))
+      return;
+    if (!existsSync(neighbour))
+      throw new BuildException(Resources.formatWindowsNeighbourRemoved(neighbour));
+    await rm(path.dirname(neighbour), { recursive: true });
     const environment = this.createInstallerEnvironment();
-    await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
-      Resources.installerTimeout, environment);
+    await this.runInstallerAsync(this.locatePackage(target, product, version, Resources.installerTarget), Resources.silentInstallArguments, installFolder, folder, environment);
+    const uninstaller = path.join(folder, path.basename(PackageInstaller.locateUninstaller(installFolder, product)));
+    await copyFile(PackageInstaller.locateUninstaller(installFolder, product), uninstaller);
+    const command = Buffer.from(Resources.uninstallWaitScript, Resources.powershellScriptEncoding).toString(Resources.powershellCommandEncoding);
+    await this.runner.requireAsync(Resources.windowsPowershellCommand, [...Resources.powershellOptions, command], folder, Resources.installerTimeout,
+      { ...environment, [Resources.uninstallerVariable]: uninstaller, [Resources.uninstallFolderVariable]: installFolder });
     try {
-      await rm(uninstaller, { maxRetries: Resources.removeRetries, retryDelay: Resources.removeRetryDelay });
+      await rm(uninstaller);
     }
     catch (error) {
-      throw new BuildException(Resources.formatUninstallerNotRemoved(uninstaller, error), new ExceptionOptions(error));
+      throw new BuildException(Resources.formatCopiedUninstallerHeld(uninstaller, error, await new FileHolders(this.runner, folder, environment).describeAsync([uninstaller])),
+        new ExceptionOptions(error));
     }
-    const left = await readdir(installFolder, { recursive: true, withFileTypes: true });
-    if (left.length > 0) {
-      const files = left.filter(t => t.isFile()).map(t => path.join(t.parentPath, t.name)).sort();
-      const names = left.map(t => path.relative(installFolder, path.join(t.parentPath, t.name))).sort();
-      const holders = files.length === 0 ? null : await new FileHolders(this.runner, folder, environment).describeAsync(files);
-      throw new BuildException(Resources.formatUninstallerLeft(names, installFolder, holders));
-    }
-    await rmdir(installFolder);
+    if (existsSync(path.dirname(installFolder)))
+      throw new BuildException(Resources.formatInstallFolderKept(path.dirname(installFolder)));
   }
 
   public async removeWindowsLeftoverAsync(product: ProductIdentity, folder: string, userPath: UserPath): Promise<string | null> {
     const installFolder = this.locateWindowsFolder(product);
     const removed: string[] = [];
-    if (existsSync(installFolder)) {
-      if (existsSync(this.locateUninstaller(product)))
-        await this.uninstallWindowsAsync(product, folder);
+    const installFolders = Object.isNull(product.installFolder) ? [installFolder] : [this.locateWindowsDefaultFolder(product), installFolder];
+    for (const installed of installFolders.filter(t => existsSync(t))) {
+      if (existsSync(PackageInstaller.locateUninstaller(installed, product)))
+        await this.uninstallInPlaceAsync(installed, product, folder);
       else
-        await rm(installFolder, { recursive: true, maxRetries: Resources.removeRetries, retryDelay: Resources.removeRetryDelay });
-      removed.push(installFolder);
+        await rm(installed, { recursive: true, maxRetries: Resources.removeRetries, retryDelay: Resources.removeRetryDelay });
+      removed.push(installed);
     }
-    const entry = path.join(installFolder, Resources.commandFolder);
-    if (await userPath.removeAsync(entry))
-      removed.push(Resources.formatUserPathEntry(entry));
+    const neighbour = this.locateWindowsNeighbour(product);
+    if (!Object.isNull(neighbour) && existsSync(path.dirname(neighbour))) {
+      await rm(path.dirname(neighbour), { recursive: true });
+      removed.push(path.dirname(neighbour));
+      if ((await readdir(path.dirname(path.dirname(neighbour)))).length === 0)
+        await rmdir(path.dirname(path.dirname(neighbour)));
+    }
+    for (const entry of installFolders.map(t => path.join(t, Resources.commandFolder)))
+      if (await userPath.removeAsync(entry))
+        removed.push(Resources.formatUserPathEntry(entry));
     return removed.length === 0 ? null : Resources.formatLeftoverRemoved(removed);
   }
 
@@ -124,35 +139,114 @@ export class PackageInstaller {
     return { ...Object.fromEntries(others), [Resources.powershellModulePathVariable]: modules };
   }
 
-  private locateWindowsFolder(product: ProductIdentity): string {
+  private locatePackage(target: PackageTarget, product: ProductIdentity, version: string, extension: string): string {
+    return path.join(new PackageLayout(this.root).output, target.formatFileName(product.name, version, extension));
+  }
+
+  private locateWindowsPrograms(): string {
     const localAppData = this.environment[Resources.localAppDataVariable] ?? String.empty;
     if (localAppData.length === 0)
       throw new BuildException(Resources.localAppDataMissing);
-    return path.join(localAppData, Resources.windowsProgramsFolder, product.slug);
+    return path.join(localAppData, Resources.windowsProgramsFolder);
   }
 
-  private locateUninstaller(product: ProductIdentity): string {
-    return path.join(this.locateWindowsFolder(product), `${Resources.uninstallerPrefix}${product.name}${Resources.windowsProgramExtension}`);
+  private locateWindowsDefaultFolder(product: ProductIdentity): string {
+    return path.join(this.locateWindowsPrograms(), product.slug);
+  }
+
+  private locateWindowsFolder(product: ProductIdentity): string {
+    return Object.isNull(product.installFolder) ? this.locateWindowsDefaultFolder(product) : path.join(this.locateWindowsPrograms(), product.installFolder, product.name);
+  }
+
+  private locateWindowsNeighbour(product: ProductIdentity): string | null {
+    return Object.isNull(product.installFolder) ? null : this.locateNeighbourIn(product.installFolder);
+  }
+
+  private locateNeighbourIn(menuFolder: string): string {
+    return path.join(this.locateWindowsPrograms(), menuFolder, Resources.smokeNeighbourName, `${Resources.smokeNeighbourName}${Resources.windowsProgramExtension}`);
+  }
+
+  private static locateUninstaller(installFolder: string, product: ProductIdentity): string {
+    return path.join(installFolder, `${Resources.uninstallerPrefix}${product.name}${Resources.windowsProgramExtension}`);
+  }
+
+  private async uninstallInPlaceAsync(installFolder: string, product: ProductIdentity, folder: string): Promise<void> {
+    const uninstaller = PackageInstaller.locateUninstaller(installFolder, product);
+    const environment = this.createInstallerEnvironment();
+    await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
+      Resources.installerTimeout, environment, true);
+    try {
+      await rm(uninstaller, { maxRetries: Resources.removeRetries, retryDelay: Resources.removeRetryDelay });
+    }
+    catch (error) {
+      throw new BuildException(Resources.formatUninstallerNotRemoved(uninstaller, error), new ExceptionOptions(error));
+    }
+    const left = await readdir(installFolder, { recursive: true, withFileTypes: true });
+    if (left.length > 0) {
+      const files = left.filter(t => t.isFile()).map(t => path.join(t.parentPath, t.name)).sort();
+      const names = left.map(t => path.relative(installFolder, path.join(t.parentPath, t.name))).sort();
+      const holders = files.length === 0 ? null : await new FileHolders(this.runner, folder, environment).describeAsync(files);
+      throw new BuildException(Resources.formatUninstallerLeft(names, installFolder, holders));
+    }
+    await rmdir(installFolder);
   }
 
   private async installWindowsAsync(installer: string, product: ProductIdentity, folder: string): Promise<InstalledPackage> {
     const installFolder = this.locateWindowsFolder(product);
     const environment = this.createInstallerEnvironment();
-    try {
-      await this.runner.requireAsync(installer, Resources.silentInstallArguments, folder, Resources.installerTimeout, environment);
+    const menuFolder = product.installFolder;
+    if (!Object.isNull(menuFolder)) {
+      const neighbour = this.locateNeighbourIn(menuFolder);
+      const moved = this.locateWindowsDefaultFolder(product);
+      await mkdir(path.dirname(neighbour), { recursive: true });
+      await writeFile(neighbour, String.empty);
+      await this.runInstallerAsync(installer, [...Resources.silentInstallArguments, `${Resources.installFolderOption}${moved}`], moved, folder, environment, true);
+      PackageInstaller.requireFiles([path.join(moved, `${product.name}${Resources.windowsProgramExtension}`)]);
     }
-    catch (error) {
-      if (!(error instanceof ProcessTimeoutException))
-        throw error;
-      throw new BuildException(Resources.formatInstallerTimedOut(error.message, await PackageInstaller.describeAsync(installFolder)), new ExceptionOptions(error));
-    }
+    await this.runInstallerAsync(installer, Resources.silentInstallArguments, installFolder, folder, environment);
     const program = path.join(installFolder, `${product.name}${Resources.windowsProgramExtension}`);
     const libraries = (await readdir(new PackageLayout(this.root).electron))
       .filter(t => path.extname(t).toLowerCase() === Resources.windowsLibraryExtension)
       .map(t => path.join(installFolder, t));
     const command = path.join(installFolder, Resources.commandFolder, `${product.slug}${Resources.windowsCommandExtension}`);
     PackageInstaller.requireFiles([program, command, ...libraries]);
+    if (!Object.isNull(menuFolder))
+      await this.requireMovedAsync(menuFolder, product, program, folder, environment);
     return new InstalledPackage(program, program, path.join(path.dirname(program), Resources.packagedResourcesFolder), command);
+  }
+
+  private async runInstallerAsync(installer: string, commandArguments: readonly string[], installFolder: string, folder: string, environment: NodeJS.ProcessEnv,
+    isVerbatim: boolean = false): Promise<void> {
+    try {
+      await this.runner.requireAsync(installer, commandArguments, folder, Resources.installerTimeout, environment, isVerbatim);
+    }
+    catch (error) {
+      if (!(error instanceof ProcessTimeoutException))
+        throw error;
+      throw new BuildException(Resources.formatInstallerTimedOut(error.message, await PackageInstaller.describeAsync(installFolder)), new ExceptionOptions(error));
+    }
+  }
+
+  private async requireMovedAsync(menuFolder: string, product: ProductIdentity, program: string, folder: string, environment: NodeJS.ProcessEnv): Promise<void> {
+    const moved = this.locateWindowsDefaultFolder(product);
+    const neighbour = this.locateNeighbourIn(menuFolder);
+    if (existsSync(moved))
+      throw new BuildException(Resources.formatWindowsOldInstallKept(moved));
+    if (!existsSync(neighbour))
+      throw new BuildException(Resources.formatWindowsNeighbourMoved(neighbour));
+    const appData = this.environment[Resources.appDataVariable] ?? String.empty;
+    if (appData.length === 0)
+      throw new BuildException(Resources.appDataMissing);
+    const shortcut = path.join(appData, ...Resources.startMenuProgramsSegments, menuFolder, `${product.name}${Resources.shortcutExtension}`);
+    PackageInstaller.requireFiles([shortcut]);
+    const command = Buffer.from(Resources.shortcutScript, Resources.powershellScriptEncoding).toString(Resources.powershellCommandEncoding);
+    const result = await this.runner.captureAsync(Resources.windowsPowershellCommand, [...Resources.powershellOptions, command], folder, Resources.shortcutTimeout,
+      { ...environment, [Resources.shortcutVariable]: shortcut });
+    if (!result.isSuccessful)
+      throw new BuildException(Resources.formatShortcutReadFailed(shortcut, result.exitCode, result.text));
+    const target = result.output.trim();
+    if (!PackageInstaller.isNamed(target, program))
+      throw new BuildException(Resources.formatShortcutElsewhere(shortcut, target, program));
   }
 
   private async copyFromDiskImageAsync(image: string, product: ProductIdentity, folder: string): Promise<InstalledPackage> {
@@ -173,6 +267,19 @@ export class PackageInstaller {
       throw error;
     }
     await this.requireAsync(Resources.hdiutilCommand, [...Resources.hdiutilDetachArguments, mount], folder);
+    const program = path.join(application, ...Resources.macBundleProgramSegments, product.name);
+    PackageInstaller.requireFiles([program]);
+    return new InstalledPackage(program, program, path.join(application, ...Resources.macBundleResourcesSegments), null);
+  }
+
+  private async expandInstallerAsync(installer: string, product: ProductIdentity, installFolder: string, folder: string): Promise<InstalledPackage> {
+    const expanded = path.join(folder, Resources.installerExpandedFolder);
+    await this.requireAsync(Resources.pkgutilCommand, [Resources.pkgutilExpandFullOption, installer, expanded], folder);
+    const application = await AppleSignatureCheck.locateExpandedAppAsync(expanded, product.name);
+    const information = await readFile(path.join(application, ...Resources.installerPackageInfoFromApp), Resources.textEncoding);
+    const location = Resources.formatMacInstallLocation(installFolder);
+    if (!information.includes(Resources.formatInstallLocationAttribute(location)))
+      throw new BuildException(Resources.formatMacInstallerElsewhere(installer, location, information));
     const program = path.join(application, ...Resources.macBundleProgramSegments, product.name);
     PackageInstaller.requireFiles([program]);
     return new InstalledPackage(program, program, path.join(application, ...Resources.macBundleResourcesSegments), null);

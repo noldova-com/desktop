@@ -128,6 +128,29 @@ export class MacSigningTests {
   }
 
   @TestMethod
+  public refusesAnInstallerPackageWithoutTheDeveloperIdInstallerCertificate(): void {
+    const missing = Assert.throws(() => new MacSigning(new NotarizingRunner([]), path.join(tmpdir(), "mac-signing-sample"), {}, MacSigningTests.credentials(), true),
+      BuildException);
+    const empty = Assert.throws(() => new MacSigning(new NotarizingRunner([]), path.join(tmpdir(), "mac-signing-sample"), {},
+      { ...MacSigningTests.credentials(), MAC_INSTALLER_CERTIFICATE: "sample", MAC_INSTALLER_CERTIFICATE_PASSWORD: String.empty }, true), BuildException);
+
+    Assert.areEqual("Signing the macOS installer package of an app that names an install folder needs MAC_INSTALLER_CERTIFICATE, MAC_INSTALLER_CERTIFICATE_PASSWORD, "
+      + "the Developer ID Installer certificate.", missing.message);
+    Assert.areEqual("Signing the macOS installer package of an app that names an install folder needs MAC_INSTALLER_CERTIFICATE_PASSWORD, the Developer ID Installer certificate.",
+      empty.message);
+  }
+
+  @TestMethod
+  public passesTheDeveloperIdInstallerCertificateToElectronBuilderForAnInstallerPackage(): void {
+    const signing = new MacSigning(new NotarizingRunner([]), path.join(tmpdir(), "mac-signing-sample"), {}, {
+      ...MacSigningTests.credentials(), MAC_INSTALLER_CERTIFICATE: "MAC_INSTALLER_CERTIFICATE", MAC_INSTALLER_CERTIFICATE_PASSWORD: "MAC_INSTALLER_CERTIFICATE_PASSWORD"
+    }, true);
+
+    Assert.areEqual("MAC_INSTALLER_CERTIFICATE|MAC_INSTALLER_CERTIFICATE_PASSWORD", [signing.builderEnvironment["CSC_INSTALLER_LINK"],
+      signing.builderEnvironment["CSC_INSTALLER_KEY_PASSWORD"]].join("|"));
+  }
+
+  @TestMethod
   public async writesTheNotarizationKeyForElectronBuilderAndRemovesItWhenDisposed(): Promise<void> {
     const folder = await mkdtemp(path.join(tmpdir(), "mac-signing-"));
     try {

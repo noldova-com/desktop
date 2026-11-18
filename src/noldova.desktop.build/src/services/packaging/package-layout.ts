@@ -49,6 +49,10 @@ export class PackageLayout {
     return path.join(this.folder, Resources.packageCommandFolder);
   }
 
+  public get debianTemplates(): string {
+    return path.join(this.folder, Resources.packageDebianTemplatesFolder);
+  }
+
   public get signing(): string {
     return path.join(this.folder, Resources.packageSigningFolder);
   }

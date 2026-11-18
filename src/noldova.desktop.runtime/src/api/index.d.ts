@@ -9636,6 +9636,12 @@ export declare class ProductInfo {
   public readonly permissionsModule: string | null;
 
   /**
+   * The folder the app installs in, beside the maker's other apps, from `desktop.product.installFolder`,
+   * or `null` when the app names none and installs on its own.
+   */
+  public readonly installFolder: string | null;
+
+  /**
    * The product version.
    */
   public readonly version: string;

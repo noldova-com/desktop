@@ -26,7 +26,7 @@ export class UpdateTestRunCheckResources {
   public static readonly publishGuard: string = "RELEASE_UPDATE_FEED: ${{ inputs.update-feed }}";
   public static readonly assetsFeed: string = "UPDATE_FEED: ${{ inputs.update-feed }}";
   public static readonly assetsCommand: string = "npm run release:assets -- --update-feed \"$UPDATE_FEED\"";
-  public static readonly keptFiles: readonly string[] = ["-*.exe", "-*.dmg", "-*.zip", "-*.AppImage", "-*.sha256", "latest-*.yml"];
+  public static readonly keptFiles: readonly string[] = ["-*.exe", "-*.dmg", "-*.pkg", "-*.zip", "-*.AppImage", "-*.sha256", "latest-*.yml"];
   public static readonly noFilesFail: string = "if-no-files-found: error";
   public static readonly feedNames: RegExp = /update-feed|UPDATE_FEED/;
   public static readonly condition: RegExp = /^\s*if:/;

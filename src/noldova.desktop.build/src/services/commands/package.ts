@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
+import { fileURLToPath } from "node:url";
 
 import "@noldova/context.core";
 
@@ -39,6 +40,8 @@ import { ProcessRunner } from "../processes/process-runner.ts";
 import { Resources } from "../../resources.ts";
 
 export class Package {
+  private static readonly BUILDER: string = fileURLToPath(new URL(`${Resources.packageBuilderName}${path.extname(import.meta.filename)}`, import.meta.url));
+
   private readonly root: string;
   private readonly platform: string;
   private readonly architecture: string;
@@ -73,8 +76,8 @@ export class Package {
     }
 
     try {
-      const target = PackageTarget.fromProcess(this.platform, this.architecture);
       const product = await ProductIdentity.readAsync(this.root);
+      const target = PackageTarget.fromProcess(this.platform, this.architecture).withInstallFolder(product.installFolder);
       const version = (await RootManifest.readAsync(this.root)).productVersion;
       const signing = options.length === 0 ? null : this.createSigning(target, layout, credentials, product);
       const electron = new ElectronDistribution(this.root, layout.electron);
@@ -109,7 +112,7 @@ export class Package {
       case Resources.windowsTarget:
         return new WindowsSigning(this.runner, this.root, layout.signing, layout.output, target, this.environment, credentials, this.signingPackages, product);
       case Resources.macosTarget:
-        return new MacSigning(this.runner, layout.signing, this.environment, credentials);
+        return new MacSigning(this.runner, layout.signing, this.environment, credentials, target.isFoldered);
       default:
         throw new BuildException(Resources.formatSignedTargetUnsupported(target.id));
     }
@@ -119,7 +122,7 @@ export class Package {
     Promise<void> {
     await mkdir(layout.toolCache, { recursive: true });
     await writeFile(path.join(layout.toolCache, Resources.packageManifestFileName), Resources.commonJsScope);
-    const exitCode = await this.runBuilderAsync(target, [path.join(this.root, ...Resources.builderSegments), ...Resources.builderOptions, layout.configuration],
+    const exitCode = await this.runBuilderAsync(target, [Package.BUILDER, layout.configuration, ...Object.isNull(product.installFolder) ? [] : [product.installFolder]],
       { ...this.createBuilderEnvironment(layout, target), ...signing?.builderEnvironment });
     if (exitCode !== 0)
       throw new BuildException(Resources.formatBuilderFailed(exitCode));

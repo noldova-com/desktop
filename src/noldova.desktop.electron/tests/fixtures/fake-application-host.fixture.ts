@@ -92,8 +92,8 @@ export class FakeApplicationHost implements IApplicationHost {
       this.listeners.emit("will-quit");
   }
 
-  public relaunch(): void {
-    this.calls.push("relaunch");
+  public relaunch(options?: { execPath: string, args: string[] }): void {
+    this.calls.push(Object.isUndefined(options) ? "relaunch" : `relaunch ${options.execPath} ${JSON.stringify(options.args)}`);
   }
 
   public exit(exitCode: number): void {

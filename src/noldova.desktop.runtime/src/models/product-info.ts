@@ -33,6 +33,7 @@ export class ProductInfo {
   public readonly windowsPublisher: string | null;
   public readonly updateFeed: string | null;
   public readonly permissionsModule: string | null;
+  public readonly installFolder: string | null;
   public readonly version: string;
   public readonly build: string;
 
@@ -52,6 +53,7 @@ export class ProductInfo {
     this.windowsPublisher = reader.readNullableString(Resources.windowsPublisherField);
     this.updateFeed = reader.readNullableString(Resources.updateFeedField);
     this.permissionsModule = reader.readOptionalString(Resources.permissionsModuleField) ?? null;
+    this.installFolder = reader.readOptionalString(Resources.installFolderField) ?? null;
     this.version = reader.readNonBlankString(Resources.versionField);
     this.build = reader.readNonBlankString(Resources.buildField);
   }

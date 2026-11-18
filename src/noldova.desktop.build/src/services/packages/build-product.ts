@@ -38,6 +38,7 @@ export class BuildProduct {
       icons: product.icons,
       windowsPublisher: null,
       ...Object.isNull(product.permissionsModule) ? {} : { permissionsModule: product.permissionsModule },
+      ...Object.isNull(product.installFolder) ? {} : { installFolder: product.installFolder },
       updateFeed: Object.isNull(outputFolder) ? null : variant.isPackaged ? variant.updateFeed ?? product.updateFeed : variant.updateFeed,
       version: manifest.productVersion,
       build: fingerprint

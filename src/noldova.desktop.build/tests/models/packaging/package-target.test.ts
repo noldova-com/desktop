@@ -26,6 +26,18 @@ export class PackageTargetTests {
   }
 
   @TestMethod
+  public makesAnInstallerPackageInPlaceOfTheDiskImageOnlyOnMacOsForAnAppThatNamesAFolder(): void {
+    const macos = new PackageTarget("macos", "arm64").withInstallFolder("Sample Makers");
+    const linux = new PackageTarget("linux", "x64").withInstallFolder("Sample Makers");
+    const windows = new PackageTarget("windows", "x64").withInstallFolder("Sample Makers");
+    const unfoldered = macos.withInstallFolder(null);
+
+    Assert.areEqual("true macos-arm64 pkg,zip pkg,zip zip", `${macos.isFoldered} ${macos.id} ${macos.formats.join(",")} ${macos.extensions.join(",")} ${macos.updateExtension}`);
+    Assert.areEqual("true AppImage,deb|true nsis", `${linux.isFoldered} ${linux.formats.join(",")}|${windows.isFoldered} ${windows.formats.join(",")}`);
+    Assert.areEqual("false dmg,zip", `${unfoldered.isFoldered} ${unfoldered.formats.join(",")}`);
+  }
+
+  @TestMethod
   public namesTheSystemProcessorAndLibraryNpmInstallsTheTargetsPackagesFor(): void {
     Assert.areEqual("--os=linux --cpu=arm64 --libc=glibc", new PackageTarget("linux", "arm64").installArguments.join(" "));
     Assert.areEqual("--os=win32 --cpu=arm64", new PackageTarget("windows", "arm64").installArguments.join(" "));

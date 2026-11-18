@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -53,6 +53,33 @@ class StaplerRunner extends ProcessRunner {
 
   public static failure(text: string): ProcessResult {
     return new ProcessResult(65, `Processing: Sample.app\n${text}\nThe validate action failed! Error 65.\n`, String.empty);
+  }
+}
+
+class InstallerRunner extends StaplerRunner {
+  private readonly authority: string;
+  private readonly hasApp: boolean;
+
+  public constructor(staples: readonly ProcessResult[], authority: string = "Developer ID Installer", hasApp: boolean = true, isSigned: boolean = true) {
+    super(staples, isSigned);
+    this.authority = authority;
+    this.hasApp = hasApp;
+  }
+
+  public override async requireAsync(...call: Parameters<ProcessRunner["requireAsync"]>): Promise<void> {
+    await super.requireAsync(...call);
+    const [, commandArguments] = call;
+    const expanded = commandArguments[2] ?? String.empty;
+    await mkdir(path.join(expanded, "Sample.pkg", "Payload", this.hasApp ? "Sample.app" : "Other.app"), { recursive: true });
+    await mkdir(path.join(expanded, "Resources"));
+  }
+
+  public override captureAsync(...call: Parameters<ProcessRunner["captureAsync"]>): Promise<ProcessResult> {
+    const [command] = call;
+    if (command === "pkgutil" && this.authority.length > 0)
+      return Promise.resolve(new ProcessResult(0, `Package "Sample.pkg":\n   Status: signed by a developer certificate issued by Apple for distribution\n`
+        + `   Notarization: trusted by the Apple notary service\n   Certificate Chain:\n    1. ${this.authority}: Sample Publisher (SAMPLE1234)\n`, String.empty));
+    return super.captureAsync(...call);
   }
 }
 
@@ -147,6 +174,72 @@ export class AppleSignatureCheckTests {
       Assert.isTrue(message.startsWith(`The app in ${image} lacks a stapled ticket:\n`), message);
       Assert.areEqual("hdiutil attach,hdiutil detach", runner.required.join(","));
     });
+  }
+
+  @TestMethod
+  public verifiesAnInstallerPackageAndTheAppInItsPayload(): Promise<void> {
+    return AppleSignatureCheckTests.withInstallerAsync(new InstallerRunner([AppleSignatureCheckTests.STAPLED, AppleSignatureCheckTests.STAPLED]), async (check, runner, installer) => {
+      const report = await check.verifyAsync([installer], "Sample");
+
+      Assert.areEqual(`${installer}: the installer package has a valid Developer ID Installer signature and its app a valid Developer ID Application signature, `
+        + "each notarized and stapled.", report);
+      Assert.areEqual("pkgutil --expand-full", runner.required.join(","));
+      Assert.areEqual(2, runner.validations);
+    });
+  }
+
+  @TestMethod
+  public refusesAnInstallerPackageWithoutADeveloperIdInstallerSignatureBeforeExpandingIt(): Promise<void> {
+    return AppleSignatureCheckTests.withInstallerAsync(new InstallerRunner([AppleSignatureCheckTests.STAPLED], "Developer ID Application"), async (check, runner, installer) => {
+      const message = await AppleSignatureCheckTests.messageAsync(check.verifyAsync([installer], "Sample"));
+
+      Assert.isTrue(message.startsWith(`The installer package ${installer} lacks a Developer ID Installer signature:\n`), message);
+      Assert.areEqual(0, runner.required.length);
+    });
+  }
+
+  @TestMethod
+  public refusesAnUnsignedInstallerPackage(): Promise<void> {
+    return AppleSignatureCheckTests.withInstallerAsync(new InstallerRunner([AppleSignatureCheckTests.MISSING], String.empty, true, false), async (check, _runner, installer) => {
+      const message = await AppleSignatureCheckTests.messageAsync(check.verifyAsync([installer], "Sample"));
+
+      Assert.isTrue(message.startsWith(`The installer package ${installer} lacks a valid signature, a Developer ID Installer signature, notarization, a stapled ticket:\n`),
+        message);
+    });
+  }
+
+  @TestMethod
+  public refusesAnInstallerPackageWhoseTicketStaplerValidateCannotReachAppleFor(): Promise<void> {
+    const lost = Array.from({ length: 3 }, () => AppleSignatureCheckTests.NETWORK_LOST);
+    return AppleSignatureCheckTests.withInstallerAsync(new InstallerRunner(lost), async (check, runner, installer) => {
+      const message = await AppleSignatureCheckTests.messageAsync(check.verifyAsync([installer], "Sample"));
+
+      Assert.isTrue(message.startsWith(`The installer package ${installer} lacks a stapled ticket confirmed by stapler validate, which lost its network connection `
+        + "on all 3 attempts:\n"), message);
+      Assert.areEqual(3, runner.validations);
+      Assert.areEqual(0, runner.required.length);
+    });
+  }
+
+  @TestMethod
+  public refusesAnInstallerPackageWhosePayloadHoldsNoApp(): Promise<void> {
+    return AppleSignatureCheckTests.withInstallerAsync(new InstallerRunner([AppleSignatureCheckTests.STAPLED], "Developer ID Installer", false), async (check, _runner, installer) => {
+      const message = await AppleSignatureCheckTests.messageAsync(check.verifyAsync([installer], "Sample"));
+
+      Assert.isTrue(/^The installer package expanded into .+expanded holds no Sample\.app in a component's payload\.$/.test(message), message);
+    });
+  }
+
+  private static async withInstallerAsync(runner: InstallerRunner, run: (check: AppleSignatureCheck, runner: InstallerRunner, installer: string) => Promise<void>):
+    Promise<void> {
+    const folder = await mkdtemp(path.join(tmpdir(), "apple-signature-"));
+    try {
+      await PausedTimersFixture.withoutPausesAsync(() => run(new AppleSignatureCheck(runner, path.join(folder, "check"), {}), runner,
+        path.join(folder, "Sample-1.2.3-macos-arm64.pkg")), AppleSignatureCheckTests.PAUSE);
+    }
+    finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   }
 
   private static async withCheckAsync(staples: readonly ProcessResult[], run: (check: AppleSignatureCheck, runner: StaplerRunner, archive: string) => Promise<void>,

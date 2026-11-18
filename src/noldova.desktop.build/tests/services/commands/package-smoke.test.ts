@@ -56,7 +56,7 @@ export class PackageSmokeTests {
   @TestMethod
   public async answersAnotherOptionOrMoreThanOneWithItsUsageAsync(): Promise<void> {
     for (const smokeArguments of [["--quick"], ["--remove-leftover", "--remove-leftover"], ["--deb", "--remove-leftover"], ["--deb", "--no-sandbox", "--require-sandbox"],
-      ["--no-sandbox", "--deb"]]) {
+      ["--no-sandbox", "--deb"], ["--pkg", "--no-sandbox"], ["--pkg", "--deb"], ["--deb", "--pkg"]]) {
       const result = await PackageSmokeTests.runAsync(tmpdir(), smokeArguments);
 
       Assert.areEqual(2, result.exitCode);
@@ -480,7 +480,7 @@ export class PackageSmokeTests {
     await using parent = await PackageSmokeTests.createParentAsync();
     const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
     const runner = new SmokeRunnerFixture();
-    runner.debianFolder = path.join(parent.path, "opt").replaceAll("\\", "/");
+    runner.debianFolder = path.join(parent.path, "opt", "Sample App").replaceAll("\\", "/");
     const program = `${runner.debianFolder}/${SmokeRunnerFixture.SLUG}`;
     const profile = "/etc/apparmor.d/sample-app";
 
@@ -519,12 +519,12 @@ export class PackageSmokeTests {
   public async requiresTheSandboxOfADebianPackageAndRemovesItWhenTheSmokeFailsAsync(): Promise<void> {
     await using app = await PackageSmokeTests.createAppAsync();
     await using parent = await PackageSmokeTests.createParentAsync();
-    const removed = Resources.formatOutputLine(Resources.formatDebianRemoved(SmokeRunnerFixture.SLUG, `${parent.path.replaceAll("\\", "/")}/opt`,
+    const removed = Resources.formatOutputLine(Resources.formatDebianRemoved(SmokeRunnerFixture.SLUG, `${parent.path.replaceAll("\\", "/")}/opt/Sample App`,
       "/etc/apparmor.d/sample-app"));
 
     for (const [smokeArguments, notice] of [[["--deb"], Resources.smokeDebianSandboxNotice], [["--deb", "--require-fallback"], Resources.smokeRequireFallbackNotice]] as const) {
       const runner = PackageSmokeTests.createEndingRunner();
-      runner.debianFolder = path.join(parent.path, "opt").replaceAll("\\", "/");
+      runner.debianFolder = path.join(parent.path, "opt", "Sample App").replaceAll("\\", "/");
 
       const result = await PackageSmokeTests.smokeAsync(app, parent.path, "linux", runner, smokeArguments);
 
@@ -542,15 +542,62 @@ export class PackageSmokeTests {
     await using app = await PackageSmokeTests.createAppAsync();
     await using parent = await PackageSmokeTests.createParentAsync();
     const runner = PackageSmokeTests.createEndingRunner();
-    runner.debianFolder = path.join(parent.path, "opt").replaceAll("\\", "/");
+    runner.debianFolder = path.join(parent.path, "opt", "Sample App").replaceAll("\\", "/");
     runner.answer = (name, commandArguments) => name === "sudo" && commandArguments.includes("remove") ? new ProcessResult(100, String.empty, "locked") : null;
 
     const result = await PackageSmokeTests.smokeAsync(app, parent.path, "linux", runner, ["--deb"]);
 
     const error = new BuildException(Resources.formatProcessFailed("sudo", ["--non-interactive", "apt-get", "remove", "--yes", SmokeRunnerFixture.SLUG], 100, "locked"));
     Assert.areEqual(1, result.exitCode);
-    Assert.isTrue(result.output.endsWith(Resources.formatSmokeCleanUpFailed([Resources.formatSmokeDebianNotRemoved(SmokeRunnerFixture.SLUG, error)])), result.output);
+    Assert.isTrue(result.output.endsWith(Resources.formatSmokeCleanUpFailed([Resources.formatSmokeSystemInstallNotRemoved(SmokeRunnerFixture.SLUG, error)])), result.output);
     Assert.isFalse(existsSync(result.folder));
+  }
+
+  @TestMethod
+  public async refusesToInstallAMacInstallerPackageForAnAppThatNamesNoFolderOrOffMacOsAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+
+    for (const platform of ["darwin", "linux"]) {
+      const runner = new SmokeRunnerFixture();
+
+      const result = await PackageSmokeTests.smokeAsync(app, parent.path, platform, runner, ["--pkg"]);
+
+      Assert.areEqual(1, result.exitCode, platform);
+      Assert.areEqual(Resources.formatOutputLine(Resources.smokeMacInstallerNotFoldered), result.output, platform);
+      Assert.areEqual(0, runner.captured.length, platform);
+    }
+  }
+
+  @TestMethod
+  public async installsTheInstallerPackageOfAnAppThatNamesAFolderAndStopsWhenTheInstallerFailsAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync({ installFolder: "Sample Makers" });
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const runner = new SmokeRunnerFixture();
+    runner.answer = (name, commandArguments) => name === "sudo" && commandArguments.includes("installer") ? new ProcessResult(1, String.empty, "installer: refused") : null;
+
+    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "darwin", runner, ["--pkg"]);
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.includes("installer: refused"), result.output);
+    Assert.areEqual(["sudo --non-interactive mkdir -p /Applications/Sample Makers/Smoke Neighbour.app",
+      `sudo --non-interactive installer -pkg ${path.join(app.path, "_build", "package", "out", "Sample App-1.2.3-macos-x64.pkg")} -target /`].join("\n"),
+    runner.captured.filter(t => t.startsWith("sudo")).join("\n"));
+  }
+
+  @TestMethod
+  public async checksTheNeighbourAfterAnInstallAndRemovesBothWhenTheSmokeFailsAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync({ installFolder: "Sample Makers" });
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const runner = new SmokeRunnerFixture();
+
+    const error = await Assert.throwsAsync(() => PackageSmokeTests.smokeAsync(app, parent.path, "darwin", runner, ["--pkg"]), Error);
+
+    Assert.isTrue(error.message.includes(path.join("/Applications/Sample Makers/Sample App.app")), error.message);
+    Assert.areEqual(["test -e /Applications/Sample Makers/Smoke Neighbour.app",
+      "sudo --non-interactive rm -rf /Applications/Sample Makers/Sample App.app /Applications/Sample Makers/Smoke Neighbour.app",
+      "sudo --non-interactive pkgutil --forget com.example.sample"].join("\n"),
+      runner.captured.filter(t => t.startsWith("sudo") || t.startsWith("test -e")).slice(-3).join("\n"));
   }
 
   @TestMethod

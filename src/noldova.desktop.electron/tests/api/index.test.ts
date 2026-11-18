@@ -55,6 +55,7 @@ export class MainProcessApiTests {
         "FileGrantRequest",
         "FilePathChoice",
         "FileSaveOutcome",
+        "InstallFolderMove",
         "InstallerHandoff",
         "InstallerStart",
         "IssuedFiles",

@@ -769,6 +769,20 @@ export class Resources {
   public static readonly uncaughtExceptionEvent: "uncaughtException" = "uncaughtException";
   public static readonly unhandledRejectionEvent: "unhandledRejection" = "unhandledRejection";
   public static readonly quitExitCode: number = 0;
+  public static readonly appBundleExtension: string = ".app";
+  public static readonly bundleFromProgramSegments: readonly string[] = ["..", "..", ".."];
+  public static readonly macApplicationsFolder: string = "/Applications";
+  public static readonly installFolderStagingPrefix: string = ".";
+  public static readonly dittoProgram: string = "/usr/bin/ditto";
+  public static readonly installFolderStagingSeparator: string = "-";
+  public static readonly installFolderStagingProcessPattern: RegExp = /^[1-9]\d*$/u;
+  public static readonly missingProcessErrorCode: string = "ESRCH";
+  public static readonly plistProgram: string = "/usr/bin/plutil";
+  public static readonly bundleInformationSegments: readonly string[] = ["Contents", "Info.plist"];
+  public static readonly bundleIdentifierKey: string = "CFBundleIdentifier";
+  public static readonly bundleVersionKey: string = "CFBundleShortVersionString";
+  public static readonly removeProgram: string = "/bin/rm";
+  public static readonly removeRecursiveOption: string = "-rf";
   public static readonly failureExitCode: number = 1;
   public static readonly mainWindow: string = "main";
   public static readonly deviceNotIdentified: string = "This device has no identity, so the window's layout and Do not disturb are not kept.";
@@ -820,6 +834,7 @@ export class Resources {
   public static readonly helpRole: "help" = "help";
   public static readonly pngMimeType: string = "image/png";
   public static readonly killSignal: NodeJS.Signals = "SIGKILL";
+  public static readonly probeSignal: number = 0;
   public static readonly argumentSeparator: string = " ";
   public static readonly mediaSourceParts: number = 3;
   public static readonly pipedStdio: "pipe" = "pipe";
@@ -992,6 +1007,42 @@ export class Resources {
 
   public static get applicationName(): string {
     return ProductInfo.current.name;
+  }
+
+  public static get installFolder(): string | null {
+    return ProductInfo.current.installFolder;
+  }
+
+  public static formatInstallFolderMoved(bundle: string, target: string): string {
+    return `Moved ${bundle} into its install folder, as ${target}, and moved the old copy to the Trash.`;
+  }
+
+  public static formatInstallFolderOldCopyKept(bundle: string, target: string, reason: string): string {
+    return `Copied ${bundle} into its install folder, as ${target}, but the old copy could not be moved to the Trash: ${reason}`;
+  }
+
+  public static formatInstallFolderNotWritable(bundle: string, target: string, reason: string): string {
+    return `${bundle} could not be copied to ${target}, so it keeps running where it is: ${reason}`;
+  }
+
+  public static plistExtractArguments(key: string): readonly string[] {
+    return ["-extract", key, "raw", "-o", "-"];
+  }
+
+  public static formatInstallFolderAlreadyThere(bundle: string, target: string): string {
+    return `${target} already holds the app, as new as ${bundle} or newer, so the old copy was moved to the Trash.`;
+  }
+
+  public static formatInstallFolderTargetExists(bundle: string, target: string, identifiers: readonly string[], versions: readonly string[]): string {
+    return `${bundle} stays where it is, since ${target} already exists and is not the same app as new or newer: ${identifiers.join(" and ")}, versions ${versions.join(" and ")}.`;
+  }
+
+  public static formatInstallFolderTargetUnread(bundle: string, target: string, reason: string): string {
+    return `${bundle} stays where it is, since ${target} already exists and could not be read: ${reason}`;
+  }
+
+  public static formatInstallFolderStagingLeft(staging: string, reason: string): string {
+    return `The unfinished copy ${staging} could not be removed: ${reason}`;
   }
 
   public static get appUserModelId(): string {

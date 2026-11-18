@@ -35,6 +35,19 @@ export class ProcessRunnerTests {
   }
 
   @TestMethod
+  public async passesVerbatimArgumentsUnquotedOnWindowsAndRequiresTheirSuccess(): Promise<void> {
+    const script = "process.stdout.write(process.argv.slice(1).join('|'))";
+    const runner = new ProcessRunner();
+
+    const verbatim = await runner.captureAsync(process.execPath, ["-e", script, "_?=a b"], tmpdir(), ProcessRunnerTests.LIMIT, undefined, true);
+    const quoted = await runner.captureAsync(process.execPath, ["-e", script, "_?=a b"], tmpdir(), ProcessRunnerTests.LIMIT);
+    await runner.requireAsync(process.execPath, ["-e", "process.exit(0)"], tmpdir(), ProcessRunnerTests.LIMIT, undefined, true);
+
+    Assert.areEqual(process.platform === "win32" ? "_?=a|b" : "_?=a b", verbatim.output);
+    Assert.areEqual("_?=a b", quoted.output);
+  }
+
+  @TestMethod
   public async stopsAProcessThatWritesMoreThanTheLimit(): Promise<void> {
     const script = `process.stdout.write("x".repeat(${Resources.processOutputLimit + 1}))`;
 
