@@ -25,6 +25,7 @@ export class OpenWindow implements IQuitPrompt {
   private readonly log: IMainProcessLog;
   private readonly guard: ICloseGuard;
   private readonly painted: PromiseWithResolvers<boolean> = Promise.withResolvers<boolean>();
+  private readonly pagePainted: PromiseWithResolvers<boolean> = Promise.withResolvers<boolean>();
   private closing: Promise<void> | undefined;
   private canClose: boolean = false;
   private isPainted: boolean = false;
@@ -62,6 +63,7 @@ export class OpenWindow implements IQuitPrompt {
     });
     window.once(Resources.closedEvent, () => {
       this.painted.resolve(false);
+      this.pagePainted.resolve(false);
       this.stopSettleTimer();
       this.stopPaintTimer();
       this.bounds.cancelSave();
@@ -79,11 +81,16 @@ export class OpenWindow implements IQuitPrompt {
     this.isPainted = true;
     this.hasPagePainted = true;
     this.painted.resolve(true);
+    this.pagePainted.resolve(true);
     this.showWhenReady();
   }
 
   public whenPaintedAsync(): Promise<boolean> {
     return this.painted.promise;
+  }
+
+  public whenPagePaintedAsync(): Promise<boolean> {
+    return this.pagePainted.promise;
   }
 
   public showUnpaintedWithin(milliseconds: number): void {

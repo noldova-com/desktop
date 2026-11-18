@@ -139,6 +139,20 @@ export class OpenWindowTests {
   }
 
   @TestMethod
+  public async reportsItsPageAsPaintedOnlyOnceItPaintsEvenAfterItWasShownUnpainted(): Promise<void> {
+    const windows = [new FakeMainProcessWindow({}, 1), new FakeMainProcessWindow({}, 2)];
+    const [shown, closed] = windows.map(t => new OpenWindow(t, new FakeDisplayHost(), new FakeMainProcessLog(), new FakeCloseGuard(), "win32"));
+
+    shown?.showNow();
+    const beforePaint = await Promise.race([shown?.whenPagePaintedAsync(), Promise.resolve("waiting")]);
+    shown?.markPainted();
+    windows[1]?.destroy();
+
+    Assert.areEqual("waiting", beforePaint);
+    Assert.areEqual("true,false", (await Promise.all([shown, closed].map(t => t?.whenPagePaintedAsync()))).join(","));
+  }
+
+  @TestMethod
   public showsTheQuestionToItsPageUnlessTheWindowIsGoneOrItsPageHasCrashed(): void {
     const window = new FakeMainProcessWindow({}, 1);
     const crashed = new FakeMainProcessWindow({}, 2);

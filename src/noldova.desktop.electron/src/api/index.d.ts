@@ -6401,6 +6401,21 @@ export declare class OpenWindow implements IQuitPrompt {
   public whenPaintedAsync(): Promise<boolean>;
 
   /**
+   * Waits until the page has really painted, which may come after the window was shown unpainted.
+   *
+   * @returns A promise of `true` then, or `false` when the window closed first.
+   * @example
+   * ```ts
+   * import type { OpenWindow } from "@noldova/desktop.electron";
+   *
+   * export function paintedAsync(open: OpenWindow): Promise<boolean> {
+   *   return open.whenPagePaintedAsync();
+   * }
+   * ```
+   */
+  public whenPagePaintedAsync(): Promise<boolean>;
+
+  /**
    * Asks the page to save, as closing does, then saves the window's bounds. A page that has crashed counts as saved
    * at once, and so does one that does not answer within five seconds.
    *

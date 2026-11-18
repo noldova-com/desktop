@@ -450,7 +450,7 @@ export class MainProcess {
     this.surface.openWindow(contentsId, this.isWayland() ? null : window.getMediaSourceId());
     const describe = (title: string): void => this.surface.describeWindow(contentsId, title, window.isVisible(), open.isPagePainted);
     describe(window.getTitle());
-    void open.whenPaintedAsync().then(() => {
+    void open.whenPagePaintedAsync().then(() => {
       if (!window.isDestroyed())
         describe(window.getTitle());
     });

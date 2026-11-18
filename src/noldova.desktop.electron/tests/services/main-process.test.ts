@@ -2113,6 +2113,26 @@ export class MainProcessTests {
   }
 
   @TestMethod
+  public async reportsTheMainWindowAsPaintedOnceItsPagePaintsAfterItWasShownUnpainted(): Promise<void> {
+    const connection = new FakeRuntimeConnection();
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(connection));
+      const window = MainProcessStartFixture.firstWindow(electron);
+      await setImmediate();
+      mock.timers.tick(10_000);
+      await Condition.waitAsync(() => window.isShown && MainProcessTests.mainWindow(connection) === JSON.stringify({ title: "Electron", isVisible: true, isPainted: false }));
+
+      MainProcessTests.paint(electron, "linux", window);
+
+      await Condition.waitAsync(() => MainProcessTests.mainWindow(connection) === JSON.stringify({ title: "Electron", isVisible: true, isPainted: true }));
+    }
+    finally {
+      mock.timers.reset();
+    }
+  }
+
+  @TestMethod
   public async logsAListTheRuntimeRefuses(): Promise<void> {
     const connection = new FakeRuntimeConnection();
     connection.answers.set(MainProcessTests.WINDOWS, Response.failure("r", new Failure(FailureCode.Internal, "The database is busy.")));
