@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -64,34 +65,61 @@ export class PackageBuilderTests {
   public leavesEveryCallAloneForAnAppThatNamesNoFolderOrThatIsNoDebianPackage(): Promise<void> {
     return PackageBuilderTests.runAsync(async desktopFile => {
       const packageArguments = ["/app/out/linux-unpacked/=/opt/Sample App"];
+      const unmapped = ["--package", "/app/dist/sample-app_1.2.3_amd64.deb"];
+      const unnamed = ["/app/out/linux-unpacked/=/opt/Sample App", "--package"];
       const defines = { APP_FILENAME: "sample-app" };
 
       const results = [
         await new PackageBuilder(null).computeAsync([packageArguments, desktopFile]),
+        await new PackageBuilder(null).computeAsync([unmapped, desktopFile]),
+        await new PackageBuilder(null).computeAsync([unnamed, desktopFile]),
         await new PackageBuilder("Sample Makers").computeAsync({ args: packageArguments }),
         await new PackageBuilder("Sample Makers").computeAsync([defines, ["!define X"]]),
         await new PackageBuilder("Sample Makers").computeAsync([packageArguments, 42])
       ];
 
-      Assert.areEqual("false,false,false,false", results.join(","));
+      Assert.areEqual("false,false,false,false,false,false", results.join(","));
       Assert.areEqual("/app/out/linux-unpacked/=/opt/Sample App", packageArguments[0]);
+      Assert.areEqual(1, packageArguments.length);
+      Assert.areEqual(2, unmapped.length);
+      Assert.areEqual(2, unnamed.length);
+      Assert.isFalse(existsSync(`${desktopFile}.package-type`));
       Assert.areEqual(PackageBuilderTests.ENTRY, await readFile(desktopFile, "utf8"));
     });
   }
 
   @TestMethod
-  public keepsTheArgumentsOfAnAppThatNamesNoFolderByteForByte(): Promise<void> {
+  public keepsTheArgumentsOfAnAppThatNamesNoFolderAndAddsOnlyItsPackageType(): Promise<void> {
     return PackageBuilderTests.runAsync(async desktopFile => {
-      const packageArguments = ["-s", "dir", "--force", "-t", "deb", "-d", "libgtk-3-0", "--deb-priority", "optional", "--architecture", "amd64",
-        "--after-install", "/tmp/after-install.sh", "--after-remove", "/tmp/after-remove.sh", "--name", "sample-app", "--version", "1.2.3",
+      const packageArguments = ["--architecture", "amd64", "--after-install", "/tmp/after-install.sh", "--after-remove", "/tmp/after-remove.sh", "--version", "1.2.3",
+        "--package", "/app/dist/sample-app_1.2.3_amd64.deb", "--deb-priority", "optional", "--name", "sample-app",
         "/app/out/linux-unpacked/=/opt/Sample App", `${desktopFile}=/usr/share/applications/sample-app.desktop`];
-      const before = JSON.stringify(packageArguments);
+      const before = [...packageArguments];
 
       const isDone = await PackageBuilder.formatOptions(["config.json"]).effectiveOptionComputed([packageArguments, desktopFile]);
 
       Assert.isFalse(isDone);
-      Assert.areEqual(before, JSON.stringify(packageArguments));
+      Assert.areEqual(JSON.stringify([...before, `${desktopFile}.package-type=/opt/Sample App/resources/package-type`]), JSON.stringify(packageArguments));
       Assert.areEqual(PackageBuilderTests.ENTRY, await readFile(desktopFile, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public placesAFileNamingThePackageTypeInTheResourcesOfTheAppItPackages(): Promise<void> {
+    return PackageBuilderTests.runAsync(async desktopFile => {
+      const deb = ["--package", "/app/dist/sample-app_1.2.3_amd64.deb", "/app/out/linux-unpacked/=/opt/Sample App", `${desktopFile}=/usr/share/applications/sample-app.desktop`];
+      const rpm = ["--package", "/app/dist/sample-app-1.2.3.x86_64.rpm", "/app/out/linux-unpacked/=/opt/Sample App"];
+
+      await new PackageBuilder("Sample Makers").computeAsync([deb, desktopFile]);
+      const debianType = await readFile(`${desktopFile}.package-type`, "utf8");
+      await new PackageBuilder(null).computeAsync([rpm, desktopFile]);
+
+      Assert.areEqual(JSON.stringify(["/app/out/linux-unpacked/=/opt/Sample Makers/Sample App", `${desktopFile}=/usr/share/applications/sample-app.desktop`,
+        `${desktopFile}.package-type=/opt/Sample Makers/Sample App/resources/package-type`]), JSON.stringify(deb.slice(2)));
+      Assert.areEqual("deb", debianType);
+      Assert.areEqual(`${desktopFile}.package-type=/opt/Sample App/resources/package-type`, rpm[3]);
+      Assert.areEqual(4, rpm.length);
+      Assert.areEqual("rpm", await readFile(`${desktopFile}.package-type`, "utf8"));
     });
   }
 
