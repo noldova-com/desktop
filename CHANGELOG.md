@@ -4,6 +4,18 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.4
+
+- An app's ARM64 package built on an x64 runner, as a release builds Linux and Windows ARM64 by default, ships its company packages bound to ARM64, which `npm ci` leaves out on the runner.
+  `package-app.yml`'s "Build the app" step, after the app's `prepare` command, packs each company package of the app's lockfile that the install left out and whose `os`, `cpu` and, on Linux, `libc` fit the target into the runner's temporary folder, and packaging takes it from there only when its SHA-512 matches `package-lock.json`.
+  The stage installs for the target's `--os`, `--cpu` and, on Linux, `--libc`, lists each shipped package bound to a platform as an optional dependency, and fails naming any package it left out.
+  A target's failed package job no longer cancels the others, and electron-builder's tool cache is kept per runner architecture.
+- `package-app.yml` and the build's first install run `npm ci` once more when a download stalls after its response started, which npm doesn't retry.
+- `package-app.yml`'s Debian smoke runs `apt-get update` only when the package needs a dependency that isn't installed; on a self-hosted runner, which has no root, it skips the Debian package's smoke and installs or removes nothing.
+- A shortcut pressed in a web view whose command is disabled reaches the page.
+- A document tab no longer carries the accent underline: `IDocumentOptions.underline` and `IDocumentUpdate.underline` are ignored and deprecated, and go at the next minor version.
+- `package-app.yml` and `release-app.yml` call the organization's shared workflows at v2.37.0.
+
 ## 0.0.3
 
 - An app's release files are named `<Product>-<version>-<platform>-<arch>.<ext>`, such as `Sample App-1.2.3-windows-x64.exe`, so releases' files kept side by side never share a name; the update information, `latest-<platform>-<arch>.yml`, keeps its name.
