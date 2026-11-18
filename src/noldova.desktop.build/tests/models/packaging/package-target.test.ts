@@ -26,6 +26,13 @@ export class PackageTargetTests {
   }
 
   @TestMethod
+  public namesTheSystemProcessorAndLibraryNpmInstallsTheTargetsPackagesFor(): void {
+    Assert.areEqual("--os=linux --cpu=arm64 --libc=glibc", new PackageTarget("linux", "arm64").installArguments.join(" "));
+    Assert.areEqual("--os=win32 --cpu=arm64", new PackageTarget("windows", "arm64").installArguments.join(" "));
+    Assert.areEqual("--os=darwin --cpu=x64", new PackageTarget("macos", "x64").installArguments.join(" "));
+  }
+
+  @TestMethod
   public namesThePackageFilesOfAProduct(): void {
     const macos = new PackageTarget("macos", "x64");
 

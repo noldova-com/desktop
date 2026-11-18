@@ -21,7 +21,9 @@ export class NpmFakeFixture implements AsyncDisposable {
     "  const [status, lines, ending] = JSON.parse(readFileSync(path.join(folder, \"plan.json\"), \"utf8\"))[calls - 1];",
     "  writeFileSync(path.join(process.env.npm_config_logs_dir, \"run-debug-0.log\"), lines.map(t => t + ending).join(\"\"));",
     "  process.exitCode = status;",
-    "}"
+    "}",
+    "if (process.argv[2] === \"pack\")",
+    "  appendFileSync(path.join(folder, \"packs.txt\"), JSON.stringify(process.argv.slice(2)) + \"\\n\");"
   ].join("\n");
 
   public readonly folder: string;
@@ -38,6 +40,7 @@ export class NpmFakeFixture implements AsyncDisposable {
     const fake = new NpmFakeFixture(await mkdtemp(path.join(tmpdir(), "npm-fake-")));
     await writeFile(fake.script, NpmFakeFixture.SCRIPT);
     await writeFile(path.join(fake.folder, "calls.txt"), "");
+    await writeFile(path.join(fake.folder, "packs.txt"), "");
     await writeFile(path.join(fake.folder, "plan.json"), JSON.stringify(plan.map(([status, lines]) => [status, lines, ending])));
     await mkdir(fake.bin);
     const command = path.join(fake.bin, "npm");
@@ -48,6 +51,10 @@ export class NpmFakeFixture implements AsyncDisposable {
 
   public async readCallsAsync(): Promise<readonly string[]> {
     return (await readFile(path.join(this.folder, "calls.txt"), "utf8")).split("\n").filter(t => t.length > 0);
+  }
+
+  public async readPacksAsync(): Promise<readonly string[]> {
+    return (await readFile(path.join(this.folder, "packs.txt"), "utf8")).split("\n").filter(t => t.length > 0);
   }
 
   public async [Symbol.asyncDispose](): Promise<void> {

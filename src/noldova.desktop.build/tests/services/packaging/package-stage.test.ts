@@ -56,6 +56,8 @@ export class PackageStageTests {
     "context-core": { version: "1.0.0" },
     "shared-type": { version: "2.1.0" }
   };
+  private static readonly TARGET: PackageTarget = PackageTarget.fromProcess("linux", "x64");
+  private static readonly OTHER_ARCHITECTURE: string = process.arch === "arm64" ? "x64" : "arm64";
   private static readonly INVALID: string = "The root package.json's overrides must be an object, as npm reads them.";
   private static readonly FAILED: string = "Installing the packages into the stage failed with exit code 1; it uses only the build's archives and never the registry:\n";
 
@@ -68,7 +70,7 @@ export class PackageStageTests {
     const [overrides, fields, expected] = PackageStageTests.FORMS[form];
     await using stage = await PackageStageTests.createStageAsync();
 
-    await PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1, overrides), fields, stage.cache, stage.archives);
+    await PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1, overrides), fields, stage.cache, stage.archives, PackageStageTests.TARGET);
     const written = await readFile(path.join(stage.path, "package.json"), "utf8");
 
     Assert.areEqual("2.1.0", await PackageStageTests.readVersionAsync(path.join(stage.path, "node_modules", "shared-type")));
@@ -96,10 +98,41 @@ export class PackageStageTests {
   }
 
   @TestMethod
+  public async stagesAPackageBoundToTheTargetsProcessorAsAnOptionalDependencyOnAHostOfAnother(): Promise<void> {
+    const end = TemporaryFolderRunnerFixture.startTest();
+    const other = PackageStageTests.OTHER_ARCHITECTURE;
+    await using app = await InstalledAppFixture.createAsync();
+    await app.installAsync(InstalledAppFixture.CLI, null, { "addon-host": "1.0.0" });
+    await app.installAsync(InstalledAppFixture.ELECTRON);
+    await app.addThirdPartyAsync("addon-host", "MIT", { LICENSE: "Host license" }, { optionalDependencies: { "addon-zeta": "1.0.0", "addon-bound": "1.0.0" } });
+    await app.addThirdPartyAsync("addon-zeta", "MIT", { LICENSE: "Zeta license" }, { cpu: [other] });
+    await app.addThirdPartyAsync("addon-bound", "MIT", { LICENSE: "Bound license" }, { os: ["linux"], cpu: [other] });
+    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
+
+    await stage.stageAsync(PackageTarget.fromProcess("linux", other), new PassThrough(), null, null);
+    const written = JsonReader.parse(await readFile(path.join(stage.folder, "package.json"), "utf8")).toJson();
+
+    Assert.areEqual(JSON.stringify({ "addon-bound": "1.0.0", "addon-zeta": "1.0.0" }), JSON.stringify(written["optionalDependencies"]));
+    Assert.areEqual("1.0.0,1.0.0", [await PackageStageTests.readVersionAsync(path.join(stage.folder, "node_modules", "addon-bound")),
+      await PackageStageTests.readVersionAsync(path.join(stage.folder, "node_modules", "addon-zeta"))].join(","));
+  }
+
+  @TestMethod
+  public async refusesAStageThatLeavesOutAnArchiveBoundToAnotherProcessorThanTheTargets(): Promise<void> {
+    await using stage = await PackageStageTests.createStageAsync({ "addon-bound": { version: "1.0.0", cpu: [PackageStageTests.OTHER_ARCHITECTURE] } });
+
+    const error = await Assert.throwsAsync(() => PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1),
+      { ...PackageStageTests.FIELDS, optionalDependencies: { "addon-bound": "1.0.0" } }, stage.cache, stage.archives, PackageTarget.fromProcess(process.platform, process.arch)),
+      BuildException);
+
+    Assert.areEqual("Installing the packages into the stage left out addon-bound, which the stage ships for this target.", error.message);
+  }
+
+  @TestMethod
   public async installsOfflineArchivesThatDeclarePeersTheStageNeverShipsAndShipsOnlyThePeersItInstalls(): Promise<void> {
     await using stage = await PackageStageTests.createStageAsync(PackageStageTests.PEERING);
 
-    await PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1), PackageStageTests.FIELDS, stage.cache, stage.archives);
+    await PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1), PackageStageTests.FIELDS, stage.cache, stage.archives, PackageStageTests.TARGET);
     const modules = path.join(stage.path, "node_modules");
 
     Assert.areEqual("1.0.0,1.0.0,2.1.0", [await PackageStageTests.readVersionAsync(path.join(modules, "desktop-host")),
@@ -112,7 +145,7 @@ export class PackageStageTests {
     await using stage = await PackageStageTests.createStageAsync();
 
     const error = await Assert.throwsAsync(() => PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1, { "shared-type": 2 }), PackageStageTests.FIELDS,
-      stage.cache, stage.archives), BuildException);
+      stage.cache, stage.archives, PackageStageTests.TARGET), BuildException);
     const written = JsonReader.parse(await readFile(path.join(stage.path, "package.json"), "utf8")).toJson();
 
     Assert.isTrue(error.message.startsWith(PackageStageTests.FAILED), error.message);
@@ -166,7 +199,7 @@ export class PackageStageTests {
   public async failsOfflineWithoutTheOverridesAsTheDependentsOwnRangeAsksTheRegistry(): Promise<void> {
     await using stage = await PackageStageTests.createStageAsync();
 
-    const error = await Assert.throwsAsync(() => PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1), PackageStageTests.FIELDS, stage.cache, stage.archives),
+    const error = await Assert.throwsAsync(() => PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1), PackageStageTests.FIELDS, stage.cache, stage.archives, PackageStageTests.TARGET),
       BuildException);
 
     Assert.isTrue(error.message.startsWith(PackageStageTests.FAILED) && error.message.includes("ENOTCACHED"), error.message);
@@ -197,7 +230,7 @@ export class PackageStageTests {
 
     for (const overrides of [[], "shared-type@2.1.0", null])
       errors.push((await Assert.throwsAsync(() => PackageStage.installAsync(stage.npm, stage.path, new RootManifest("1.2.3", 1, overrides), PackageStageTests.FIELDS,
-        stage.cache, stage.archives), BuildException)).message);
+        stage.cache, stage.archives, PackageStageTests.TARGET), BuildException)).message);
 
     Assert.areEqual(JSON.stringify(Array<string>(3).fill(PackageStageTests.INVALID)), JSON.stringify(errors));
     Assert.isFalse(existsSync(path.join(stage.path, "package.json")));

@@ -97,7 +97,7 @@ jobs:
     needs: versions
     if: ${{ !inputs.signed }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ fromJSON(matrix.runner) }}
@@ -222,7 +222,41 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
           npm_config_ignore_scripts: 'true'
           PREPARE: ${{ inputs.prepare }}
-        run: eval "$PREPARE"
+          APP_FOLDER: ${{ inputs.app-folder }}
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          (eval "$PREPARE")
+          archives="${RUNNER_TEMP//\\//}/company-archives"
+          left_out=$(node -e '
+            const { existsSync, readFileSync } = require("node:fs");
+            const path = require("node:path");
+            const [root, platform, cpu] = process.argv.slice(1);
+            const os = { windows: "win32", macos: "darwin", linux: "linux" }[platform];
+            const fits = (list, value) => {
+              const items = [list ?? "any"].flat();
+              if (items.length === 1 && items[0] === "any")
+                return true;
+              const negated = items.filter(t => t.startsWith("!"));
+              return !negated.includes(`!${value}`) && (items.includes(value) || negated.length === items.length);
+            };
+            const lock = JSON.parse(readFileSync(path.join(root, "package-lock.json"), "utf8"));
+            for (const [location, entry] of Object.entries(lock.packages ?? {})) {
+              const name = location.split("node_modules/").pop();
+              const isCompany = (name.startsWith("@noldova/") || name.startsWith("@noldova-com/")) && name.split("/").length === 2;
+              const isForTarget = fits(entry.os, os) && fits(entry.cpu, cpu) && (os !== "linux" || fits(entry.libc, "glibc"));
+              if (isCompany && isForTarget && String(entry.resolved).startsWith("https://") && !existsSync(path.join(root, location)))
+                console.log(`${name}@${entry.version}`);
+            }' "$APP_FOLDER" "$TARGET_PLATFORM" "$TARGET_ARCHITECTURE")
+          if [ -n "$left_out" ]; then
+            specs=()
+            while IFS= read -r spec; do
+              specs+=("$spec")
+            done <<< "$left_out"
+            echo "The app's install leaves out these company packages for this target's processor or system, so the package step takes them from $archives: ${specs[*]}"
+            mkdir -p "$archives"
+            npm pack --ignore-scripts --loglevel=error --pack-destination "$archives" "${specs[@]}"
+          fi
 
       - name: Install Electron
         timeout-minutes: 5
@@ -277,7 +311,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ inputs.app-folder }}/_build/package/tool-cache
-          key: electron-builder-tools-${{ runner.os }}-${{ matrix.architecture }}-${{ steps.builder.outputs.version }}
+          key: electron-builder-tools-${{ runner.os }}-${{ runner.arch }}-${{ matrix.architecture }}-${{ steps.builder.outputs.version }}
 
       - name: Download the packaging tools
         if: (runner.os == 'Linux' || runner.os == 'macOS') && steps.tool-cache.outputs.cache-hit != 'true'
@@ -321,6 +355,7 @@ jobs:
         timeout-minutes: 40
         working-directory: ${{ inputs.app-folder }}
         env:
+          NOLDOVA_DESKTOP_COMPANY_ARCHIVES: ${{ runner.temp }}/company-archives
           SIGNED: ${{ matrix.signed }}
           UPDATE_FEED: ${{ inputs.update-feed }}
           PACKAGE_VERSION: ${{ inputs.package-version }}
@@ -625,7 +660,7 @@ jobs:
     needs: versions
     if: inputs.signed && github.ref == 'refs/heads/main'
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ fromJSON(matrix.runner) }}

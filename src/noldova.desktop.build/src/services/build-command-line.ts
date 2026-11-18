@@ -10,6 +10,7 @@
 import { realpathSync } from "node:fs";
 import type { Writable } from "node:stream";
 
+import { CompanyPackage } from "../models/packaging/company-package.ts";
 import { PackageTarget } from "../models/packaging/package-target.ts";
 import { Resources } from "../resources.ts";
 import { AngularProject } from "./angular/angular-project.ts";
@@ -80,7 +81,7 @@ export class BuildCommandLine {
       case Resources.packageCommand: {
         const root = this.folder;
         const npm = new NpmCommand(runner, this.environment);
-        const stage = new PackageStage(root, npm, new PackagedBuild(root, runner, new GalleryFile(root), new AngularProject(root, runner, npm)));
+        const stage = new PackageStage(root, npm, new PackagedBuild(root, runner, new GalleryFile(root), new AngularProject(root, runner, npm)), CompanyPackage.readArchivesFolder(this.environment));
         return new Package(root, this.platform, this.architecture, stage, runner, this.environment, this.output, TrustedSigningModule.PACKAGES).runAsync(rest);
       }
       case Resources.packageSmokeCommand:

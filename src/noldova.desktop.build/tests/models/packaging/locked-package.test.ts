@@ -38,6 +38,13 @@ export class LockedPackageTests {
   }
 
   @TestMethod
+  public isBoundToAPlatformWhenItsLockNamesASystemProcessorOrLibrary(): void {
+    const bound = [{}, { os: ["linux"] }, { cpu: ["arm64"] }, { libc: ["glibc"] }].map(t => new LockedPackage("node_modules/sample", { ...LockedPackageTests.ENTRY, ...t }).isPlatformBound);
+
+    Assert.areEqual("false,true,true,true", bound.join(","));
+  }
+
+  @TestMethod
   public readsAnInstalledPackageFromTheAppsOwnArchive(): void {
     const locked = new LockedPackage("node_modules/sample", { ...LockedPackageTests.ENTRY, resolved: "file:archives/sample-1.2.3.tgz" }, true);
     const root = path.resolve("root");

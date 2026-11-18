@@ -52,6 +52,11 @@ export class PackageTarget {
     return Resources.formatTargetId(this.addonPlatform, this.architecture);
   }
 
+  public get installArguments(): readonly string[] {
+    return Resources.formatInstallPlatformArguments(String(Resources.lockfilePlatforms.get(this.platform)), this.architecture,
+      this.platform === Resources.linuxTarget ? Resources.lockfileLinuxLibrary : null);
+  }
+
   public static listAll(): readonly PackageTarget[] {
     return [...Resources.packageFormats.keys()].flatMap(t => Resources.packageArchitectures.map(u => new PackageTarget(t, u)));
   }
