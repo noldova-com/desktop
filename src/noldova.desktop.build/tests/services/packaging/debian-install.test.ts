@@ -216,8 +216,9 @@ export class DebianInstallTests {
     const offVerified = await (await DebianInstallTests.installAsync(off)).verifyAsync();
     const refusedVerified = await (await DebianInstallTests.installAsync(refused)).verifyAsync();
 
-    Assert.isTrue(offVerified.endsWith(Resources.formatDebianProfileSkipped(DebianInstallTests.PROFILE, false)), offVerified);
-    Assert.isTrue(refusedVerified.endsWith(Resources.formatDebianProfileSkipped(DebianInstallTests.PROFILE, true)), refusedVerified);
+    const typed = `${Resources.lineSeparator}${Resources.formatDebianPackageTypeChecked(DebianInstallTests.TYPE)}`;
+    Assert.isTrue(offVerified.endsWith(`${Resources.formatDebianProfileSkipped(DebianInstallTests.PROFILE, false)}${typed}`), offVerified);
+    Assert.isTrue(refusedVerified.endsWith(`${Resources.formatDebianProfileSkipped(DebianInstallTests.PROFILE, true)}${typed}`), refusedVerified);
     Assert.isFalse(off.captured.includes(DebianInstallTests.PARSE));
     Assert.isTrue(off.captured.includes(DebianInstallTests.PROFILE_MISSING));
     Assert.isFalse(refused.captured.includes(DebianInstallTests.COMPARE));
