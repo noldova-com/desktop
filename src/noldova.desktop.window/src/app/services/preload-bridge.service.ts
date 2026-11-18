@@ -392,11 +392,16 @@ export class PreloadBridgeService extends ClipboardWriter {
     });
   }
 
-  public onWebViewShortcut(listener: (event: KeyboardEvent) => void): () => void {
+  public onWebViewShortcut(dispatch: (event: KeyboardEvent) => boolean): () => void {
     return this.bridge.onWebViewShortcut(t => {
       const event = PreloadBridgeService.readKeyStroke(t);
-      if (!Object.isNull(event))
-        listener(event);
+      let hasRun = false;
+      try {
+        hasRun = !Object.isNull(event) && dispatch(event);
+      }
+      finally {
+        this.bridge.answerWebViewShortcut(PreloadBridgeService.readPress(t), hasRun);
+      }
     });
   }
 
@@ -447,6 +452,15 @@ export class PreloadBridgeService extends ClipboardWriter {
   private static readWebViewEvent(value: unknown): WebViewEvent | null {
     try {
       return WebViewEvent.fromJson(value);
+    }
+    catch {
+      return null;
+    }
+  }
+
+  private static readPress(value: unknown): JsonValue {
+    try {
+      return JsonReader.fromValue(value).readValue(Resources.webViewPressField);
     }
     catch {
       return null;
@@ -576,6 +590,7 @@ export class PreloadBridgeService extends ClipboardWriter {
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.setAppShortcuts))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewEvent))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewShortcut))) &&
+      Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.answerWebViewShortcut))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.onWebViewInput))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.releaseWebViewFocus))) &&
       Object.isFunction(PreloadBridgeService.memberOf(value, nameof<IPreloadBridge>(t => t.logModule))) &&

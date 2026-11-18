@@ -39,6 +39,7 @@ export class ProductIdentity {
   public readonly permissionsModule: string | null;
   public readonly about: ProductAbout;
   public readonly namedUpdateFeed: string | null;
+  public readonly installFolder: string | null;
 
   public constructor(
     name: string,
@@ -55,7 +56,8 @@ export class ProductIdentity {
     windowsSigning: Readonly<Record<string, unknown>> | null = null,
     permissionsModule: string | null = null,
     about: ProductAbout = ProductAbout.NONE,
-    namedUpdateFeed: string | null = null) {
+    namedUpdateFeed: string | null = null,
+    installFolder: string | null = null) {
     const [windows, macos, linux] = deviceFolders;
     const [macCategory, linuxCategory] = categories;
     ProductIdentity.require(name.trim().length > 0 && !Resources.productUnsafeNamePattern.test(name), Resources.productNameField, Resources.productNameExpected);
@@ -77,6 +79,8 @@ export class ProductIdentity {
       ProductIdentity.require(Object.isNull(address) || ProductIdentity.isSecureAddress(address), field, Resources.productAddressExpected);
     ProductIdentity.require(Object.isNull(about.licenses) || about.licenses.trim().length > 0, Resources.productLicensesPath, Resources.productLicensesExpected);
     ProductIdentity.require(Object.isNull(namedUpdateFeed) || UpdateFeed.isNamed(namedUpdateFeed), Resources.productUpdateFeedField, Resources.productUpdateFeedExpected);
+    ProductIdentity.require(Object.isNull(installFolder) || Resources.productInstallFolderPattern.test(installFolder), Resources.productInstallFolderField,
+      Resources.productInstallFolderExpected);
 
     this.name = name;
     this.publisher = publisher;
@@ -96,6 +100,7 @@ export class ProductIdentity {
     this.permissionsModule = permissionsModule;
     this.about = about;
     this.namedUpdateFeed = namedUpdateFeed;
+    this.installFolder = installFolder;
   }
 
   public static async readAsync(root: string): Promise<ProductIdentity> {
@@ -137,7 +142,8 @@ export class ProductIdentity {
       Object.isString(permissionsModule) ? permissionsModule : null,
       new ProductAbout(ProductIdentity.readOptionalText(about, Resources.productDescriptionField), ProductIdentity.readOptionalText(about, Resources.productWebsiteField),
         ProductIdentity.readOptionalText(about, Resources.productReleasesField), ProductIdentity.readOptionalText(about, Resources.productLicensesField)),
-      ProductIdentity.readOptionalText(product, Resources.productUpdateFeedField));
+      ProductIdentity.readOptionalText(product, Resources.productUpdateFeedField),
+      ProductIdentity.readOptionalText(product, Resources.productInstallFolderField));
   }
 
   public get updateFeed(): string {

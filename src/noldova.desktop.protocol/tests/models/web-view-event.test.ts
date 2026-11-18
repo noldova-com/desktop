@@ -23,13 +23,14 @@ export class WebViewEventTests {
     [WebViewEventKind.Crashed, {}],
     [WebViewEventKind.ProfileCleared, { profileKey: "workspace-1" }],
     [WebViewEventKind.RequestRefused, { request: "download", origin: "https://example.com" }],
-    [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: true, origin: "https://example.com" }],
+    [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: true, origin: "https://example.com", disposition: "background-tab" }],
     [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: { timestamp: 1 }, isCut: false }],
     [WebViewEventKind.Dropped, { count: 3 }],
     [WebViewEventKind.Key, { name: "reload" }],
     [WebViewEventKind.Zoom, { factor: 1.25 }],
     [WebViewEventKind.Found, { matches: 4, active: 2 }],
-    [WebViewEventKind.Favicon, { image: "data:image/png;base64,iVBORw0KGgo=" }]
+    [WebViewEventKind.Favicon, { image: "data:image/png;base64,iVBORw0KGgo=" }],
+    [WebViewEventKind.Controlled, { isControlled: true }]
   ]);
 
   @TestMethod
@@ -44,8 +45,18 @@ export class WebViewEventTests {
   }
 
   @TestMethod
+  public carriesANewWindowRequestWithoutADisposition(): void {
+    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":true,\"origin\":null}}";
+
+    const event = WebViewEvent.fromJson(JsonReader.parse(text).toJson());
+
+    Assert.areEqual(text, JSON.stringify(event.toJson()));
+    Assert.isFalse(Object.hasOwn(event.details, "disposition"));
+  }
+
+  @TestMethod
   public carriesANewWindowRequestWhoseOriginIsUnknown(): void {
-    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":false,\"origin\":null}}";
+    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":false,\"origin\":null,\"disposition\":\"foreground-tab\"}}";
 
     Assert.areEqual(text, JSON.stringify(WebViewEvent.fromJson(JsonReader.parse(text).toJson()).toJson()));
   }
@@ -68,9 +79,10 @@ export class WebViewEventTests {
       [WebViewEventKind.Opened, { pane: { name: "pane" }, profileKey: "a" }],
       [WebViewEventKind.Opened, { pane: { name: "browser.pane" }, profileKey: "A" }],
       [WebViewEventKind.RequestRefused, { request: "camera", origin: "https://example.com" }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: "yes", origin: null }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: 1 }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false }],
+      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: "yes", origin: null, disposition: "new-window" }],
+      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: 1, disposition: "new-window" }],
+      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, disposition: "new-window" }],
+      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: null }],
       [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: [], isCut: false }],
       [WebViewEventKind.Dropped, { count: 0 }],
       [WebViewEventKind.Zoom, { factor: 0.2 }],
@@ -84,7 +96,9 @@ export class WebViewEventTests {
       [WebViewEventKind.Favicon, { image: "https://example.com/favicon.ico" }],
       [WebViewEventKind.Favicon, { image: "data:image/png;base64,iVBORw0KGgo" }],
       [WebViewEventKind.Favicon, { image: `data:image/png;base64,${"A".repeat(21_852)}` }],
-      [WebViewEventKind.Favicon, { image: 1 }]
+      [WebViewEventKind.Favicon, { image: 1 }],
+      [WebViewEventKind.Controlled, {}],
+      [WebViewEventKind.Controlled, { isControlled: "true" }]
     ];
 
     for (const [kind, details] of refused)

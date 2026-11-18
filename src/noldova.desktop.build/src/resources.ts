@@ -64,6 +64,7 @@ export class Resources {
   public static readonly linuxTarget: string = "linux";
   public static readonly installerTarget: string = "exe";
   public static readonly diskImageTarget: string = "dmg";
+  public static readonly macInstallerTarget: string = "pkg";
   public static readonly appImageTarget: string = "AppImage";
   public static readonly debianPackageTarget: string = "deb";
   public static readonly modulesPrefix: string = "@noldova/desktop.";
@@ -91,6 +92,9 @@ export class Resources {
   public static readonly addonOutputFolder: string = "native";
   public static readonly addonExtension: string = ".node";
   public static readonly releaseAddonsVariable: string = "RELEASE_ADDONS";
+  public static readonly targetArchitectureVariable: string = "NOLDOVA_DESKTOP_ARCHITECTURE";
+  public static readonly companyArchivesVariable: string = "NOLDOVA_DESKTOP_COMPANY_ARCHIVES";
+  public static readonly electronArchitectureVariable: string = "npm_config_arch";
   public static readonly addonWindowsTargets: readonly string[] = ["win32-x64", "win32-arm64"];
   public static readonly addonPosixTargets: readonly string[] = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
   public static readonly addonTargets: readonly string[] = [...Resources.addonWindowsTargets, ...Resources.addonPosixTargets];
@@ -128,6 +132,7 @@ export class Resources {
   public static readonly textEncoding: BufferEncoding = "utf8";
   public static readonly listSeparator: string = ", ";
   public static readonly diskImageExtension: string = ".dmg";
+  public static readonly macInstallerExtension: string = ".pkg";
   public static readonly appBundleExtension: string = ".app";
   public static readonly hdiutilCommand: string = "hdiutil";
   public static readonly hdiutilAttachArgument: string = "attach";
@@ -151,6 +156,14 @@ export class Resources {
   public static readonly spctlAssessOption: string = "--assess";
   public static readonly spctlTypeOption: string = "--type";
   public static readonly spctlAppAssessment: readonly string[] = [Resources.spctlTypeOption, "execute"];
+  public static readonly spctlInstallerAssessment: readonly string[] = [Resources.spctlTypeOption, "install"];
+  public static readonly pkgutilCommand: string = "pkgutil";
+  public static readonly pkgutilCheckSignatureOption: string = "--check-signature";
+  public static readonly pkgutilExpandFullOption: string = "--expand-full";
+  public static readonly installerPayloadFolder: string = "Payload";
+  public static readonly installerExpandedFolder: string = "expanded";
+  public static readonly appleDeveloperIdInstallerPattern: RegExp = /^\s*1\. Developer ID Installer: /m;
+  public static readonly appleDeveloperIdInstallerRequirement: string = "a Developer ID Installer signature";
   public static readonly spctlDiskImageAssessment: readonly string[] = [Resources.spctlTypeOption, "open", "--context", "context:primary-signature"];
   public static readonly xcrunCommand: string = "xcrun";
   public static readonly staplerCommand: string = "stapler";
@@ -308,6 +321,11 @@ export class Resources {
   public static readonly conptyTargetPrefix: string = "win10-";
   public static readonly macCertificateVariable: string = "MAC_CERTIFICATE";
   public static readonly macCertificatePasswordVariable: string = "MAC_CERTIFICATE_PASSWORD";
+  public static readonly macInstallerCertificateVariable: string = "MAC_INSTALLER_CERTIFICATE";
+  public static readonly macInstallerCertificatePasswordVariable: string = "MAC_INSTALLER_CERTIFICATE_PASSWORD";
+  public static readonly macInstallerSigningCredentials: readonly string[] = [Resources.macInstallerCertificateVariable, Resources.macInstallerCertificatePasswordVariable];
+  public static readonly builderInstallerCertificateVariable: string = "CSC_INSTALLER_LINK";
+  public static readonly builderInstallerCertificatePasswordVariable: string = "CSC_INSTALLER_KEY_PASSWORD";
   public static readonly appleApiKeyVariable: string = "APPLE_API_KEY_P8";
   public static readonly appleApiKeyIdVariable: string = "APPLE_API_KEY_ID";
   public static readonly appleApiIssuerVariable: string = "APPLE_API_ISSUER";
@@ -404,6 +422,24 @@ export class Resources {
   public static readonly appImageExtractedFolder: string = "squashfs-root";
   public static readonly systemRootMissing: string = `${Resources.systemRootVariable} must name the Windows folder, whose PowerShell modules the installer's checks search first.`;
   public static readonly localAppDataMissing: string = `${Resources.localAppDataVariable} must name the folder the installer installs into for the user.`;
+  public static readonly appDataVariable: string = "APPDATA";
+  public static readonly appDataMissing: string = `${Resources.appDataVariable} must name the folder that holds the user's Start menu.`;
+  public static readonly installFolderOption: string = "/D=";
+  public static readonly startMenuProgramsSegments: readonly string[] = ["Microsoft", "Windows", "Start Menu", "Programs"];
+  public static readonly shortcutExtension: string = ".lnk";
+  public static readonly shortcutVariable: string = "NOLDOVA_DESKTOP_SHORTCUT";
+  public static readonly shortcutTimeout: number = 120_000;
+  public static readonly uninstallerVariable: string = "NOLDOVA_DESKTOP_UNINSTALLER";
+  public static readonly uninstallFolderVariable: string = "NOLDOVA_DESKTOP_UNINSTALL_FOLDER";
+  public static readonly uninstallWaitScript: string = [
+    Resources.powershellStopLine,
+    `$uninstall = Microsoft.PowerShell.Management\\Start-Process -FilePath $env:${Resources.uninstallerVariable} -ArgumentList @('/S', "_?=$env:${Resources.uninstallFolderVariable}") -Wait -PassThru`,
+    "exit $uninstall.ExitCode"
+  ].join(Resources.lineSeparator);
+  public static readonly shortcutScript: string = [
+    Resources.powershellStopLine,
+    `(Microsoft.PowerShell.Utility\\New-Object -ComObject WScript.Shell).CreateShortcut($env:${Resources.shortcutVariable}).TargetPath`
+  ].join(Resources.lineSeparator);
   public static readonly packageLayoutFolderSegments: readonly string[] = [Resources.buildFolder, "package"];
   public static readonly packageStageFolder: string = "app";
   public static readonly packageStagedProductSegments: readonly string[] = [Resources.buildFolder, "product.json"];
@@ -436,7 +472,6 @@ export class Resources {
   public static readonly stageIconsRole: string = "the icons folder that desktop.product.icons names";
   public static readonly stageDictionariesRole: string = "the spelling dictionaries the window checks text with";
   public static readonly stageNoGallery: string = "The packaged window holds no Gallery.\n";
-  public static readonly machHeaderLength: number = 8;
   public static readonly machCpuTypeOffset: number = 4;
   public static readonly machUniversalCountOffset: number = 4;
   public static readonly machThinMagic: number = 0xfeedfacf;
@@ -446,6 +481,24 @@ export class Resources {
   public static readonly machCpuTypes: Readonly<Record<string, number>> = { arm64: 0x0100000c, x64: 0x01000007 };
   public static readonly machUniversalFile: string = "a universal Mach-O file";
   public static readonly mach32BitFile: string = "a 32-bit Mach-O file";
+  public static readonly machKind: string = "Mach-O";
+  public static readonly peHeaderOffsetField: number = 0x3c;
+  public static readonly peSignatureLength: number = 6;
+  public static readonly peMachineOffset: number = 4;
+  public static readonly peMachines: Readonly<Record<string, number>> = { arm64: 0xaa64, x64: 0x8664, x86: 0x14c };
+  public static readonly windowsRunnablePeMachines: readonly (readonly [string, string])[] = [
+    ["x64", "x64"], ["x64", "x86"], ["arm64", "arm64"], ["arm64", "x64"], ["arm64", "x86"]
+  ];
+  public static readonly peKind: string = "PE";
+  public static readonly elfClassOffset: number = 4;
+  public static readonly elf64BitClass: number = 2;
+  public static readonly elfDataOffset: number = 5;
+  public static readonly elfLittleEndianData: number = 1;
+  public static readonly elfMachineOffset: number = 18;
+  public static readonly elfMachines: Readonly<Record<string, number>> = { arm64: 183, x64: 62 };
+  public static readonly elfKind: string = "ELF";
+  public static readonly elf32BitFile: string = "a 32-bit ELF file";
+  public static readonly elfBigEndianFile: string = "a big-endian ELF file";
   public static readonly packagedBuildCommandLineName: string = "../build-command-line";
   public static readonly packagedBuildOptions: readonly string[] = [Resources.buildCommand, "--packaged", "--output"];
   public static readonly packagedWindowFolder: string = "window";
@@ -532,7 +585,8 @@ export class Resources {
   public static readonly shippedPackageOffset: number = 2;
   public static readonly shippedWindowsFilesOmission: string = "it leaves a package's .exe and .dll files out of macOS and Linux packages.";
   public static readonly shippedResourceForkOmission: string = `it leaves out every file and folder whose name starts with ${Resources.shippedResourceForkPrefix}.`;
-  public static readonly signingCredentialNames: readonly string[] = [...Resources.windowsSigningCredentials, Resources.windowsPublisherVariable, ...Resources.macSigningCredentials];
+  public static readonly signingCredentialNames: readonly string[] = [...Resources.windowsSigningCredentials, Resources.windowsPublisherVariable, ...Resources.macSigningCredentials,
+    ...Resources.macInstallerSigningCredentials];
   public static readonly installedLockfileSegments: readonly string[] = [Resources.nodeModulesFolder, ".package-lock.json"];
   public static readonly lockfileVersion: number = 3;
   public static readonly lockfileRootLocation: string = String.empty;
@@ -1132,6 +1186,7 @@ export class Resources {
   public static readonly feedUrlCarriesSecret: string = `${Resources.feedUrlVariable} must not carry user info, a query or a fragment, which could hold a secret, so it is not shown here.`;
   public static readonly releaseRevisionVariable: string = "RELEASE_REVISION";
   public static readonly productUpdateFeedField: string = "updateFeed";
+  public static readonly productInstallFolderField: string = "installFolder";
   public static readonly releaseAssetsUsage: string = `Usage: ${Resources.commandName} ${Resources.releaseAssetsCommand} [${Resources.updateFeedOption} <https URL, or http URL of localhost, ending in />]\n`;
   public static readonly mainBranch: string = "main";
   public static readonly onMainStatuses: readonly string[] = ["identical", "ahead"];
@@ -1157,8 +1212,22 @@ export class Resources {
   public static readonly packageSignedOption: string = "--signed";
   public static readonly packageUsage: string = `Usage: ${Resources.commandName} ${Resources.packageCommand} [${Resources.packageSignedOption}] [${Resources.updateFeedOption} <https URL, or http URL of localhost, ending in />]\n`;
   public static readonly commonJsScope: string = `${JSON.stringify({ type: "commonjs" })}\n`;
-  public static readonly builderSegments: readonly string[] = [Resources.nodeModulesFolder, "electron-builder", "cli.js"];
-  public static readonly builderOptions: readonly string[] = ["--publish", "never", "--config"];
+  public static readonly packageBuilderName: string = "../packaging/package-builder";
+  public static readonly builderPublishNever: "never" = "never";
+  public static readonly builderRunExport: "build" = "build";
+  public static readonly builderRunMissing: string = "electron-builder exports no build function, so the package cannot be built.";
+  public static readonly macApplicationsFolder: string = "/Applications";
+  public static readonly macInstallerOverwriteAction: string = "upgrade";
+  public static readonly debianInstallPrefix: string = "/opt";
+  public static readonly debianAppMappingPattern: RegExp = /^(.+\/=)\/opt\/([^/]+)$/;
+  public static readonly debianExecPattern: RegExp = /^(Exec="?)\/opt\//m;
+  public static readonly builderModule: string = "electron-builder";
+  public static readonly builderLibraryManifest: string = "app-builder-lib/package.json";
+  public static readonly builderLinuxTemplatesSegments: readonly string[] = ["templates", "linux"];
+  public static readonly packageDebianTemplatesFolder: string = "debian-templates";
+  public static readonly debianTemplates: ReadonlyMap<string, string> = new Map([["afterInstall", "after-install.tpl"], ["afterRemove", "after-remove.tpl"],
+    ["appArmorProfile", "apparmor-profile.tpl"]]);
+  public static readonly debianTemplateProductPath: string = "/opt/${sanitizedProductName}/";
   public static readonly diskImageDetachFailure: string = "Unable to detach device cleanly";
   public static readonly builderDetachRetry: string = "electron-builder could not detach the disk image it was making while macOS still held its volume; building the packages again, once.\n";
   public static readonly builderVariables: ReadonlySet<string> = new Set([
@@ -1175,16 +1244,36 @@ export class Resources {
   public static readonly smokeRequireSandboxOption: string = "--require-sandbox";
   public static readonly smokeRequireFallbackOption: string = "--require-fallback";
   public static readonly smokeDebianOption: string = "--deb";
+  public static readonly smokeMacInstallerOption: string = "--pkg";
   public static readonly smokeSandboxOptions: readonly string[] = [Resources.smokeRequireSandboxOption, Resources.smokeRequireFallbackOption, Resources.chromiumNoSandboxOption];
   public static readonly smokeOptions: readonly string[] = [Resources.smokeRemoveLeftoverOption, ...Resources.smokeSandboxOptions];
   public static readonly smokeUsage: string = `Usage: ${Resources.commandName} ${Resources.packageSmokeCommand} [${Resources.smokeDebianOption}] [${Resources.smokeSandboxOptions.join(" | ")}]\n`
+    + `       ${Resources.commandName} ${Resources.packageSmokeCommand} ${Resources.smokeMacInstallerOption}\n`
     + `       ${Resources.commandName} ${Resources.packageSmokeCommand} ${Resources.smokeRemoveLeftoverOption}\n`;
+  public static readonly smokeMacInstallerNotFoldered: string = `Only an app that names an install folder makes a macOS installer package, so ${Resources.smokeMacInstallerOption} `
+    + "smokes it on macOS alone.";
   public static readonly smokeDebianNotLinux: string = `Only the Linux package is also a Debian package, so ${Resources.smokeDebianOption} smokes it on Linux alone.`;
   public static readonly sudoCommand: string = "sudo";
+  public static readonly smokeNeighbourName: string = "Smoke Neighbour";
+  public static readonly smokeNeighbourBundle: string = `${Resources.smokeNeighbourName}${Resources.appBundleExtension}`;
+  public static readonly mkdirCommand: string = "mkdir";
+  public static readonly mkdirParentsOption: string = "-p";
+  public static readonly removeCommand: string = "rm";
+  public static readonly removeRecursiveOption: string = "-rf";
+  public static readonly macInstallerCommand: string = "installer";
+  public static readonly macInstallerPackageOption: string = "-pkg";
+  public static readonly macInstallerTargetOption: string = "-target";
+  public static readonly macInstallerRootTarget: string = "/";
+  public static readonly pkgutilForgetOption: string = "--forget";
+  public static readonly installerPackageInfoFromApp: readonly string[] = ["..", "..", "PackageInfo"];
   public static readonly sudoNonInteractiveOption: string = "--non-interactive";
   public static readonly aptGetCommand: string = "apt-get";
   public static readonly aptGetInstallArguments: readonly string[] = ["install", "--yes"];
   public static readonly aptGetRemoveArguments: readonly string[] = ["remove", "--yes"];
+  public static readonly aptGetSimulateArguments: readonly string[] = ["--simulate", "install", "--yes"];
+  public static readonly aptGetUpdateArguments: readonly string[] = ["update"];
+  public static readonly aptGetInstalledPrefix: string = "Inst ";
+  public static readonly aptGetInstalledDetails: RegExp = /\s.*$/;
   public static readonly dpkgDebCommand: string = "dpkg-deb";
   public static readonly dpkgDebFieldOption: string = "--field";
   public static readonly debianPackageField: string = "Package";
@@ -1529,6 +1618,9 @@ export class Resources {
   public static readonly productLicensesExpected: string = "text";
   public static readonly productUpdateFeedExpected: string = "an https folder URL ending in /, with no user info, query or fragment";
   public static readonly productAboutExpected: string = "an object";
+  public static readonly productInstallFolderPattern: RegExp = /^[^\s\\/:*?"<>|'$`.\p{Cc}](?:[^\\/:*?"<>|'$`\p{Cc}]*[^\s\\/:*?"<>|'$`.\p{Cc}])?$/u;
+  public static readonly productInstallFolderExpected: string = "one folder name such as Noldova, without / \\ : * ? \" < > | ' $ ` or control characters, "
+    + "and with no space or dot at either end";
   public static readonly productMissing: string = `The root ${Resources.packageManifestFileName} must declare ${Resources.formatFieldPath(Resources.manifestDesktopField, Resources.productField)}.`;
   public static readonly productWindowsPublisherRemoved: string = `${Resources.formatFieldPath(Resources.manifestDesktopField, Resources.productField, Resources.productWindowsPublisherField)} no longer goes in ${Resources.packageManifestFileName}; remove it. A signed Windows package takes its publisher from the release's ${Resources.windowsPublisherVariable} secret.`;
   public static readonly manifestPackagingField: string = "packaging";
@@ -1565,6 +1657,8 @@ export class Resources {
   public static readonly lockedPackageVersion: RegExp = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$/;
   public static readonly lockResolvedField: string = "resolved";
   public static readonly lockInBundleField: string = "inBundle";
+  public static readonly lockLinkField: string = "link";
+  public static readonly ownArchiveFolder: RegExp = /^(?:\.\.\/)*_packages$/u;
   public static readonly omittedOptionalsField: string = "omittedOptionals";
   public static readonly omittedOptionalsShape: string = `The root package.json's ${Resources.omittedOptionalsSection} must map each package, as <name>@<version>, to `
     + "{ \"dependencies\": [<optional dependency name>, ...], \"reason\": \"<why the app never loads them>\" }.";
@@ -1582,6 +1676,7 @@ export class Resources {
   public static readonly packageArchitectures: readonly string[] = [Resources.architectureX64, Resources.architectureArm64];
   public static readonly builderFormatNsis: string = "nsis";
   public static readonly builderFormatDmg: string = "dmg";
+  public static readonly builderFormatPkg: string = "pkg";
   public static readonly builderFormatZip: string = "zip";
   public static readonly builderFormatAppImage: string = "AppImage";
   public static readonly builderFormatDeb: string = "deb";
@@ -1590,6 +1685,8 @@ export class Resources {
     [Resources.macosTarget, new Map([[Resources.builderFormatDmg, Resources.diskImageTarget], [Resources.builderFormatZip, Resources.zipArchiveTarget]])],
     [Resources.linuxTarget, new Map([[Resources.builderFormatAppImage, Resources.appImageTarget], [Resources.builderFormatDeb, Resources.debianPackageTarget]])]
   ]);
+  public static readonly folderedPackageFormats: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map([...Resources.packageFormats,
+    [Resources.macosTarget, new Map([[Resources.builderFormatPkg, Resources.macInstallerTarget], [Resources.builderFormatZip, Resources.zipArchiveTarget]])]]);
   public static readonly packageUpdateExtensions: ReadonlyMap<string, string> = new Map([
     [Resources.windowsTarget, Resources.installerTarget], [Resources.macosTarget, Resources.zipArchiveTarget], [Resources.linuxTarget, Resources.appImageTarget]
   ]);
@@ -1770,6 +1867,10 @@ export class Resources {
       + `with a valid, timestamped signature. Refused:\n${refused.join(Resources.lineSeparator)}`;
   }
 
+  public static formatMacInstallerCredentialsMissing(missing: readonly string[]): string {
+    return `Signing the macOS installer package of an app that names an install folder needs ${missing.join(Resources.listSeparator)}, the Developer ID Installer certificate.`;
+  }
+
   public static formatMacSigningCredentialsMissing(missing: readonly string[]): string {
     return `Signing macOS packages needs ${missing.join(Resources.listSeparator)}, the Developer ID Application certificate and the App Store Connect key that notarizes.`;
   }
@@ -1834,7 +1935,7 @@ export class Resources {
     return `The stage needs ${missing.join(Resources.listSeparator)}, which is not a package under src/.`;
   }
 
-  public static formatMachArchitectureUnknown(architecture: string, known: readonly string[]): string {
+  public static formatNativeArchitectureUnknown(architecture: string, known: readonly string[]): string {
     return `The package's architecture ${architecture} is none of ${known.join(Resources.listSeparator)}.`;
   }
 
@@ -2189,6 +2290,18 @@ export class Resources {
     return `${image}: the disk image and its app each have a valid Developer ID Application signature, notarized and stapled.`;
   }
 
+  public static formatAppleInstallerSubject(installer: string): string {
+    return `The installer package ${installer}`;
+  }
+
+  public static formatAppleInstallerVerified(installer: string): string {
+    return `${installer}: the installer package has a valid Developer ID Installer signature and its app a valid Developer ID Application signature, each notarized and stapled.`;
+  }
+
+  public static formatAppleInstallerAppMissing(expanded: string, bundle: string): string {
+    return `The installer package expanded into ${expanded} holds no ${bundle} in a component's payload.`;
+  }
+
   public static formatAppleArchiveVerified(archive: string): string {
     return `${archive}: a valid Developer ID Application signature, notarized and stapled.`;
   }
@@ -2305,6 +2418,34 @@ export class Resources {
     ].map(t => `${t}\n`).join(String.empty);
   }
 
+  public static formatWindowsNeighbourRemoved(neighbour: string): string {
+    return `Uninstalling the app removed ${neighbour}, which belongs to another app in its install folder.`;
+  }
+
+  public static formatWindowsNeighbourMoved(neighbour: string): string {
+    return `Moving the app into its install folder removed ${neighbour}, which belongs to another app there.`;
+  }
+
+  public static formatWindowsOldInstallKept(folder: string): string {
+    return `The update left the old install in ${folder}, which it should have moved into the app's install folder.`;
+  }
+
+  public static formatShortcutElsewhere(shortcut: string, target: string, program: string): string {
+    return `${shortcut} starts "${target}", not ${program}.`;
+  }
+
+  public static formatShortcutReadFailed(shortcut: string, exitCode: number | null, output: string): string {
+    return `${shortcut} could not be read: ${Resources.windowsPowershellCommand} exited with ${exitCode}:${Resources.lineSeparator}${output}`;
+  }
+
+  public static formatInstallFolderKept(folder: string): string {
+    return `Uninstalling the app left its install folder ${folder}.`;
+  }
+
+  public static formatCopiedUninstallerHeld(uninstaller: string, error: unknown, holders: string): string {
+    return `The copy of the uninstaller ${uninstaller} could not be removed after it and every process it started had exited: ${String(error)}${Resources.lineSeparator}${holders}`;
+  }
+
   public static formatUninstallerNotRemoved(uninstaller: string, error: unknown): string {
     return `The uninstaller ${uninstaller} could not be removed after it ran: ${String(error)}`;
   }
@@ -2329,6 +2470,14 @@ export class Resources {
     return `${String(error)}\nDetaching the disk image after the failed copy failed too: ${String(detachError)}`;
   }
 
+  public static formatInstallPlatformArguments(system: string, architecture: string, library: string | null): readonly string[] {
+    return [`--os=${system}`, `--cpu=${architecture}`, ...Object.isNull(library) ? [] : [`--libc=${library}`]];
+  }
+
+  public static formatStageArchivesLeftOut(names: readonly string[]): string {
+    return `Installing the packages into the stage left out ${names.join(", ")}, which the stage ships for this target.`;
+  }
+
   public static formatStageInstallFailed(exitCode: number | null, output: string): string {
     return `Installing the packages into the stage failed with exit code ${exitCode}; it uses only the build's archives and never the registry:\n${output}`;
   }
@@ -2349,16 +2498,35 @@ export class Resources {
     return `${id} (${license})`;
   }
 
-  public static formatMachArchitectureMismatch(file: string, found: string, architecture: string): string {
-    return `The installed ${file} is ${found}, not an ${architecture}-only Mach-O file, so it would not run natively on ${architecture}.`;
+  public static formatNativeArchitectureMismatch(file: string, found: string, kind: string, architecture: string): string {
+    return `The file ${file} is ${found}, not an ${architecture}-only ${kind} file, so it would not run natively on ${architecture}.`;
   }
 
-  public static formatMachArchitectureVerified(application: string, count: number, architecture: string): string {
-    return `Every Mach-O file in ${application}, ${count} in all, is ${architecture} alone.`;
+  public static formatNativeArchitectureVerified(folder: string, count: number, architecture: string): string {
+    return `Every Mach-O, PE and ELF file in ${folder}, ${count} in all, is ${architecture} alone.`;
+  }
+
+  public static formatWindowsMachineMismatch(file: string, found: string, architecture: string, accepted: readonly string[]): string {
+    return `The file ${file} is ${found}, not a PE file that Windows runs on ${architecture}, which runs ${accepted.join(Resources.listSeparator)}.`;
+  }
+
+  public static formatWindowsMachinesVerified(folder: string, architecture: string, accepted: readonly string[], held: readonly (readonly [string, number])[]): string {
+    const count = held.reduce((total, [, files]) => total + files, 0);
+    const kinds = held.filter(([, files]) => files > 0).map(([machine, files]) => `${files} ${machine}`);
+    return `Every Mach-O, PE and ELF file in ${folder}, ${count} in all, is one Windows runs on ${architecture}, which runs ${accepted.join(Resources.listSeparator)}: `
+      + `${kinds.length === 0 ? "none" : kinds.join(Resources.listSeparator)}.`;
   }
 
   public static formatMachCpuType(type: number): string {
     return `a Mach-O file for CPU type 0x${type.toString(16)}`;
+  }
+
+  public static formatPeMachine(machine: number): string {
+    return `a PE file for machine 0x${machine.toString(16)}`;
+  }
+
+  public static formatElfMachine(machine: number): string {
+    return `an ELF file for machine ${String(machine)}`;
   }
 
   public static formatPackagedBuildFailed(exitCode: number | null): string {
@@ -3537,8 +3705,28 @@ export class Resources {
     return `The smoke's folder ${folder} could not be removed: ${String(error)}`;
   }
 
-  public static formatSmokeDebianNotRemoved(packageName: string, error: unknown): string {
-    return `The smoke's Debian package ${packageName} could not be removed: ${String(error)}`;
+  public static formatDebianInstalledElsewhere(program: string, expected: string): string {
+    return `The Debian package installed its program at ${program}, outside a folder of its own in ${expected}.`;
+  }
+
+  public static formatMacInstallerElsewhere(installer: string, location: string, information: string): string {
+    return `The installer package ${installer} installs elsewhere than ${location}:\n${information}`;
+  }
+
+  public static formatMacNeighbourTouched(neighbour: string): string {
+    return `Installing the installer package removed or replaced ${neighbour}, which it must leave beside the app.`;
+  }
+
+  public static formatMacInstalled(installer: string, application: string, neighbour: string): string {
+    return `${installer} installed ${application} and left ${neighbour} beside it.`;
+  }
+
+  public static formatMacRemoved(application: string, neighbour: string): string {
+    return `Removed ${application} and ${neighbour}.`;
+  }
+
+  public static formatSmokeSystemInstallNotRemoved(packageName: string, error: unknown): string {
+    return `The smoke's install of ${packageName} could not be removed: ${String(error)}`;
   }
 
   public static formatSmokeRuntimeNotEnded(runtime: number): string {
@@ -3645,6 +3833,10 @@ export class Resources {
     return `Building ${packageName}'s ${kind} addon ${addon} failed with exit code ${exitCode}:\n${text}`;
   }
 
+  public static formatAddonArchitectureRefused(packageName: string, architecture: string, machineArchitecture: string): string {
+    return `${packageName}'s addons can't be built for ${architecture} on this ${machineArchitecture} machine, since node-gyp builds for the machine's own processor. Build on a ${architecture} machine, or name a folder of release builds in ${Resources.releaseAddonsVariable}.`;
+  }
+
   public static formatReleaseAddonMissing(target: string, packageName: string, addon: string, directory: string, build: string): string {
     return `${Resources.releaseAddonsVariable} lacks the ${target} build of ${packageName}'s addon ${addon}, ${directory}/${build}.`;
   }
@@ -3705,6 +3897,28 @@ export class Resources {
     return `${file} must list its files in an array of patterns.`;
   }
 
+  public static formatInstallLocationAttribute(location: string): string {
+    return `install-location="${location.replaceAll("&", "&amp;")}"`;
+  }
+
+  public static formatMacInstallLocation(installFolder: string): string {
+    return `${Resources.macApplicationsFolder}/${installFolder}`;
+  }
+
+  public static formatDebianInstallFolder(installFolder: string): string {
+    return `${Resources.debianInstallPrefix}/${installFolder}`;
+  }
+
+  public static formatDebianInstallFolderUnplaced(installFolder: string, desktopFile: string): string {
+    return `electron-builder's Debian package arguments map no app folder into ${Resources.debianInstallPrefix}, or its desktop entry ${desktopFile} runs no program there, `
+      + `so the package can't move them into ${Resources.formatDebianInstallFolder(installFolder)}.`;
+  }
+
+  public static formatDebianTemplateUnplaced(template: string, installFolder: string): string {
+    return `electron-builder's Debian template ${template} names no ${Resources.debianTemplateProductPath}, so the package can't move its paths into `
+      + `${Resources.formatDebianInstallFolder(installFolder)}.`;
+  }
+
   public static formatProductFieldInvalid(field: string, expected: string): string {
     return `The root ${Resources.packageManifestFileName}'s ${Resources.formatFieldPath(Resources.manifestDesktopField, Resources.productField, field)} must be ${expected}.`;
   }
@@ -3723,6 +3937,12 @@ export class Resources {
 
   public static formatDebianPackageUnnamed(file: string, exitCode: number | null, text: string): string {
     return `dpkg-deb found no package name in ${file}, ${Resources.formatExitCodeProblem(exitCode, text)}`;
+  }
+
+  public static formatDebianDependenciesMissing(file: string, missing: readonly string[], simulation: string, exitCode: number | null, text: string): string {
+    const lacking = missing.length > 0 ? `needs ${missing.join(Resources.listSeparator)}, which this runner lacks` : `has dependencies apt-get could not resolve here: ${simulation.trim()}`;
+    return `${file} ${lacking}, and sudo --non-interactive apt-get update could not run to find them, ${Resources.formatExitCodeProblem(exitCode, text)}. `
+      + "The Debian package's smoke needs the runner's user to run apt-get as root without a password, as it installs and removes the package with sudo.";
   }
 
   public static formatDebianCommandUnresolved(command: string, exitCode: number | null, text: string): string {
@@ -3879,6 +4099,15 @@ export class Resources {
     return `${id} could not be read at ${location}, where npm ci installs it after checking it against package-lock.json; the stage takes the company's packages only from there.`;
   }
 
+  public static formatCompanyPackageUnreadableOrUnfetched(id: string, location: string, archive: string): string {
+    return `${id} could not be read at ${location}, where npm ci installs it after checking it against package-lock.json, or at ${archive}, `
+      + `where the install packs a company package that npm ci leaves out for another processor or system; the stage takes the company's packages only from there.`;
+  }
+
+  public static formatFetchedCompanyArchiveMismatch(archive: string, id: string): string {
+    return `${archive} does not match the integrity package-lock.json locks for ${id}, so it cannot ship.`;
+  }
+
   public static formatCompanyPackageMismatch(location: string, id: string): string {
     return `${location} does not hold ${id}, which package-lock.json locks; run npm ci, so the stage takes the locked package.`;
   }
@@ -3954,6 +4183,32 @@ export class Resources {
 
   public static formatLockedPackageUnlocked(name: string, version: string, location: string): string {
     return `${name}@${version} at ${location} is installed but not locked in package-lock.json, and only a package installed from the app's own archive may ship unlocked.`;
+  }
+
+  public static formatLockedPackageLinked(location: string, resolved: string): string {
+    return `${location} in package-lock.json links to the folder ${resolved}; a linked folder cannot ship, so lock the package to its archive in the repository's own ${Resources.archivesFolder} folder.`;
+  }
+
+  public static formatLockedArchiveRefused(name: string, version: string, location: string, resolved: string): string {
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved}; a locked file ships only as a ${Resources.packageArchiveExtension} archive of a Noldova package `
+      + `directly in the ${Resources.archivesFolder} folder of the app's folder or of a folder above it.`;
+  }
+
+  public static formatLockedArchiveMisnamed(name: string, version: string, location: string, resolved: string, expected: string): string {
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved}; its archive must be named ${expected}, the name npm pack gives ${name}@${version}.`;
+  }
+
+  public static formatLockedArchiveOutside(id: string, archive: string, repository: string): string {
+    return `${id} is locked to ${archive}, which is outside the repository at ${repository}; an app ships only the archives in its own repository's ${Resources.archivesFolder} folders.`;
+  }
+
+  public static formatLockedArchiveThroughLink(id: string, archive: string, real: string): string {
+    return `${id} is locked to ${archive}, which a link leads to ${real}; an app ships an archive only from its repository's own ${Resources.archivesFolder} folder, not through a link.`;
+  }
+
+  public static formatLockedArchiveNoIntegrity(name: string, version: string, location: string, resolved: string): string {
+    return `${name}@${version} at ${location} in package-lock.json is locked to ${resolved} with an integrity that holds no SHA-512, so its archive cannot be verified; `
+      + `write "integrity": "sha512-<the archive's SHA-512 digest in base64>" beside its "resolved", or leave the integrity out to ship the archive as it is.`;
   }
 
   public static formatLockedPackageUnresolved(name: string, version: string, location: string): string {

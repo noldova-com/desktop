@@ -573,6 +573,71 @@ export class PackageTests {
   }
 
   @TestMethod
+  public async namesTheInstallFolderToTheBuilderOnlyForAnAppThatNamesOneAsync(): Promise<void> {
+    await using foldered = await InstalledAppFixture.createAsync({ installFolder: "Sample Makers" });
+    await using plain = await InstalledAppFixture.createAsync();
+
+    const named = await PackageTests.buildAsync(foldered, "linux", "x64", true);
+    const unnamed = await PackageTests.buildAsync(plain, "linux", "x64", true);
+
+    Assert.areEqual(0, named.exitCode, named.output);
+    Assert.areEqual(0, unnamed.exitCode, unnamed.output);
+    Assert.areEqual(`${new PackageLayout(foldered.path).configuration}|Sample Makers`, named.calls[0]?.slice(1).join("|"));
+    Assert.areEqual(new PackageLayout(plain.path).configuration, unnamed.calls[0]?.slice(1).join("|"));
+    Assert.isTrue(named.calls[0]?.[0]?.includes("package-builder") ?? false, JSON.stringify(named.calls));
+  }
+
+  @TestMethod
+  public async checksEveryFolderTheBuilderMadeHoldsTheTargetsArchitectureAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const layout = new PackageLayout(app.path);
+    const unpacked = path.join(layout.output, "linux-arm64-unpacked");
+
+    const result = await PackageTests.buildAsync(app, "linux", "arm64", true, [], {}, (t, u) => new StandInBuilderRunnerFixture(t, u, [], new Map([
+      [path.join(unpacked, "sample-app"), PackageTests.elf(183)],
+      [path.join(unpacked, "resources", "app.asar.unpacked", "node_modules", "node-pty", "prebuilds", "linux-arm64", "pty.node"), PackageTests.elf(183)],
+      [path.join(unpacked, "resources", "app.asar"), Buffer.from("sample")]
+    ])));
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith(`${Resources.formatNativeArchitectureVerified(unpacked, 2, "arm64")}\n`), result.output);
+    Assert.isTrue(existsSync(layout.report));
+  }
+
+  @TestMethod
+  public async acceptsTheProgramsWindowsRunsOnAWindowsPackagesArchitectureAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const layout = new PackageLayout(app.path);
+    const unpacked = path.join(layout.output, "win-arm64-unpacked");
+
+    const result = await PackageTests.buildAsync(app, "win32", "arm64", true, [], {}, (t, u) => new StandInBuilderRunnerFixture(t, u, [], new Map([
+      [path.join(unpacked, "Sample.exe"), PackageTests.pe(0xaa64)],
+      [path.join(unpacked, "resources", "git", "usr", "bin", "ssh.exe"), PackageTests.pe(0x8664)],
+      [path.join(unpacked, "resources", "git", "usr", "libexec", "getprocaddr32.exe"), PackageTests.pe(0x14c)]
+    ])));
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith(`${Resources.formatWindowsMachinesVerified(unpacked, "arm64", ["arm64", "x64", "x86"], [["arm64", 1], ["x64", 1], ["x86", 1]])}\n`),
+      result.output);
+  }
+
+  @TestMethod
+  public async refusesABuiltFileOfAnotherArchitectureBeforeItsReportAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const layout = new PackageLayout(app.path);
+    const addon = path.join(layout.output, "linux-arm64-unpacked", "resources", "app.asar.unpacked", "node_modules", "node-pty", "prebuilds", "linux-x64", "pty.node");
+
+    const result = await PackageTests.buildAsync(app, "linux", "arm64", true, [], {}, (t, u) => new StandInBuilderRunnerFixture(t, u, [], new Map([
+      [path.join(layout.output, "linux-arm64-unpacked", "sample-app"), PackageTests.elf(183)],
+      [addon, PackageTests.elf(62)]
+    ])));
+
+    Assert.areEqual(1, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith(`The file ${addon} is x64, not an arm64-only ELF file, so it would not run natively on arm64.\n`), result.output);
+    Assert.isFalse(existsSync(layout.report));
+  }
+
+  @TestMethod
   public async refusesABuildThatLeavesOutAPackageAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync();
     const layout = new PackageLayout(app.path);
@@ -668,10 +733,28 @@ export class PackageTests {
     Assert.isFalse(error instanceof BuildException, error.message);
   }
 
+  private static pe(machine: number): Buffer {
+    const file = Buffer.alloc(0x90);
+    file.writeUInt16LE(0x5a4d, 0);
+    file.writeUInt32LE(0x80, 0x3c);
+    file.writeUInt32LE(0x00004550, 0x80);
+    file.writeUInt16LE(machine, 0x84);
+    return file;
+  }
+
+  private static elf(machine: number): Buffer {
+    const header = Buffer.alloc(64);
+    header.writeUInt32LE(0x464c457f, 0);
+    header[4] = 2;
+    header[5] = 1;
+    header.writeUInt16LE(machine, 18);
+    return header;
+  }
+
   private static async buildAsync(app: InstalledAppFixture, platform: string, architecture: string, makesPackages: boolean, packageArguments: readonly string[] = [],
     environment: NodeJS.ProcessEnv = {},
     createRunner: (temporary: TemporaryFolderRunnerFixture, files: readonly string[]) => StandInBuilderRunnerFixture = (t, u) => new StandInBuilderRunnerFixture(t, u)):
-    Promise<{ readonly exitCode: number; readonly output: string; readonly environments: readonly NodeJS.ProcessEnv[] }> {
+    Promise<{ readonly exitCode: number; readonly output: string; readonly environments: readonly NodeJS.ProcessEnv[]; readonly calls: readonly (readonly string[])[] }> {
     await app.installAsync(InstalledAppFixture.CLI);
     await app.installAsync(InstalledAppFixture.ELECTRON);
     await app.writeAppFileAsync("node_modules/electron/dist/electron", String.empty);
@@ -684,7 +767,7 @@ export class PackageTests {
     const chunks: string[] = [];
     output.on("data", (t: Buffer) => chunks.push(t.toString()));
     const exitCode = await new Package(app.path, platform, architecture, stage, runner, environment, output, []).runAsync(packageArguments);
-    return { exitCode, output: chunks.join(String.empty), environments: runner.environments };
+    return { exitCode, output: chunks.join(String.empty), environments: runner.environments, calls: runner.calls };
   }
 
   private static async packageTermsAsync(accepted: string, files: Readonly<Record<string, string>>, version: string = "1.0.0"): Promise<readonly [string, string | null]> {

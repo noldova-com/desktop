@@ -479,7 +479,12 @@ export declare enum WebViewAction {
   /**
    * Sends the view a debugging call the module declares; its value holds `method`, `params` and `timeoutMilliseconds`.
    */
-  Send = "Send"
+  Send = "Send",
+
+  /**
+   * Marks whether an agent controls the view, which keeps it painted while hidden; its value is a boolean.
+   */
+  SetControlled = "SetControlled"
 }
 
 /**
@@ -532,7 +537,13 @@ export declare enum WebViewEventKind {
    * `webViews.json` takes such requests; the host opens no window. Its details
    * are the `address`, `hadRecentInput`, whether the person's own key, mouse or
    * touch input reached the view in the last 5 seconds, relayed input aside,
-   * and the `origin` of the referrer, or `null` when the engine sends none.
+   * the `origin` of the referrer, or `null` when the engine sends none, and
+   * the `disposition` the engine gives the request: `background-tab` for the
+   * person's middle or Ctrl or Cmd click on a link, `foreground-tab` for a
+   * link's `target="_blank"` or a script's plain `window.open`, `new-window`
+   * for a `window.open` that asks for a popup or a Shift click, and `default`
+   * or `other` otherwise. The host always sends it; an event without it, such
+   * as one a module's tests build, is accepted until 0.1.0.
    */
   NewWindowRequested = "NewWindowRequested",
 
@@ -564,7 +575,12 @@ export declare enum WebViewEventKind {
   /**
    * The page's icon changed; its details are the `image`, a `data:image/png` URL of at most 64 by 64 pixels and 16 KB, or null when the page has none or it can't be read. Only the window part gets it.
    */
-  Favicon = "Favicon"
+  Favicon = "Favicon",
+
+  /**
+   * The runtime part marked whether an agent controls the view; its details are `isControlled`. Only the window part gets it.
+   */
+  Controlled = "Controlled"
 }
 
 /**

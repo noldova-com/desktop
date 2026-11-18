@@ -60,6 +60,7 @@ import { AppearanceKeeper } from "./appearance-keeper.js";
 import { ApplicationMenu } from "./application-menu.js";
 import { DeviceSettingFollower } from "./device-setting-follower.js";
 import { DeviceState } from "./device-state.js";
+import { InstallFolderMove } from "./install-folder-move.js";
 import { IpcRouter } from "./ipc-router.js";
 import { LayoutKeeper } from "./layout-keeper.js";
 import { LocalWindowStateStore } from "./local-window-state-store.js";
@@ -264,6 +265,8 @@ export class MainProcess {
       log.write(Resources.formatRestartArgumentsUnread(String(failure)));
     if (!MainProcess.prepareBeforeReady(electron, process, log))
       return;
+    if (await new InstallFolderMove(electron.app, electron.shell, process, log).runAsync(isPackaged, Resources.applicationName, Resources.installFolder))
+      return;
     if (isPackaged)
       await restartArguments.removeAsync().catch((failure: unknown) => log.write(Resources.formatRestartArgumentsNotForgotten(String(failure))));
     const launchSettings = new LaunchSettings(
@@ -460,7 +463,7 @@ export class MainProcess {
     this.surface.openWindow(contentsId, this.isWayland() ? null : window.getMediaSourceId());
     const describe = (title: string): void => this.surface.describeWindow(contentsId, title, window.isVisible(), open.isPagePainted);
     describe(window.getTitle());
-    void open.whenPaintedAsync().then(() => {
+    void open.whenPagePaintedAsync().then(() => {
       if (!window.isDestroyed())
         describe(window.getTitle());
     });

@@ -38,12 +38,97 @@ export class LockedPackageTests {
   }
 
   @TestMethod
+  public isBoundToAPlatformWhenItsLockNamesASystemProcessorOrLibrary(): void {
+    const bound = [{}, { os: ["linux"] }, { cpu: ["arm64"] }, { libc: ["glibc"] }].map(t => new LockedPackage("node_modules/sample", { ...LockedPackageTests.ENTRY, ...t }).isPlatformBound);
+
+    Assert.areEqual("false,true,true,true", bound.join(","));
+  }
+
+  @TestMethod
   public readsAnInstalledPackageFromTheAppsOwnArchive(): void {
     const locked = new LockedPackage("node_modules/sample", { ...LockedPackageTests.ENTRY, resolved: "file:archives/sample-1.2.3.tgz" }, true);
     const root = path.resolve("root");
 
     Assert.isTrue(locked.isInstalled);
     Assert.areEqual(path.resolve(root, "archives/sample-1.2.3.tgz"), locked.locateArchive(root));
+  }
+
+  @TestMethod
+  public readsANoldovaPackageLockedToItsArchiveInThePackagesFolderOfTheAppOrAFolderAboveIt(): void {
+    const root = path.resolve("root", "app");
+    for (const file of ["_packages/noldova-sample-1.2.3-beta.1.tgz", "../_packages/noldova-sample-1.2.3-beta.1.tgz", "../../_packages/noldova-sample-1.2.3-beta.1.tgz"]) {
+      const locked = new LockedPackage("node_modules/@noldova/sample", { ...LockedPackageTests.ENTRY, resolved: `file:${file}` });
+
+      Assert.isFalse(locked.isInstalled, file);
+      Assert.isTrue(locked.isArchive, file);
+      Assert.areEqual(path.resolve(root, file), locked.locateArchive(root), file);
+    }
+  }
+
+  @TestMethod
+  public readsANoldovaComPackageLockedToItsArchiveInThePackagesFolder(): void {
+    const root = path.resolve("root");
+    const locked = new LockedPackage("node_modules/@noldova-com/sample", { ...LockedPackageTests.ENTRY, resolved: "file:_packages/noldova-com-sample-1.2.3-beta.1.tgz" });
+
+    Assert.areEqual("@noldova-com/sample,true", [locked.name, String(locked.isArchive)].join());
+    Assert.areEqual(path.resolve(root, "_packages", "noldova-com-sample-1.2.3-beta.1.tgz"), locked.locateArchive(root));
+  }
+
+  @TestMethod
+  public refusesALockedArchiveNotNamedAsNpmPackNamesThePackage(): void {
+    for (const file of ["sample.tgz", "noldova-sample-1.0.0.tgz", "noldova-com-sample-1.2.3-beta.1.tgz"]) {
+      const resolved = `file:_packages/${file}`;
+      const error = Assert.throws(() => new LockedPackage("node_modules/@noldova/sample", { ...LockedPackageTests.ENTRY, resolved }), BuildException);
+
+      Assert.areEqual(`@noldova/sample@1.2.3-beta.1 at node_modules/@noldova/sample in package-lock.json is locked to ${resolved}; `
+        + "its archive must be named noldova-sample-1.2.3-beta.1.tgz, the name npm pack gives @noldova/sample@1.2.3-beta.1.", error.message, file);
+    }
+  }
+
+  @TestMethod
+  public refusesALockedFileThatIsNotANoldovaArchiveDirectlyInThePackagesFolder(): void {
+    const cases: readonly (readonly [string, string])[] = [
+      ["node_modules/@noldova/sample", "file:archives/sample.tgz"],
+      ["node_modules/@noldova/sample", "file:_packages/nested/sample.tgz"],
+      ["node_modules/@noldova/sample", "file:_packages/../sample.tgz"],
+      ["node_modules/@noldova/sample", "file:../other/_packages/sample.tgz"],
+      ["node_modules/@noldova/sample", "file:../_packages/../_packages/sample.tgz"],
+      ["node_modules/@noldova/sample", "file:/_packages/sample.tgz"],
+      ["node_modules/@noldova/sample", "file:_packages/sample"],
+      ["node_modules/sample", "file:_packages/sample-1.2.3-beta.1.tgz"]
+    ];
+    for (const [location, resolved] of cases) {
+      const error = Assert.throws(() => new LockedPackage(location, { ...LockedPackageTests.ENTRY, resolved }), BuildException);
+
+      Assert.areEqual(`${location.slice("node_modules/".length)}@1.2.3-beta.1 at ${location} in package-lock.json is locked to ${resolved}; `
+        + "a locked file ships only as a .tgz archive of a Noldova package directly in the _packages folder of the app's folder or of a folder above it.", error.message, resolved);
+    }
+  }
+
+  @TestMethod
+  public readsALockedArchiveWithoutAnIntegrityAsOneToShipAsItIs(): void {
+    const locked = new LockedPackage("node_modules/@noldova/sample", { version: "1.2.3", resolved: "file:../_packages/noldova-sample-1.2.3.tgz" });
+
+    Assert.isNull(locked.sha512);
+    Assert.isFalse(locked.matches(LockedPackageTests.DATA));
+  }
+
+  @TestMethod
+  public refusesALockedArchiveWhoseIntegrityHoldsNoSha512SayingWhatToWrite(): void {
+    const error = Assert.throws(() => new LockedPackage("node_modules/@noldova/sample", { version: "1.2.3", resolved: "file:../_packages/noldova-sample-1.2.3.tgz",
+      integrity: "sha1-AAAA" }), BuildException);
+
+    Assert.areEqual("@noldova/sample@1.2.3 at node_modules/@noldova/sample in package-lock.json is locked to file:../_packages/noldova-sample-1.2.3.tgz with an integrity "
+      + "that holds no SHA-512, so its archive cannot be verified; write \"integrity\": \"sha512-<the archive's SHA-512 digest in base64>\" beside its \"resolved\", "
+      + "or leave the integrity out to ship the archive as it is.", error.message);
+  }
+
+  @TestMethod
+  public refusesALinkedFolder(): void {
+    const error = Assert.throws(() => new LockedPackage("node_modules/@noldova/sample", { resolved: "packages/sample", link: true }), BuildException);
+
+    Assert.areEqual("node_modules/@noldova/sample in package-lock.json links to the folder packages/sample; a linked folder cannot ship, "
+      + "so lock the package to its archive in the repository's own _packages folder.", error.message);
   }
 
   @TestMethod
@@ -68,7 +153,7 @@ export class LockedPackageTests {
 
   @TestMethod
   public refusesAPackageNotResolvedToARegistryTarball(): void {
-    for (const resolved of ["file:archives/sample.tgz", "git+ssh://example.com/sample.git", "not a url", undefined]) {
+    for (const resolved of ["git+ssh://example.com/sample.git", "not a url", undefined]) {
       const error = Assert.throws(() => new LockedPackage("node_modules/sample", { ...LockedPackageTests.ENTRY, resolved }), BuildException);
 
       Assert.areEqual("sample@1.2.3-beta.1 at node_modules/sample in package-lock.json is not resolved to a registry tarball, so it cannot ship.", error.message);
@@ -90,5 +175,14 @@ export class LockedPackageTests {
 
       Assert.areEqual("sample@1.2.3-beta.1 at node_modules/sample in package-lock.json has no SHA-512 integrity, so its tarball cannot be verified.", error.message);
     }
+  }
+
+  @TestMethod
+  public refusesAnInstalledArchiveWithoutIntegrityThoughAnOwnArchiveMayShipWithout(): void {
+    const entry = { version: "1.2.3", resolved: "file:archives/sample-1.2.3.tgz" };
+
+    const error = Assert.throws(() => new LockedPackage("node_modules/sample", entry, true), BuildException);
+
+    Assert.areEqual("sample@1.2.3 at node_modules/sample in package-lock.json has no SHA-512 integrity, so its tarball cannot be verified.", error.message);
   }
 }

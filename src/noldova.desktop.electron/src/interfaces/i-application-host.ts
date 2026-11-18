@@ -26,7 +26,7 @@ export interface IApplicationHost {
   isInApplicationsFolder(): boolean;
   enableSandbox(): void;
   quit(): void;
-  relaunch(): void;
+  relaunch(options?: { execPath: string, args: string[] }): void;
   exit(exitCode: number): void;
   whenReady(): Promise<unknown>;
   on(event: "second-instance", listener: () => void): unknown;

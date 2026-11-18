@@ -95,6 +95,7 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   public readonly windowActions: string[] = [];
   public readonly webViewCalls: string[] = [];
   public readonly webViewKeys: (readonly string[])[] = [];
+  public readonly shortcutAnswers: (readonly [unknown, boolean])[] = [];
   public readonly appShortcuts: JsonObject[] = [];
   public isWebViewOpened: boolean = true;
   public webViewPartition: unknown = "persist:notes.workspace-1";
@@ -487,6 +488,10 @@ export class PreloadBridgeFixture implements IPreloadBridge {
   public publishWebViewShortcut(stroke: unknown): void {
     for (const listener of this.webViewShortcutListeners)
       listener(stroke);
+  }
+
+  public answerWebViewShortcut(press: unknown, hasRun: boolean): void {
+    this.shortcutAnswers.push([press, hasRun]);
   }
 
   public onWebViewInput(listener: (input: unknown) => void): () => void {

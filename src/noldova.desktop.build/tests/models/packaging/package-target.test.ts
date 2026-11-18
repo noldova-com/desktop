@@ -26,6 +26,25 @@ export class PackageTargetTests {
   }
 
   @TestMethod
+  public makesAnInstallerPackageInPlaceOfTheDiskImageOnlyOnMacOsForAnAppThatNamesAFolder(): void {
+    const macos = new PackageTarget("macos", "arm64").withInstallFolder("Sample Makers");
+    const linux = new PackageTarget("linux", "x64").withInstallFolder("Sample Makers");
+    const windows = new PackageTarget("windows", "x64").withInstallFolder("Sample Makers");
+    const unfoldered = macos.withInstallFolder(null);
+
+    Assert.areEqual("true macos-arm64 pkg,zip pkg,zip zip", `${macos.isFoldered} ${macos.id} ${macos.formats.join(",")} ${macos.extensions.join(",")} ${macos.updateExtension}`);
+    Assert.areEqual("true AppImage,deb|true nsis", `${linux.isFoldered} ${linux.formats.join(",")}|${windows.isFoldered} ${windows.formats.join(",")}`);
+    Assert.areEqual("false dmg,zip", `${unfoldered.isFoldered} ${unfoldered.formats.join(",")}`);
+  }
+
+  @TestMethod
+  public namesTheSystemProcessorAndLibraryNpmInstallsTheTargetsPackagesFor(): void {
+    Assert.areEqual("--os=linux --cpu=arm64 --libc=glibc", new PackageTarget("linux", "arm64").installArguments.join(" "));
+    Assert.areEqual("--os=win32 --cpu=arm64", new PackageTarget("windows", "arm64").installArguments.join(" "));
+    Assert.areEqual("--os=darwin --cpu=x64", new PackageTarget("macos", "x64").installArguments.join(" "));
+  }
+
+  @TestMethod
   public namesThePackageFilesOfAProduct(): void {
     const macos = new PackageTarget("macos", "x64");
 
@@ -52,5 +71,12 @@ export class PackageTargetTests {
 
     Assert.areEqual("Packages are made for windows, macos and linux on x64 and arm64, not for freebsd on x64.", platform.message);
     Assert.areEqual("Packages are made for windows, macos and linux on x64 and arm64, not for linux on ia32.", architecture.message);
+  }
+
+  @TestMethod
+  public buildsForTheArchitectureTheEnvironmentNamesAndOtherwiseForTheProcesssOwn(): void {
+    Assert.areEqual("arm64", PackageTarget.readArchitecture({ NOLDOVA_DESKTOP_ARCHITECTURE: "arm64" }, "x64"));
+    Assert.areEqual("x64", PackageTarget.readArchitecture({ NOLDOVA_DESKTOP_ARCHITECTURE: "" }, "x64"));
+    Assert.areEqual("arm64", PackageTarget.readArchitecture({}, "arm64"));
   }
 }

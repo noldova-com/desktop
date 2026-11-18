@@ -1037,6 +1037,57 @@ export declare class AppImageHandoff implements IUpdateHandoff {
 }
 
 /**
+ * The one-time move of a macOS app that names an install folder, from `/Applications/<Product>.app`, where an earlier
+ * release installed it, into `/Applications/<Folder>/<Product>.app`. The data folder stays where it is.
+ */
+export declare class InstallFolderMove {
+  /**
+   * Creates the move.
+   *
+   * @param app The application, which waits until ready, starts the moved copy and exits.
+   * @param shell The shell that moves the old copy to the Trash.
+   * @param process The main process's platform, program, command line, environment, process id, programs and files, and
+   *   the probe that tells whether another process still runs.
+   * @param log The main process's log, which the move writes to and flushes before it exits.
+   * @example
+   * ```ts
+   * import { InstallFolderMove, type IApplicationHost, type IMainProcessEnvironment, type IMainProcessLog, type IShellHost } from "@noldova/desktop.electron";
+   *
+   * export function createMove(app: IApplicationHost, shell: IShellHost, process: IMainProcessEnvironment, log: IMainProcessLog): InstallFolderMove {
+   *   return new InstallFolderMove(app, shell, process, log);
+   * }
+   * ```
+   */
+  public constructor(app: Pick<IApplicationHost, "whenReady" | "releaseSingleInstanceLock" | "relaunch" | "exit">, shell: Pick<IShellHost, "trashItem">,
+    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files" | "probeProcess">, log: IMainProcessLog);
+
+  /**
+   * Moves a packaged macOS app running from `/Applications/<Product>.app` into its install folder once: copies it with
+   * `ditto` beside the target under a name unique to this process and renames it into place, which fails rather than
+   * nesting when the target appeared meanwhile, moves the old copy to the Trash, starts the copy in the folder with the
+   * same arguments and exits. When the folder already holds the app, with the same bundle id and a version as new or
+   * newer, it moves the old copy to the Trash and starts that one; any other bundle there is left alone, and so is this
+   * copy. Where it can't write the folder, it removes its unfinished copy, logs why and keeps running where it is.
+   * Before it copies, it removes the unfinished copies, `.<process id>-<Product>.app`, that processes which are gone left
+   * in the folder, and logs any it can't remove.
+   *
+   * @param isPackaged Whether this is a packaged build; a development build never moves.
+   * @param productName The product's name, that of its `.app` bundle.
+   * @param installFolder The folder the app installs in, or `null` when it names none.
+   * @returns `true` once it started the copy in the folder and is exiting, or `false` when the app keeps running here.
+   * @example
+   * ```ts
+   * import type { InstallFolderMove } from "@noldova/desktop.electron";
+   *
+   * export async function shouldStopAsync(move: InstallFolderMove): Promise<boolean> {
+   *   return await move.runAsync(true, "Sample", "Sample Makers");
+   * }
+   * ```
+   */
+  public runAsync(isPackaged: boolean, productName: string, installFolder: string | null): Promise<boolean>;
+}
+
+/**
  * The handoff of an update on Linux for a copy installed from the Debian package: hashes the downloaded `.deb` again and
  * installs it with `pkexec /usr/bin/dpkg --install`, which asks for an administrator's permission. No process takes the
  * update over; {@link AppImageRestart} starts the new version.
@@ -1647,9 +1698,10 @@ export interface IMainProcessEnvironment {
 
   /**
    * Reads the files a path passes through, without following a link, when a window part shows a file in its folder or
-   * opens one: Node.js's `lstat`, `readlink` and `realpath` from `fs/promises`.
+   * opens one, and lists a macOS app's install folder and renames its copy into it: Node.js's `lstat`, `readlink`,
+   * `realpath`, `rename` and `readdir` from `fs/promises`.
    */
-  readonly files: IShownPathFiles;
+  readonly files: IMainProcessFiles;
 
   /**
    * Identifies processes by process id and start time, for the launch barrier and the update stop.
@@ -1738,6 +1790,22 @@ export interface IMainProcessEnvironment {
    * ```
    */
   endProcess(processId: number): void;
+
+  /**
+   * Checks that another process still runs, by sending it no signal, as Node.js's `process.kill` with signal `0` does.
+   *
+   * @param processId The process.
+   * @throws Error synchronously with code `ESRCH` when the process is gone, or `EPERM` when it runs as another user.
+   * @example
+   * ```ts
+   * import type { IMainProcessEnvironment } from "@noldova/desktop.electron";
+   *
+   * export function probe(process: IMainProcessEnvironment, processId: number): void {
+   *   process.probeProcess(processId);
+   * }
+   * ```
+   */
+  probeProcess(processId: number): void;
 
   /**
    * Hears every exception the main process does not catch. A listener keeps Electron from showing its own error box,
@@ -2394,8 +2462,10 @@ export interface IApplicationHost {
    *   app.exit(0);
    * }
    * ```
+   *
+   * @param options Another program to start, with its own arguments; by default this one, with the same command line.
    */
-  relaunch(): void;
+  relaunch(options?: { execPath: string, args: string[] }): void;
 
   /**
    * Exits at once, without closing the windows or asking them first.
@@ -2921,6 +2991,23 @@ export interface IShellHost {
    * ```
    */
   showItemInFolder(fullPath: string): void;
+
+  /**
+   * Moves a file or a folder to the system's trash, from where the person can put it back.
+   *
+   * @param path The file's or folder's absolute path.
+   * @returns A promise that settles once it is in the trash.
+   * @throws Error asynchronously when the system cannot move it there.
+   * @example
+   * ```ts
+   * import type { IShellHost } from "@noldova/desktop.electron";
+   *
+   * export async function discardAsync(host: IShellHost, copy: string): Promise<void> {
+   *   await host.trashItem(copy);
+   * }
+   * ```
+   */
+  trashItem(path: string): Promise<void>;
 }
 
 /**
@@ -3055,6 +3142,12 @@ export interface IWindowOpenDetails {
    * The referrer the engine would send with it; its address is empty when the page sends none.
    */
   readonly referrer: { readonly url: string };
+
+  /**
+   * How the engine would open it: `default`, `foreground-tab`, `background-tab`, `new-window` or `other`.
+   * Electron always gives it; without it, the request's event carries none.
+   */
+  readonly disposition?: string;
 }
 
 /**
@@ -5185,6 +5278,45 @@ export interface IPathCommandFiles {
 }
 
 /**
+ * The files the main process reads and moves: those it checks a path with before it shows or opens a file, and the
+ * listing and rename that put a macOS app's copy in its install folder, as Node.js's `fs/promises` provides them.
+ */
+export interface IMainProcessFiles extends IShownPathFiles {
+  /**
+   * Renames a file or folder, which fails rather than replacing a folder that holds anything.
+   *
+   * @param from The file or folder to rename.
+   * @param to Its new path.
+   * @returns A promise that resolves once it is renamed; rejects when it can't be.
+   * @example
+   * ```ts
+   * import type { IMainProcessFiles } from "@noldova/desktop.electron";
+   *
+   * export function placeAsync(files: IMainProcessFiles): Promise<void> {
+   *   return files.rename("/Applications/Sample Makers/.123-Sample.app", "/Applications/Sample Makers/Sample.app");
+   * }
+   * ```
+   */
+  rename(from: string, to: string): Promise<void>;
+
+  /**
+   * Lists the names of a folder's entries.
+   *
+   * @param folder The folder.
+   * @returns A promise of the entries' names; rejects with code `ENOENT` when the folder is missing.
+   * @example
+   * ```ts
+   * import type { IMainProcessFiles } from "@noldova/desktop.electron";
+   *
+   * export function listAsync(files: IMainProcessFiles): Promise<string[]> {
+   *   return files.readdir("/Applications/Sample Makers");
+   * }
+   * ```
+   */
+  readdir(folder: string): Promise<string[]>;
+}
+
+/**
  * The file reads the main process checks a path with before it shows the file in its folder or opens it, as Node.js's
  * `fs/promises` provides them.
  */
@@ -6302,6 +6434,7 @@ export declare class OpenWindow implements IQuitPrompt {
 
   /**
    * Notes that the page has painted, and shows the window if its startup has settled.
+   * When the window was already shown unpainted, it logs how long after opening the page painted.
    *
    * @example
    * ```ts
@@ -6328,6 +6461,21 @@ export declare class OpenWindow implements IQuitPrompt {
    * ```
    */
   public whenPaintedAsync(): Promise<boolean>;
+
+  /**
+   * Waits until the page has really painted, which may come after the window was shown unpainted.
+   *
+   * @returns A promise of `true` then, or `false` when the window closed first.
+   * @example
+   * ```ts
+   * import type { OpenWindow } from "@noldova/desktop.electron";
+   *
+   * export function paintedAsync(open: OpenWindow): Promise<boolean> {
+   *   return open.whenPagePaintedAsync();
+   * }
+   * ```
+   */
+  public whenPagePaintedAsync(): Promise<boolean>;
 
   /**
    * Asks the page to save, as closing does, then saves the window's bounds. A page that has crashed counts as saved

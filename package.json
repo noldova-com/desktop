@@ -1,6 +1,6 @@
 {
   "name": "@noldova/desktop",
-  "version": "0.0.2",
+  "version": "0.0.6",
   "desktop": {
     "protocolVersion": 1,
     "modules": [],
@@ -18,7 +18,8 @@
       },
       "dataDirectoryVariable": "NOLDOVA_DESKTOP_DATA_DIR",
       "icons": "assets/icons",
-      "releaseRepository": "noldova-com/desktop"
+      "releaseRepository": "noldova-com/desktop",
+      "installFolder": "Noldova"
     },
     "supportedTargets": [],
     "signedPlatforms": [

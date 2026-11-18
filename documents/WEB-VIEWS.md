@@ -35,8 +35,12 @@ The window part reaches its views through `context.webViews`.
 - The window draws each view in a `<webview>` element of its own page, in the view's profile, which the window part mounts in its pane's element; the element fills that element and follows its size, as the page lays it out.
   The page loads once the element is first mounted: the window then asks the main process to bind the element's page to the view, and the main process loads the address the module last asked for.
   Until then, `navigateAsync` waits for the page, a zoom is kept and applied to it, and `actAsync` and finding do nothing; a view never mounted stays open until it is closed.
+  The runtime's `sendAsync` also waits, for the page to bind and its debugger to attach, as when a page is destroyed and the view waits for the next one: within the call's own timeout, after which it fails as `TimedOut`, or as `ViewClosed` or `Crashed` when the view closes or its page crashes first.
+  Calls that waited go out in the order they came, once the attach has finished, and a call that comes while any still wait goes out after them.
+  A navigation that reaches the page while it binds, counted from the moment it starts checking its address, which for a host name includes the name's lookup, is the one the page loads: the main process then goes to neither an address that waited from before nor the one it last loaded, so an earlier address never loads over a newer one, and a page never loads twice.
   A switch to another tab of the view's group leaves the element in the page, so its page stays; a move to another group, a dock or a dialog, or a dock that collapses, mounts the element again, and when it gets a new page, that page is bound to the same view.
   Before a tab moves to another group or a dock, or out of a dialog or its slot, the window asks the main process, in one call, to keep its views' history, and just before the tab's content enters its new place, to expect those views, in their order there; the next `<webview>` of each expected view's profile in that window is that view's new page, which restores the history instead of loading its address: the page loads again at the same entry, with its back and forward entries, the values of its form fields and its scroll position.
+  The old page's end can reach the main process after the new `<webview>` asks to attach, since Electron ends it as the element leaves the page and apart from that request, so an expected view takes its new page even while the main process still holds the old one, and lets the old one go.
   Chromium may lay the restored page out before the `<webview>` has passed it its size, and then puts it back at the top, and a page that set `history.scrollRestoration` to `"manual"` always comes back there; so the main process also reads the page's scroll through its debugger when it keeps the history, and once the restored page has loaded, if it shows the top, scrolls it back there once, by a script in a world of its own.
   It doesn't when the person's input other than a pointer move, or the module's navigation or history action, came since the restore began, or when the page then shows another address than the one it kept, as after a redirect or the page's own navigation.
   Both calls wait for the main process's answer: taking the content out of the window ends the `<webview>`'s page at once, so its history and scroll are read before, the scrolls of all the moving views together for at most half a second from a page that doesn't answer, and the new `<webview>` asks to attach as soon as the content enters, so the expectation has to be there first.
@@ -47,6 +51,19 @@ The window part reaches its views through `context.webViews`.
 - Since the view is an element of the window's page, the module's own menus, and Noldova Desktop's own menus, dialogs, cards and notifications, lie over it like over any other element, and the page under them stays live.
 - A view behind another tab of its group keeps its place, its page and its size, takes no clicks or focus, and still takes `navigateAsync`, `actAsync` and finding; it is hidden by `visibility` and `opacity`, never removed, so a tab switch shows the next view with no blank frame, and its page keeps running.
 - While the person drags a tab or a toolbar item, the views take no pointer, so the drag passes over them.
+
+### A controlled view keeps painting
+
+The web engine paints no hidden page, and a document a hidden page loads, by a navigation or a form's post, starts hidden and never reaches its first paint, so the engine drops every click and key but a mouse move.
+An agent drives views the person doesn't look at, so while a view is marked controlled, the host keeps it painted when it is hidden:
+- It stays visible, at full opacity, in its place and at its size, behind the shown content, and takes no pointer.
+  A view behind another tab of its group keeps its tab's content painted too, since a child can't undo its parent's `opacity`; the tab's content lies under the shown tab, which then paints its card's own background, so nothing of the hidden page shows through.
+  A view behind another view of its pane lies under that view.
+- The runtime part marks the whole span with `setControlledAsync`, from the agent's first call or its opening the view until it closes the view, the person takes over or stops it, or the session ends.
+  The main process keeps the mark for the view, through a move of its tab and a restart of the runtime, and tells only the window, by a `Controlled` event; closing the view ends it.
+  A reload of the window closes its views, and the mark with them.
+  When the span ends, a hidden view hides again as it did before.
+- Only the views an agent controls pay for painting; a hidden view nobody controls stays hidden.
 
 ### Layers over a view
 
@@ -80,12 +97,16 @@ While a view has focus, the person's presses go to its page, except the keys the
 - The host sees each press in a view before the page, and judges it in this order:
   1. One of the keys the module declares in [`keys`](#webviewsjson), or in `loadingKeys` while the view's page loads: the page doesn't get it, and the window part gets a `Key` event of that view with the key's name, even when one of the app's shortcuts is on the same key.
   2. One of the app's shortcuts, as the window holds them at that moment, the person's bindings included, but a default key a focused page keeps, `Mod+Slash`: the page doesn't get it, and the window runs its command as if the press were in the window.
+     When the window doesn't run the command, because it is disabled at that moment, a dialog holds it or the runtime is starting again, or the window's handling of the press throws, the window says so and the host gives the press back to the page: the page gets a replayed, trusted copy a few milliseconds late, with the person's key, modifiers and repeat state.
+     The copy's `code` is the one the engine derives from the key for a US layout, so on another layout a letter's `code` may differ from the person's, such as `KeyA` for an AZERTY `a`.
+     The window answers every press it gets, run or not; until it answers, the host holds the view's later key presses and releases, the person's and the relay's, and gives them to the page after the copy, in the order pressed; a key the relay sent passes as the relay's, neither judged again nor counted as the person's input.
+     Only a press the host itself sent to the window can come back: the window answers with the number the host gave the press, never with a key.
   3. Any other key reaches the page.
 - A declared key wins only in the module's own views: in the pane's toolbar the window part handles its keys itself, and anywhere else in the window the app's command keeps the key; Keyboard shortcuts says so on the command's row, as [WINDOW.md](WINDOW.md#settings-and-modules) says.
 - A loading key, such as `Escape` for a browser's Stop, reaches the pane only while the view's page loads, from the engine's start of a load to its end, and reaches the page the rest of the time, so a page's own use of the key, such as closing its dialog, keeps working once it has loaded.
   Keyboard shortcuts notes only the keys in `keys`: a loading key gets no note on a command's row, since the pane takes it only for the moments a page loads.
 - F6 and Shift+F6 move the focus through the window's regions, the view and the rest of its pane, such as its toolbar, as two stops, as [WINDOW.md](WINDOW.md#workspace) says; pressed in a view, they run those commands at step 2, unless the module declares one of them, which then takes it from the region cycle inside its views.
-- A held key that repeats stays from the page, and only its first press runs the command or sends the event.
+- A held key that repeats stays from the page, and only its first press runs the command or sends the event; when the window gave the first press back, its repeats reach the page until a key comes up.
 - The `Key` event reaches the window part alone, through `handle.subscribe`, since a press belongs to the pane on screen; the runtime's `onViewEvent` never reports one.
 - Only the person's presses are judged: a key the runtime part sends through the relay goes on to the view's page as sent, even when the module declares it, and never raises `Key`, or is refused when it is one of the app's shortcuts, as [the relay](#the-relay) says.
 ## The runtime's controls
@@ -97,6 +118,7 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 | `list()` | Lists the module's open views, each with its id, pane and profile key. |
 | `navigateAsync(id, url)`, `actAsync(id, action)` | Load an address, or go back, go forward, reload or stop, with the same answers as the bridge. |
 | `setAllowedOriginsAsync(id, origins)` | Sets the origins the view may load; the module sets them from the person's answers and the app's settings, never from a tool's arguments alone. |
+| `setControlledAsync(id, isControlled)` | Marks whether an agent controls the view, so the window [keeps it painted](#a-controlled-view-keeps-painting) while hidden; closing the view ends it. |
 | `clearProfileAsync(profileKey)` | Clears the profile's cookies, storage and cache, and ends the pending calls of its views. |
 | `onViewEvent(listener)` | Reports every event of the module's views but the relay's, with the view's id, and returns a release. |
 
@@ -112,6 +134,7 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 | `Zoom` | The view's new zoom `factor`; only the window part gets it. |
 | `Found` | A finished search's `matches` and its 1-based `active` match, 0 when none; only the window part gets it. |
 | `Favicon` | The page's icon as an `image`, a `data:image/png` URL of at most 64 by 64 pixels and 16 KB, or null when the page has none or none of its first four icons can be read; sent when the icon changes, after a navigation or when the page changes it, and only the window part gets it. The host fetches each icon itself, in the view's profile and without following a redirect, and only from an `http` or `https` origin the view allows, at an address that passes the view's own checks, so a loopback or private address must be a local entry; it reads at most 1 MB within 10 seconds, stops a read when the page navigates, names another icon, stops loading without one or the view closes, and the page's isolated world decodes and scales the bytes the host passes it, whose PNG the host checks is at most 64 by 64 pixels. |
+| `Controlled` | `isControlled`, when the runtime part [marks](#a-controlled-view-keeps-painting) whether an agent controls the view and the mark changes; only the window part gets it. |
 | `State` | The address, the title, whether it is loading, and `canGoBack` and `canGoForward`; sent whenever any of them changes. |
 | `LoadFailed` | The address, the engine's code and its description. |
 | `NavigationRefused` | The address, its origin, and whether a redirect led there. |
@@ -119,14 +142,17 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 | `ProfileCleared` | The profile key. |
 | `Dropped` | How many of the view's events the host dropped while the runtime was away. |
 | `RequestRefused` | What the host refused without asking, `download`, `newWindow`, `permission`, `fileChooser`, `authentication`, `certificate` or `nestedView`, and the origin that asked. |
-| `NewWindowRequested` | A new-window request the module takes, as [New windows](#new-windows) says: the address, `hadRecentInput` and `origin`. |
+| `NewWindowRequested` | A new-window request the module takes, as [New windows](#new-windows) says: the address, `hadRecentInput`, `origin` and `disposition`. |
 
 ### New windows
 
 A link with `target="_blank"`, a form or a script's `window.open` in a view asks for a new window; the host never opens one.
 
 - A module whose `webViews.json` says `"newWindows": true` gets each request as a `NewWindowRequested` event of that view, through the window bridge's `subscribe` and the runtime's `onViewEvent`; any other module's requests stay refused, each with a `RequestRefused` event of `newWindow`.
-- The event holds the `address` the page asked for, resolved against the page; `hadRecentInput`; and `origin`, the origin of the referrer the engine would send, or `null` when it sends none, such as for `noreferrer`, never a guess.
+- The event holds the `address` the page asked for, resolved against the page; `hadRecentInput`; `origin`, the origin of the referrer the engine would send, or `null` when it sends none, such as for `noreferrer`, never a guess; and `disposition`, how the engine would open it.
+- `disposition` is the engine's own: `background-tab` for the person's middle click or Ctrl or Cmd click on a link, `foreground-tab` for a link's `target="_blank"` or a script's plain `window.open`, `new-window` for a `window.open` that asks for a popup or a Shift click on a link, and `default` or `other` otherwise.
+  It tells the person's click that opens a link in the background from a page's own request, which `hadRecentInput` can't, since that counts any input in the last 5 seconds; a page can't make its own `window.open` a `background-tab`.
+  The host always sends it; the protocol accepts an event without it until 0.1.0, so a module's tests that build one without it keep passing within 0.0.x.
 - `hadRecentInput` is the host's own judgement, not the engine's user activation: it is true when the person's own key, mouse button or touch reached that view in the last 5 seconds, and input the runtime part relayed to the view never counts.
   While an `Input.*` call the runtime part relayed is unanswered, the person's input to that view doesn't count either, so a call the engine never answers, even once the relay has timed it out, keeps `hadRecentInput` false for that view.
 - The module answers by opening the address in a view of its own, such as a new view in the same pane, with `openAsync` and `navigateAsync`, where the origin check runs as on every navigation.

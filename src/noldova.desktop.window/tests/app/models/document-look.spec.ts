@@ -20,23 +20,23 @@ describe("DocumentLook", () => {
   it("shows nothing of its own until it is given a part", () => {
     const look = DocumentLook.none;
 
-    expect([look.image, look.imageGlyph, look.status, look.marker, look.underline]).toEqual([null, null, null, null, null]);
+    expect([look.image, look.imageGlyph, look.status, look.marker]).toEqual([null, null, null, null]);
   });
 
   it("takes each part it is given and keeps the others", () => {
-    const look = DocumentLook.none.updated({ image: favicon, imageGlyph: "public", underline: "A teammate is using this page" })
+    const look = DocumentLook.none.updated({ image: favicon, imageGlyph: "public" })
       .updated({ status: { glyph: "error", description: "Can't reach this page", tone: DocumentTone.Failed }, marker: { glyph: "subdirectory_arrow_right", label: "Opened from Plans" } });
 
-    expect([look.image, look.imageGlyph, look.underline]).toEqual([favicon, "public", "A teammate is using this page"]);
+    expect([look.image, look.imageGlyph]).toEqual([favicon, "public"]);
     expect(look.status).toEqual(new TabStatus("error", "Can't reach this page", TabTone.Failed));
     expect(look.marker).toEqual(new TabMarker("subdirectory_arrow_right", "Opened from Plans"));
   });
 
   it("removes each part given as null", () => {
-    const look = DocumentLook.none.updated({ image: favicon, imageGlyph: "public", status: { glyph: "error", description: "Gone" }, marker: { glyph: "link", label: "From" }, underline: "Used" })
-      .updated({ image: null, imageGlyph: null, status: null, marker: null, underline: null });
+    const look = DocumentLook.none.updated({ image: favicon, imageGlyph: "public", status: { glyph: "error", description: "Gone" }, marker: { glyph: "link", label: "From" } })
+      .updated({ image: null, imageGlyph: null, status: null, marker: null });
 
-    expect([look.image, look.imageGlyph, look.status, look.marker, look.underline]).toEqual([null, null, null, null, null]);
+    expect([look.image, look.imageGlyph, look.status, look.marker]).toEqual([null, null, null, null]);
   });
 
   it("gives each tone its tab tone, and a status without one the neutral tone", () => {
@@ -50,16 +50,22 @@ describe("DocumentLook", () => {
       expect(() => DocumentLook.none.updated({ image })).toThrowError(ArgumentException);
   });
 
-  it("refuses a blank glyph, status, marker or underline", () => {
+  it("refuses a blank glyph, status or marker", () => {
     expect(() => DocumentLook.none.updated({ imageGlyph: " " })).toThrowError(ArgumentException);
     expect(() => DocumentLook.none.updated({ status: { glyph: String.empty, description: "Gone" } })).toThrowError(ArgumentException);
     expect(() => DocumentLook.none.updated({ status: { glyph: "error", description: " " } })).toThrowError(ArgumentException);
     expect(() => DocumentLook.none.updated({ marker: { glyph: " ", label: "From" } })).toThrowError(ArgumentException);
     expect(() => DocumentLook.none.updated({ marker: { glyph: "link", label: String.empty } })).toThrowError(ArgumentException);
-    expect(() => DocumentLook.none.updated({ underline: String.empty })).toThrowError(ArgumentException);
+  });
+
+  it("ignores the underline an older module still gives, even a blank one", () => {
+    const older = { imageGlyph: "public", underline: " " };
+    const look = DocumentLook.none.updated(older);
+
+    expect([look.imageGlyph, Object.keys(look).includes("underline")]).toEqual(["public", false]);
   });
 
   it("tells whether a change names any part", () => {
-    expect([DocumentLook.changes({}), DocumentLook.changes({ underline: null }), DocumentLook.changes({ image: favicon })]).toEqual([false, true, true]);
+    expect([DocumentLook.changes({}), DocumentLook.changes({ marker: null }), DocumentLook.changes({ image: favicon })]).toEqual([false, true, true]);
   });
 });

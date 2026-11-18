@@ -34,14 +34,15 @@ import { WebViewOriginCheck } from "./web-view-origin-check.js";
 
 export class WebViewHost {
   private static readonly MOVES: readonly WebViewAction[] = [WebViewAction.Back, WebViewAction.Forward, WebViewAction.Reload, WebViewAction.Stop];
-  private static readonly WINDOW_EVENTS: readonly WebViewEventKind[] = [WebViewEventKind.Key, WebViewEventKind.Zoom, WebViewEventKind.Found, WebViewEventKind.Favicon];
+  private static readonly WINDOW_EVENTS: readonly WebViewEventKind[] = [WebViewEventKind.Key, WebViewEventKind.Zoom, WebViewEventKind.Found, WebViewEventKind.Favicon,
+    WebViewEventKind.Controlled];
 
   private readonly engine: IWebViewEngine;
   private readonly check: WebViewOriginCheck;
   private readonly readDeclarationsAsync: () => Promise<ReadonlyMap<string, WebViewDeclaration>>;
   private readonly platform: string;
   private readonly sendToWindow: (windowId: number, event: WebViewEvent) => void;
-  private readonly pressShortcut: (windowId: number, stroke: IKeyStroke) => void;
+  private readonly pressShortcut: (windowId: number, stroke: IKeyStroke, press: number) => void;
   private readonly sendInput: (windowId: number, input: JsonObject) => void;
   private readonly isConnected: () => boolean;
   private readonly deliver: (events: WebViewEvents) => void;
@@ -52,8 +53,10 @@ export class WebViewHost {
   private readonly closedContents: Set<number> = new Set();
   private readonly sessions: Map<string, IWebViewSession> = new Map();
   private readonly shortcuts: Map<number, readonly KeyChord[]> = new Map();
+  private readonly shortcutPresses: Map<string, readonly [OpenWebView, (hasRun: boolean) => void]> = new Map();
   private readonly backlog: WebViewEventBacklog = new WebViewEventBacklog(Resources.webViewBacklogLimit);
   private nextId: number = 0;
+  private lastPress: number = 0;
   private isFlushing: boolean = false;
   private claimed: OpenWebView | null = null;
 
@@ -63,7 +66,7 @@ export class WebViewHost {
     readDeclarationsAsync: () => Promise<ReadonlyMap<string, WebViewDeclaration>>,
     platform: string,
     sendToWindow: (windowId: number, event: WebViewEvent) => void,
-    pressShortcut: (windowId: number, stroke: IKeyStroke) => void,
+    pressShortcut: (windowId: number, stroke: IKeyStroke, press: number) => void,
     sendInput: (windowId: number, input: JsonObject) => void,
     isConnected: () => boolean,
     deliver: (events: WebViewEvents) => void,
@@ -94,7 +97,7 @@ export class WebViewHost {
     const session = this.readSession(partition);
     this.nextId += 1;
     const open: OpenWebView = new OpenWebView(info, windowId, partition, session, this.check, declaration, t => this.report(open, t), t => this.isShortcut(windowId, t),
-      t => this.pressShortcut(windowId, t), this.platform, (t, signal) => this.engine.waitAsync(t, signal), () => this.engine.now(), () => this.lose(open),
+      (t, answer) => this.forwardShortcut(open, t, answer), this.platform, (t, signal) => this.engine.waitAsync(t, signal), () => this.engine.now(), () => this.lose(open),
       t => this.sendInput(windowId, { [Resources.moduleField]: info.module, [Resources.viewField]: info.id, [Resources.kindField]: t }));
     this.views.set(info.id, open);
     this.report(open, WebViewHost.createEvent(open, WebViewEventKind.Opened, { [Resources.paneField]: info.pane.toJson(), [Resources.profileKeyField]: profileKey }));
@@ -193,6 +196,16 @@ export class WebViewHost {
     return true;
   }
 
+  public answerShortcut(windowId: number, press: unknown, hasRun: unknown): boolean {
+    const key = Resources.formatShortcutPress(windowId, Number(press));
+    const forwarded = Number.isSafeInteger(press) ? this.shortcutPresses.get(key) : undefined;
+    if (Object.isUndefined(forwarded) || !Object.isBoolean(hasRun))
+      return false;
+    this.shortcutPresses.delete(key);
+    forwarded[1](hasRun);
+    return true;
+  }
+
   public closeWindow(windowId: number): void {
     for (const open of [...this.views.values()].filter(t => t.windowId === windowId))
       this.end(open);
@@ -221,6 +234,9 @@ export class WebViewHost {
         open.setAllowedOrigins(origins);
         return new WebViewAnswered(command.call);
       }
+      case WebViewAction.SetControlled:
+        open.setControlled(command.value === true);
+        return new WebViewAnswered(command.call);
       case WebViewAction.Send: {
         const send = JsonReader.fromValue(command.value);
         return open.sendAsync(command.call, send.readString(Resources.methodField), send.readObject(Resources.paramsField).toJson(), send.readInteger(Resources.timeoutField));
@@ -327,8 +343,12 @@ export class WebViewHost {
   private restore(windowId: number, contents: IWebViewContents): void {
     const open = this.claimed;
     this.claimed = null;
-    if (!Object.isNull(open) && open.windowId === windowId)
-      void open.bindAsync(contents, true);
+    if (Object.isNull(open) || open.windowId !== windowId)
+      return;
+    const previous = open.contents;
+    if (!Object.isNull(previous))
+      this.remember(previous);
+    void open.bindAsync(contents, true);
   }
 
   private forget(open: OpenWebView): void {
@@ -341,6 +361,12 @@ export class WebViewHost {
 
   private inPane(windowId: number, info: WebViewInfo): readonly OpenWebView[] {
     return [...this.views.values()].filter(t => t.windowId === windowId && t.info.module === info.module && t.info.pane.equals(info.pane));
+  }
+
+  private forwardShortcut(open: OpenWebView, stroke: IKeyStroke, answer: (hasRun: boolean) => void): void {
+    this.lastPress += 1;
+    this.shortcutPresses.set(Resources.formatShortcutPress(open.windowId, this.lastPress), [open, answer]);
+    this.pressShortcut(open.windowId, stroke, this.lastPress);
   }
 
   private isShortcut(windowId: number, stroke: IKeyStroke): boolean {
@@ -372,6 +398,9 @@ export class WebViewHost {
 
   private end(open: OpenWebView): void {
     this.views.delete(open.info.id);
+    for (const [press, [owner]] of [...this.shortcutPresses])
+      if (owner === open)
+        this.shortcutPresses.delete(press);
     this.forget(open);
     const contents = open.contents;
     if (!Object.isNull(contents))

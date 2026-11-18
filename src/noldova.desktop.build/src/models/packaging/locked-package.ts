@@ -13,26 +13,38 @@ import "@noldova/context.core";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
+import { BuildLayout } from "../../services/packages/build-layout.ts";
+import { PackageNaming } from "../../services/packages/package-naming.ts";
 
 export class LockedPackage {
   public readonly location: string;
   public readonly name: string;
   public readonly version: string;
   public readonly resolved: string;
-  public readonly sha512: string;
+  public readonly sha512: string | null;
   public readonly isInstalled: boolean;
+  public readonly isPlatformBound: boolean;
 
   public constructor(location: string, entry: Readonly<Record<string, unknown>>, isInstalled: boolean = false) {
     const name = location.slice(location.lastIndexOf(Resources.lockedPackageFolder) + Resources.lockedPackageFolder.length);
     const version = entry[Resources.manifestVersionField];
     const resolved = entry[Resources.lockResolvedField];
     const integrity = entry[Resources.lockIntegrityField];
+    if (entry[Resources.lockLinkField] === true)
+      throw new BuildException(Resources.formatLockedPackageLinked(location, String(resolved)));
     if (!Resources.lockedPackageName.test(name) || !Object.isString(version) || !Resources.lockedPackageVersion.test(version))
       throw new BuildException(Resources.formatLockedPackageInvalid(location));
     if (entry[Resources.lockInBundleField] === true)
       throw new BuildException(Resources.formatLockedPackageBundled(name, version, location));
     if (!Object.isUndefined(entry[Resources.manifestNameField]) && entry[Resources.manifestNameField] !== name)
       throw new BuildException(Resources.formatLockedPackageAlias(location, String(entry[Resources.manifestNameField]), name));
+    if (!isInstalled && Object.isString(resolved) && resolved.startsWith(Resources.archiveScheme)) {
+      if (!LockedPackage.isOwnArchive(name, resolved))
+        throw new BuildException(Resources.formatLockedArchiveRefused(name, version, location, resolved));
+      const expected = BuildLayout.nameArchive(name, version);
+      if (path.posix.basename(resolved) !== expected)
+        throw new BuildException(Resources.formatLockedArchiveMisnamed(name, version, location, resolved, expected));
+    }
     if (!Object.isString(resolved) || !LockedPackage.isShippable(resolved, isInstalled))
       throw new BuildException(isInstalled
         ? Resources.formatLockedPackageUnlocked(name, version, location)
@@ -40,15 +52,19 @@ export class LockedPackage {
     const sha512 = Object.isString(integrity)
       ? integrity.split(Resources.integritySeparator).find(t => t.startsWith(Resources.integrityPrefix))?.slice(Resources.integrityPrefix.length)
       : undefined;
-    if (Object.isUndefined(sha512))
-      throw new BuildException(Resources.formatLockedPackageNoIntegrity(name, version, location));
+    const isOwnArchive = !isInstalled && resolved.startsWith(Resources.archiveScheme);
+    if (Object.isUndefined(sha512) && !(isOwnArchive && Object.isUndefined(integrity)))
+      throw new BuildException(isOwnArchive
+        ? Resources.formatLockedArchiveNoIntegrity(name, version, location, resolved)
+        : Resources.formatLockedPackageNoIntegrity(name, version, location));
 
     this.location = location;
     this.name = name;
     this.version = version;
     this.resolved = resolved;
-    this.sha512 = sha512;
+    this.sha512 = sha512 ?? null;
     this.isInstalled = isInstalled;
+    this.isPlatformBound = [Resources.lockfileOsField, Resources.lockfileCpuField, Resources.lockfileLibcField].some(t => !Object.isUndefined(entry[t]));
   }
 
   public get id(): string {
@@ -57,6 +73,10 @@ export class LockedPackage {
 
   public get fileName(): string {
     return Resources.formatLockedArchiveName(this.name, this.version);
+  }
+
+  public get isArchive(): boolean {
+    return this.resolved.startsWith(Resources.archiveScheme);
   }
 
   public locateArchive(root: string): string {
@@ -68,8 +88,14 @@ export class LockedPackage {
   }
 
   private static isShippable(resolved: string, isInstalled: boolean): boolean {
-    if (isInstalled)
-      return resolved.startsWith(Resources.archiveScheme);
-    return URL.canParse(resolved) && Resources.registrySchemes.includes(new URL(resolved).protocol);
+    if (resolved.startsWith(Resources.archiveScheme))
+      return true;
+    return !isInstalled && URL.canParse(resolved) && Resources.registrySchemes.includes(new URL(resolved).protocol);
+  }
+
+  private static isOwnArchive(name: string, resolved: string): boolean {
+    const file = resolved.slice(Resources.archiveScheme.length);
+    return PackageNaming.isNoldova(name) && file === path.posix.normalize(file) && Resources.ownArchiveFolder.test(path.posix.dirname(file))
+      && path.posix.extname(file) === Resources.packageArchiveExtension;
   }
 }

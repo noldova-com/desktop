@@ -24,6 +24,7 @@ export class FakeRuntimeWebViewsTests {
     navigateAsync: ["answered", t => t.navigateAsync(FakeRuntimeWebViewsTests.VIEW, "https://example.com/")],
     actAsync: ["answered", t => t.actAsync(FakeRuntimeWebViewsTests.VIEW, WebViewAction.Back)],
     setAllowedOriginsAsync: ["answered", t => t.setAllowedOriginsAsync(FakeRuntimeWebViewsTests.VIEW, ["https://example.com"])],
+    setControlledAsync: ["answered", t => t.setControlledAsync(FakeRuntimeWebViewsTests.VIEW, true)],
     clearProfileAsync: ["answered", t => t.clearProfileAsync("notes.preview")],
     onViewEvent: ["registered", t => t.onViewEvent(() => undefined)]
   };

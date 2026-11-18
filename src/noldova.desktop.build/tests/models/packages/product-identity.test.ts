@@ -71,6 +71,23 @@ export class ProductIdentityTests {
   }
 
   @TestMethod
+  public readsTheInstallFolderTheAppNamesAndNoneWhenItNamesNone(): void {
+    Assert.areEqual("Noldova", ProductIdentityTests.read({ installFolder: "Noldova" }).installFolder);
+    Assert.areEqual("Noldova Apps|Noldova.Apps|N", ["Noldova Apps", "Noldova.Apps", "N"].map(t => ProductIdentityTests.read({ installFolder: t }).installFolder).join("|"));
+    Assert.isNull(ProductIdentityTests.read({}).installFolder);
+  }
+
+  @TestMethod
+  public refusesAnInstallFolderThatIsNotOneSafeFolderName(): void {
+    for (const installFolder of ["Noldova/Apps", "Noldova\\Apps", "C:", " Noldova", "Noldova ", ".", "..", ".Noldova", "Noldova.", "No?va", "No'va", "No$va", "No`va",
+      "No\tva", String.empty, 42]) {
+      const refusal = Assert.throws(() => ProductIdentityTests.read({ installFolder }), BuildException);
+      Assert.areEqual("The root package.json's desktop.product.installFolder must be one folder name such as Noldova, without / \\ : * ? \" < > | ' $ ` or control characters, "
+        + "and with no space or dot at either end.", refusal.message, JSON.stringify(installFolder));
+    }
+  }
+
+  @TestMethod
   public async readsTheProductFromTheRootsManifestOrRefusesWithoutOneAsync(): Promise<void> {
     const root = await mkdtemp(path.join(tmpdir(), "product-identity-"));
     try {

@@ -213,7 +213,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async keepsAViewWithoutAPageOpenAndAnswersWhatNeedsThePageWithoutIt(): Promise<void> {
+  public async keepsAViewWithoutAPageOpenAnswersWhatNeedsThePageWithoutItAndSendsACommandOnceItsPageAttaches(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     const event = MainProcessStartFixture.trustedEvent("linux");
@@ -225,14 +225,16 @@ export class WebViewHostTests {
       await electron.ipcMain.invoke("desktop:webViewFind", event, "browser", "1", "next"),
       await electron.ipcMain.invoke("desktop:webViewZoom", event, "browser", "1", 2)
     ];
-    const send = await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
+    const sending = this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
     const back = await this.commandAsync(launcher, connection, WebViewAction.Back, "1");
     const listed = await this.commandAsync(launcher, connection, WebViewAction.List);
     const view = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
     await WebViewHostTests.attachAsync(electron, "1", view.contents.id);
+    const send = await sending;
 
     Assert.areEqual("null,null,null,2", answers.map(t => JSON.stringify(t)).join(","));
-    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(send["failure"]));
+    Assert.areEqual(JSON.stringify({}), JSON.stringify(send["value"]));
+    Assert.isTrue(view.contents.debugger.methods().includes("Page.captureScreenshot"));
     Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(back["failure"]));
     Assert.areEqual(JSON.stringify([{ id: "1", module: "browser", pane: WebViewHostTests.PANE, profileKey: "workspace-1" }]), JSON.stringify(listed["value"]));
     Assert.areEqual("zoom 2", view.contents.calls.join(","));
@@ -390,6 +392,70 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async restoresAKeptViewInTheWebviewItsWindowExpectsBeforeItsOldPageIsDestroyedSoBackStillGoesBack(): Promise<void> {
+    const [electron, launcher, connection, process] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    const old = WebViewHostTests.view(electron, 0);
+    const session = electron.webViews.session(WebViewHostTests.PARTITION);
+    session.addresses.set("example.com", ["93.184.215.14"]);
+    await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", ["https://example.com"]);
+    for (const page of ["a", "b", "c"])
+      old.contents.show(`https://example.com/${page}`);
+    const kept = await WebViewHostTests.keepAsync(electron, [["browser", "1"]]);
+    const expected = WebViewHostTests.expect(electron, "1");
+
+    const guest = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
+    const claimed = electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION);
+    electron.webViews.attached(window.webContents.id, guest.contents);
+    const fromOld = session.request({ id: 1, url: "https://example.com/late", webContentsId: old.contents.id, resourceType: "mainFrame" });
+    old.contents.destroyed = true;
+    old.contents.emit("destroyed");
+    const attached = await WebViewHostTests.attachAsync(electron, "1", guest.contents.id);
+    await Condition.waitAsync(() => guest.contents.history.length > 0 || guest.contents.calls.some(t => t.startsWith("load")));
+    const back = await electron.ipcMain.invoke("desktop:webViewAct", MainProcessStartFixture.trustedEvent("linux"), "browser", "1", "Back");
+
+    Assert.areEqual(JSON.stringify([[true], true, true]), JSON.stringify([kept, expected, claimed]));
+    Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(attached));
+    Assert.areEqual(JSON.stringify({ kind: "Started" }), JSON.stringify(back));
+    Assert.isFalse(fromOld);
+    Assert.areEqual(0, MainProcessStartFixture.readErrors(process, "A page load was refused").length);
+    Assert.areEqual(`restore 2 ${["a", "b", "c"].map(t => `https://example.com/${t} state of https://example.com/${t}`).join(" ")},back`, guest.contents.calls.join(","));
+    Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
+  }
+
+  @TestMethod
+  public async tellsOnlyTheWindowWhenAViewIsMarkedControlledAndKeepsTheMarkThroughAPlacementAndARuntimeRestartUntilTheViewCloses(): Promise<void> {
+    const [first, second] = [new FakeRuntimeConnection(), new FakeRuntimeConnection()];
+    const launcher = new FakeRuntimeLauncher(first, second);
+    const [electron] = await WebViewHostTests.startWithAsync(launcher);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    const marks = (): string => WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Controlled").map(t => String(WebViewHostTests.details(t)["isControlled"])).join(",");
+
+    const answers = [await this.commandAsync(launcher, first, WebViewAction.SetControlled, "1", true), await this.commandAsync(launcher, first, WebViewAction.SetControlled, "1", true)];
+    const marked = marks();
+    const kept = await WebViewHostTests.keepAsync(electron, [["browser", "1"]]);
+    const expected = WebViewHostTests.expect(electron, "1");
+    const guest = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
+    const attached = await WebViewHostTests.attachAsync(electron, "1", guest.contents.id);
+    const placed = marks();
+    launcher.listener?.onDisconnected(null);
+    answers.push(await this.commandAsync(launcher, second, WebViewAction.SetControlled, "1", true));
+    const restarted = marks();
+    answers.push(await this.commandAsync(launcher, second, WebViewAction.SetControlled, "1", false));
+    answers.push(await this.commandAsync(launcher, second, WebViewAction.SetControlled, "1", true));
+    electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "1");
+    answers.push(await this.commandAsync(launcher, second, WebViewAction.SetControlled, "1", false));
+
+    Assert.areEqual(JSON.stringify([null, null, null, null, null, { kind: "ViewClosed" }]), JSON.stringify(answers.map(t => t["value"] ?? t["failure"])));
+    Assert.areEqual("true|true|true|true,false,true", [marked, placed, restarted, marks()].join("|"));
+    Assert.areEqual(JSON.stringify([[true], true, { isAttached: true }]), JSON.stringify([kept, expected, attached]));
+    Assert.isFalse([...WebViewHostTests.runtimeEvents(first), ...WebViewHostTests.runtimeEvents(second)].some(t => t["kind"] === "Controlled"));
+    Assert.areEqual(1, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
+  }
+
+  @TestMethod
   public async readsTheScrollOfEveryViewOfAMoveAtOnceSoTheWindowWaitsForOneBoundWhenNoPageAnswers(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     await WebViewHostTests.openAsync(electron);
@@ -412,7 +478,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async claimsNoWebviewForAViewThatStillHasItsPageIsClosedOrIsInAnotherWindowAndBindsNoUnclaimedOneOrOneOfAnotherWindow(): Promise<void> {
+  public async claimsNoWebviewForAViewThatIsClosedOrIsInAnotherWindowAndBindsNoUnclaimedOneOrOneOfAnotherWindow(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     await WebViewHostTests.openAsync(electron);
@@ -430,22 +496,21 @@ export class WebViewHostTests {
     closing.contents.emit("destroyed");
     electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "2");
 
-    const claims = [electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION), electron.webViews.claim(window.webContents.id + 1, WebViewHostTests.PARTITION)];
+    const claims = [electron.webViews.claim(window.webContents.id + 1, WebViewHostTests.PARTITION)];
     const stray = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
     electron.webViews.attached(window.webContents.id, stray.contents);
-    live.contents.destroyed = true;
-    live.contents.emit("destroyed");
     claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
     electron.webViews.attached(window.webContents.id + 1, stray.contents);
+    claims.push(electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION));
 
     Assert.areEqual("[[],[false,false]]", JSON.stringify(malformed));
     Assert.areEqual("false,true,true,false,true,true", answers.join(","));
-    Assert.areEqual("false,false,true", claims.join(","));
+    Assert.areEqual("false,true,false", claims.join(","));
     Assert.areEqual(String.empty, stray.contents.calls.join(","));
   }
 
   @TestMethod
-  public async letsGoOfADestroyedPageWithoutClosingTheViewAndTakesTheNextOne(): Promise<void> {
+  public async letsGoOfADestroyedPageWithoutClosingTheViewAndTakesTheNextOneForTheCommandsThatWait(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     await WebViewHostTests.openAsync(electron);
@@ -453,12 +518,15 @@ export class WebViewHostTests {
 
     gone.contents.destroyed = true;
     gone.contents.emit("destroyed");
-    const send = await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
+    const sending = this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: { format: "png" }, timeoutMilliseconds: 1000 });
     const listed = await this.commandAsync(launcher, connection, WebViewAction.List);
     const fresh = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
     const answer = await WebViewHostTests.attachAsync(electron, "1", fresh.contents.id);
+    const send = await sending;
 
-    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(send["failure"]));
+    Assert.areEqual(JSON.stringify({}), JSON.stringify(send["value"]));
+    Assert.isFalse(gone.contents.debugger.methods().includes("Page.captureScreenshot"));
+    Assert.isTrue(fresh.contents.debugger.methods().includes("Page.captureScreenshot"));
     Assert.areEqual(1, JsonReader.fromValue(listed).readObjectArray("value").length);
     Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(answer));
     Assert.areEqual(0, gone.contents.debugger.detaches);
@@ -645,6 +713,10 @@ export class WebViewHostTests {
     launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 5, ports: [4600] }));
     await setImmediate();
     const whileUpdating = passes();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await Condition.waitAsync(() => window.webContents.sent.some(t => t[0] === "desktop:updateSaveRequest"));
+    const saveRequest = window.webContents.sent.find(t => t[0] === "desktop:updateSaveRequest");
+    await electron.ipcMain.invoke("desktop:updateSaveAnswer", MainProcessStartFixture.trustedEvent("linux"), saveRequest?.[1], []);
     launcher.listener?.onDisconnected(null);
     await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(second).length === 1);
     const fromTheNextRuntime = passes();
@@ -962,7 +1034,7 @@ export class WebViewHostTests {
     Assert.areEqual([true, true, false, true, isF5Declared, false, false, true, true].join(","), prevented.join(","));
     Assert.areEqual(JSON.stringify(["reload", "newTab", ...isF5Declared ? ["reload"] : []]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Key").map(t => WebViewHostTests.details(t)["name"])));
-    Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
+    Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac, press: 1 }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
     Assert.isFalse(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Key"));
     Assert.isTrue(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Opened"));
   }
@@ -993,6 +1065,7 @@ export class WebViewHostTests {
 
     contents.loading = true;
     const whileLoading = [press("r", "KeyR", true), press("Escape", "Escape", false), press("k", "KeyK", true)];
+    WebViewHostTests.answer(electron, platform, window, 1, true);
     contents.loading = false;
     const afterLoading = [press("Escape", "Escape", false), press("r", "KeyR", true)];
     await Condition.waitAsync(() => WebViewHostTests.shortcuts(window).length > 0);
@@ -1001,8 +1074,9 @@ export class WebViewHostTests {
     Assert.areEqual("true,true,true|false,true", `${whileLoading.join(",")}|${afterLoading.join(",")}`);
     Assert.areEqual(JSON.stringify(["reload", "stop", "reload"]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Key").map(t => WebViewHostTests.details(t)["name"])));
-    Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
+    Assert.areEqual(JSON.stringify([{ key: "k", code: "KeyK", ctrlKey: !isMac, altKey: false, shiftKey: false, metaKey: isMac, press: 1 }]), JSON.stringify(WebViewHostTests.shortcuts(window)));
     Assert.isFalse(WebViewHostTests.runtimeEvents(connection).some(t => t["kind"] === "Key"));
+    Assert.areEqual(0, contents.inputs.length);
   }
 
   @TestMethod
@@ -1033,6 +1107,129 @@ export class WebViewHostTests {
 
     Assert.areEqual("false,true,false,true,true,true,true", prevented.join(","));
     Assert.areEqual(5, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Key").length);
+  }
+
+  @TestMethod
+  @TestData("linux")
+  @TestData("darwin")
+  public async givesADeclinedShortcutBackToThePageAsPressedWithTheKeysHeldBehindItInOrder(platform: string): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync(undefined, platform);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    electron.ipcMain.send("desktop:webViewShortcuts", MainProcessStartFixture.trustedEvent(platform, window.id), ["Mod+T"]);
+    await WebViewHostTests.openAsync(electron, WebViewHostTests.PANE, "workspace-1", "browser", platform);
+    const contents = WebViewHostTests.view(electron, 0).contents;
+    const isMac = platform === "darwin";
+    const mod = isMac ? "meta" : "control";
+    const newPage = WebViewHostTests.input("t", "KeyT", true, platform);
+    const press = (input: JsonObject): boolean => contents.prevent("before-input-event", input);
+    const sent = (): string => contents.inputs.map(t => `${t.type} ${t.keyCode} ${t.modifiers.join("+")}`).join(",");
+
+    const held = [
+      press(newPage),
+      press({ ...newPage, isAutoRepeat: true }),
+      press({ ...newPage, type: "keyUp" }),
+      press(WebViewHostTests.input("a", "KeyA", false, platform)),
+      press(WebViewHostTests.input("a", "KeyA", false, platform, "keyUp"))
+    ];
+    const beforeAnswer = sent();
+    WebViewHostTests.answer(electron, platform, window, 1, false);
+    const replayed = sent();
+    const passed = [
+      press({ ...newPage, code: "KeyQ" }),
+      press({ ...newPage, isAutoRepeat: true }),
+      press(WebViewHostTests.input("a", "KeyA", false, platform, "keyDown", true)),
+      press({ ...newPage, type: "keyUp" }),
+      press(WebViewHostTests.input("a", "KeyA", false, platform)),
+      press(WebViewHostTests.input("a", "KeyA", false, platform, "keyUp")),
+      press(WebViewHostTests.input("a", "KeyA", false, platform, "char")),
+      press(newPage),
+      press({ ...newPage, isAutoRepeat: true }),
+      press(WebViewHostTests.input("b", "KeyB", false, platform))
+    ];
+    contents.inputs.splice(0);
+    WebViewHostTests.answer(electron, platform, window, 2, true);
+
+    Assert.areEqual("true,true,true,true,true", held.join(","));
+    Assert.areEqual(String.empty, beforeAnswer);
+    Assert.areEqual(`keyDown t ${mod},keyDown t ${mod}+isautorepeat,keyUp t ${mod},keyDown a ,char a ,keyUp a `, replayed);
+    Assert.areEqual("false,false,false,false,false,false,false,true,true,true", passed.join(","));
+    Assert.areEqual(`keyDown t ${mod}+isautorepeat,keyDown b ,char b `, sent());
+    Assert.areEqual(JSON.stringify([1, 2]), JSON.stringify(WebViewHostTests.shortcuts(window).map(t => t["press"])));
+  }
+
+  @TestMethod
+  public async passesAKeyTheRelaySendsWhilePressAwaitsItsAnswerToThePageAsTheRelaysUnjudgedAndUncounted(): Promise<void> {
+    const declaration = new WebViewDeclaration(WebViewHostTests.KEYS.methods, WebViewHostTests.KEYS.events, WebViewHostTests.KEYS.keys, true);
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync({ browser: declaration });
+    const window = MainProcessStartFixture.firstWindow(electron);
+    electron.ipcMain.send("desktop:webViewShortcuts", MainProcessStartFixture.trustedEvent("linux", window.id), ["Mod+J"]);
+    await WebViewHostTests.openAsync(electron);
+    const contents = WebViewHostTests.view(electron, 0).contents;
+    const reload = WebViewHostTests.input("r", "KeyR", true, "linux");
+    const prevented: boolean[] = [];
+    contents.onInput = () => prevented.push(contents.prevent("before-input-event", reload));
+
+    prevented.push(contents.prevent("before-input-event", WebViewHostTests.input("j", "KeyJ", true, "linux")));
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1",
+      { method: "Input.dispatchKeyEvent", params: { type: "keyDown", key: "r", code: "KeyR", modifiers: 2 }, timeoutMilliseconds: 1000 });
+    contents.inputs.splice(0);
+    WebViewHostTests.answer(electron, "linux", window, 1, true);
+    const passedOn = contents.inputs.map(t => `${t.type} ${t.keyCode} ${t.modifiers.join("+")}`).join(",");
+    contents.emit("input-event", {}, { type: "keyDown" });
+    void contents.openWindow("https://example.com/relayed");
+    prevented.push(contents.prevent("before-input-event", WebViewHostTests.input("a", "KeyA", false, "linux")));
+    contents.emit("input-event", {}, { type: "keyDown" });
+    void contents.openWindow("https://example.com/pressed");
+
+    Assert.areEqual("true,true,false,false", prevented.join(","));
+    Assert.areEqual("keyDown r control", passedOn);
+    Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Key").length);
+    Assert.areEqual("false,true", WebViewHostTests.requested(WebViewHostTests.windowEvents(window)).map(t => String(t["hadRecentInput"])).join(","));
+  }
+
+  @TestMethod
+  public async replaysOnlyAPressItForwardedOnceAndNeverForASenderThatIsNotTheWindow(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    electron.ipcMain.send("desktop:webViewShortcuts", MainProcessStartFixture.trustedEvent("linux", window.id), ["Mod+T"]);
+    await WebViewHostTests.openAsync(electron);
+    const contents = WebViewHostTests.view(electron, 0).contents;
+
+    contents.prevent("before-input-event", WebViewHostTests.input("t", "KeyT", true, "linux"));
+    for (const [press, hasRun] of [[2, false], ["1", false], [1.5, false], [null, false], [1, "no"], [1, null]])
+      WebViewHostTests.answer(electron, "linux", window, press, hasRun);
+    electron.ipcMain.send("desktop:webViewShortcutAnswer", MainProcessStartFixture.trustedEvent("linux", window.id + 1), 1, false);
+    const beforeAnswer = contents.inputs.length;
+    WebViewHostTests.answer(electron, "linux", window, 1, false);
+    WebViewHostTests.answer(electron, "linux", window, 1, false);
+
+    Assert.areEqual(0, beforeAnswer);
+    Assert.areEqual("keyDown t control", contents.inputs.map(t => `${t.type} ${t.keyCode} ${t.modifiers.join("+")}`).join(","));
+  }
+
+  @TestMethod
+  public async dropsTheAnswerForAViewThatClosedAndGivesNothingBackToAPageThatIsGone(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const event = MainProcessStartFixture.trustedEvent("linux", window.id);
+    electron.ipcMain.send("desktop:webViewShortcuts", event, ["Mod+T"]);
+    await WebViewHostTests.openAsync(electron);
+    await WebViewHostTests.openAsync(electron);
+    const closing = WebViewHostTests.view(electron, 0).contents;
+    const gone = WebViewHostTests.view(electron, 1).contents;
+    const newPage = WebViewHostTests.input("t", "KeyT", true, "linux");
+    const typed = WebViewHostTests.input("a", "KeyA", false, "linux");
+
+    const held = [closing.prevent("before-input-event", newPage), closing.prevent("before-input-event", typed), gone.prevent("before-input-event", newPage), gone.prevent("before-input-event", typed)];
+    electron.ipcMain.send("desktop:webViewClose", event, "browser", "1");
+    WebViewHostTests.answer(electron, "linux", window, 1, false);
+    gone.destroyed = true;
+    gone.emit("destroyed");
+    WebViewHostTests.answer(electron, "linux", window, 2, false);
+
+    Assert.areEqual("true,true,true,true", held.join(","));
+    Assert.areEqual(0, closing.inputs.length + gone.inputs.length);
+    Assert.areEqual(JSON.stringify([1, 2]), JSON.stringify(WebViewHostTests.shortcuts(window).map(t => t["press"])));
   }
 
   @TestMethod
@@ -1314,7 +1511,7 @@ export class WebViewHostTests {
       new WebViewCommand(++this.calls, "browser", WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: {}, timeoutMilliseconds: 1000 }).toJson()));
     await Condition.waitAsync(() => WebViewHostTests.windowEvents(window).some(t => t["kind"] === "Closed") && WebViewHostTests.answers(connection).length === 1);
 
-    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(WebViewHostTests.answers(connection)[0]?.["failure"]));
+    Assert.areEqual(JSON.stringify({ kind: "ViewClosed" }), JSON.stringify(WebViewHostTests.answers(connection)[0]?.["failure"]));
     Assert.areEqual(2, reattached);
     Assert.areEqual(1, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
     Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "A web view lost its defaults, so it was closed.").length);
@@ -1340,15 +1537,15 @@ export class WebViewHostTests {
 
     const answers = [
       contents.openWindow("https://example.com/next", "https://example.com/page"),
-      contents.openWindow("https://example.net/other"),
-      contents.openWindow("https://example.com/data", "data:text/html,x")
+      contents.openWindow("https://example.net/other", String.empty, "new-window"),
+      contents.openWindow("https://example.com/data", "data:text/html,x", "background-tab")
     ];
     await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.runtimeEvents(connection)).length === 3);
 
     const expected = JSON.stringify([
-      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com" },
-      { address: "https://example.net/other", hadRecentInput: false, origin: null },
-      { address: "https://example.com/data", hadRecentInput: false, origin: null }
+      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab" },
+      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window" },
+      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab" }
     ]);
     Assert.areEqual("deny,deny,deny", answers.map(t => t?.action).join(","));
     Assert.areEqual(expected, JSON.stringify(WebViewHostTests.requested(WebViewHostTests.windowEvents(window))));
@@ -1457,13 +1654,17 @@ export class WebViewHostTests {
         { type, key, code, isAutoRepeat: false, control: isMac ? other : mod, alt: modifiers.alt === true, shift: modifiers.shift === true, meta: isMac ? mod : other });
     };
 
-    const prevented = [
+    const beforeAnswer = [
       press("=", "Equal"),
       press("+", "Equal", { mod: true, shift: true }),
       press("+", "NumpadAdd"),
       press("-", "Minus"),
       press("-", "NumpadSubtract"),
-      press("0", "Digit0"),
+      press("0", "Digit0")
+    ];
+    WebViewHostTests.answer(electron, platform, window, 1, true);
+    const prevented = [
+      ...beforeAnswer,
       press("0", "Numpad0"),
       press("+", String.empty),
       press("=", "Equal", {}),
@@ -1643,6 +1844,10 @@ export class WebViewHostTests {
   private static input(key: string, code: string, isMod: boolean, platform: string, type: string = "keyDown", isAutoRepeat: boolean = false): JsonObject {
     const isMac = platform === "darwin";
     return { type, key, code, isAutoRepeat, control: isMod && !isMac, alt: false, shift: false, meta: isMod && isMac };
+  }
+
+  private static answer(electron: FakeElectron, platform: string, window: FakeMainProcessWindow, press: unknown, hasRun: unknown): void {
+    electron.ipcMain.send("desktop:webViewShortcutAnswer", MainProcessStartFixture.trustedEvent(platform, window.id), press, hasRun);
   }
 
   private static shortcuts(window: FakeMainProcessWindow): JsonObject[] {

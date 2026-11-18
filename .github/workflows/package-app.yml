@@ -41,6 +41,10 @@ on:
         description: The URL the package checks for updates instead of the app's own feed, a loopback HTTP URL for a test of updating or the internal feed's HTTPS URL.
         type: string
         default: ''
+      artifact-suffix:
+        description: Text after the platform and architecture in the names of the reports and files this call keeps, which a second call in the same run needs so that it keeps its own.
+        type: string
+        default: ''
       package-version:
         description: The version the package takes instead of the app's, newer than it, for a test of updating, or the app's own X.Y.Z-internal.N for the internal feed.
         type: string
@@ -72,6 +76,10 @@ on:
         required: false
       MAC_CERTIFICATE_PASSWORD:
         required: false
+      MAC_INSTALLER_CERTIFICATE:
+        required: false
+      MAC_INSTALLER_CERTIFICATE_PASSWORD:
+        required: false
       APPLE_API_KEY_P8:
         required: false
       APPLE_API_KEY_ID:
@@ -89,7 +97,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@ca4ec084bd2907b4050679523deba3e3cc010fb7 # v2.36.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@55fa60e7fc524fa07e0a1e4f374f3cd14550a0ba # v2.39.0
     permissions: {}
 
   package:
@@ -97,11 +105,13 @@ jobs:
     needs: versions
     if: ${{ !inputs.signed }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ fromJSON(matrix.runner) }}
     timeout-minutes: 105
+    env:
+      NOLDOVA_DESKTOP_ARCHITECTURE: ${{ matrix.architecture }}
     steps: &package-steps
       - name: Stop Spotlight indexing
         if: runner.os == 'macOS'
@@ -135,7 +145,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
-          architecture: ${{ matrix.architecture }}
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           package-manager-cache: false
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.registry-scope }}
@@ -153,7 +163,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
-          architecture: ${{ matrix.architecture }}
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           package-manager-cache: false
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.registry-scope }}
@@ -169,7 +179,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ needs.versions.outputs.node-version }}
-          architecture: ${{ matrix.architecture }}
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           package-manager-cache: false
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.registry-scope }}
@@ -177,7 +187,7 @@ jobs:
       - name: Verify the toolchain
         timeout-minutes: 1
         env:
-          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+          EXPECTED_ARCHITECTURE: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
           EXPECTED_NODE: ${{ needs.versions.outputs.node-version }}
           EXPECTED_NPM: ${{ needs.versions.outputs.npm-version }}
         run: |
@@ -195,7 +205,21 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
           npm_config_ignore_scripts: 'true'
         run: |
-          npm ci --no-audit --no-fund
+          for attempt in 1 2; do
+            logs="$(mktemp -d "${RUNNER_TEMP//\\//}/npm-ci-logs-XXXXXX")"
+            status=0
+            npm_config_logs_dir="$logs" npm ci --no-audit --no-fund || status=$?
+            if [ "$status" -eq 0 ]; then
+              break
+            fi
+            if [ "$attempt" -eq 2 ] \
+              || ! grep -qsE $'^[0-9]+ error code (ETIMEDOUT|ECONNRESET)\r?$' "$logs"/*.log \
+              || ! grep -qsE $'^[0-9]+ error syscall read\r?$' "$logs"/*.log; then
+              exit "$status"
+            fi
+            echo "npm ci stopped on a stalled read, which npm doesn't retry, so it runs once more. Its last requests:"
+            grep -hsE '^[0-9]+ http fetch ' "$logs"/*.log | tail -n 5 || true
+          done
           for script in preinstall install postinstall prepublish preprepare prepare postprepare; do
             npm run --if-present "$script"
           done
@@ -206,11 +230,47 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
           npm_config_ignore_scripts: 'true'
           PREPARE: ${{ inputs.prepare }}
-        run: eval "$PREPARE"
+          APP_FOLDER: ${{ inputs.app-folder }}
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          (eval "$PREPARE")
+          archives="${RUNNER_TEMP//\\//}/company-archives"
+          left_out=$(node -e '
+            const { existsSync, readFileSync } = require("node:fs");
+            const path = require("node:path");
+            const [root, platform, cpu] = process.argv.slice(1);
+            const os = { windows: "win32", macos: "darwin", linux: "linux" }[platform];
+            const fits = (list, value) => {
+              const items = [list ?? "any"].flat();
+              if (items.length === 1 && items[0] === "any")
+                return true;
+              const negated = items.filter(t => t.startsWith("!"));
+              return !negated.includes(`!${value}`) && (items.includes(value) || negated.length === items.length);
+            };
+            const lock = JSON.parse(readFileSync(path.join(root, "package-lock.json"), "utf8"));
+            for (const [location, entry] of Object.entries(lock.packages ?? {})) {
+              const name = location.split("node_modules/").pop();
+              const isCompany = (name.startsWith("@noldova/") || name.startsWith("@noldova-com/")) && name.split("/").length === 2;
+              const isForTarget = fits(entry.os, os) && fits(entry.cpu, cpu) && (os !== "linux" || fits(entry.libc, "glibc"));
+              if (isCompany && isForTarget && String(entry.resolved).startsWith("https://") && !existsSync(path.join(root, location)))
+                console.log(`${name}@${entry.version}`);
+            }' "$APP_FOLDER" "$TARGET_PLATFORM" "$TARGET_ARCHITECTURE")
+          if [ -n "$left_out" ]; then
+            specs=()
+            while IFS= read -r spec; do
+              specs+=("$spec")
+            done <<< "$left_out"
+            echo "The app's install leaves out these company packages for this target's processor or system, so the package step takes them from $archives: ${specs[*]}"
+            mkdir -p "$archives"
+            npm pack --ignore-scripts --loglevel=error --pack-destination "$archives" "${specs[@]}"
+          fi
 
       - name: Install Electron
         timeout-minutes: 5
         working-directory: ${{ inputs.app-folder }}
+        env:
+          npm_config_arch: ${{ matrix.architecture }}
         run: |
           for attempt in 1 2 3 4; do
             if node node_modules/electron/install.js; then
@@ -227,9 +287,15 @@ jobs:
       - name: Remove libfuse2, which a stock Ubuntu does not install
         if: runner.os == 'Linux'
         timeout-minutes: 5
+        env:
+          HOSTED: ${{ runner.environment == 'github-hosted' }}
         run: |
           for name in libfuse2 libfuse2t64; do
             if dpkg-query -W -f='${Status}' "$name" 2>/dev/null | grep 'ok installed' > /dev/null; then
+              if [ "$HOSTED" != true ]; then
+                echo "::error::$name is installed on this self-hosted runner, which has no root to remove it; remove it from the runner's image."
+                exit 1
+              fi
               sudo apt-get remove -y "$name"
             fi
           done
@@ -253,7 +319,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ inputs.app-folder }}/_build/package/tool-cache
-          key: electron-builder-tools-${{ runner.os }}-${{ matrix.architecture }}-${{ steps.builder.outputs.version }}
+          key: electron-builder-tools-${{ runner.os }}-${{ runner.arch }}-${{ matrix.architecture }}-${{ steps.builder.outputs.version }}
 
       - name: Download the packaging tools
         if: (runner.os == 'Linux' || runner.os == 'macOS') && steps.tool-cache.outputs.cache-hit != 'true'
@@ -272,7 +338,7 @@ jobs:
                 if (process.platform === "linux") {
                   const { appimageChecksums, getAppImageTools, getFpmPath } = toolset("linux.js");
                   for (const version of Object.keys(appimageChecksums).filter(t => t !== "0.0.0"))
-                    await getAppImageTools(version, Arch[process.arch]);
+                    await getAppImageTools(version, Arch[process.env.NOLDOVA_DESKTOP_ARCHITECTURE]);
                   await getFpmPath();
                 } else {
                   await toolset("icons.js").getIconsToolsetPath();
@@ -297,6 +363,7 @@ jobs:
         timeout-minutes: 40
         working-directory: ${{ inputs.app-folder }}
         env:
+          NOLDOVA_DESKTOP_COMPANY_ARCHIVES: ${{ runner.temp }}/company-archives
           SIGNED: ${{ matrix.signed }}
           UPDATE_FEED: ${{ inputs.update-feed }}
           PACKAGE_VERSION: ${{ inputs.package-version }}
@@ -306,6 +373,8 @@ jobs:
           WINDOWS_PUBLISHER: ${{ matrix.signed == 'true' && matrix.platform == 'windows' && secrets.WINDOWS_PUBLISHER || '' }}
           MAC_CERTIFICATE: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.MAC_CERTIFICATE || '' }}
           MAC_CERTIFICATE_PASSWORD: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.MAC_CERTIFICATE_PASSWORD || '' }}
+          MAC_INSTALLER_CERTIFICATE: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.MAC_INSTALLER_CERTIFICATE || '' }}
+          MAC_INSTALLER_CERTIFICATE_PASSWORD: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.MAC_INSTALLER_CERTIFICATE_PASSWORD || '' }}
           APPLE_API_KEY_P8: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.APPLE_API_KEY_P8 || '' }}
           APPLE_API_KEY_ID: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.APPLE_API_KEY_ID || '' }}
           APPLE_API_ISSUER: ${{ matrix.signed == 'true' && matrix.platform == 'macos' && secrets.APPLE_API_ISSUER || '' }}
@@ -358,28 +427,57 @@ jobs:
 
       - name: Install, start and quit the package
         id: smoke
-        if: matrix.platform != 'macos' || matrix.architecture != 'x64' || runner.environment == 'github-hosted'
+        if: (runner.arch == 'ARM64' && 'arm64' || 'x64') == matrix.architecture && (matrix.platform != 'macos' || matrix.architecture != 'x64' || runner.environment == 'github-hosted')
         timeout-minutes: 15
         working-directory: ${{ inputs.app-folder }}
         env:
           WINDOWS_PUBLISHER: ${{ matrix.signed == 'true' && matrix.platform == 'windows' && secrets.WINDOWS_PUBLISHER || '' }}
+          HOSTED: ${{ runner.environment == 'github-hosted' }}
         run: |
           if [ "$RUNNER_OS" = Linux ]; then
-            sudo apt-get update
-            xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --deb --require-sandbox
-            if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
-              xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-fallback
-            else
-              xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke
+            if ! command -v xvfb-run > /dev/null; then
+              echo "::error::xvfb-run is missing on this runner; install the xvfb package on it."
+              exit 1
             fi
-            TMPDIR="$RUNNER_TEMP" APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --no-sandbox
+            if [ "$HOSTED" = true ]; then
+              xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --deb --require-sandbox
+            else
+              echo "::notice::Skipped the Debian package's install smoke, which needs root: this self-hosted runner has none, and CI's run on a GitHub-hosted runner covers it."
+            fi
+            if [ "$HOSTED" != true ]; then
+              echo "::notice::Requiring Chromium's sandbox: the self-hosted runners' AppArmor profile noldova-runner-chromium gives the AppImage's mount a user namespace."
+              xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-sandbox
+            elif [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
+              xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --require-fallback
+            else
+              xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke
+            fi
+            TMPDIR="$RUNNER_TEMP" APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/xvfb.log" --server-args='-screen 0 1920x1080x24' npm run package:smoke -- --no-sandbox
             if ! compgen -G "$RUNNER_TEMP/appimage_extracted_*" > /dev/null; then
               echo "::error::The extract-and-run smoke left no extraction in the job's temporary folder, so TMPDIR did not reach the AppImage."
               exit 1
             fi
           else
+            if [ "$RUNNER_OS" = macOS ] && compgen -G "_build/package/out/*.pkg" > /dev/null; then
+              if [ "$HOSTED" = true ]; then
+                npm run package:smoke -- --pkg
+              else
+                echo "::notice::Skipped installing the installer package into /Applications, which needs root: this self-hosted runner has none, and CI's run on a GitHub-hosted runner covers it. The smoke below runs the app from the package's payload."
+              fi
+            fi
             npm run package:smoke
           fi
+
+      - name: Keep the virtual display's log
+        if: always() && runner.os == 'Linux' && (steps.smoke.outcome == 'failure' || steps.smoke.outcome == 'cancelled')
+        timeout-minutes: 5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: virtual-display-log-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/xvfb.log
+          retention-days: ${{ inputs.revision == '' && 1 || 14 }}
+          if-no-files-found: ignore
+          overwrite: true
 
       - name: Remove a Windows install the smoke left
         if: always() && runner.os == 'Windows' && steps.smoke.outcome != 'skipped'
@@ -440,13 +538,39 @@ jobs:
         working-directory: ${{ inputs.app-folder }}/_build/package/out
         env:
           PRODUCT: ${{ steps.product.outputs.name }}
+          TARGET: ${{ matrix.platform }}-${{ matrix.architecture }}
         run: |
           shopt -s nullglob
-          packages=("$PRODUCT"-*.exe "$PRODUCT"-*.dmg "$PRODUCT"-*.zip "$PRODUCT"-*.AppImage "$PRODUCT"-*.deb)
+          packages=("$PRODUCT"-*.exe "$PRODUCT"-*.dmg "$PRODUCT"-*.pkg "$PRODUCT"-*.zip "$PRODUCT"-*.AppImage "$PRODUCT"-*.deb)
           updates=(latest-*.yml)
           missing=()
+          others=()
+          is_for_target() {
+            [[ "$1" =~ -"$2"\.[A-Za-z]+$ ]]
+          }
+          expect_for_target() {
+            if is_for_target "$2" "$3"; then got=true; else got=false; fi
+            if [ "$got" != "$1" ]; then
+              echo "::error::The check gives $got, not $1, for $2 as a $3 package."
+              exit 1
+            fi
+          }
+          expect_for_target true P-1.0.0-windows-arm64.exe windows-arm64
+          expect_for_target true P-1.0.0-linux-arm64.AppImage linux-arm64
+          expect_for_target false P-1.0.0-windows-x64.exe windows-arm64
+          expect_for_target false P-1.0.0-linux-x64.deb linux-arm64
+          expect_for_target false P-windows-arm64-1.0.0.exe windows-arm64
           if [ ${#packages[@]} -eq 0 ]; then
             missing+=("a package")
+          fi
+          for package in "${packages[@]}"; do
+            if ! is_for_target "$package" "$TARGET"; then
+              others+=("$package")
+            fi
+          done
+          if [ ${#others[@]} -gt 0 ]; then
+            echo "::error::The packages $(IFS=,; echo "${others[*]}" | sed 's/,/, /g') are not for $TARGET; a desktop.build of 0.0.2 or older packages for the runner's processor alone, so pass a runner of that processor or a newer desktop.build."
+            exit 1
           fi
           for package in "${packages[@]}"; do
             if [ ! -f "$package.sha256" ]; then
@@ -469,10 +593,11 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: &release-files |
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.exe
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.dmg
+            ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.pkg
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.zip
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.AppImage
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.deb
@@ -494,7 +619,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: *release-files
           retention-days: *retention
           if-no-files-found: error
@@ -510,7 +635,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: *release-files
           retention-days: *retention
           if-no-files-found: error
@@ -522,7 +647,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: ${{ inputs.app-folder }}/_build/package/package-report.json
           retention-days: *retention
           if-no-files-found: error
@@ -540,7 +665,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: ${{ inputs.app-folder }}/_build/package/package-report.json
           retention-days: *retention
           if-no-files-found: error
@@ -556,7 +681,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: ${{ inputs.app-folder }}/_build/package/package-report.json
           retention-days: *retention
           if-no-files-found: error
@@ -567,10 +692,12 @@ jobs:
     needs: versions
     if: inputs.signed && github.ref == 'refs/heads/main'
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ fromJSON(matrix.runner) }}
     environment: ${{ inputs.signing-environment }}
     timeout-minutes: 105
+    env:
+      NOLDOVA_DESKTOP_ARCHITECTURE: ${{ matrix.architecture }}
     steps: *package-steps

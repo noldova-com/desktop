@@ -91,6 +91,8 @@ export class FakeWebViewContents implements IWebViewContents {
     this.begin();
     return this.restoreAnswer().then(() => {
       this.url = this.restoredUrl ?? history.currentUrl ?? String.empty;
+      this.history = history.entries.map(t => t.url);
+      this.index = history.index;
     });
   }
 
@@ -173,8 +175,8 @@ export class FakeWebViewContents implements IWebViewContents {
     return navigation.isPrevented;
   }
 
-  public openWindow(url: string, referrer: string = String.empty): WindowOpenHandlerResponse | undefined {
-    return this.openHandler?.({ url, referrer: { url: referrer } });
+  public openWindow(url: string, referrer: string = String.empty, disposition: string | null = "foreground-tab"): WindowOpenHandlerResponse | undefined {
+    return this.openHandler?.({ url, referrer: { url: referrer }, ...Object.isNull(disposition) ? {} : { disposition } });
   }
 
   public show(url: string, title: string = String.empty): void {

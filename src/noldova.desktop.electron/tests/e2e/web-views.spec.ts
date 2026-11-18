@@ -30,7 +30,7 @@ const typePage = "<!doctype html><title>Loading</title><p>Type</p><input><script
 const formPage = "<!doctype html><title>Form</title><body style=\"margin:0\"><input style=\"position:fixed;top:0\"><div style=\"height:5000px\"></div><script>const field = document.querySelector(\"input\"); field.focus();</script></body>";
 const manualFormPage = formPage.replace("<script>", "<script>history.scrollRestoration = \"manual\"; ");
 const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
-const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
+const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><a href=\"/focus?linked\" style=\"position:absolute;left:10px;top:60px;width:150px;height:30px;display:block\">Next</a><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
@@ -232,15 +232,15 @@ function readFirstViewAddressAsync(mainProcess: MainProcessFixture): Promise<{ a
   });
 }
 
-function clickInFirstViewAsync(mainProcess: MainProcessFixture, x: number, y: number): Promise<boolean> {
-  return mainProcess.application.evaluate(({ webContents }, [left, top]) => {
+function clickInFirstViewAsync(mainProcess: MainProcessFixture, x: number, y: number, button: "left" | "middle" = "left"): Promise<boolean> {
+  return mainProcess.application.evaluate(({ webContents }, [left, top, pressed]) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
     if (first === undefined)
       return false;
     for (const type of ["mouseDown", "mouseUp"] as const)
-      first.sendInputEvent({ type, x: left, y: top, button: "left", clickCount: 1 });
+      first.sendInputEvent({ type, x: left, y: top, button: pressed, clickCount: 1 });
     return true;
-  }, [x, y] as const);
+  }, [x, y, button] as const);
 }
 
 function isFirstDebuggerAttachedAsync(mainProcess: MainProcessFixture): Promise<boolean> {
@@ -275,7 +275,7 @@ async function startServerAsync(): Promise<Server> {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(request.url?.endsWith("&manual") === true ? manualFormPage : formPage);
       return;
     }
-    if (request.url === "/focus") {
+    if (request.url === "/focus" || (request.url ?? String.empty).startsWith("/focus?")) {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(focusPage);
       return;
     }
@@ -396,6 +396,39 @@ test.describe("web views", () => {
       await expect.poll(() => requestAsync(window, "pages.list", null)).toEqual([]);
       await expect.poll(() => requestAsync(window, "pages.events", null)).toEqual(expect.arrayContaining(ids.map(id => `${id} Closed`)));
       await expect.poll(() => readPlacesAsync(window)).toEqual([]);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a shortcut pressed in a module's web view while its command is disabled reaches the page before the keys after it, and once enabled runs the command without the page seeing it", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const mod = process.platform === "darwin" ? "meta" : "control";
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/keys` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Keys");
+
+      await pressInFirstViewAsync(mainProcess, "L", [mod, "shift"]);
+      await pressInFirstViewAsync(mainProcess, "5");
+      await expect(view(window, 0)).toHaveText(/^Keys [Ll] 5$/);
+      await expect(window.getByRole("tab", { name: /Marked page/ })).toHaveCount(0);
+
+      await CommandSearchFixture.searchAsync(window, "Allow the mark");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.allowMark");
+      await window.keyboard.press("Enter");
+      await pressInFirstViewAsync(mainProcess, "L", [mod, "shift"]);
+      await expect(window.getByRole("tab", { name: /Marked page/ })).toHaveCount(1);
+      await pressInFirstViewAsync(mainProcess, "6");
+      await expect(view(window, 0)).toHaveText(/^Keys [Ll] 5 6$/);
     }
     finally {
       await stopServerAsync(server);
@@ -575,6 +608,62 @@ test.describe("web views", () => {
       expect(await readFirstViewAsync(mainProcess, "document.title")).toBe("Focus hello! abc first 0");
       await expect(note).toBeFocused();
       await expect.poll(() => readPlacesAsync(window)).toEqual([[false, expect.anything()], [false, expect.anything()]]);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a controlled web view behind another document of its group stays painted under it, so clicks, keys and a link click the relay sends reach pages it loads by GET and by POST", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const noteKey = "document/notes.note/1";
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      const navigations = [
+        [`${origin}/focus?get`, `setTimeout(() => location.assign(${JSON.stringify(`${origin}/focus?get`)}));`],
+        [`${origin}/focus?post`, `setTimeout(() => { const form = document.createElement("form"); form.method = "post"; form.action = ${JSON.stringify(`${origin}/focus?post`)}; document.body.append(form); form.submit(); });`]
+      ] as const;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/focus` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Focus - - - 0");
+      const pane = await window.locator("[data-fixture-content=pages-content]").boundingBox();
+      await requestAsync(window, "pages.control", { view: 0, isControlled: true });
+      await TabDragFixture.tab(window, noteKey).click();
+      await expect(window.locator("[data-fixture-content=notes-note-1]")).toBeVisible();
+      const place = pane === null ? null : { x: Math.round(pane.x), y: Math.round(pane.y), width: Math.round(pane.width), height: Math.round(pane.height) };
+      await expect.poll(() => readPlacesAsync(window)).toEqual([[true, place], [false, place]]);
+      const cover = await window.evaluate(key => {
+        const front = document.querySelector(`[data-tab-content="${key}"]`);
+        const guest = document.querySelector("webview");
+        if (front === null || guest === null)
+          return null;
+        const outer = front.getBoundingClientRect();
+        const inner = guest.getBoundingClientRect();
+        const style = getComputedStyle(front);
+        return { background: /^rgb\(/u.test(style.backgroundColor), opacity: style.opacity, zIndex: style.zIndex, covers: outer.left <= inner.left && outer.top <= inner.top && outer.right >= inner.right && outer.bottom >= inner.bottom };
+      }, noteKey);
+      expect(cover).toEqual({ background: true, opacity: "1", zIndex: "1", covers: true });
+
+      for (const [address, script] of navigations) {
+        expect(await runInFirstViewAsync(mainProcess, script)).toBe(true);
+        await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address, isLoading: false });
+        await expect.poll(() => readFirstViewAsync(mainProcess, "document.title")).toBe("Focus - - - 0");
+        await requestAsync(window, "pages.click", { view: 0, x: 60, y: 25 });
+        await requestAsync(window, "pages.type", { view: 0, text: "ab" });
+        await expect.poll(() => readFirstViewAsync(mainProcess, "document.title")).toBe("Focus ab - first 0");
+        await requestAsync(window, "pages.click", { view: 0, x: 60, y: 75 });
+        await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/focus?linked`, isLoading: false });
+        await expect.poll(() => readFirstViewAsync(mainProcess, "document.title")).toBe("Focus - - - 0");
+      }
+
+      await requestAsync(window, "pages.control", { view: 0, isControlled: false });
+      await expect.poll(() => readPlacesAsync(window)).toEqual([[false, place], [false, place]]);
     }
     finally {
       await stopServerAsync(server);
@@ -1075,7 +1164,7 @@ test.describe("web views", () => {
     }
   });
 
-  test("a module that takes new-window requests gets a script's and a link's, the second saying the person's input came just before, opens each in a view of its own, and the host refuses a burst over five a second", async ({ mainProcess }) => {
+  test("a module that takes new-window requests gets a script's, a popup's, a link's and a middle-clicked link's with each disposition, the links saying the person's input came just before, opens each in a view of its own, and the host refuses a burst over five a second", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const server = await startServerAsync();
     try {
@@ -1090,19 +1179,26 @@ test.describe("web views", () => {
       await expect(view(window, 0)).toHaveText("Opener");
       const id = await view(window, 0).getAttribute("data-view");
 
+      const script = `${origin}/second false ${origin} foreground-tab\n`;
+      const popup = `${origin}/second false ${origin} new-window\n`;
+      const link = `${origin}/first true ${origin} foreground-tab\n`;
       expect(await runInFirstViewAsync(mainProcess, "window.open('/second')")).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${origin}/second false ${origin}\n`);
+      await expect(view(window, 0)).toHaveAttribute("data-requests", script);
       await expect(view(window, 1)).toHaveText("Second page");
+      expect(await runInFirstViewAsync(mainProcess, "window.open('/second', '_blank', 'popup')")).toBe(true);
+      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}`);
       expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${origin}/second false ${origin}\n${origin}/first true ${origin}\n`);
+      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}`);
       await expect(view(window, 1)).toHaveText("First page");
+      expect(await clickInFirstViewAsync(mainProcess, 20, 20, "middle")).toBe(true);
+      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}${origin}/first true ${origin} background-tab\n`);
       expect(await readPlacesAsync(window)).toHaveLength(2);
 
       await holdClockAsync(mainProcess, true);
       const burst = await runInFirstViewAsync(mainProcess, "for (let index = 0; index < 7; index++) window.open('/first?' + index)").finally(() => holdClockAsync(mainProcess, false));
       expect(burst).toBe(true);
       const countAsync = async (): Promise<[number, number]> => [
-        ((await view(window, 0).getAttribute("data-requests")) ?? String.empty).split("\n").filter(t => t.length > 0).length - 2,
+        ((await view(window, 0).getAttribute("data-requests")) ?? String.empty).split("\n").filter(t => t.length > 0).length - 4,
         (await eventsAsync(window)).filter(t => t === `${id} RequestRefused`).length
       ];
       await expect.poll(async () => (await countAsync()).reduce((sum, t) => sum + t, 0)).toBe(7);

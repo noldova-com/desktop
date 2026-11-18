@@ -10,6 +10,8 @@
 import { realpathSync } from "node:fs";
 import type { Writable } from "node:stream";
 
+import { CompanyPackage } from "../models/packaging/company-package.ts";
+import { PackageTarget } from "../models/packaging/package-target.ts";
 import { Resources } from "../resources.ts";
 import { AngularProject } from "./angular/angular-project.ts";
 import { GalleryFile } from "./angular/gallery-file.ts";
@@ -64,7 +66,7 @@ export class BuildCommandLine {
         const root = this.folder;
         const angular = new AngularProject(root, runner, new NpmCommand(runner, this.environment));
         const build = new Build(new PackageBuild(root, runner, this.environment, this.platform, this.architecture), new ModuleCatalog(root), new ModuleArtifacts(root),
-          new ProductFile(root), new GalleryFile(root), angular, new ElectronBinary(root, runner), this.output);
+          new ProductFile(root), new GalleryFile(root), angular, new ElectronBinary(root, runner, this.architecture, this.environment), this.output);
         return build.runAsync(rest);
       }
       case Resources.startCommand: {
@@ -79,7 +81,7 @@ export class BuildCommandLine {
       case Resources.packageCommand: {
         const root = this.folder;
         const npm = new NpmCommand(runner, this.environment);
-        const stage = new PackageStage(root, npm, new PackagedBuild(root, runner, new GalleryFile(root), new AngularProject(root, runner, npm)));
+        const stage = new PackageStage(root, npm, new PackagedBuild(root, runner, new GalleryFile(root), new AngularProject(root, runner, npm)), CompanyPackage.readArchivesFolder(this.environment));
         return new Package(root, this.platform, this.architecture, stage, runner, this.environment, this.output, TrustedSigningModule.PACKAGES).runAsync(rest);
       }
       case Resources.packageSmokeCommand:
@@ -100,4 +102,4 @@ export class BuildCommandLine {
 }
 
 if (import.meta.main)
-  process.exitCode = await new BuildCommandLine(process.cwd(), process.env, process.platform, process.arch, process.stdout, process.stderr).runAsync(process.argv.slice(Resources.commandArgumentsOffset));
+  process.exitCode = await new BuildCommandLine(process.cwd(), process.env, process.platform, PackageTarget.readArchitecture(process.env, process.arch), process.stdout, process.stderr).runAsync(process.argv.slice(Resources.commandArgumentsOffset));

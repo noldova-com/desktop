@@ -7,12 +7,14 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import "@noldova/context.core";
 
+import { BuildException } from "../../exceptions/build.exception.ts";
 import { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { PackageAssets } from "./package-assets.ts";
 import { PackageLayout } from "./package-layout.ts";
@@ -100,6 +102,29 @@ export class PackageConfiguration {
       await mkdir(path.dirname(this.macCommand), { recursive: true });
       await writeFile(this.macCommand, this.describeMacCommand(), { mode: Resources.executableMode });
     }
+    if (this.target.platform === Resources.linuxTarget && !Object.isNull(this.product.installFolder))
+      await this.writeDebianTemplatesAsync(this.product.installFolder);
+  }
+
+  public static locateBuilderTemplates(): string {
+    const builder = createRequire(fileURLToPath(import.meta.resolve(Resources.builderModule)));
+    return path.join(path.dirname(builder.resolve(Resources.builderLibraryManifest)), ...Resources.builderLinuxTemplatesSegments);
+  }
+
+  public static placeDebianTemplate(text: string, template: string, installFolder: string): string {
+    if (!text.includes(Resources.debianTemplateProductPath))
+      throw new BuildException(Resources.formatDebianTemplateUnplaced(template, installFolder));
+    const placed = `${Resources.formatDebianInstallFolder(installFolder)}${Resources.debianTemplateProductPath.slice(Resources.debianInstallPrefix.length)}`;
+    return text.replaceAll(Resources.debianTemplateProductPath, () => placed);
+  }
+
+  private async writeDebianTemplatesAsync(installFolder: string): Promise<void> {
+    const folder = new PackageLayout(this.root).debianTemplates;
+    await mkdir(folder, { recursive: true });
+    for (const file of Resources.debianTemplates.values()) {
+      const source = path.join(PackageConfiguration.locateBuilderTemplates(), file);
+      await writeFile(path.join(folder, file), PackageConfiguration.placeDebianTemplate(await readFile(source, Resources.textEncoding), source, installFolder));
+    }
   }
 
   private static spell(extension: string): string[] {
@@ -149,11 +174,13 @@ export class PackageConfiguration {
           nsis: {
             oneClick: true,
             perMachine: false,
+            packElevateHelper: false,
             deleteAppDataOnUninstall: false,
             shortcutName: product.name,
             uninstallDisplayName: product.name,
             artifactName,
-            include: this.assets.locate(Resources.installerIncludeSegments)
+            include: this.assets.locate(Resources.installerIncludeSegments),
+            ...Object.isNull(product.installFolder) ? {} : { menuCategory: product.installFolder }
           }
         };
       case Resources.macosTarget:
@@ -171,13 +198,19 @@ export class PackageConfiguration {
               notarize: true
             } : {})
           },
-          ...(this.isSigned ? { dmg: { sign: true } } : {})
+          ...Object.isNull(product.installFolder)
+            ? this.isSigned ? { dmg: { sign: true } } : {}
+            : { pkg: { installLocation: Resources.formatMacInstallLocation(product.installFolder), isRelocatable: false, overwriteAction: Resources.macInstallerOverwriteAction } }
         };
       default:
         return {
           toolsets: { appimage: Resources.appImageToolset },
           extraMetadata: { homepage: product.about.website ?? Resources.formatRepositoryPage(product.releaseRepository) },
-          deb: { maintainer: product.publisher },
+          deb: {
+            maintainer: product.publisher,
+            ...Object.isNull(product.installFolder) ? {} : Object.fromEntries([...Resources.debianTemplates]
+              .map(([option, file]) => [option, path.join(new PackageLayout(this.root).debianTemplates, file)]))
+          },
           linux: {
             target,
             icon: path.join(icons, Resources.linuxIconFile),

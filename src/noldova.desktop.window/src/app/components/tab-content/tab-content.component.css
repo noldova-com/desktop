@@ -21,6 +21,22 @@
   opacity: 0;
 }
 
+:host(.nol-tab-content-concealed.nol-tab-content-painted) {
+  z-index: 0;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: none;
+}
+
+:host(.nol-tab-content-covering) {
+  z-index: 1;
+  background-color: var(--nol-panel);
+}
+
+:host(.nol-tab-content-covering.nol-tab-content-docked) {
+  background-color: var(--nol-window);
+}
+
 :host(.nol-tab-content-padded) {
   scrollbar-gutter: stable;
   padding: var(--nol-document-padding-block) var(--nol-content-padding-inline);

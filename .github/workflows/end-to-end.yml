@@ -25,7 +25,7 @@ jobs:
   versions:
     name: Versions
     if: github.ref == 'refs/heads/main'
-    uses: noldova-com/.github/.github/workflows/versions.yml@ca4ec084bd2907b4050679523deba3e3cc010fb7 # v2.36.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@55fa60e7fc524fa07e0a1e4f374f3cd14550a0ba # v2.39.0
     permissions: {}
 
   end-to-end:

@@ -26,7 +26,9 @@ export class WebViewCommandTests {
       [WebViewAction.Stop, "7", null],
       [WebViewAction.SetAllowedOrigins, "7", ["https://example.com", "https://*.example.org"]],
       [WebViewAction.ClearProfile, null, "workspace-1"],
-      [WebViewAction.Send, "7", send]
+      [WebViewAction.Send, "7", send],
+      [WebViewAction.SetControlled, "7", true],
+      [WebViewAction.SetControlled, "7", false]
     ];
 
     for (const [action, view, value] of commands) {
@@ -51,7 +53,9 @@ export class WebViewCommandTests {
       [WebViewAction.Send, { ...send, params: [] }],
       [WebViewAction.Send, { ...send, sessionId: "child" }],
       [WebViewAction.Send, { params: {}, timeoutMilliseconds: 100 }],
-      [WebViewAction.Send, "Page.enable"]
+      [WebViewAction.Send, "Page.enable"],
+      [WebViewAction.SetControlled, null],
+      [WebViewAction.SetControlled, "true"]
     ];
 
     for (const [action, value] of values)

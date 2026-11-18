@@ -24,13 +24,15 @@ export class AddonBuilder {
   private readonly platform: string;
   private readonly architecture: string;
   private readonly releaseAddons: string;
+  private readonly machineArchitecture: string;
 
-  public constructor(layout: BuildLayout, nodeGyp: NodeGyp, platform: string, architecture: string, releaseAddons: string = String.empty) {
+  public constructor(layout: BuildLayout, nodeGyp: NodeGyp, platform: string, architecture: string, releaseAddons: string = String.empty, machineArchitecture: string = process.arch) {
     this.layout = layout;
     this.nodeGyp = nodeGyp;
     this.platform = platform;
     this.architecture = architecture;
     this.releaseAddons = releaseAddons;
+    this.machineArchitecture = machineArchitecture;
   }
 
   public static listReleaseBuilds(manifest: PackageManifest): readonly string[] {
@@ -43,7 +45,10 @@ export class AddonBuilder {
   public async buildAsync(manifest: PackageManifest, output: string): Promise<void> {
     if (this.releaseAddons.length > 0)
       return await this.copyReleaseAddonsAsync(manifest, output);
-    for (const addon of this.isWindows ? manifest.windowsAddons : manifest.posixAddons)
+    const addons = this.isWindows ? manifest.windowsAddons : manifest.posixAddons;
+    if (addons.length > 0 && this.architecture !== this.machineArchitecture)
+      throw new BuildException(Resources.formatAddonArchitectureRefused(manifest.name, this.architecture, this.machineArchitecture));
+    for (const addon of addons)
       await this.buildAddonAsync(manifest, addon, output);
   }
 

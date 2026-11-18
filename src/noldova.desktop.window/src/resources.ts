@@ -66,6 +66,7 @@ export class Resources {
   public static readonly middleButton: number = 1;
   public static readonly escapeKey: string = "Escape";
   public static readonly keyDownEvent: "keydown" = "keydown";
+  public static readonly webViewPressField: string = "press";
   public static readonly keepsCtrlKeysAttribute: string = "data-nol-keeps-ctrl-keys";
   public static readonly inertAttribute: string = "inert";
   public static readonly dialogContainerSelector: string = ".cdk-dialog-container";
@@ -572,7 +573,6 @@ export class Resources {
   public static readonly imageGlyphParameter: string = "imageGlyph";
   public static readonly statusParameter: string = "status";
   public static readonly markerParameter: string = "marker";
-  public static readonly underlineParameter: string = "underline";
   public static readonly breadcrumbIconWithoutBreadcrumb: string = "A breadcrumb's glyph comes with the breadcrumb it goes before.";
   public static readonly breadcrumbSeparator: string = " / ";
   public static readonly textParameter: string = "text";
@@ -869,6 +869,8 @@ export class Resources {
   public static readonly dockedInput: string = "isDocked";
   public static readonly shownInput: string = "isShown";
   public static readonly concealedTabContentClass: string = "nol-tab-content-concealed";
+  public static readonly paintedTabContentClass: string = "nol-tab-content-painted";
+  public static readonly coveringTabContentClass: string = "nol-tab-content-covering";
   public static readonly invalidContributionName: string = "A contribution name has the form <module id>.<name>.";
   public static readonly renamableViewWithoutInstances: string = "Only a view with instances can be renamable.";
   public static readonly invalidModuleId: string = "A module id is lowercase kebab-case.";
@@ -1087,6 +1089,9 @@ export class Resources {
   public static readonly hiddenVisibility: string = "hidden";
   public static readonly pointerEventsProperty: string = "pointer-events";
   public static readonly noPointerEvents: string = "none";
+  public static readonly zIndexProperty: string = "z-index";
+  public static readonly behindZIndex: string = "-1";
+  public static readonly isControlledField: string = "isControlled";
   public static readonly webViewViewField: string = "view";
   public static readonly webViewPartitionField: string = "partition";
   public static readonly webViewKeysField: string = "keys";

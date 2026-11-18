@@ -63,6 +63,7 @@ export class Resources {
   public static readonly appShortcutsChannel: string = "desktop:appShortcuts";
   public static readonly webViewEventChannel: string = "desktop:webViewEvent";
   public static readonly webViewShortcutChannel: string = "desktop:webViewShortcut";
+  public static readonly webViewShortcutAnswerChannel: string = "desktop:webViewShortcutAnswer";
   public static readonly webViewInputChannel: string = "desktop:webViewInput";
   public static readonly webViewFocusReleaseChannel: string = "desktop:webViewFocusRelease";
   public static readonly webViewZoomChannel: string = "desktop:webViewZoom";
@@ -85,6 +86,7 @@ export class Resources {
   public static readonly pageFaviconUpdatedEvent: "page-favicon-updated" = "page-favicon-updated";
   public static readonly imageField: string = "image";
   public static readonly factorField: string = "factor";
+  public static readonly isControlledField: string = "isControlled";
   public static readonly matchesField: string = "matches";
   public static readonly activeField: string = "active";
   public static readonly textField: string = "text";
@@ -219,6 +221,7 @@ export class Resources {
   public static readonly codeField: string = "code";
   public static readonly modifiersField: string = "modifiers";
   public static readonly originField: string = "origin";
+  public static readonly dispositionField: string = "disposition";
   public static readonly altModifier: number = 1;
   public static readonly ctrlModifier: number = 2;
   public static readonly metaModifier: number = 4;
@@ -244,6 +247,8 @@ export class Resources {
     [Resources.altModifier, "alt"], [Resources.ctrlModifier, "control"], [Resources.metaModifier, "meta"], [Resources.shiftModifier, "shift"]
   ];
   public static readonly autoRepeatModifier: string = "isautorepeat";
+  public static readonly pressField: string = "press";
+  public static readonly webViewKeyTexts: ReadonlyMap<string, string> = new Map([["Enter", "\r"]]);
   public static readonly webViewKeyNames: ReadonlyMap<string, string> = new Map([["ArrowUp", "Up"], ["ArrowDown", "Down"], ["ArrowLeft", "Left"], ["ArrowRight", "Right"], [" ", "Space"], ["+", "Plus"]]);
   public static readonly webViewTextUnreadable: string = "The text input names no text.";
   public static readonly webViewKeyUnreadable: string = "The key event names no key, or a type the page's input doesn't take.";
@@ -671,6 +676,7 @@ export class Resources {
     webViewNavigate: Resources.webViewNavigateChannel,
     webViewOpen: Resources.webViewOpenChannel,
     webViewShortcut: Resources.webViewShortcutChannel,
+    webViewShortcutAnswer: Resources.webViewShortcutAnswerChannel,
     webViewShortcuts: Resources.webViewShortcutsChannel,
     webViewZoom: Resources.webViewZoomChannel,
     windowAction: Resources.windowActionChannel,
@@ -763,6 +769,20 @@ export class Resources {
   public static readonly uncaughtExceptionEvent: "uncaughtException" = "uncaughtException";
   public static readonly unhandledRejectionEvent: "unhandledRejection" = "unhandledRejection";
   public static readonly quitExitCode: number = 0;
+  public static readonly appBundleExtension: string = ".app";
+  public static readonly bundleFromProgramSegments: readonly string[] = ["..", "..", ".."];
+  public static readonly macApplicationsFolder: string = "/Applications";
+  public static readonly installFolderStagingPrefix: string = ".";
+  public static readonly dittoProgram: string = "/usr/bin/ditto";
+  public static readonly installFolderStagingSeparator: string = "-";
+  public static readonly installFolderStagingProcessPattern: RegExp = /^[1-9]\d*$/u;
+  public static readonly missingProcessErrorCode: string = "ESRCH";
+  public static readonly plistProgram: string = "/usr/bin/plutil";
+  public static readonly bundleInformationSegments: readonly string[] = ["Contents", "Info.plist"];
+  public static readonly bundleIdentifierKey: string = "CFBundleIdentifier";
+  public static readonly bundleVersionKey: string = "CFBundleShortVersionString";
+  public static readonly removeProgram: string = "/bin/rm";
+  public static readonly removeRecursiveOption: string = "-rf";
   public static readonly failureExitCode: number = 1;
   public static readonly mainWindow: string = "main";
   public static readonly deviceNotIdentified: string = "This device has no identity, so the window's layout and Do not disturb are not kept.";
@@ -814,6 +834,7 @@ export class Resources {
   public static readonly helpRole: "help" = "help";
   public static readonly pngMimeType: string = "image/png";
   public static readonly killSignal: NodeJS.Signals = "SIGKILL";
+  public static readonly probeSignal: number = 0;
   public static readonly argumentSeparator: string = " ";
   public static readonly mediaSourceParts: number = 3;
   public static readonly pipedStdio: "pipe" = "pipe";
@@ -988,6 +1009,42 @@ export class Resources {
     return ProductInfo.current.name;
   }
 
+  public static get installFolder(): string | null {
+    return ProductInfo.current.installFolder;
+  }
+
+  public static formatInstallFolderMoved(bundle: string, target: string): string {
+    return `Moved ${bundle} into its install folder, as ${target}, and moved the old copy to the Trash.`;
+  }
+
+  public static formatInstallFolderOldCopyKept(bundle: string, target: string, reason: string): string {
+    return `Copied ${bundle} into its install folder, as ${target}, but the old copy could not be moved to the Trash: ${reason}`;
+  }
+
+  public static formatInstallFolderNotWritable(bundle: string, target: string, reason: string): string {
+    return `${bundle} could not be copied to ${target}, so it keeps running where it is: ${reason}`;
+  }
+
+  public static plistExtractArguments(key: string): readonly string[] {
+    return ["-extract", key, "raw", "-o", "-"];
+  }
+
+  public static formatInstallFolderAlreadyThere(bundle: string, target: string): string {
+    return `${target} already holds the app, as new as ${bundle} or newer, so the old copy was moved to the Trash.`;
+  }
+
+  public static formatInstallFolderTargetExists(bundle: string, target: string, identifiers: readonly string[], versions: readonly string[]): string {
+    return `${bundle} stays where it is, since ${target} already exists and is not the same app as new or newer: ${identifiers.join(" and ")}, versions ${versions.join(" and ")}.`;
+  }
+
+  public static formatInstallFolderTargetUnread(bundle: string, target: string, reason: string): string {
+    return `${bundle} stays where it is, since ${target} already exists and could not be read: ${reason}`;
+  }
+
+  public static formatInstallFolderStagingLeft(staging: string, reason: string): string {
+    return `The unfinished copy ${staging} could not be removed: ${reason}`;
+  }
+
   public static get appUserModelId(): string {
     return ProductInfo.current.applicationId;
   }
@@ -1134,6 +1191,10 @@ export class Resources {
 
   public static formatWebViewAttachRefused(windowId: number, partition: string): string {
     return `A <webview> in window ${windowId} was refused, because its partition "${partition}" belongs to no web view the window opened.`;
+  }
+
+  public static formatShortcutPress(windowId: number, press: number): string {
+    return `${windowId} ${press}`;
   }
 
   public static formatWebViewPartition(module: string, profileKey: string): string {
@@ -1677,6 +1738,10 @@ export class Resources {
   public static formatWindowShownUnpainted(seconds: number, isLoading: boolean, isCrashed: boolean): string {
     const page = isCrashed ? "its page has crashed" : isLoading ? "its page is still loading" : "its page loaded but did not report its first paint";
     return `The window was shown before it was painted, ${seconds} s after it opened, because ${page}.`;
+  }
+
+  public static formatPagePaintedLate(seconds: number): string {
+    return `The window's page painted ${seconds} s after it opened, after the window was shown unpainted.`;
   }
 
   public static formatRendererGone(reason: string, exitCode: number): string {
