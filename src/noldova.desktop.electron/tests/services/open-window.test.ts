@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { mock } from "node:test";
 import { setImmediate } from "node:timers/promises";
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
@@ -136,6 +137,40 @@ export class OpenWindowTests {
     windows[2]?.destroy();
 
     Assert.areEqual("true,true,false", (await Promise.all([painted, shown, closed].map(t => t?.whenPaintedAsync()))).join(","));
+  }
+
+  @TestMethod
+  public async reportsItsPageAsPaintedOnlyOnceItPaintsEvenAfterItWasShownUnpainted(): Promise<void> {
+    const windows = [new FakeMainProcessWindow({}, 1), new FakeMainProcessWindow({}, 2)];
+    const [shown, closed] = windows.map(t => new OpenWindow(t, new FakeDisplayHost(), new FakeMainProcessLog(), new FakeCloseGuard(), "win32"));
+
+    shown?.showNow();
+    const beforePaint = await Promise.race([shown?.whenPagePaintedAsync(), Promise.resolve("waiting")]);
+    shown?.markPainted();
+    windows[1]?.destroy();
+
+    Assert.areEqual("waiting", beforePaint);
+    Assert.areEqual("true,false", (await Promise.all([shown, closed].map(t => t?.whenPagePaintedAsync()))).join(","));
+  }
+
+  @TestMethod
+  public recordsOnceHowLongAfterOpeningAPageShownUnpaintedPaints(): void {
+    mock.timers.enable({ apis: ["Date"] });
+    try {
+      const log = new FakeMainProcessLog();
+      const [late, onTime] = [1, 2].map(t => new OpenWindow(new FakeMainProcessWindow({}, t), new FakeDisplayHost(), log, new FakeCloseGuard(), "win32"));
+
+      late?.showNow();
+      mock.timers.tick(12_345);
+      late?.markPainted();
+      late?.markPainted();
+      onTime?.markPainted();
+
+      Assert.areEqual(JSON.stringify(["The window's page painted 12.345 s after it opened, after the window was shown unpainted."]), JSON.stringify(log.lines));
+    }
+    finally {
+      mock.timers.reset();
+    }
   }
 
   @TestMethod
