@@ -496,7 +496,7 @@ export class WindowPartHostService implements IWindowPartHost {
     const failures = this.findFailures();
     const notStarted = new Set(failures.map(t => t.moduleId));
     this.menus.setActiveModules(this.moduleOrder.filter(t => !notStarted.has(t)));
-    const views = this.activations.flatMap(t => t.context.views);
+    const views = ordered.flatMap(t => t.context.views);
     for (const view of views)
       this.labels.register(view.name, new TabLabel(view.title, view.icon));
     const failed = failures.flatMap(t => t.viewNames.map(u => ({ name: u, failure: t })));

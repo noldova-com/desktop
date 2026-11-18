@@ -27,7 +27,7 @@ describe("Layout's default places", () => {
     view("teamrun.plans", DockSide.Right, 1, 10),
     view("teamrun.agents", DockSide.Right, 1, 20),
     view("teamrun.activity", DockSide.Bottom, 0, 10),
-    view("teamrun.changes", DockSide.Bottom, 1, 10),
+    view("teamrun.changes", DockSide.Bottom, 0, 20),
     view("git.branches", DockSide.Right, 0, 20)
   ], []);
   const names = (group: TabGroup | undefined): readonly string[] => group?.tabs.map(t => t.name) ?? [];
@@ -44,15 +44,20 @@ describe("Layout's default places", () => {
       [["teamrun.tasks", "git.branches", "teamrun.pages"], "teamrun.tasks"],
       [["teamrun.plans", "teamrun.agents"], "teamrun.plans"]
     ]);
-    expect(shown(layout, DockSide.Bottom)).toEqual([[["teamrun.activity"], "teamrun.activity"], [["teamrun.changes"], "teamrun.changes"]]);
-    expect([DockSide.Right, DockSide.Bottom].map(side => layout.dock(side).root).map(t => t instanceof SplitNode ? t.axis : null)).toEqual([SplitAxis.Vertical, SplitAxis.Horizontal]);
+    expect(shown(layout, DockSide.Bottom)).toEqual([[["teamrun.activity", "teamrun.changes"], "teamrun.activity"]]);
+    expect([DockSide.Right, DockSide.Bottom].map(side => layout.dock(side).root).map(t => t instanceof SplitNode ? t.axis : null)).toEqual([SplitAxis.Vertical, null]);
   });
 
   it("stacks a side's groups top to bottom in equal parts of its dock, and lays the bottom's out left to right", () => {
     const layout = Layout.createDefault(teamRun);
     const [upper, lower] = frames(layout, teamRun, DockSide.Right);
-    const [left, right] = frames(layout, teamRun, DockSide.Bottom);
+    const bottom = new ViewRegistry([view("logs.output", DockSide.Bottom, 0), view("logs.problems", DockSide.Bottom, 1)], []);
+    const split = Layout.createDefault(bottom);
+    const [left, right] = frames(split, bottom, DockSide.Bottom);
+    const root = split.dock(DockSide.Bottom).root;
 
+    expect(shown(split, DockSide.Bottom)).toEqual([[["logs.output"], "logs.output"], [["logs.problems"], "logs.problems"]]);
+    expect(root instanceof SplitNode ? root.axis : null).toBe(SplitAxis.Horizontal);
     expect([upper?.x, upper?.width, upper?.y]).toEqual([lower?.x, lower?.width, 0]);
     expect((upper?.y ?? 0) + (upper?.height ?? 0)).toBeLessThan(lower?.y ?? 0);
     expect(Math.abs((upper?.height ?? 0) - (lower?.height ?? 1))).toBeLessThan(0.01);

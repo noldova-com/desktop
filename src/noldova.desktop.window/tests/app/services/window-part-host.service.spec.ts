@@ -1178,6 +1178,21 @@ describe("WindowPartHostService", () => {
       .toEqual([["tasks.list", "git.branches", "tasks.pages"], ["tasks.plans"]]);
   });
 
+  it("lists the views in module order after an earlier module turns on later, so Reset the layout orders them as a fresh start does", async () => {
+    const tasks = new WindowPartFixture("tasks", log, t => t.registerView(new ViewContribution("tasks.list", "Tasks", "task", DockSide.Right, true, load)));
+    const git = new WindowPartFixture("git", log, t => t.registerView(new ViewContribution("git.branches", "Git", "branch", DockSide.Right, true, load)));
+    const { host, layout } = start([source("tasks", tasks, [], ["tasks.list"], [], [], [], [], []), source("git", git, [], ["git.branches"], [], [], [], [], [])],
+      [{ ...status("tasks", ModuleState.Off), switchSetting: "tasks.enabled" }, status("git")]);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+
+    bridge.publishEvent("desktop.modulesChanged", { modules: [status("tasks"), status("git")] });
+    await vi.waitFor(() => expect(layout.registry().hasView("tasks.list")).toBe(true));
+    layout.reset();
+
+    expect(layout.registry().views.map(t => t.name)).toEqual(["tasks.list", "git.branches"]);
+    expect(layout.layout().dock(DockSide.Right).root?.groups.map(t => [t.tabs.map(u => u.name), t.active?.name])).toEqual([[["tasks.list", "git.branches"], "tasks.list"]]);
+  });
+
   it("marks a part's renamable views and documents in the registry, and tells it each title a person keeps", async () => {
     const heard: string[] = [];
     const part = new WindowPartFixture("notes", log, t => {
