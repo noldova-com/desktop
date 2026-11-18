@@ -53,6 +53,7 @@ export class OpenWebView {
   private readonly input: (kind: string) => void;
   private readonly endings: Set<(kind: WebViewFailureKind) => void> = new Set();
   private readonly attachWaits: Map<(guest: IWebViewContents) => void, (kind: WebViewFailureKind) => void> = new Map();
+  private readonly lookupsSettled: (() => void)[] = [];
   private readonly redirects: Set<number> = new Set();
   private readonly refusedRequests: Set<number> = new Set();
   private readonly relayKeys: IKeyStroke[] = [];
@@ -81,6 +82,8 @@ export class OpenWebView {
   private inputCount: number = 0;
   private isCrashed: boolean = false;
   private isAttached: boolean = false;
+  private isReady: boolean = false;
+  private lookupCount: number = 0;
   private isFocusHeld: boolean = false;
   private isClosed: boolean = false;
   private isControlled: boolean = false;
@@ -165,6 +168,7 @@ export class OpenWebView {
     }
     this.guest = guest;
     this.isAttached = false;
+    this.isReady = false;
     this.isFocusHeld = false;
     this.isCrashed = false;
     if (!Object.isNull(previous) && !previous.isDestroyed() && previous.debugger.isAttached())
@@ -204,13 +208,19 @@ export class OpenWebView {
       this.pendingUrl = url;
       return new Promise(resolve => this.navigations.push(resolve));
     }
-    if (!(await this.allowsAsync(url)))
-      return OpenWebView.refused(url);
+    this.lookupCount += 1;
+    const allows = await this.allowsAsync(url).catch((error: unknown) => {
+      this.endLookup();
+      throw error;
+    });
     const guest = this.guest;
-    if (this.isClosed || Object.isNull(guest))
-      return this.navigateAsync(url);
+    if (!allows || this.isClosed || Object.isNull(guest)) {
+      this.endLookup();
+      return allows ? this.navigateAsync(url) : OpenWebView.refused(url);
+    }
     this.isCrashed = false;
     this.navigationCount += 1;
+    this.endLookup();
     void guest.loadURL(url).catch(() => undefined);
     const failure = this.isAttached ? null : await this.attachAsync(guest);
     if (!Object.isNull(failure) && this.guest === guest)
@@ -276,7 +286,7 @@ export class OpenWebView {
       };
       this.waitAsync(timeoutMilliseconds, abort.signal).then(() => end(WebViewFailureKind.TimedOut), () => undefined);
       const guest = this.guest;
-      if (this.isAttached && !Object.isNull(guest))
+      if (this.isReady && this.attachWaits.size === 0 && !Object.isNull(guest))
         go(guest);
       else
         this.attachWaits.set(go, end);
@@ -381,6 +391,7 @@ export class OpenWebView {
       guest.stop();
     }
     this.isAttached = false;
+    this.isReady = false;
     this.isFocusHeld = false;
   }
 
@@ -501,6 +512,7 @@ export class OpenWebView {
       return;
     this.guest = null;
     this.isAttached = false;
+    this.isReady = false;
     this.isFocusHeld = false;
     this.endFind();
     this.end(WebViewFailureKind.Unavailable);
@@ -520,14 +532,27 @@ export class OpenWebView {
       this.isAttached = true;
       await guest.debugger.sendCommand(Resources.pageEnableMethod, {});
       await guest.debugger.sendCommand(Resources.interceptFileChooserMethod, { [Resources.enabledField]: true });
-      if (this.isBound(guest) && this.isAttached)
+      if (this.isBound(guest) && this.isAttached) {
+        this.isReady = true;
         for (const go of [...this.attachWaits.keys()])
           go(guest);
+      }
       return null;
     }
     catch (error) {
       return String(error);
     }
+  }
+
+  private endLookup(): void {
+    this.lookupCount -= 1;
+    if (this.lookupCount === 0)
+      for (const settle of this.lookupsSettled.splice(0))
+        settle();
+  }
+
+  private lookupsAsync(): Promise<void> {
+    return new Promise(resolve => this.lookupsSettled.push(resolve));
   }
 
   private endAttachWaits(kind: WebViewFailureKind): void {
@@ -610,6 +635,8 @@ export class OpenWebView {
     this.kept = null;
     this.keptScroll = null;
     const navigations = this.navigations.splice(0);
+    if (this.lookupCount > 0)
+      await this.lookupsAsync();
     const answer = this.navigationCount !== count ? OpenWebView.started()
       : Object.isNull(kept) ? await this.goToAsync(pending ?? this.committedUrl) : await this.restoreAsync(guest, kept, scroll);
     for (const settle of navigations)
@@ -790,6 +817,7 @@ export class OpenWebView {
 
   private detach(guest: IWebViewContents): void {
     this.isAttached = false;
+    this.isReady = false;
     this.isFocusHeld = false;
     this.end(WebViewFailureKind.Unavailable);
     if (this.isCrashed || guest.isDestroyed())

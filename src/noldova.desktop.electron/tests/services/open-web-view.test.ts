@@ -806,6 +806,62 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async sendsACommandThatArrivesWhileItsPageAttachesAfterTheOnesThatWaitedForIt(): Promise<void> {
+    const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
+    const enabled = Promise.withResolvers<unknown>();
+    harness.contents.debugger.replies.set("Page.enable", () => enabled.promise);
+
+    const first = harness.open.sendAsync(1, "Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA" }, 1000);
+    const binding = harness.open.bindAsync(harness.contents);
+    const second = harness.open.sendAsync(2, "Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA" }, 1000);
+    const sentWhileAttaching = harness.contents.debugger.methods().join(",");
+    enabled.resolve({});
+    const answers = await Promise.all([first, second]);
+
+    Assert.isTrue(await binding);
+    Assert.areEqual("Page.enable", sentWhileAttaching);
+    Assert.areEqual("1 {} none|2 {} none", answers.map(t => OpenWebViewTests.describe(t)).join("|"));
+    Assert.areEqual("keyDown,keyUp", harness.contents.inputs.map(t => t.type).join(","));
+  }
+
+  @TestMethod
+  public async loadsOnlyANavigationWhoseAddressLookupLastsThroughTheAttachAndNotTheOneWaitingFromBefore(): Promise<void> {
+    const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    const lookup = Promise.withResolvers<readonly string[]>();
+    harness.session.lookups.set("example.com", lookup.promise);
+
+    const waiting = harness.open.navigateAsync("https://example.com/a");
+    const binding = harness.open.bindAsync(harness.contents);
+    const latest = harness.open.navigateAsync("https://example.com/b");
+    const attached = await harness.open.sendAsync(5, "Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA" }, 1000);
+    lookup.resolve(["93.184.216.34"]);
+
+    Assert.areEqual("5 {} none", OpenWebViewTests.describe(attached));
+    Assert.isTrue(await binding);
+    Assert.areEqual(JSON.stringify([{ kind: "Started" }, { kind: "Started" }]), JSON.stringify([await waiting, await latest]));
+    Assert.areEqual("load https://example.com/b", harness.contents.calls.join(","));
+  }
+
+  @TestMethod
+  public async endsACommandWaitingForItsPageAsCrashedWhenThePageCrashesAndSendsNothingLater(): Promise<void> {
+    const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
+    const enabled = Promise.withResolvers<unknown>();
+    harness.contents.debugger.replies.set("Page.enable", () => enabled.promise);
+
+    const binding = harness.open.bindAsync(harness.contents);
+    const answering = harness.open.sendAsync(7, OpenWebViewTests.SCREENSHOT, { format: "png" }, 1000);
+    harness.contents.emit("render-process-gone", {}, { reason: "crashed" });
+    const answer = await answering;
+    enabled.resolve({});
+    await binding;
+
+    Assert.areEqual("7 null Crashed", OpenWebViewTests.describe(answer));
+    Assert.isFalse(harness.contents.debugger.methods().includes(OpenWebViewTests.SCREENSHOT));
+    Assert.areEqual(0, harness.waits.count(1000));
+  }
+
+  @TestMethod
   public async answersAWaitingNavigationWithNullWhenItClosesFirst(): Promise<void> {
     const harness = new OpenWebViewHarness(OpenWebViewTests.DECLARATION);
 
