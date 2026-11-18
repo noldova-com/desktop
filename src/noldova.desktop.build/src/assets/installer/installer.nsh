@@ -74,24 +74,40 @@
   Pop $R0
 !macroend
 
+!macro repointShortcut LINK
+  ${If} ${FileExists} "${LINK}"
+    CreateShortCut "${LINK}" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+    ClearErrors
+    WinShell::SetLnkAUMI "${LINK}" "${APP_ID}"
+  ${EndIf}
+!macroend
+
 !macro customInit
   !ifdef MENU_FILENAME
-    Push $R0
-    Push $R1
-    Push $R2
-    !insertmacro GetDParameter $R0
-    ${If} $R0 == ""
-      ${GetParent} $INSTDIR $R0
-      ${GetFileName} $R0 $R1
-      ${GetFileName} $INSTDIR $R2
-      ${If} $R1 != "${MENU_FILENAME}"
-      ${OrIf} $R2 != "${PRODUCT_FILENAME}"
-        StrCpy $INSTDIR "$R0\${MENU_FILENAME}\${PRODUCT_FILENAME}"
+    Var /GLOBAL movedFrom
+    StrCpy $movedFrom ""
+    Push $0
+    Push $1
+    Push $2
+    !insertmacro GetDParameter $0
+    ${If} $0 == ""
+      StrCpy $0 "$LOCALAPPDATA\Programs"
+      StrCpy $2 0
+      System::Call 'SHELL32::SHGetKnownFolderPath(g "{5CD7AEE2-2219-4A67-B85D-6C9CE15660CB}", i 0x00008000, p 0, *p .r2)i.r1'
+      ${If} $1 == 0
+        System::Call 'KERNEL32::lstrcpynW(w .r0, p r2, i ${NSIS_MAX_STRLEN})p'
+      ${EndIf}
+      ${If} $2 != 0
+        System::Call 'OLE32::CoTaskMemFree(p r2)'
+      ${EndIf}
+      ${If} $INSTDIR == "$0\${APP_FILENAME}"
+        StrCpy $movedFrom $INSTDIR
+        StrCpy $INSTDIR "$0\${MENU_FILENAME}\${PRODUCT_FILENAME}"
       ${EndIf}
     ${EndIf}
-    Pop $R2
-    Pop $R1
-    Pop $R0
+    Pop $2
+    Pop $1
+    Pop $0
   !endif
 !macroend
 
@@ -100,6 +116,26 @@
   Push $R1
   Push $R2
   Push $R3
+  !ifdef MENU_FILENAME
+    ${If} $movedFrom != ""
+      !insertmacro repointShortcut $newStartMenuLink
+      !insertmacro repointShortcut $newDesktopLink
+      ClearErrors
+      ReadRegStr $R0 HKCU "Environment" "Path"
+      ${IfNot} ${Errors}
+        StrLen $R1 ";$R0;"
+        ${If} $R1 < ${COMMAND_PATH_LIMIT}
+          ClearErrors
+          ${WordReplace} ";$R0;" ";$movedFrom\bin;" ";" "E+" $R1
+          ${IfNot} ${Errors}
+            StrCpy $R1 $R1 -1 1
+            WriteRegExpandStr HKCU "Environment" "Path" $R1
+            !insertmacro announceEnvironment
+          ${EndIf}
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
+  !endif
   ClearErrors
   ReadRegStr $R0 HKCU "Environment" "Path"
   ${If} ${Errors}

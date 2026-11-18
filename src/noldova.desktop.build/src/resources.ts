@@ -422,6 +422,17 @@ export class Resources {
   public static readonly appImageExtractedFolder: string = "squashfs-root";
   public static readonly systemRootMissing: string = `${Resources.systemRootVariable} must name the Windows folder, whose PowerShell modules the installer's checks search first.`;
   public static readonly localAppDataMissing: string = `${Resources.localAppDataVariable} must name the folder the installer installs into for the user.`;
+  public static readonly appDataVariable: string = "APPDATA";
+  public static readonly appDataMissing: string = `${Resources.appDataVariable} must name the folder that holds the user's Start menu.`;
+  public static readonly installFolderOption: string = "/D=";
+  public static readonly startMenuProgramsSegments: readonly string[] = ["Microsoft", "Windows", "Start Menu", "Programs"];
+  public static readonly shortcutExtension: string = ".lnk";
+  public static readonly shortcutVariable: string = "NOLDOVA_DESKTOP_SHORTCUT";
+  public static readonly shortcutTimeout: number = 120_000;
+  public static readonly shortcutScript: string = [
+    Resources.powershellStopLine,
+    `(Microsoft.PowerShell.Utility\New-Object -ComObject WScript.Shell).CreateShortcut($env:${Resources.shortcutVariable}).TargetPath`
+  ].join(Resources.lineSeparator);
   public static readonly packageLayoutFolderSegments: readonly string[] = [Resources.buildFolder, "package"];
   public static readonly packageStageFolder: string = "app";
   public static readonly packageStagedProductSegments: readonly string[] = [Resources.buildFolder, "product.json"];
@@ -2399,6 +2410,26 @@ export class Resources {
 
   public static formatWindowsNeighbourRemoved(neighbour: string): string {
     return `Uninstalling the app removed ${neighbour}, which belongs to another app in its install folder.`;
+  }
+
+  public static formatWindowsNeighbourMoved(neighbour: string): string {
+    return `Moving the app into its install folder removed ${neighbour}, which belongs to another app there.`;
+  }
+
+  public static formatWindowsOldInstallKept(folder: string): string {
+    return `The update left the old install in ${folder}, which it should have moved into the app's install folder.`;
+  }
+
+  public static formatShortcutElsewhere(shortcut: string, target: string, program: string): string {
+    return `${shortcut} starts "${target}", not ${program}.`;
+  }
+
+  public static formatShortcutReadFailed(shortcut: string, exitCode: number | null, output: string): string {
+    return `${shortcut} could not be read: ${Resources.windowsPowershellCommand} exited with ${exitCode}:${Resources.lineSeparator}${output}`;
+  }
+
+  public static formatInstallFolderKept(folder: string): string {
+    return `Uninstalling the app left its install folder ${folder}.`;
   }
 
   public static formatUninstallerNotRemoved(uninstaller: string, error: unknown): string {

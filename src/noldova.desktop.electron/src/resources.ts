@@ -774,7 +774,11 @@ export class Resources {
   public static readonly macApplicationsFolder: string = "/Applications";
   public static readonly installFolderStagingPrefix: string = ".";
   public static readonly dittoProgram: string = "/usr/bin/ditto";
-  public static readonly moveProgram: string = "/bin/mv";
+  public static readonly installFolderStagingSeparator: string = "-";
+  public static readonly plistProgram: string = "/usr/bin/plutil";
+  public static readonly bundleInformationSegments: readonly string[] = ["Contents", "Info.plist"];
+  public static readonly bundleIdentifierKey: string = "CFBundleIdentifier";
+  public static readonly bundleVersionKey: string = "CFBundleShortVersionString";
   public static readonly removeProgram: string = "/bin/rm";
   public static readonly removeRecursiveOption: string = "-rf";
   public static readonly failureExitCode: number = 1;
@@ -1018,8 +1022,20 @@ export class Resources {
     return `${bundle} could not be copied to ${target}, so it keeps running where it is: ${reason}`;
   }
 
-  public static formatInstallFolderTargetExists(bundle: string, target: string): string {
-    return `${bundle} stays where it is, since ${target} already exists.`;
+  public static plistExtractArguments(key: string): readonly string[] {
+    return ["-extract", key, "raw", "-o", "-"];
+  }
+
+  public static formatInstallFolderAlreadyThere(bundle: string, target: string): string {
+    return `${target} already holds the app, as new as ${bundle} or newer, so the old copy was moved to the Trash.`;
+  }
+
+  public static formatInstallFolderTargetExists(bundle: string, target: string, identifiers: readonly string[], versions: readonly string[]): string {
+    return `${bundle} stays where it is, since ${target} already exists and is not the same app as new or newer: ${identifiers.join(" and ")}, versions ${versions.join(" and ")}.`;
+  }
+
+  public static formatInstallFolderTargetUnread(bundle: string, target: string, reason: string): string {
+    return `${bundle} stays where it is, since ${target} already exists and could not be read: ${reason}`;
   }
 
   public static formatInstallFolderStagingLeft(staging: string, reason: string): string {

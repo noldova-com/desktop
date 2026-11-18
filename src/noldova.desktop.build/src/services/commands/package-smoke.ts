@@ -242,7 +242,7 @@ export class PackageSmoke {
       return;
     await installer.installAsync(target, product, manifest.productVersion, folder);
     await this.requireOnPathAsync(userPath, installed.command, Resources.smokePathHoldsAgainIntro);
-    await installer.uninstallWindowsAsync(product, folder);
+    await installer.uninstallWindowsAsync(target, product, manifest.productVersion, folder);
     const pathAfter = await userPath.readAsync();
     if (pathAfter !== pathBefore)
       throw new BuildException(Resources.formatSmokePathChanged(pathAfter, pathBefore));

@@ -8,7 +8,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { lstat, readlink, realpath } from "node:fs/promises";
+import { lstat, readlink, realpath, rename } from "node:fs/promises";
 import { devNull, homedir, tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { isatty } from "node:tty";
@@ -128,7 +128,7 @@ await MainProcess.startAsync(
     errorOutput: process.stderr,
     processId: process.pid,
     programs,
-    files: { lstat, readlink, realpath },
+    files: { lstat, readlink, realpath, rename },
     presence,
     isTerminal: Resources.standardDescriptors.some(t => isatty(t)),
     startDetached: (path, args, onFailure) => programs.startDetached(path, args, process.env, onFailure),

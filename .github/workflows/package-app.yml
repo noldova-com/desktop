@@ -41,6 +41,10 @@ on:
         description: The URL the package checks for updates instead of the app's own feed, a loopback HTTP URL for a test of updating or the internal feed's HTTPS URL.
         type: string
         default: ''
+      artifact-suffix:
+        description: Text after the platform and architecture in the names of the reports and files this call keeps, which a second call in the same run needs so that it keeps its own.
+        type: string
+        default: ''
       package-version:
         description: The version the package takes instead of the app's, newer than it, for a test of updating, or the app's own X.Y.Z-internal.N for the internal feed.
         type: string
@@ -469,7 +473,7 @@ jobs:
         timeout-minutes: 5
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: virtual-display-log-${{ matrix.platform }}-${{ matrix.architecture }}-${{ github.run_attempt }}
+          name: virtual-display-log-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/xvfb.log
           retention-days: ${{ inputs.revision == '' && 1 || 14 }}
           if-no-files-found: ignore
@@ -589,7 +593,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: &release-files |
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.exe
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.dmg
@@ -615,7 +619,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: *release-files
           retention-days: *retention
           if-no-files-found: error
@@ -631,7 +635,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: release-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: *release-files
           retention-days: *retention
           if-no-files-found: error
@@ -643,7 +647,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: ${{ inputs.app-folder }}/_build/package/package-report.json
           retention-days: *retention
           if-no-files-found: error
@@ -661,7 +665,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: ${{ inputs.app-folder }}/_build/package/package-report.json
           retention-days: *retention
           if-no-files-found: error
@@ -677,7 +681,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: report-${{ matrix.platform }}-${{ matrix.architecture }}
+          name: report-${{ matrix.platform }}-${{ matrix.architecture }}${{ inputs.artifact-suffix }}
           path: ${{ inputs.app-folder }}/_build/package/package-report.json
           retention-days: *retention
           if-no-files-found: error

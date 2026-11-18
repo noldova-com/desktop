@@ -13,7 +13,7 @@ import { Writable } from "node:stream";
 import "@noldova/context.core";
 import type { WebViewDeclaration } from "@noldova/desktop.protocol";
 import { ProcessPresence } from "@noldova/desktop.runtime";
-import type { IMainProcessEnvironment, IShownPathFiles } from "@noldova/desktop.electron";
+import type { IMainProcessEnvironment, IMainProcessFiles } from "@noldova/desktop.electron";
 
 import { FakeProgramHost } from "./fake-program-host.fixture.js";
 
@@ -44,7 +44,7 @@ export class FakeMainProcessEnvironment implements IMainProcessEnvironment {
   public webViews: ReadonlyMap<string, WebViewDeclaration> = new Map();
   public webViewsFailure: Error | null = null;
   public readonly programs: FakeProgramHost = new FakeProgramHost();
-  public files: IShownPathFiles = { lstat, readlink, realpath };
+  public files: IMainProcessFiles = { lstat, readlink, realpath, rename: (from: string) => Promise.reject(new Error(`EPERM: ${from}`)) };
   public readonly presence: ProcessPresence = ProcessPresence.create(process.platform);
   public readonly exceptionListeners: ((error: unknown) => void)[] = [];
   public readonly rejectionListeners: ((reason: unknown) => void)[] = [];
