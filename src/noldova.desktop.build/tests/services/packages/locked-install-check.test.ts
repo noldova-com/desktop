@@ -30,7 +30,7 @@ export class LockedInstallCheckTests {
   };
 
   @TestMethod
-  public async acceptsAnInstallThatHoldsTheLockfilesVersionsBesideTheBuiltArchivesAndItsOptionalPackages(): Promise<void> {
+  public async acceptsAnInstallThatHoldsTheLockfilesVersionsBesideTheBuiltArchives(): Promise<void> {
     await using tree = await LockedInstallCheckTests.createAsync({
       "node_modules/@angular/common": { version: "22.2.6", resolved: "https://registry.npmjs.org/@angular/common/-/common-22.2.6.tgz" },
       "node_modules/@angular/forms": { version: "22.2.6", peer: true },
@@ -39,7 +39,7 @@ export class LockedInstallCheckTests {
       "node_modules/@noldova/linked": { resolved: "src/linked", link: true },
       "node_modules/@noldova/odd": { link: true },
       "node_modules/unread": 5,
-      "node_modules/@tybys/wasm-util": { version: "0.10.5", dev: true, optional: true },
+      "node_modules/@tybys/wasm-util": { version: "0.10.4", dev: true, optional: true },
       "src/window": { version: "0.0.6" }
     });
 
@@ -60,6 +60,15 @@ export class LockedInstallCheckTests {
   }
 
   @TestMethod
+  public async refusesAnOptionalPackageAtAVersionTheLockfileDoesNotHold(): Promise<void> {
+    await using tree = await LockedInstallCheckTests.createAsync({ "node_modules/@tybys/wasm-util": { version: "0.10.5", dev: true, optional: true } });
+
+    const error = await Assert.throwsAsync(() => LockedInstallCheck.checkAsync(tree.path), BuildException);
+
+    Assert.areEqual(Resources.formatUnlockedInstall("node_modules/@tybys/wasm-util", "0.10.5", "0.10.4"), error.message);
+  }
+
+  @TestMethod
   public async refusesAPackageTheLockfileDoesNotList(): Promise<void> {
     await using added = await LockedInstallCheckTests.createAsync({ "node_modules/@angular/animations": { version: "22.3.0" } });
     await using nested = await LockedInstallCheckTests.createAsync({ "node_modules/@noldova/window/node_modules/rxjs": { version: "7.8.2" } });
@@ -76,22 +85,36 @@ export class LockedInstallCheckTests {
   }
 
   @TestMethod
-  public async namesEachLockedPeerAtTheVersionTheLockfileHoldsAtTheTop(): Promise<void> {
+  public async namesEachLockedPeerAndInstalledOptionalPackageAtTheVersionTheLockfileHoldsAtTheTop(): Promise<void> {
+    const locked = LockedInstallCheckTests.write({
+      "node_modules/@angular/cdk": { version: "22.2.7", peerDependencies: { "@angular/forms": "^22.0.0", "@angular/common": "^22.0.0", "@angular/animations": "^22.0.0" } },
+      "node_modules/@angular/common": { version: "22.2.6" },
+      "node_modules/@angular/forms": { version: "22.2.6", peerDependencies: { "@angular/common": "22.2.6", "@noldova/window": "*", "@noldova/odd": "*" } },
+      "node_modules/@noldova/window": { resolved: "src/window", link: true },
+      "node_modules/@noldova/odd": { version: 1 },
+      "node_modules/@tybys/wasm-util": { version: "0.10.4", dev: true, optional: true },
+      "node_modules/@esbuild/win32-x64": { version: "0.27.0", dev: true, optional: true },
+      "node_modules/@napi-rs/wasm-runtime": { version: "1.1.0", dev: true },
+      "node_modules/@napi-rs/wasm-runtime/node_modules/tslib": { version: "2.8.1", dev: true, optional: true },
+      "src/window": { version: "0.0.6", peerDependencies: { "@angular/cdk": "22.2.7" } },
+      "node_modules/plain": 5
+    });
     await using tree = await SourceTreeFixture.createAsync({
-      [LockedInstallCheckTests.LOCKFILE]: LockedInstallCheckTests.write({
-        "node_modules/@angular/cdk": { version: "22.2.7", peerDependencies: { "@angular/forms": "^22.0.0", "@angular/common": "^22.0.0", "@angular/animations": "^22.0.0" } },
-        "node_modules/@angular/common": { version: "22.2.6" },
-        "node_modules/@angular/forms": { version: "22.2.6", peerDependencies: { "@angular/common": "22.2.6", "@noldova/window": "*", "@noldova/odd": "*" } },
-        "node_modules/@noldova/window": { resolved: "src/window", link: true },
-        "node_modules/@noldova/odd": { version: 1 },
-        "src/window": { version: "0.0.6", peerDependencies: { "@angular/cdk": "22.2.7" } },
-        "node_modules/plain": 5
+      [LockedInstallCheckTests.LOCKFILE]: locked,
+      [LockedInstallCheckTests.INSTALLED]: LockedInstallCheckTests.write({
+        "node_modules/@tybys/wasm-util": { version: "0.10.5", dev: true, optional: true },
+        "node_modules/@napi-rs/wasm-runtime": { version: "1.1.0", dev: true },
+        "node_modules/@napi-rs/wasm-runtime/node_modules/tslib": { version: "2.8.1", dev: true, optional: true },
+        "src/window": { version: "0.0.6" }
       })
     });
+    await using fresh = await SourceTreeFixture.createAsync({ [LockedInstallCheckTests.LOCKFILE]: locked });
     await using none = await SourceTreeFixture.createAsync();
 
-    Assert.areEqual(JSON.stringify(["@angular/cdk@22.2.7", "@angular/common@22.2.6", "@angular/forms@22.2.6"]), JSON.stringify(await LockedInstallCheck.listLockedPeersAsync(tree.path)));
-    Assert.areEqual(0, (await LockedInstallCheck.listLockedPeersAsync(none.path)).length);
+    Assert.areEqual(JSON.stringify(["@angular/cdk@22.2.7", "@angular/common@22.2.6", "@angular/forms@22.2.6", "@tybys/wasm-util@0.10.4"]),
+      JSON.stringify(await LockedInstallCheck.listLockedSpecsAsync(tree.path)));
+    Assert.areEqual(JSON.stringify(["@angular/cdk@22.2.7", "@angular/common@22.2.6", "@angular/forms@22.2.6"]), JSON.stringify(await LockedInstallCheck.listLockedSpecsAsync(fresh.path)));
+    Assert.areEqual(0, (await LockedInstallCheck.listLockedSpecsAsync(none.path)).length);
   }
 
   @TestMethod

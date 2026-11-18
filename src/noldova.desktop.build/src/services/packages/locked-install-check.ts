@@ -17,14 +17,22 @@ import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
 
 export class LockedInstallCheck {
-  public static async listLockedPeersAsync(root: string): Promise<readonly string[]> {
+  public static async listLockedSpecsAsync(root: string): Promise<readonly string[]> {
     const lockfile = path.join(root, Resources.packageLockFileName);
     if (!existsSync(lockfile))
       return [];
     const locked = await LockedInstallCheck.readPackagesAsync(lockfile);
-    const peers = new Set(Object.values(locked).flatMap(t => Object.keys(LockedInstallCheck.toRecord(LockedInstallCheck.toRecord(t)[Resources.lockfilePeerDependenciesField]))));
+    const installedLockfile = path.join(root, ...Resources.installedLockfileSegments);
+    const installed = existsSync(installedLockfile) ? await LockedInstallCheck.readPackagesAsync(installedLockfile) : {};
+    const names = new Set(Object.values(locked).flatMap(t => Object.keys(LockedInstallCheck.toRecord(LockedInstallCheck.toRecord(t)[Resources.lockfilePeerDependenciesField]))));
+    const top = Resources.formatPackageLockKey(String.empty);
+    for (const location of Object.keys(installed)) {
+      const name = location.slice(top.length);
+      if (location.startsWith(top) && !name.includes(`${Resources.pathSegmentSeparator}${top}`) && LockedInstallCheck.toRecord(locked[location])[Resources.optionalField] === true)
+        names.add(name);
+    }
     const specs: string[] = [];
-    for (const name of [...peers].sort()) {
+    for (const name of [...names].sort()) {
       const entry = LockedInstallCheck.toRecord(locked[Resources.formatPackageLockKey(name)]);
       const version = entry[Resources.manifestVersionField];
       if (entry[Resources.lockLinkField] !== true && Object.isString(version))
@@ -55,7 +63,7 @@ export class LockedInstallCheck {
       const version = entry[Resources.manifestVersionField];
       const lockedEntry = LockedInstallCheck.toRecord(locked[LockedInstallCheck.locate(location, links)]);
       const held = lockedEntry[Resources.manifestVersionField];
-      if (version !== held && lockedEntry[Resources.optionalField] !== true)
+      if (version !== held)
         throw new BuildException(Resources.formatUnlockedInstall(location, Object.isString(version) ? version : String.empty, Object.isString(held) ? held : null));
     }
   }

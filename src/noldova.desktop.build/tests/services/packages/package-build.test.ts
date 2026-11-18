@@ -48,6 +48,10 @@ export class PackageBuildTests {
     "src/app.window.app/package.json": JSON.stringify({ name: "app-window", private: true }),
     "src/app.window.app/tsconfig.json": "{}"
   };
+  private static readonly LOCKFILE: string = JSON.stringify({ name: "app", lockfileVersion: 3, packages: {
+    "node_modules/@angular/cdk": { version: "22.2.7", peerDependencies: { "@angular/common": "^22.0.0" } },
+    "node_modules/@angular/common": { version: "22.2.6" }
+  } });
   private static readonly SCRIPT: string = "src/noldova.desktop.styles/scripts/build.ts";
   private static readonly INSTALLED: string = "Angular packages built and installed: 1.\n";
   private static readonly REUSED_INSTALL: string = "Angular packages built: 1; the app's install already holds them, unchanged since the last build.\n";
@@ -185,6 +189,37 @@ export class PackageBuildTests {
       JSON.stringify(JsonReader.parse(await readFile(path.join(tree.path, "node_modules", ...runtime.split("/"), "package.json"), "utf8")).readObject("dependencies").toJson()));
     Assert.isTrue(existsSync(path.join(tree.path, "_build", "tests", "noldova.desktop.protocol", "tests", "protocol.test.js")));
     Assert.isTrue(existsSync(path.join(tree.path, "_build", "tests", "noldova.desktop.protocol", "src", "package.json")));
+  }
+
+  @TestMethod
+  public async installsTheBuiltArchivesWithEachPeerAtTheLockfilesVersionAfterThem(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      ...PackageBuildTests.BUILD_ROOT,
+      ...PackageBuildTests.describePackage(PackageBuildTests.PROTOCOL),
+      "package-lock.json": PackageBuildTests.LOCKFILE
+    });
+    const runner = new PackageToolsRunnerFixture(tree.path);
+
+    await PackageBuildTests.create(tree, runner).buildAsync(new PassThrough());
+
+    Assert.areEqual(JSON.stringify([[PackageBuildTests.archive(PackageBuildTests.PROTOCOL), "@angular/common@22.2.6"]]), JSON.stringify(runner.installed));
+  }
+
+  @TestMethod
+  public async failsTheBuildNamingAPackageTheInstallPutAtAVersionTheLockfileDoesNotHold(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      ...PackageBuildTests.BUILD_ROOT,
+      ...PackageBuildTests.describePackage(PackageBuildTests.PROTOCOL),
+      "package-lock.json": PackageBuildTests.LOCKFILE
+    });
+    const runner = new PackageToolsRunnerFixture(tree.path, {
+      installedLockfile: JSON.stringify({ name: "app", lockfileVersion: 3, packages: { "node_modules/@angular/common": { version: "22.3.0" } } })
+    });
+
+    const error = await Assert.throwsAsync(() => PackageBuildTests.create(tree, runner).buildAsync(new PassThrough()), BuildException);
+
+    Assert.areEqual(Resources.formatUnlockedInstall("node_modules/@angular/common", "22.3.0", "22.2.6"), error.message);
+    Assert.areEqual(1, runner.installed.length);
   }
 
   @TestMethod
