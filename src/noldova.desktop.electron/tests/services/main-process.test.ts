@@ -1798,12 +1798,16 @@ export class MainProcessTests {
     const launcher = new FakeRuntimeLauncher();
 
     const starting = MainProcessStartFixture.startAsync(electron, process, launcher);
-    await Condition.waitAsync(() => electron.app.calls.some(t => t.startsWith("setPath")));
+    for (let copied = 0; copied < 3; copied++) {
+      await Condition.waitAsync(() => process.programs.waiting > 0);
+      await process.programs.answerAsync(String.empty);
+    }
     await electron.app.becomeReadyAsync();
     const settings = await starting;
 
     Assert.areEqual("Noldova", ProductInfo.current.installFolder);
     Assert.areEqual(0, settings.length);
+    Assert.areEqual(3, process.programs.runs.length);
     Assert.areEqual(`relaunch /Applications/Noldova/${name}.app/Contents/MacOS/${name} []`, electron.app.calls.find(t => t.startsWith("relaunch")));
     Assert.areEqual(`/Applications/${name}.app`, electron.shell.trashed.join());
   }
