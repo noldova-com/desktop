@@ -106,7 +106,7 @@ jobs:
     with:
       targets: ${{ needs.package-targets.outputs.no-folder-targets }}
       signed: false
-      prepare: npm pkg delete desktop.product.installFolder && npm run build
+      prepare: npm pkg delete desktop.product.installFolder && [ "$(npm pkg get desktop.product.installFolder)" = '{}' ] && npm run build
       artifact-suffix: -without-folder
 
   code-changes:

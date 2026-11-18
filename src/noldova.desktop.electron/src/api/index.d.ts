@@ -1046,7 +1046,8 @@ export declare class InstallFolderMove {
    *
    * @param app The application, which waits until ready, starts the moved copy and exits.
    * @param shell The shell that moves the old copy to the Trash.
-   * @param process The main process's platform, program, command line, environment, process id, programs and files.
+   * @param process The main process's platform, program, command line, environment, process id, programs and files, and
+   *   the probe that tells whether another process still runs.
    * @param log The main process's log, which the move writes to and flushes before it exits.
    * @example
    * ```ts
@@ -1058,7 +1059,7 @@ export declare class InstallFolderMove {
    * ```
    */
   public constructor(app: Pick<IApplicationHost, "whenReady" | "releaseSingleInstanceLock" | "relaunch" | "exit">, shell: Pick<IShellHost, "trashItem">,
-    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files">, log: IMainProcessLog);
+    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files" | "probeProcess">, log: IMainProcessLog);
 
   /**
    * Moves a packaged macOS app running from `/Applications/<Product>.app` into its install folder once: copies it with
@@ -1067,6 +1068,8 @@ export declare class InstallFolderMove {
    * same arguments and exits. When the folder already holds the app, with the same bundle id and a version as new or
    * newer, it moves the old copy to the Trash and starts that one; any other bundle there is left alone, and so is this
    * copy. Where it can't write the folder, it removes its unfinished copy, logs why and keeps running where it is.
+   * Before it copies, it removes the unfinished copies, `.<process id>-<Product>.app`, that processes which are gone left
+   * in the folder, and logs any it can't remove.
    *
    * @param isPackaged Whether this is a packaged build; a development build never moves.
    * @param productName The product's name, that of its `.app` bundle.
@@ -1695,8 +1698,8 @@ export interface IMainProcessEnvironment {
 
   /**
    * Reads the files a path passes through, without following a link, when a window part shows a file in its folder or
-   * opens one, and renames a macOS app's copy into its install folder: Node.js's `lstat`, `readlink`, `realpath` and
-   * `rename` from `fs/promises`.
+   * opens one, and lists a macOS app's install folder and renames its copy into it: Node.js's `lstat`, `readlink`,
+   * `realpath`, `rename` and `readdir` from `fs/promises`.
    */
   readonly files: IMainProcessFiles;
 
@@ -1787,6 +1790,22 @@ export interface IMainProcessEnvironment {
    * ```
    */
   endProcess(processId: number): void;
+
+  /**
+   * Checks that another process still runs, by sending it no signal, as Node.js's `process.kill` with signal `0` does.
+   *
+   * @param processId The process.
+   * @throws Error synchronously with code `ESRCH` when the process is gone, or `EPERM` when it runs as another user.
+   * @example
+   * ```ts
+   * import type { IMainProcessEnvironment } from "@noldova/desktop.electron";
+   *
+   * export function probe(process: IMainProcessEnvironment, processId: number): void {
+   *   process.probeProcess(processId);
+   * }
+   * ```
+   */
+  probeProcess(processId: number): void;
 
   /**
    * Hears every exception the main process does not catch. A listener keeps Electron from showing its own error box,
@@ -5260,7 +5279,7 @@ export interface IPathCommandFiles {
 
 /**
  * The files the main process reads and moves: those it checks a path with before it shows or opens a file, and the
- * rename that puts a macOS app's copy in its install folder, as Node.js's `fs/promises` provides them.
+ * listing and rename that put a macOS app's copy in its install folder, as Node.js's `fs/promises` provides them.
  */
 export interface IMainProcessFiles extends IShownPathFiles {
   /**
@@ -5279,6 +5298,22 @@ export interface IMainProcessFiles extends IShownPathFiles {
    * ```
    */
   rename(from: string, to: string): Promise<void>;
+
+  /**
+   * Lists the names of a folder's entries.
+   *
+   * @param folder The folder.
+   * @returns A promise of the entries' names; rejects with code `ENOENT` when the folder is missing.
+   * @example
+   * ```ts
+   * import type { IMainProcessFiles } from "@noldova/desktop.electron";
+   *
+   * export function listAsync(files: IMainProcessFiles): Promise<string[]> {
+   *   return files.readdir("/Applications/Sample Makers");
+   * }
+   * ```
+   */
+  readdir(folder: string): Promise<string[]>;
 }
 
 /**

@@ -14,17 +14,18 @@ import type { IApplicationHost } from "../interfaces/i-application-host.js";
 import type { IMainProcessEnvironment } from "../interfaces/i-main-process-environment.js";
 import type { IMainProcessLog } from "../interfaces/i-main-process-log.js";
 import type { IShellHost } from "../interfaces/i-shell-host.js";
+import { ErrorCode } from "../models/error-code.js";
 import { UpdateVersion } from "../models/update-version.js";
 import { Resources } from "../resources.js";
 
 export class InstallFolderMove {
   private readonly app: Pick<IApplicationHost, "whenReady" | "releaseSingleInstanceLock" | "relaunch" | "exit">;
   private readonly shell: Pick<IShellHost, "trashItem">;
-  private readonly process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files">;
+  private readonly process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files" | "probeProcess">;
   private readonly log: IMainProcessLog;
 
   public constructor(app: Pick<IApplicationHost, "whenReady" | "releaseSingleInstanceLock" | "relaunch" | "exit">, shell: Pick<IShellHost, "trashItem">,
-    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files">, log: IMainProcessLog) {
+    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files" | "probeProcess">, log: IMainProcessLog) {
     this.app = app;
     this.shell = shell;
     this.process = process;
@@ -88,8 +89,11 @@ export class InstallFolderMove {
   }
 
   private async copyAsync(bundle: string, target: string): Promise<boolean> {
-    const staging = posix.join(posix.dirname(target), `${Resources.installFolderStagingPrefix}${this.process.processId}${Resources.installFolderStagingSeparator}${posix.basename(target)}`);
+    const folder = posix.dirname(target);
+    const name = posix.basename(target);
+    const staging = posix.join(folder, `${Resources.installFolderStagingPrefix}${this.process.processId}${Resources.installFolderStagingSeparator}${name}`);
     try {
+      await this.removeStaleStagingAsync(folder, name);
       await this.runProgramAsync(Resources.removeProgram, [Resources.removeRecursiveOption, staging]);
       await this.runProgramAsync(Resources.dittoProgram, [bundle, staging]);
       await this.process.files.rename(staging, target);
@@ -100,6 +104,35 @@ export class InstallFolderMove {
       await this.runProgramAsync(Resources.removeProgram, [Resources.removeRecursiveOption, staging])
         .catch((failure: unknown) => this.log.write(Resources.formatInstallFolderStagingLeft(staging, String(failure))));
       return false;
+    }
+  }
+
+  private async removeStaleStagingAsync(folder: string, name: string): Promise<void> {
+    const suffix = `${Resources.installFolderStagingSeparator}${name}`;
+    const entries = await this.process.files.readdir(folder).catch((error: unknown) => {
+      if (!ErrorCode.isOneOf(error, [Resources.missingErrorCode]))
+        throw error;
+      return [];
+    });
+    for (const entry of entries) {
+      const processId = entry.startsWith(Resources.installFolderStagingPrefix) && entry.endsWith(suffix)
+        ? entry.slice(Resources.installFolderStagingPrefix.length, -suffix.length)
+        : String.empty;
+      if (Resources.installFolderStagingProcessPattern.test(processId) && !this.isRunning(Number(processId))) {
+        const stale = posix.join(folder, entry);
+        await this.runProgramAsync(Resources.removeProgram, [Resources.removeRecursiveOption, stale])
+          .catch((failure: unknown) => this.log.write(Resources.formatInstallFolderStagingLeft(stale, String(failure))));
+      }
+    }
+  }
+
+  private isRunning(processId: number): boolean {
+    try {
+      this.process.probeProcess(processId);
+      return true;
+    }
+    catch (error) {
+      return !ErrorCode.isOneOf(error, [Resources.missingProcessErrorCode]);
     }
   }
 

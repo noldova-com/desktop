@@ -45,11 +45,25 @@ class ExistingFiles implements IMainProcessFiles {
   private readonly existing: ReadonlySet<string>;
 
   public readonly renames: string[] = [];
+  public readonly folders: Map<string, string[]> = new Map();
   public renameFailure: Error | null;
+  public readdirFailure: Error | null;
 
   public constructor(existing: readonly string[]) {
     this.existing = new Set(existing);
     this.renameFailure = null;
+    this.readdirFailure = null;
+  }
+
+  public static systemError(code: string, message: string): Error {
+    return Object.assign(new Error(message), { code });
+  }
+
+  public readdir(folder: string): Promise<string[]> {
+    const entries = this.folders.get(folder);
+    if (!Object.isNull(this.readdirFailure))
+      return Promise.reject(this.readdirFailure);
+    return Object.isUndefined(entries) ? Promise.reject(ExistingFiles.systemError("ENOENT", `ENOENT: no such file or directory, scandir '${folder}'`)) : Promise.resolve(entries);
   }
 
   public rename(from: string, to: string): Promise<void> {
@@ -167,6 +181,39 @@ export class InstallFolderMoveTests {
   }
 
   @TestMethod
+  public async removesTheUnfinishedCopiesOfProcessesThatAreGoneBeforeItCopies(): Promise<void> {
+    const move = InstallFolderMoveTests.create({ processes: new Map([[18, null], [19, ExistingFiles.systemError("EPERM", "kill EPERM")]]) });
+    move.files.folders.set("/Applications/Sample Makers", [".17-Sample.app", ".18-Sample.app", ".19-Sample.app", ".0-Sample.app", ".x-Sample.app", ".17-Other.app", "17-Sample.app",
+      "Other.app"]);
+
+    Assert.isTrue(await move.runAsync());
+    Assert.areEqual(["/bin/rm -rf /Applications/Sample Makers/.17-Sample.app", `/bin/rm -rf ${InstallFolderMoveTests.STAGING}`,
+      `/usr/bin/ditto /Applications/Sample.app ${InstallFolderMoveTests.STAGING}`].join("\n"), move.programs.runs.join("\n"));
+    Assert.areEqual("17,18,19", move.probed.join());
+  }
+
+  @TestMethod
+  public async logsAnUnfinishedCopyOfAGoneProcessItCantRemoveAndStillMoves(): Promise<void> {
+    const move = InstallFolderMoveTests.create({ failures: new Map([["/bin/rm -rf /Applications/Sample Makers/.17-", new Error("rm: Operation not permitted")]]) });
+    move.files.folders.set("/Applications/Sample Makers", [".17-Sample.app"]);
+
+    Assert.isTrue(await move.runAsync());
+    Assert.areEqual("The unfinished copy /Applications/Sample Makers/.17-Sample.app could not be removed: Error: rm: Operation not permitted", move.log.lines.at(0));
+    Assert.areEqual(`${InstallFolderMoveTests.STAGING} -> ${InstallFolderMoveTests.TARGET}`, move.files.renames.join());
+  }
+
+  @TestMethod
+  public async keepsRunningWhereItIsWhenItCantListTheFolder(): Promise<void> {
+    const move = InstallFolderMoveTests.create();
+    move.files.readdirFailure = ExistingFiles.systemError("EACCES", "EACCES: permission denied, scandir '/Applications/Sample Makers'");
+
+    Assert.isFalse(await move.runAsync());
+    Assert.areEqual(`/bin/rm -rf ${InstallFolderMoveTests.STAGING}`, move.programs.runs.join());
+    Assert.areEqual(`/Applications/Sample.app could not be copied to ${InstallFolderMoveTests.TARGET}, so it keeps running where it is: `
+      + "Error: EACCES: permission denied, scandir '/Applications/Sample Makers'", move.log.lines.join("\n"));
+  }
+
+  @TestMethod
   public async logsAnUnfinishedCopyItCantRemove(): Promise<void> {
     const move = InstallFolderMoveTests.create({ failures: new Map([["/bin/rm", new Error("rm: Operation not permitted")]]) });
 
@@ -207,8 +254,9 @@ export class InstallFolderMoveTests {
   }
 
   private static create(options: Partial<{ platform: string, program: string, isPackaged: boolean, installFolder: string | null, existing: readonly string[],
-    failures: ReadonlyMap<string, Error>, bundles: ReadonlyMap<string, readonly [string, string]> }> = {}): { runAsync: () => Promise<boolean>, app: FakeApplicationHost,
-    shell: FakeShellHost, programs: ScriptedPrograms, files: ExistingFiles, log: FakeMainProcessLog } {
+    failures: ReadonlyMap<string, Error>, bundles: ReadonlyMap<string, readonly [string, string]>, processes: ReadonlyMap<number, Error | null> }> = {}): {
+    runAsync: () => Promise<boolean>, app: FakeApplicationHost, shell: FakeShellHost, programs: ScriptedPrograms, files: ExistingFiles, log: FakeMainProcessLog,
+    probed: readonly number[] } {
     const app = new FakeApplicationHost(true, true);
     void app.becomeReadyAsync();
     const shell = new FakeShellHost();
@@ -216,6 +264,8 @@ export class InstallFolderMoveTests {
     const files = new ExistingFiles(options.existing ?? []);
     const log = new FakeMainProcessLog();
     const program = options.program ?? InstallFolderMoveTests.PROGRAM;
+    const probed: number[] = [];
+    const processes = options.processes ?? new Map();
     const move = new InstallFolderMove(app, shell, {
       platform: options.platform ?? "darwin",
       execPath: program,
@@ -223,9 +273,17 @@ export class InstallFolderMoveTests {
       env: {},
       processId: 4321,
       programs,
-      files
+      files,
+      probeProcess: processId => {
+        probed.push(processId);
+        const failure = processes.get(processId);
+        if (Object.isUndefined(failure))
+          throw ExistingFiles.systemError("ESRCH", "kill ESRCH");
+        if (!Object.isNull(failure))
+          throw failure;
+      }
     }, log);
     const installFolder = Object.isUndefined(options.installFolder) ? "Sample Makers" : options.installFolder;
-    return { runAsync: () => move.runAsync(options.isPackaged ?? true, "Sample", installFolder), app, shell, programs, files, log };
+    return { runAsync: () => move.runAsync(options.isPackaged ?? true, "Sample", installFolder), app, shell, programs, files, log, probed };
   }
 }

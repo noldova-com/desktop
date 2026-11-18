@@ -1799,7 +1799,8 @@ export class MainProcessTests {
       rename: (from, to) => {
         renames.push(`${from} -> ${to}`);
         return Promise.resolve();
-      } };
+      },
+      readdir: () => Promise.reject(Object.assign(new Error("ENOENT"), { code: "ENOENT" })) };
     const launcher = new FakeRuntimeLauncher();
 
     const starting = MainProcessStartFixture.startAsync(electron, process, launcher);

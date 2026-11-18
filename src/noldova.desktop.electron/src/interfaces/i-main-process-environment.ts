@@ -34,6 +34,7 @@ export interface IMainProcessEnvironment {
   startDetachedAsync(executablePath: string, args: readonly string[], environment: NodeJS.ProcessEnv, workingDirectory: string): Promise<void>;
   startApartAsync(executablePath: string, args: readonly string[], environment: NodeJS.ProcessEnv): Promise<void>;
   endProcess(processId: number): void;
+  probeProcess(processId: number): void;
   onUncaughtException(listener: (error: unknown) => void): void;
   onUnhandledRejection(listener: (reason: unknown) => void): void;
   readAccountHomeFolder(): string;
