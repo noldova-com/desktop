@@ -605,6 +605,23 @@ export class PackageTests {
   }
 
   @TestMethod
+  public async acceptsTheProgramsWindowsRunsOnAWindowsPackagesArchitectureAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const layout = new PackageLayout(app.path);
+    const unpacked = path.join(layout.output, "win-arm64-unpacked");
+
+    const result = await PackageTests.buildAsync(app, "win32", "arm64", true, [], {}, (t, u) => new StandInBuilderRunnerFixture(t, u, [], new Map([
+      [path.join(unpacked, "Sample.exe"), PackageTests.pe(0xaa64)],
+      [path.join(unpacked, "resources", "git", "usr", "bin", "ssh.exe"), PackageTests.pe(0x8664)],
+      [path.join(unpacked, "resources", "git", "usr", "libexec", "getprocaddr32.exe"), PackageTests.pe(0x14c)]
+    ])));
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith(`${Resources.formatWindowsMachinesVerified(unpacked, "arm64", ["arm64", "x64", "x86"], [["arm64", 1], ["x64", 1], ["x86", 1]])}\n`),
+      result.output);
+  }
+
+  @TestMethod
   public async refusesABuiltFileOfAnotherArchitectureBeforeItsReportAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync();
     const layout = new PackageLayout(app.path);
@@ -714,6 +731,15 @@ export class PackageTests {
     const error = await Assert.throwsAsync(() => new Package(app.path, "linux", "x64", stage, runner, {}, new PassThrough(), []).runAsync([]), Error);
 
     Assert.isFalse(error instanceof BuildException, error.message);
+  }
+
+  private static pe(machine: number): Buffer {
+    const file = Buffer.alloc(0x90);
+    file.writeUInt16LE(0x5a4d, 0);
+    file.writeUInt32LE(0x80, 0x3c);
+    file.writeUInt32LE(0x00004550, 0x80);
+    file.writeUInt16LE(machine, 0x84);
+    return file;
   }
 
   private static elf(machine: number): Buffer {
