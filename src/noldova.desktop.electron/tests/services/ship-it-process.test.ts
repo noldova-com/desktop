@@ -53,6 +53,29 @@ export class ShipItProcessTests {
   }
 
   @TestMethod
+  public async findsTheProcessOfAShipItJobInTheSystemDomainWhenTheUsersDomainHasNone(): Promise<void> {
+    const calls: [string, readonly string[]][] = [];
+    const shipIt = new ShipItProcess(ShipItProcessTests.BUNDLE, ShipItProcessTests.createDomainsCommand(calls, ShipItProcessTests.describeSystemJob("\tstate = running\n\tpid = 4600\n")));
+
+    const processId = await shipIt.findAsync();
+
+    Assert.areEqual(4600, processId);
+    Assert.areEqual(JSON.stringify([["/bin/launchctl", ["list"]], ["/bin/launchctl", ["print", "system/com.noldova.desktop.ShipIt"]]]), JSON.stringify(calls));
+  }
+
+  @TestMethod
+  public async findsNoProcessWhenTheSystemDomainsShipItJobIsNotRunningOrCannotBeRead(): Promise<void> {
+    const stopped = new ShipItProcess(ShipItProcessTests.BUNDLE, ShipItProcessTests.createDomainsCommand([], ShipItProcessTests.describeSystemJob("\tstate = not running\n")));
+    const unread = new ShipItProcess(ShipItProcessTests.BUNDLE, {
+      runAsync: (_file: string, commandArguments: readonly string[]) => commandArguments[0] === "list" ? Promise.resolve("PID\tStatus\tLabel\n")
+        : Promise.reject(new CommandFailedException("/bin/launchctl", new Error("Could not find service \"com.noldova.desktop.ShipIt\" in domain for system")))
+    });
+
+    Assert.isNull(await stopped.findAsync());
+    Assert.isNull(await unread.findAsync());
+  }
+
+  @TestMethod
   public async removesItsJobOnlyWhenItIsListed(): Promise<void> {
     const calls: [string, readonly string[]][] = [];
     const listed = new ShipItProcess(ShipItProcessTests.BUNDLE, ShipItProcessTests.createCommand(calls, ShipItProcessTests.LIST));
@@ -141,6 +164,34 @@ export class ShipItProcessTests {
       String.empty
     ].join("\n"));
     return file;
+  }
+
+  private static describeSystemJob(state: string): string {
+    return [
+      "system/com.noldova.desktop.ShipIt = {",
+      "\tactive count = 1",
+      "\tpath = (submitted by smd[104])",
+      "\ttype = Submitted",
+      state,
+      "\tprogram = /Applications/Noldova/Desktop.app/Contents/Frameworks/Squirrel.framework/Resources/ShipIt",
+      "\tdomain = system",
+      "\tendpoints = {",
+      "\t\t\"com.noldova.desktop.ShipIt\" = {",
+      "\t\t\tport = 0x12c183",
+      "\t\t}",
+      "\t}",
+      "}",
+      String.empty
+    ].join("\n");
+  }
+
+  private static createDomainsCommand(calls: [string, readonly string[]][], system: string): Pick<SystemCommand, "runAsync"> {
+    return {
+      runAsync(file: string, commandArguments: readonly string[]): Promise<string> {
+        calls.push([file, commandArguments]);
+        return Promise.resolve(commandArguments[0] === "print" ? system : "PID\tStatus\tLabel\n811\t0\tcom.example.other.ShipIt\n");
+      }
+    };
   }
 
   private static createCommand(calls: [string, readonly string[]][], output: string): Pick<SystemCommand, "runAsync"> {

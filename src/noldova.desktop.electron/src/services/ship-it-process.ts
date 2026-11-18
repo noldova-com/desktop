@@ -24,7 +24,7 @@ export class ShipItProcess implements IShipItProcess {
   }
 
   public async findAsync(): Promise<number | null> {
-    return ShipItProcess.processOf(await this.readAsync());
+    return ShipItProcess.processOf(await this.readAsync()) ?? await this.findPrivilegedAsync();
   }
 
   public async removeAsync(): Promise<void> {
@@ -40,6 +40,12 @@ export class ShipItProcess implements IShipItProcess {
 
   private static processOf(job: readonly string[] | undefined): number | null {
     const processId = Number(job?.[Resources.launchListProcessColumn]);
+    return Number.isSafeInteger(processId) && processId > 0 ? processId : null;
+  }
+
+  private async findPrivilegedAsync(): Promise<number | null> {
+    const output = await this.command.runAsync(Resources.launchControl, [Resources.launchControlPrint, Resources.formatSystemLaunchJob(this.label)]).catch(() => String.empty);
+    const processId = Number(Resources.launchPrintProcessPattern.exec(output)?.[1]);
     return Number.isSafeInteger(processId) && processId > 0 ? processId : null;
   }
 
