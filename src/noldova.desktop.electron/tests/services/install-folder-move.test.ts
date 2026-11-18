@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { InstallFolderMove, type IProgramHost, type IShownPathFiles, type IShownPathStatus, StartedProgram } from "@noldova/desktop.electron";
+import { InstallFolderMove, type IMainProcessFiles, type IProgramHost, type IShownPathStatus, StartedProgram } from "@noldova/desktop.electron";
 
 import { FakeApplicationHost } from "../fixtures/fake-application-host.fixture.js";
 import { FakeMainProcessLog } from "../fixtures/fake-main-process-log.fixture.js";
@@ -16,18 +16,24 @@ import { FakeShellHost } from "../fixtures/fake-shell-host.fixture.js";
 
 class ScriptedPrograms implements IProgramHost {
   private readonly failures: ReadonlyMap<string, Error>;
+  private readonly bundles: ReadonlyMap<string, readonly [string, string]>;
 
   public readonly runs: string[] = [];
 
-  public constructor(failures: ReadonlyMap<string, Error> = new Map()) {
+  public constructor(failures: ReadonlyMap<string, Error>, bundles: ReadonlyMap<string, readonly [string, string]>) {
     this.failures = failures;
+    this.bundles = bundles;
   }
 
   public runAsync(file: string, programArguments: readonly string[]): Promise<string> {
     const run = [file, ...programArguments].join(" ");
     this.runs.push(run);
     const failure = [...this.failures].find(([prefix]) => run.startsWith(prefix))?.[1];
-    return Object.isUndefined(failure) ? Promise.resolve(String.empty) : Promise.reject(failure);
+    if (!Object.isUndefined(failure))
+      return Promise.reject(failure);
+    const bundle = [...this.bundles].find(([folder]) => run.endsWith(`${folder}/Contents/Info.plist`))?.[1];
+    const read = Object.isUndefined(bundle) ? String.empty : run.includes(" CFBundleIdentifier ") ? bundle[0] : bundle[1];
+    return Promise.resolve(`${read}\n`);
   }
 
   public start(): StartedProgram {
@@ -35,11 +41,20 @@ class ScriptedPrograms implements IProgramHost {
   }
 }
 
-class ExistingFiles implements IShownPathFiles {
+class ExistingFiles implements IMainProcessFiles {
   private readonly existing: ReadonlySet<string>;
+
+  public readonly renames: string[] = [];
+  public renameFailure: Error | null;
 
   public constructor(existing: readonly string[]) {
     this.existing = new Set(existing);
+    this.renameFailure = null;
+  }
+
+  public rename(from: string, to: string): Promise<void> {
+    this.renames.push(`${from} -> ${to}`);
+    return Object.isNull(this.renameFailure) ? Promise.resolve() : Promise.reject(this.renameFailure);
   }
 
   public lstat(file: string): Promise<IShownPathStatus> {
@@ -59,7 +74,8 @@ class ExistingFiles implements IShownPathFiles {
 export class InstallFolderMoveTests {
   private static readonly PROGRAM: string = "/Applications/Sample.app/Contents/MacOS/Sample";
   private static readonly TARGET: string = "/Applications/Sample Makers/Sample.app";
-  private static readonly STAGING: string = "/Applications/Sample Makers/.Sample.app";
+  private static readonly STAGING: string = "/Applications/Sample Makers/.4321-Sample.app";
+  private static readonly OLD: string = "/Applications/Sample.app";
 
   @TestMethod
   public async copiesTheAppIntoItsFolderTrashesTheOldCopyAndStartsTheCopy(): Promise<void> {
@@ -68,8 +84,9 @@ export class InstallFolderMoveTests {
     const isMoving = await move.runAsync();
 
     Assert.isTrue(isMoving);
-    Assert.areEqual([`/bin/rm -rf ${InstallFolderMoveTests.STAGING}`, `/usr/bin/ditto /Applications/Sample.app ${InstallFolderMoveTests.STAGING}`,
-      `/bin/mv ${InstallFolderMoveTests.STAGING} ${InstallFolderMoveTests.TARGET}`].join("\n"), move.programs.runs.join("\n"));
+    Assert.areEqual([`/bin/rm -rf ${InstallFolderMoveTests.STAGING}`, `/usr/bin/ditto /Applications/Sample.app ${InstallFolderMoveTests.STAGING}`].join("\n"),
+      move.programs.runs.join("\n"));
+    Assert.areEqual(`${InstallFolderMoveTests.STAGING} -> ${InstallFolderMoveTests.TARGET}`, move.files.renames.join("\n"));
     Assert.areEqual("/Applications/Sample.app", move.shell.trashed.join());
     Assert.areEqual(["releaseSingleInstanceLock", `relaunch ${InstallFolderMoveTests.TARGET}/Contents/MacOS/Sample ["--hidden"]`, "exit 0"].join("|"),
       move.app.calls.join("|"));
@@ -78,12 +95,62 @@ export class InstallFolderMoveTests {
   }
 
   @TestMethod
-  public async leavesBothCopiesWhenTheFolderAlreadyHoldsTheApp(): Promise<void> {
-    const move = InstallFolderMoveTests.create({ existing: [InstallFolderMoveTests.TARGET] });
+  public async trashesTheOldCopyAndStartsTheFoldersWhenItIsTheSameAppAsNewOrNewer(): Promise<void> {
+    for (const version of ["1.2.3", "1.3.0"]) {
+      const move = InstallFolderMoveTests.create({ existing: [InstallFolderMoveTests.TARGET],
+        bundles: new Map([[InstallFolderMoveTests.OLD, ["com.example.sample", "1.2.3"]], [InstallFolderMoveTests.TARGET, ["com.example.sample", version]]]) });
+
+      Assert.isTrue(await move.runAsync(), version);
+      Assert.areEqual(["CFBundleIdentifier raw -o - /Applications/Sample.app", `CFBundleIdentifier raw -o - ${InstallFolderMoveTests.TARGET}`,
+        "CFBundleShortVersionString raw -o - /Applications/Sample.app", `CFBundleShortVersionString raw -o - ${InstallFolderMoveTests.TARGET}`]
+        .map(t => `/usr/bin/plutil -extract ${t}/Contents/Info.plist`).join("\n"), move.programs.runs.join("\n"), version);
+      Assert.areEqual(0, move.files.renames.length, version);
+      Assert.areEqual(InstallFolderMoveTests.OLD, move.shell.trashed.join(), version);
+      Assert.areEqual(`relaunch ${InstallFolderMoveTests.TARGET}/Contents/MacOS/Sample ["--hidden"]`, move.app.calls.find(t => t.startsWith("relaunch")), version);
+      Assert.areEqual(`${InstallFolderMoveTests.TARGET} already holds the app, as new as /Applications/Sample.app or newer, so the old copy was moved to the Trash.`,
+        move.log.lines.join("\n"), version);
+    }
+  }
+
+  @TestMethod
+  public async leavesBothCopiesWhenTheFolderHoldsAnotherAppAnOlderCopyOrAnUnreadableVersion(): Promise<void> {
+    const cases: readonly (readonly [string, readonly [string, string], string])[] = [
+      ["another app", ["com.example.other", "1.2.3"], "com.example.sample and com.example.other, versions 1.2.3 and 1.2.3"],
+      ["an older copy", ["com.example.sample", "1.2.2"], "com.example.sample and com.example.sample, versions 1.2.3 and 1.2.2"],
+      ["an unreadable version", ["com.example.sample", "next"], "com.example.sample and com.example.sample, versions 1.2.3 and next"]
+    ];
+
+    for (const [name, target, read] of cases) {
+      const move = InstallFolderMoveTests.create({ existing: [InstallFolderMoveTests.TARGET],
+        bundles: new Map([[InstallFolderMoveTests.OLD, ["com.example.sample", "1.2.3"]], [InstallFolderMoveTests.TARGET, target]]) });
+
+      Assert.isFalse(await move.runAsync(), name);
+      Assert.areEqual(0, move.files.renames.length + move.app.calls.length + move.shell.trashed.length, name);
+      Assert.areEqual(`/Applications/Sample.app stays where it is, since ${InstallFolderMoveTests.TARGET} already exists and is not the same app as new or newer: ${read}.`,
+        move.log.lines.join("\n"), name);
+    }
+  }
+
+  @TestMethod
+  public async leavesBothCopiesWhenTheFoldersCopyCantBeRead(): Promise<void> {
+    const move = InstallFolderMoveTests.create({ existing: [InstallFolderMoveTests.TARGET], failures: new Map([["/usr/bin/plutil", new Error("plutil: no such file")]]) });
 
     Assert.isFalse(await move.runAsync());
-    Assert.areEqual(0, move.programs.runs.length + move.app.calls.length + move.shell.trashed.length);
-    Assert.areEqual(`/Applications/Sample.app stays where it is, since ${InstallFolderMoveTests.TARGET} already exists.`, move.log.lines.join("\n"));
+    Assert.areEqual(0, move.files.renames.length + move.app.calls.length + move.shell.trashed.length);
+    Assert.areEqual(`/Applications/Sample.app stays where it is, since ${InstallFolderMoveTests.TARGET} already exists and could not be read: Error: plutil: no such file`,
+      move.log.lines.join("\n"));
+  }
+
+  @TestMethod
+  public async keepsRunningWhereItIsWhenTheTargetAppearsDuringTheCopy(): Promise<void> {
+    const move = InstallFolderMoveTests.create();
+    move.files.renameFailure = new Error(`ENOTEMPTY: directory not empty, rename '${InstallFolderMoveTests.STAGING}' -> '${InstallFolderMoveTests.TARGET}'`);
+
+    Assert.isFalse(await move.runAsync());
+    Assert.areEqual(`/bin/rm -rf ${InstallFolderMoveTests.STAGING}`, move.programs.runs.at(-1));
+    Assert.areEqual(0, move.shell.trashed.length + move.app.calls.length);
+    Assert.areEqual(`/Applications/Sample.app could not be copied to ${InstallFolderMoveTests.TARGET}, so it keeps running where it is: `
+      + `Error: ENOTEMPTY: directory not empty, rename '${InstallFolderMoveTests.STAGING}' -> '${InstallFolderMoveTests.TARGET}'`, move.log.lines.join("\n"));
   }
 
   @TestMethod
@@ -140,12 +207,13 @@ export class InstallFolderMoveTests {
   }
 
   private static create(options: Partial<{ platform: string, program: string, isPackaged: boolean, installFolder: string | null, existing: readonly string[],
-    failures: ReadonlyMap<string, Error> }> = {}): { runAsync: () => Promise<boolean>, app: FakeApplicationHost, shell: FakeShellHost, programs: ScriptedPrograms,
-    log: FakeMainProcessLog } {
+    failures: ReadonlyMap<string, Error>, bundles: ReadonlyMap<string, readonly [string, string]> }> = {}): { runAsync: () => Promise<boolean>, app: FakeApplicationHost,
+    shell: FakeShellHost, programs: ScriptedPrograms, files: ExistingFiles, log: FakeMainProcessLog } {
     const app = new FakeApplicationHost(true, true);
     void app.becomeReadyAsync();
     const shell = new FakeShellHost();
-    const programs = new ScriptedPrograms(options.failures);
+    const programs = new ScriptedPrograms(options.failures ?? new Map(), options.bundles ?? new Map());
+    const files = new ExistingFiles(options.existing ?? []);
     const log = new FakeMainProcessLog();
     const program = options.program ?? InstallFolderMoveTests.PROGRAM;
     const move = new InstallFolderMove(app, shell, {
@@ -153,10 +221,11 @@ export class InstallFolderMoveTests {
       execPath: program,
       argv: [program, "--hidden"],
       env: {},
+      processId: 4321,
       programs,
-      files: new ExistingFiles(options.existing ?? [])
+      files
     }, log);
     const installFolder = Object.isUndefined(options.installFolder) ? "Sample Makers" : options.installFolder;
-    return { runAsync: () => move.runAsync(options.isPackaged ?? true, "Sample", installFolder), app, shell, programs, log };
+    return { runAsync: () => move.runAsync(options.isPackaged ?? true, "Sample", installFolder), app, shell, programs, files, log };
   }
 }

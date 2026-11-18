@@ -1046,7 +1046,7 @@ export declare class InstallFolderMove {
    *
    * @param app The application, which waits until ready, starts the moved copy and exits.
    * @param shell The shell that moves the old copy to the Trash.
-   * @param process The main process's platform, program, command line, environment, programs and files.
+   * @param process The main process's platform, program, command line, environment, process id, programs and files.
    * @param log The main process's log, which the move writes to and flushes before it exits.
    * @example
    * ```ts
@@ -1058,13 +1058,15 @@ export declare class InstallFolderMove {
    * ```
    */
   public constructor(app: Pick<IApplicationHost, "whenReady" | "releaseSingleInstanceLock" | "relaunch" | "exit">, shell: Pick<IShellHost, "trashItem">,
-    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "programs" | "files">, log: IMainProcessLog);
+    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files">, log: IMainProcessLog);
 
   /**
-   * Moves a packaged macOS app running from `/Applications/<Product>.app` into its install folder once: copies it there
-   * with `ditto`, unless the folder already holds it, moves the old copy to the Trash, starts the copy in the folder
-   * with the same arguments and exits. Where it can't write the folder, it removes its unfinished copy, logs why and
-   * keeps running where it is.
+   * Moves a packaged macOS app running from `/Applications/<Product>.app` into its install folder once: copies it with
+   * `ditto` beside the target under a name unique to this process and renames it into place, which fails rather than
+   * nesting when the target appeared meanwhile, moves the old copy to the Trash, starts the copy in the folder with the
+   * same arguments and exits. When the folder already holds the app, with the same bundle id and a version as new or
+   * newer, it moves the old copy to the Trash and starts that one; any other bundle there is left alone, and so is this
+   * copy. Where it can't write the folder, it removes its unfinished copy, logs why and keeps running where it is.
    *
    * @param isPackaged Whether this is a packaged build; a development build never moves.
    * @param productName The product's name, that of its `.app` bundle.
@@ -1693,9 +1695,10 @@ export interface IMainProcessEnvironment {
 
   /**
    * Reads the files a path passes through, without following a link, when a window part shows a file in its folder or
-   * opens one: Node.js's `lstat`, `readlink` and `realpath` from `fs/promises`.
+   * opens one, and renames a macOS app's copy into its install folder: Node.js's `lstat`, `readlink`, `realpath` and
+   * `rename` from `fs/promises`.
    */
-  readonly files: IShownPathFiles;
+  readonly files: IMainProcessFiles;
 
   /**
    * Identifies processes by process id and start time, for the launch barrier and the update stop.
@@ -5253,6 +5256,29 @@ export interface IPathCommandFiles {
    * ```
    */
   symlink(target: string, link: string): Promise<void>;
+}
+
+/**
+ * The files the main process reads and moves: those it checks a path with before it shows or opens a file, and the
+ * rename that puts a macOS app's copy in its install folder, as Node.js's `fs/promises` provides them.
+ */
+export interface IMainProcessFiles extends IShownPathFiles {
+  /**
+   * Renames a file or folder, which fails rather than replacing a folder that holds anything.
+   *
+   * @param from The file or folder to rename.
+   * @param to Its new path.
+   * @returns A promise that resolves once it is renamed; rejects when it can't be.
+   * @example
+   * ```ts
+   * import type { IMainProcessFiles } from "@noldova/desktop.electron";
+   *
+   * export function placeAsync(files: IMainProcessFiles): Promise<void> {
+   *   return files.rename("/Applications/Sample Makers/.123-Sample.app", "/Applications/Sample Makers/Sample.app");
+   * }
+   * ```
+   */
+  rename(from: string, to: string): Promise<void>;
 }
 
 /**

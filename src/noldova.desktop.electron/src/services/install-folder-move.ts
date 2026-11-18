@@ -14,16 +14,17 @@ import type { IApplicationHost } from "../interfaces/i-application-host.js";
 import type { IMainProcessEnvironment } from "../interfaces/i-main-process-environment.js";
 import type { IMainProcessLog } from "../interfaces/i-main-process-log.js";
 import type { IShellHost } from "../interfaces/i-shell-host.js";
+import { UpdateVersion } from "../models/update-version.js";
 import { Resources } from "../resources.js";
 
 export class InstallFolderMove {
   private readonly app: Pick<IApplicationHost, "whenReady" | "releaseSingleInstanceLock" | "relaunch" | "exit">;
   private readonly shell: Pick<IShellHost, "trashItem">;
-  private readonly process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "programs" | "files">;
+  private readonly process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files">;
   private readonly log: IMainProcessLog;
 
   public constructor(app: Pick<IApplicationHost, "whenReady" | "releaseSingleInstanceLock" | "relaunch" | "exit">, shell: Pick<IShellHost, "trashItem">,
-    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "programs" | "files">, log: IMainProcessLog) {
+    process: Pick<IMainProcessEnvironment, "platform" | "execPath" | "argv" | "env" | "processId" | "programs" | "files">, log: IMainProcessLog) {
     this.app = app;
     this.shell = shell;
     this.process = process;
@@ -38,19 +39,14 @@ export class InstallFolderMove {
       return false;
     const target = posix.join(Resources.macApplicationsFolder, installFolder, bundleName);
     if (await this.existsAsync(target)) {
-      this.log.write(Resources.formatInstallFolderTargetExists(bundle, target));
+      if (!await this.isReplacedAsync(bundle, target))
+        return false;
+      await this.trashAsync(bundle, target, Resources.formatInstallFolderAlreadyThere(bundle, target));
+    }
+    else if (await this.copyAsync(bundle, target))
+      await this.trashAsync(bundle, target, Resources.formatInstallFolderMoved(bundle, target));
+    else
       return false;
-    }
-    if (!await this.copyAsync(bundle, target))
-      return false;
-    await this.app.whenReady();
-    try {
-      await this.shell.trashItem(bundle);
-      this.log.write(Resources.formatInstallFolderMoved(bundle, target));
-    }
-    catch (error) {
-      this.log.write(Resources.formatInstallFolderOldCopyKept(bundle, target, String(error)));
-    }
     this.app.releaseSingleInstanceLock();
     this.app.relaunch({ execPath: posix.join(target, posix.relative(bundle, process.execPath)), args: process.argv.slice(1) });
     this.log.flush();
@@ -58,12 +54,45 @@ export class InstallFolderMove {
     return true;
   }
 
+  private async trashAsync(bundle: string, target: string, moved: string): Promise<void> {
+    await this.app.whenReady();
+    try {
+      await this.shell.trashItem(bundle);
+      this.log.write(moved);
+    }
+    catch (error) {
+      this.log.write(Resources.formatInstallFolderOldCopyKept(bundle, target, String(error)));
+    }
+  }
+
+  private async isReplacedAsync(bundle: string, target: string): Promise<boolean> {
+    try {
+      const identifier = await this.readBundleAsync(bundle, Resources.bundleIdentifierKey);
+      const targetIdentifier = await this.readBundleAsync(target, Resources.bundleIdentifierKey);
+      const version = await this.readBundleAsync(bundle, Resources.bundleVersionKey);
+      const targetVersion = await this.readBundleAsync(target, Resources.bundleVersionKey);
+      const isReplaced = identifier === targetIdentifier && UpdateVersion.isOffered(targetVersion) && !UpdateVersion.isNewer(version, targetVersion);
+      if (!isReplaced)
+        this.log.write(Resources.formatInstallFolderTargetExists(bundle, target, [identifier, targetIdentifier], [version, targetVersion]));
+      return isReplaced;
+    }
+    catch (error) {
+      this.log.write(Resources.formatInstallFolderTargetUnread(bundle, target, String(error)));
+      return false;
+    }
+  }
+
+  private async readBundleAsync(bundle: string, key: string): Promise<string> {
+    const information = posix.join(bundle, ...Resources.bundleInformationSegments);
+    return (await this.process.programs.runAsync(Resources.plistProgram, [...Resources.plistExtractArguments(key), information], this.process.env)).trim();
+  }
+
   private async copyAsync(bundle: string, target: string): Promise<boolean> {
-    const staging = posix.join(posix.dirname(target), `${Resources.installFolderStagingPrefix}${posix.basename(target)}`);
+    const staging = posix.join(posix.dirname(target), `${Resources.installFolderStagingPrefix}${this.process.processId}${Resources.installFolderStagingSeparator}${posix.basename(target)}`);
     try {
       await this.runProgramAsync(Resources.removeProgram, [Resources.removeRecursiveOption, staging]);
       await this.runProgramAsync(Resources.dittoProgram, [bundle, staging]);
-      await this.runProgramAsync(Resources.moveProgram, [staging, target]);
+      await this.process.files.rename(staging, target);
       return true;
     }
     catch (error) {

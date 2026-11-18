@@ -16,8 +16,9 @@ import { WorkflowStepFixture } from "./fixtures/workflow-step.fixture.ts";
 const WORKFLOW = "package-app.yml";
 const SMOKE = WorkflowStepFixture.readRun(WORKFLOW, "Install, start and quit the package");
 const LIBFUSE = WorkflowStepFixture.readRun(WORKFLOW, "Remove libfuse2, which a stock Ubuntu does not install");
-const SCREEN = "xvfb-run --auto-servernum --server-args=-screen 0 1920x1080x24 npm run package:smoke";
+const SCREEN = "xvfb-run --auto-servernum --error-file=$RUNNER_TEMP/xvfb.log --server-args=-screen 0 1920x1080x24 npm run package:smoke";
 const SKIPPED = "::notice::Skipped the Debian package's install smoke, which needs root: this self-hosted runner has none, and CI's run on a GitHub-hosted runner covers it.";
+const SANDBOX_PROFILE = "::notice::Requiring Chromium's sandbox: the self-hosted runners' AppArmor profile noldova-runner-chromium gives the AppImage's mount a user namespace.";
 const SMOKE_FAKES = {
   "xvfb-run": "case \"$*\" in *--no-sandbox*) /bin/mkdir -p \"$RUNNER_TEMP/appimage_extracted_1\" ;; esac",
   "sysctl": "echo 0"
@@ -33,8 +34,10 @@ function libfuseFakes(installed: boolean): Readonly<Record<string, string>> {
 
 async function runAsync(text: string, commands: Readonly<Record<string, string>>, hosted: boolean, isPathKept: boolean = true): Promise<{ status: number | null, calls: readonly string[], output: string }> {
   await using fakes = await CommandFakesFixture.createAsync(commands);
-  const result = await WorkflowStepFixture.runAsync(text, fakes.folder, fakes.bin, { RUNNER_OS: "Linux", HOSTED: String(hosted), RUNNER_TEMP: fakes.folder.split(path.sep).join("/") }, isPathKept);
-  return { status: result.status, calls: await fakes.readCallsAsync(), output: result.output };
+  const temp = fakes.folder.split(path.sep).join("/");
+  const result = await WorkflowStepFixture.runAsync(text, fakes.folder, fakes.bin, { RUNNER_OS: "Linux", HOSTED: String(hosted), RUNNER_TEMP: temp }, isPathKept);
+  const calls = await fakes.readCallsAsync();
+  return { status: result.status, calls: calls.map(t => t.replaceAll(temp, "$RUNNER_TEMP")), output: result.output };
 }
 
 describe("package-app.yml's Linux steps", () => {
@@ -46,11 +49,29 @@ describe("package-app.yml's Linux steps", () => {
     assert.ok(!result.output.includes(SKIPPED));
   });
 
+  it("requires the AppImage's fallback on a GitHub-hosted runner where AppArmor refuses unprivileged user namespaces", async () => {
+    const result = await runAsync(SMOKE, { ...SMOKE_FAKES, "sysctl": "echo 1" }, true, false);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(result.calls.filter(t => t.startsWith("xvfb-run")), [`${SCREEN} -- --deb --require-sandbox`, `${SCREEN} -- --require-fallback`, `${SCREEN} -- --no-sandbox`]);
+    assert.ok(!result.output.includes(SANDBOX_PROFILE), result.output);
+  });
+
+  it("requires the sandbox on a self-hosted runner, whose AppArmor profile gives the AppImage a user namespace, whatever the setting", async () => {
+    for (const setting of ["echo 1", "echo 0"]) {
+      const result = await runAsync(SMOKE, { ...SMOKE_FAKES, "sysctl": setting }, false, false);
+
+      assert.equal(result.status, 0);
+      assert.deepEqual(result.calls.filter(t => t.startsWith("xvfb-run")), [`${SCREEN} -- --require-sandbox`, `${SCREEN} -- --no-sandbox`]);
+      assert.ok(result.output.includes(SANDBOX_PROFILE), result.output);
+    }
+  });
+
   it("skips only the Debian package's smoke on a self-hosted runner and says so", async () => {
     const result = await runAsync(SMOKE, SMOKE_FAKES, false, false);
 
     assert.equal(result.status, 0);
-    assert.deepEqual(result.calls.filter(t => t.startsWith("xvfb-run")), [SCREEN, `${SCREEN} -- --no-sandbox`]);
+    assert.deepEqual(result.calls.filter(t => t.startsWith("xvfb-run")), [`${SCREEN} -- --require-sandbox`, `${SCREEN} -- --no-sandbox`]);
     assert.ok(result.output.includes(SKIPPED), result.output);
   });
 

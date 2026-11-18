@@ -31,6 +31,7 @@ export type { IThemeHost } from "../interfaces/i-theme-host.js";
 export type { ITray } from "../interfaces/i-tray.js";
 export type { ITrayHost } from "../interfaces/i-tray-host.js";
 export type { IShortcutHost } from "../interfaces/i-shortcut-host.js";
+export type { IMainProcessFiles } from "../interfaces/i-main-process-files.js";
 export type { IShownPathFiles } from "../interfaces/i-shown-path-files.js";
 export type { IShownPathStatus } from "../interfaces/i-shown-path-status.js";
 export type { IParentPort } from "../interfaces/i-parent-port.js";

@@ -12,7 +12,7 @@ import type { WebViewDeclaration } from "@noldova/desktop.protocol";
 import type { ProcessPresence } from "@noldova/desktop.runtime";
 
 import type { IProgramHost } from "./i-program-host.js";
-import type { IShownPathFiles } from "./i-shown-path-files.js";
+import type { IMainProcessFiles } from "./i-main-process-files.js";
 
 export interface IMainProcessEnvironment {
   readonly argv: readonly string[];
@@ -26,7 +26,7 @@ export interface IMainProcessEnvironment {
   readonly errorOutput: Writable;
   readonly processId: number;
   readonly programs: IProgramHost;
-  readonly files: IShownPathFiles;
+  readonly files: IMainProcessFiles;
   readonly presence: Pick<ProcessPresence, "stampAsync" | "isRunningAsync">;
   readonly isTerminal: boolean;
 

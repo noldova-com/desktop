@@ -1794,11 +1794,16 @@ export class MainProcessTests {
     const electron = new FakeElectron(true, true);
     const process = new FakeMainProcessEnvironment("darwin", [program]);
     process.execPath = program;
-    process.files = { lstat: () => Promise.reject(new Error("ENOENT")), readlink: () => Promise.reject(new Error("EINVAL")), realpath: t => Promise.resolve(t) };
+    const renames: string[] = [];
+    process.files = { lstat: () => Promise.reject(new Error("ENOENT")), readlink: () => Promise.reject(new Error("EINVAL")), realpath: t => Promise.resolve(t),
+      rename: (from, to) => {
+        renames.push(`${from} -> ${to}`);
+        return Promise.resolve();
+      } };
     const launcher = new FakeRuntimeLauncher();
 
     const starting = MainProcessStartFixture.startAsync(electron, process, launcher);
-    for (let copied = 0; copied < 3; copied++) {
+    for (let copied = 0; copied < 2; copied++) {
       await Condition.waitAsync(() => process.programs.waiting > 0);
       await process.programs.answerAsync(String.empty);
     }
@@ -1807,7 +1812,8 @@ export class MainProcessTests {
 
     Assert.areEqual("Noldova", ProductInfo.current.installFolder);
     Assert.areEqual(0, settings.length);
-    Assert.areEqual(3, process.programs.runs.length);
+    Assert.areEqual(2, process.programs.runs.length);
+    Assert.areEqual(`/Applications/Noldova/.${process.processId}-${name}.app -> /Applications/Noldova/${name}.app`, renames.join());
     Assert.areEqual(`relaunch /Applications/Noldova/${name}.app/Contents/MacOS/${name} []`, electron.app.calls.find(t => t.startsWith("relaunch")));
     Assert.areEqual(`/Applications/${name}.app`, electron.shell.trashed.join());
   }
