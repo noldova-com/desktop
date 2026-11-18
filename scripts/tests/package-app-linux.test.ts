@@ -18,7 +18,7 @@ const SMOKE = WorkflowStepFixture.readRun(WORKFLOW, "Install, start and quit the
 const LIBFUSE = WorkflowStepFixture.readRun(WORKFLOW, "Remove libfuse2, which a stock Ubuntu does not install");
 const SCREEN = "xvfb-run --auto-servernum --server-args=-screen 0 1920x1080x24 npm run package:smoke";
 const SKIPPED = "::notice::Skipped the Debian package's install smoke, which needs root: this self-hosted runner has none, and CI's run on a GitHub-hosted runner covers it.";
-const SANDBOX_PROFILE = "::notice::Requiring Chromium's sandbox: the self-hosted runners' AppArmor profile noldova-runner-chromium, set up as PROXMOX.md says, gives the AppImage's mount a user namespace.";
+const SANDBOX_PROFILE = "::notice::Requiring Chromium's sandbox: the self-hosted runners' AppArmor profile noldova-runner-chromium gives the AppImage's mount a user namespace.";
 const SMOKE_FAKES = {
   "xvfb-run": "case \"$*\" in *--no-sandbox*) /bin/mkdir -p \"$RUNNER_TEMP/appimage_extracted_1\" ;; esac",
   "sysctl": "echo 0"
