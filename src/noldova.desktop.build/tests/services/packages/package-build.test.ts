@@ -217,7 +217,7 @@ export class PackageBuildTests {
     await using tree = await SourceTreeFixture.createAsync({
       ...PackageBuildTests.BUILD_ROOT,
       ...PackageBuildTests.describePackage(PROTOCOL),
-      ...PackageBuildTests.describePackage(RUNTIME, [PROTOCOL], { peerDependencies: { "@noldova/desktop.protocol": "__VERSION__", "@noldova/ui.components.angular": ">=0.0.5 <0.1.0" } }),
+      ...PackageBuildTests.describePackage(RUNTIME, [PROTOCOL], { peerDependencies: { "@noldova/desktop.protocol": ">=__VERSION__ <__NEXT_MINOR__", "@noldova/ui.components.angular": ">=0.0.5 <0.1.0" } }),
       "package-lock.json": JSON.stringify(lockfile)
     });
     const runner = new PackageToolsRunnerFixture(tree.path, { installedLockfile: JSON.stringify(lockfile) });
