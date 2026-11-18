@@ -28,7 +28,9 @@ export class LockedInstallCheck {
     const top = Resources.formatPackageLockKey(String.empty);
     for (const location of Object.keys(installed)) {
       const name = location.slice(top.length);
-      if (location.startsWith(top) && !name.includes(`${Resources.pathSegmentSeparator}${top}`) && LockedInstallCheck.toRecord(locked[location])[Resources.optionalField] === true)
+      const entry = LockedInstallCheck.toRecord(locked[location]);
+      if (location.startsWith(top) && !name.includes(`${Resources.pathSegmentSeparator}${top}`) && entry[Resources.optionalField] === true
+        && Object.keys(LockedInstallCheck.toRecord(entry[Resources.lockfilePeerDependenciesField])).length === 0)
         names.add(name);
     }
     const specs: string[] = [];

@@ -94,8 +94,9 @@ export class LockedInstallCheckTests {
       "node_modules/@noldova/odd": { version: 1 },
       "node_modules/@tybys/wasm-util": { version: "0.10.4", dev: true, optional: true },
       "node_modules/@esbuild/win32-x64": { version: "0.27.0", dev: true, optional: true },
-      "node_modules/@napi-rs/wasm-runtime": { version: "1.1.0", dev: true },
+      "node_modules/@napi-rs/wasm-runtime": { version: "1.2.7", dev: true, optional: true, peerDependencies: { "@emnapi/core": "^1.7.1" } },
       "node_modules/@napi-rs/wasm-runtime/node_modules/tslib": { version: "2.8.1", dev: true, optional: true },
+      "node_modules/tslib": { version: "2.8.1" },
       "src/window": { version: "0.0.6", peerDependencies: { "@angular/cdk": "22.2.7" } },
       "node_modules/plain": 5
     });
@@ -103,8 +104,9 @@ export class LockedInstallCheckTests {
       [LockedInstallCheckTests.LOCKFILE]: locked,
       [LockedInstallCheckTests.INSTALLED]: LockedInstallCheckTests.write({
         "node_modules/@tybys/wasm-util": { version: "0.10.5", dev: true, optional: true },
-        "node_modules/@napi-rs/wasm-runtime": { version: "1.1.0", dev: true },
+        "node_modules/@napi-rs/wasm-runtime": { version: "1.2.7", dev: true, optional: true },
         "node_modules/@napi-rs/wasm-runtime/node_modules/tslib": { version: "2.8.1", dev: true, optional: true },
+        "node_modules/tslib": { version: "2.8.1" },
         "src/window": { version: "0.0.6" }
       })
     });
