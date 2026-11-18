@@ -7,7 +7,7 @@
  */
 
 import "@noldova/context.core";
-import type { SystemCommand } from "@noldova/desktop.runtime";
+import { CommandFailedException, type SystemCommand } from "@noldova/desktop.runtime";
 
 import { ShipItNotRemovedException } from "../exceptions/ship-it-not-removed.exception.js";
 import { ShipItUnreadableException } from "../exceptions/ship-it-unreadable.exception.js";
@@ -44,9 +44,21 @@ export class ShipItProcess implements IShipItProcess {
   }
 
   private async findPrivilegedAsync(): Promise<number | null> {
-    const output = await this.command.runAsync(Resources.launchControl, [Resources.launchControlPrint, Resources.formatSystemLaunchJob(this.label)]).catch(() => String.empty);
+    let output: string;
+    try {
+      output = await this.command.runAsync(Resources.launchControl, [Resources.launchControlPrint, Resources.formatSystemLaunchJob(this.label)]);
+    }
+    catch (error) {
+      if (ShipItProcess.isMissingService(error))
+        return null;
+      throw new ShipItUnreadableException(error);
+    }
     const processId = Number(Resources.launchPrintProcessPattern.exec(output)?.[1]);
     return Number.isSafeInteger(processId) && processId > 0 ? processId : null;
+  }
+
+  private static isMissingService(error: unknown): boolean {
+    return error instanceof CommandFailedException && error.cause instanceof Error && "code" in error.cause && error.cause.code === Resources.launchControlMissingServiceCode;
   }
 
   private async unloadAsync(): Promise<void> {

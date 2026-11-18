@@ -581,6 +581,7 @@ export class Resources {
   public static readonly launchControlList: string = "list";
   public static readonly launchControlRemove: string = "remove";
   public static readonly launchControlPrint: string = "print";
+  public static readonly launchControlMissingServiceCode: number = 113;
   public static readonly launchPrintProcessPattern: RegExp = /^\s*pid = (\d+)\s*$/m;
   public static readonly launchListSeparator: string = "\t";
   public static readonly launchListProcessColumn: number = 0;
