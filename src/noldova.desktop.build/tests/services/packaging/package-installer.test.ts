@@ -95,6 +95,8 @@ class MovingRunner extends ProcessRunner {
   public isShortcutWritten: boolean;
   public shortcutAnswer: ProcessResult | null;
   public isFolderKept: boolean;
+  public isCopyHeld: boolean;
+  public waitedUninstaller: string | undefined;
 
   public constructor(programs: string, appData: string) {
     super();
@@ -108,6 +110,8 @@ class MovingRunner extends ProcessRunner {
     this.isShortcutWritten = true;
     this.shortcutAnswer = null;
     this.isFolderKept = false;
+    this.isCopyHeld = false;
+    this.waitedUninstaller = undefined;
   }
 
   public get app(): string {
@@ -123,6 +127,19 @@ class MovingRunner extends ProcessRunner {
     this.calls.push([path.basename(command), ...commandArguments, ...isVerbatim ? ["(verbatim)"] : []].join(" "));
     const placed = commandArguments.find(t => t.startsWith("/D="))?.slice("/D=".length);
     const uninstalled = commandArguments.find(t => t.startsWith("_?="))?.slice("_?=".length);
+    const waited = environment?.["NOLDOVA_DESKTOP_UNINSTALLER"];
+    const held = environment?.["NOLDOVA_DESKTOP_LEFT_FILES"];
+    if (path.basename(command) === "powershell.exe" && !Object.isUndefined(waited)) {
+      this.waitedUninstaller = waited;
+      await this.uninstallAsync(waited, environment?.["NOLDOVA_DESKTOP_UNINSTALL_FOLDER"] ?? String.empty);
+      if (this.isCopyHeld) {
+        await rm(waited);
+        await mkdir(path.join(waited, "held"), { recursive: true });
+      }
+      return new ProcessResult(0, String.empty, String.empty);
+    }
+    if (path.basename(command) === "powershell.exe" && !Object.isUndefined(held))
+      return new ProcessResult(0, `${held}: MsMpEng.exe (4321).\r\n`, String.empty);
     if (path.basename(command) === "powershell.exe") {
       this.shortcutVariable = environment?.["NOLDOVA_DESKTOP_SHORTCUT"];
       return this.shortcutAnswer ?? new ProcessResult(0, `${path.join(this.app, "Sample App.exe").toUpperCase()}\r\n`, String.empty);
@@ -308,11 +325,16 @@ export class PackageInstallerTests {
       Assert.isTrue(isNeighbourThere);
       Assert.areEqual(runner.shortcut, runner.shortcutVariable);
       Assert.areEqual(JSON.stringify([`Sample App-1.2.3-windows-x64.exe /S /D=${runner.old} (verbatim)`, "Sample App-1.2.3-windows-x64.exe /S", runner.calls[2],
-        `Uninstall Sample App.exe /S _?=${runner.app} (verbatim)`, "Sample App-1.2.3-windows-x64.exe /S", `Uninstall Sample App.exe /S _?=${runner.app} (verbatim)`]),
+        `Uninstall Sample App.exe /S _?=${runner.app} (verbatim)`, "Sample App-1.2.3-windows-x64.exe /S", runner.calls[5]]),
         JSON.stringify(runner.calls));
       Assert.isTrue((runner.calls[2] ?? String.empty).startsWith("powershell.exe -NoProfile -NonInteractive -EncodedCommand "));
       const script = Buffer.from((runner.calls[2] ?? String.empty).split(" ").at(-1) ?? String.empty, "base64").toString("utf16le");
       Assert.isTrue(script.endsWith("\n(Microsoft.PowerShell.Utility\\New-Object -ComObject WScript.Shell).CreateShortcut($env:NOLDOVA_DESKTOP_SHORTCUT).TargetPath"), script);
+      Assert.isTrue((runner.calls[5] ?? String.empty).startsWith("powershell.exe -NoProfile -NonInteractive -EncodedCommand "));
+      const wait = Buffer.from((runner.calls[5] ?? String.empty).split(" ").at(-1) ?? String.empty, "base64").toString("utf16le");
+      Assert.isTrue(wait.endsWith("\n$uninstall = Microsoft.PowerShell.Management\\Start-Process -FilePath $env:NOLDOVA_DESKTOP_UNINSTALLER "
+        + "-ArgumentList @('/S', \"_?=$env:NOLDOVA_DESKTOP_UNINSTALL_FOLDER\") -Wait -PassThru\nexit $uninstall.ExitCode"), wait);
+      Assert.areEqual(path.join(folder, "Uninstall Sample App.exe"), runner.waitedUninstaller);
       Assert.isFalse(existsSync(path.join(folder, "Uninstall Sample App.exe")));
       Assert.isFalse(existsSync(runner.old));
       Assert.isFalse(existsSync(makers));
@@ -402,6 +424,22 @@ export class PackageInstallerTests {
         BuildException);
 
       Assert.areEqual("APPDATA must name the folder that holds the user's Start menu.", error.message);
+    });
+  }
+
+  @TestMethod
+  public async namesWhatStillHoldsTheCopiedUninstallerOnceItAndItsProcessesExited(): Promise<void> {
+    await PackageInstallerTests.withMovingAsync(async (folder, runner, installer) => {
+      runner.isCopyHeld = true;
+      const copy = path.join(folder, "Uninstall Sample App.exe");
+      await installer.installAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder);
+
+      const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
+        BuildException);
+
+      Assert.isTrue(error.message.startsWith(`The copy of the uninstaller ${copy} could not be removed after it and every process it started had exited: `), error.message);
+      Assert.isTrue(error.message.endsWith(`\nWhat holds them now:\n${copy}: MsMpEng.exe (4321).`), error.message);
+      Assert.isDefined(error.cause);
     });
   }
 

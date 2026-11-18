@@ -63,9 +63,16 @@ export class PackageInstaller {
     await this.runInstallerAsync(this.locatePackage(target, product, version, Resources.installerTarget), Resources.silentInstallArguments, installFolder, folder, environment);
     const uninstaller = path.join(folder, path.basename(PackageInstaller.locateUninstaller(installFolder, product)));
     await copyFile(PackageInstaller.locateUninstaller(installFolder, product), uninstaller);
-    await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
-      Resources.installerTimeout, environment, true);
-    await PackageInstaller.removeUninstallerAsync(uninstaller);
+    const command = Buffer.from(Resources.uninstallWaitScript, Resources.powershellScriptEncoding).toString(Resources.powershellCommandEncoding);
+    await this.runner.requireAsync(Resources.windowsPowershellCommand, [...Resources.powershellOptions, command], folder, Resources.installerTimeout,
+      { ...environment, [Resources.uninstallerVariable]: uninstaller, [Resources.uninstallFolderVariable]: installFolder });
+    try {
+      await rm(uninstaller);
+    }
+    catch (error) {
+      throw new BuildException(Resources.formatCopiedUninstallerHeld(uninstaller, error, await new FileHolders(this.runner, folder, environment).describeAsync([uninstaller])),
+        new ExceptionOptions(error));
+    }
     if (existsSync(path.dirname(installFolder)))
       throw new BuildException(Resources.formatInstallFolderKept(path.dirname(installFolder)));
   }
@@ -163,21 +170,17 @@ export class PackageInstaller {
     return path.join(installFolder, `${Resources.uninstallerPrefix}${product.name}${Resources.windowsProgramExtension}`);
   }
 
-  private static async removeUninstallerAsync(uninstaller: string): Promise<void> {
+  private async uninstallInPlaceAsync(installFolder: string, product: ProductIdentity, folder: string): Promise<void> {
+    const uninstaller = PackageInstaller.locateUninstaller(installFolder, product);
+    const environment = this.createInstallerEnvironment();
+    await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
+      Resources.installerTimeout, environment, true);
     try {
       await rm(uninstaller, { maxRetries: Resources.removeRetries, retryDelay: Resources.removeRetryDelay });
     }
     catch (error) {
       throw new BuildException(Resources.formatUninstallerNotRemoved(uninstaller, error), new ExceptionOptions(error));
     }
-  }
-
-  private async uninstallInPlaceAsync(installFolder: string, product: ProductIdentity, folder: string): Promise<void> {
-    const uninstaller = PackageInstaller.locateUninstaller(installFolder, product);
-    const environment = this.createInstallerEnvironment();
-    await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
-      Resources.installerTimeout, environment, true);
-    await PackageInstaller.removeUninstallerAsync(uninstaller);
     const left = await readdir(installFolder, { recursive: true, withFileTypes: true });
     if (left.length > 0) {
       const files = left.filter(t => t.isFile()).map(t => path.join(t.parentPath, t.name)).sort();
