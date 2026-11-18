@@ -4,6 +4,14 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.6
+
+- `package`'s check that every built file is the target's architecture accepts, on a Windows target, a bundled program of any machine Windows 11 runs there: x64 and x86 on x64; arm64, x64 and x86 on arm64.
+  The app's own files, those at the unpacked folder's root and every `.node` module, stay the target's architecture alone, as every file of a macOS or Linux package does.
+  On a Windows target the verified line names the machines Windows runs there and how many files of each the package holds.
+- A window shown before its page painted is reported painted, `isPainted` in `status --json`, once its page paints, and the main log records that paint with how long after the window opened.
+  `@noldova/desktop.electron`'s `OpenWindow` gains `whenPagePaintedAsync`, which resolves only when the page paints, or `false` once the window closes.
+
 ## 0.0.5
 
 - An app can name an install folder, `desktop.product.installFolder` in its `package.json`, such as its publisher's name, and installs inside it beside the other apps that name it; an app that names none installs as before.
