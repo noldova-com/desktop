@@ -418,7 +418,7 @@ export class MainProcess {
       this.trays.start(state);
       this.open(saved);
       this.updates.start(state);
-      this.publish(this.startup.current);
+      this.enter(this.startup.current);
       for (const event of this.earlyEvents.splice(0))
         this.events.forward(event);
     });
@@ -494,6 +494,15 @@ export class MainProcess {
   private publish(state: StartupState): void {
     if (!this.phase.hasPassedBarrier)
       return;
+    this.enter(state);
+    for (const open of this.windows.all)
+      if (!open.window.isDestroyed()) {
+        open.window.webContents.send(Resources.startupStateChannel, state.toJson());
+        void this.placement.prepareAsync(open);
+      }
+  }
+
+  private enter(state: StartupState): void {
     if (!MainProcess.UNOWNED_STATES.includes(state.kind))
       void this.options.log.openAsync();
     const isReady = state.kind === StartupStateKind.Ready;
@@ -518,11 +527,6 @@ export class MainProcess {
     this.phase.isReady = isReady;
     if (isReady)
       this.webViews.host.flush();
-    for (const open of this.windows.all)
-      if (!open.window.isDestroyed()) {
-        open.window.webContents.send(Resources.startupStateChannel, state.toJson());
-        void this.placement.prepareAsync(open);
-      }
   }
 
   private beforeQuit(event: IPreventableEvent): void {
