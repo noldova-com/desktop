@@ -25,6 +25,9 @@ export class KeyText {
   }
 
   private static labelOf(chord: KeyChord, platform: string): string {
-    return chord.label(platform);
+    if (platform !== Resources.macPlatform)
+      return chord.label(platform);
+    const names = [[chord.hasCtrl, Resources.macControlName], [chord.hasAlt, Resources.macOptionName], [chord.hasShift, Resources.shiftLabel], [chord.hasMod, Resources.macCommandName]] as const;
+    return [...names.filter(t => t[0]).map(t => t[1]), chord.key.label(false)].join(Resources.keySeparator);
   }
 }

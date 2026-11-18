@@ -6503,8 +6503,10 @@ export declare class KeyChord {
 /**
  * Text that names keys by tokens, such as `Send with {key:Mod+Enter}`: each
  * `{key:<chord>}` holds a chord as `KeyChord` reads it, and shows as that
- * chord's label on the platform, such as `Send with Ctrl+Enter` on Windows
- * and Linux. Text without a token, and braces that don't form one, stay as
+ * chord in words: on Windows and Linux as `KeyChord.label` gives it, such as
+ * `Send with Ctrl+Enter`, and on macOS with `Control`, `Option`, `Shift` and
+ * `Cmd` in that order joined by `+` to the key, such as `Send with
+ * Cmd+Enter`. Text without a token, and braces that don't form one, stay as
  * they are.
  */
 export declare class KeyText {
@@ -6530,8 +6532,8 @@ export declare class KeyText {
   public static check(text: string, parameterName: string): void;
 
   /**
-   * Returns a text with each key token replaced by its chord's label on a
-   * platform, as `KeyChord.label` gives it.
+   * Returns a text with each key token replaced by its chord in words on a
+   * platform.
    *
    * @param text The text, whose tokens `check` accepts.
    * @param platform The platform, as in `process.platform`.
@@ -6542,7 +6544,7 @@ export declare class KeyText {
    * ```ts
    * import { KeyText } from "@noldova/desktop.protocol";
    *
-   * export const title: string = KeyText.format("Send with {key:Mod+Enter}", "win32");
+   * export const title: string = KeyText.format("Send with {key:Mod+Enter}", "darwin");
    * ```
    */
   public static format(text: string, platform: string): string;

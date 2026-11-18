@@ -83,7 +83,7 @@ describe("SettingsService", () => {
     const others = [["Mode", "Light or dark."], ["Size", "Text size."]];
     expect(windows).toEqual([["Send with Ctrl+Enter", "Alt+Enter adds a line.", "mod=Ctrl+Enter", "plain=Enter"], ...others]);
     expect(linux).toEqual(windows);
-    expect(service.definitions().map(texts)).toEqual([["Send with \u2318\u21A9", "\u2325\u21A9 adds a line.", "mod=\u2318\u21A9", "plain=Enter"], ...others]);
+    expect(service.definitions().map(texts)).toEqual([["Send with Cmd+Enter", "Option+Enter adds a line.", "mod=Cmd+Enter", "plain=Enter"], ...others]);
     const [shown, mode, size] = service.definitions();
     expect([shown?.name, shown?.type.kind, shown?.defaultValue, shown?.locality, shown?.page, shown?.group]).toEqual([send, SettingKind.Choice, "mod", SettingLocality.Shared, "Chat", "Composer"]);
     expect([mode?.type, size?.type]).toEqual([definitions[0]?.type, definitions[1]?.type]);

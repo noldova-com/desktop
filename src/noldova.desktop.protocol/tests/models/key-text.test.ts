@@ -14,9 +14,11 @@ import { KeyText } from "@noldova/desktop.protocol";
 @TestClass
 export class KeyTextTests {
   @TestMethod
-  public showsATokenInMacOsForm(): void {
-    Assert.areEqual("Send with \u2318\u21A9", KeyText.format("Send with {key:Mod+Enter}", "darwin"));
-    Assert.areEqual("\u2325\u21A9 adds a line; \u2318\u21A9 sends.", KeyText.format("{key:Alt+Enter} adds a line; {key:Mod+Enter} sends.", "darwin"));
+  public showsATokenInMacOsFormInWords(): void {
+    Assert.areEqual("Send with Cmd+Enter", KeyText.format("Send with {key:Mod+Enter}", "darwin"));
+    Assert.areEqual("Option+Enter adds a line; Cmd+Enter sends.", KeyText.format("{key:Alt+Enter} adds a line; {key:Mod+Enter} sends.", "darwin"));
+    Assert.areEqual("Control+Option+Shift+Cmd+K", KeyText.format("{key:Shift+Mod+Alt+Ctrl+K}", "darwin"));
+    Assert.areEqual("Control+F2|Shift+Esc|F2", KeyText.format("{key:Ctrl+F2}|{key:Shift+Escape}|{key:F2}", "darwin"));
   }
 
   @TestMethod
@@ -24,6 +26,7 @@ export class KeyTextTests {
     for (const platform of ["win32", "linux"]) {
       Assert.areEqual("Send with Ctrl+Enter", KeyText.format("Send with {key:Mod+Enter}", platform), platform);
       Assert.areEqual("Alt+Enter adds a line; Ctrl+Enter sends.", KeyText.format("{key:Alt+Enter} adds a line; {key:Mod+Enter} sends.", platform), platform);
+      Assert.areEqual("Ctrl+Alt+Shift+K", KeyText.format("{key:Shift+Alt+Mod+K}", platform), platform);
     }
   }
 

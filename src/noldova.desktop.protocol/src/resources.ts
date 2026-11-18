@@ -184,6 +184,9 @@ export class Resources {
   public static readonly controlLabel: string = "Ctrl";
   public static readonly altLabel: string = "Alt";
   public static readonly shiftLabel: string = "Shift";
+  public static readonly macControlName: string = "Control";
+  public static readonly macOptionName: string = "Option";
+  public static readonly macCommandName: string = "Cmd";
   public static readonly ariaControlKey: string = "Control";
   public static readonly ariaAltKey: string = "Alt";
   public static readonly ariaShiftKey: string = "Shift";
