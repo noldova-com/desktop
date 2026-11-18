@@ -120,14 +120,38 @@ export class LockedInstallCheckTests {
   }
 
   @TestMethod
-  public async checksNothingWithoutBothLockfiles(): Promise<void> {
+  public async namesEachPeerOfTheBuiltPackagesAtTheVersionTheLockfileHoldsAtTheTop(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      [LockedInstallCheckTests.LOCKFILE]: LockedInstallCheckTests.write({
+        "node_modules/@noldova/ui.components.angular": { version: "0.0.12" },
+        "node_modules/@noldova/context.core": { version: "0.0.9" },
+        "node_modules/@noldova/desktop.protocol": { resolved: "src/protocol", link: true },
+        "node_modules/@noldova/desktop.window/node_modules/rxjs": { version: "7.8.2" }
+      })
+    });
+
+    const specs = await LockedInstallCheck.listLockedSpecsAsync(tree.path, ["@noldova/ui.components.angular", "@noldova/context.core", "@noldova/desktop.protocol", "rxjs", "@noldova/unlocked"]);
+
+    Assert.areEqual(JSON.stringify(["@noldova/context.core@0.0.9", "@noldova/ui.components.angular@0.0.12"]), JSON.stringify(specs));
+  }
+
+  @TestMethod
+  public async checksNothingWithoutPackageLockJson(): Promise<void> {
     await using empty = await SourceTreeFixture.createAsync();
-    await using lockedOnly = await SourceTreeFixture.createAsync({ [LockedInstallCheckTests.LOCKFILE]: LockedInstallCheckTests.write(LockedInstallCheckTests.LOCKED) });
     await using installedOnly = await SourceTreeFixture.createAsync({ [LockedInstallCheckTests.INSTALLED]: LockedInstallCheckTests.write({ "node_modules/a": { version: "1.0.0" } }) });
 
     await LockedInstallCheck.checkAsync(empty.path);
-    await LockedInstallCheck.checkAsync(lockedOnly.path);
     await LockedInstallCheck.checkAsync(installedOnly.path);
+  }
+
+  @TestMethod
+  public async refusesAnInstallThatLeftNoInstalledLockfileBesidePackageLockJson(): Promise<void> {
+    await using lockedOnly = await SourceTreeFixture.createAsync({ [LockedInstallCheckTests.LOCKFILE]: LockedInstallCheckTests.write(LockedInstallCheckTests.LOCKED) });
+
+    const error = await Assert.throwsAsync(() => LockedInstallCheck.checkAsync(lockedOnly.path), BuildException);
+
+    Assert.areEqual(Resources.formatInstalledLockfileMissing("node_modules/.package-lock.json"), error.message);
+    Assert.isTrue(error.message.startsWith("Installing the built packages left no node_modules/.package-lock.json beside package-lock.json,"), error.message);
   }
 
   private static async createAsync(installed: Readonly<Record<string, unknown>>): Promise<SourceTreeFixture> {
