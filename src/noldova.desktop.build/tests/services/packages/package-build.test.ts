@@ -198,7 +198,9 @@ export class PackageBuildTests {
       ...PackageBuildTests.describePackage(PackageBuildTests.PROTOCOL),
       "package-lock.json": PackageBuildTests.LOCKFILE
     });
-    const runner = new PackageToolsRunnerFixture(tree.path);
+    const runner = new PackageToolsRunnerFixture(tree.path, {
+      installedLockfile: JSON.stringify({ name: "app", lockfileVersion: 3, packages: { "node_modules/@angular/common": { version: "22.2.6" } } })
+    });
 
     await PackageBuildTests.create(tree, runner).buildAsync(new PassThrough());
 

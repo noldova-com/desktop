@@ -46,8 +46,10 @@ export class LockedInstallCheck {
   public static async checkAsync(root: string): Promise<void> {
     const lockfile = path.join(root, Resources.packageLockFileName);
     const installedLockfile = path.join(root, ...Resources.installedLockfileSegments);
-    if (!existsSync(lockfile) || !existsSync(installedLockfile))
+    if (!existsSync(lockfile))
       return;
+    if (!existsSync(installedLockfile))
+      throw new BuildException(Resources.formatInstalledLockfileMissing(Resources.installedLockfileSegments.join(Resources.pathSegmentSeparator)));
     const locked = await LockedInstallCheck.readPackagesAsync(lockfile);
     const installed = await LockedInstallCheck.readPackagesAsync(installedLockfile);
     const links = new Map<string, string>();
