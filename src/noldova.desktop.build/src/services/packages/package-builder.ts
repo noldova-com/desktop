@@ -125,7 +125,7 @@ export class PackageBuilder {
 
   public async installAsync(subject: string, folder: string, archives: readonly string[]): Promise<void> {
     const installed = archives.filter(t => existsSync(t));
-    const peers = installed.length === 0 ? [] : await LockedInstallCheck.listLockedPeersAsync(folder);
+    const peers = installed.length === 0 ? [] : await LockedInstallCheck.listLockedSpecsAsync(folder);
     PackageBuilder.require(await this.npm.runAsync([...Resources.npmInstallArguments, ...installed, ...peers], folder), Resources.formatInstallingOperation(subject));
     await LockedInstallCheck.checkAsync(folder);
   }
