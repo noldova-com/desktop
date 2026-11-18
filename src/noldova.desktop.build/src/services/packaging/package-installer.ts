@@ -65,6 +65,7 @@ export class PackageInstaller {
     await copyFile(PackageInstaller.locateUninstaller(installFolder, product), uninstaller);
     await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
       Resources.installerTimeout, environment, true);
+    await PackageInstaller.removeUninstallerAsync(uninstaller);
     if (existsSync(path.dirname(installFolder)))
       throw new BuildException(Resources.formatInstallFolderKept(path.dirname(installFolder)));
   }
@@ -162,17 +163,21 @@ export class PackageInstaller {
     return path.join(installFolder, `${Resources.uninstallerPrefix}${product.name}${Resources.windowsProgramExtension}`);
   }
 
-  private async uninstallInPlaceAsync(installFolder: string, product: ProductIdentity, folder: string): Promise<void> {
-    const uninstaller = PackageInstaller.locateUninstaller(installFolder, product);
-    const environment = this.createInstallerEnvironment();
-    await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
-      Resources.installerTimeout, environment, true);
+  private static async removeUninstallerAsync(uninstaller: string): Promise<void> {
     try {
       await rm(uninstaller, { maxRetries: Resources.removeRetries, retryDelay: Resources.removeRetryDelay });
     }
     catch (error) {
       throw new BuildException(Resources.formatUninstallerNotRemoved(uninstaller, error), new ExceptionOptions(error));
     }
+  }
+
+  private async uninstallInPlaceAsync(installFolder: string, product: ProductIdentity, folder: string): Promise<void> {
+    const uninstaller = PackageInstaller.locateUninstaller(installFolder, product);
+    const environment = this.createInstallerEnvironment();
+    await this.runner.requireAsync(uninstaller, [...Resources.silentInstallArguments, `${Resources.uninstallerInPlaceOption}${installFolder}`], folder,
+      Resources.installerTimeout, environment, true);
+    await PackageInstaller.removeUninstallerAsync(uninstaller);
     const left = await readdir(installFolder, { recursive: true, withFileTypes: true });
     if (left.length > 0) {
       const files = left.filter(t => t.isFile()).map(t => path.join(t.parentPath, t.name)).sort();
