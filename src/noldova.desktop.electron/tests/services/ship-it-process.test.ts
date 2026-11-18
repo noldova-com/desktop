@@ -64,7 +64,7 @@ export class ShipItProcessTests {
   }
 
   @TestMethod
-  public async findsNoProcessWhenTheSystemDomainsShipItJobIsNotRunningOrCannotBeRead(): Promise<void> {
+  public async findsNoProcessWhenTheSystemDomainsShipItJobIsNotRunningOrMissing(): Promise<void> {
     const stopped = new ShipItProcess(ShipItProcessTests.BUNDLE, ShipItProcessTests.createDomainsCommand([], ShipItProcessTests.describeSystemJob("\tstate = not running\n")));
     const missing = new ShipItProcess(ShipItProcessTests.BUNDLE, ShipItProcessTests.createFailedPrintCommand(
       Object.assign(new Error("Could not find service \"com.noldova.desktop.ShipIt\" in domain for system"), { code: 113 })));
