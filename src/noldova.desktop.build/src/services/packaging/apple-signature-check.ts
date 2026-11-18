@@ -6,7 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import timers from "node:timers/promises";
 
@@ -34,9 +35,12 @@ export class AppleSignatureCheck {
       for (const [index, file] of packages.entries()) {
         const work = path.join(this.folder, String(index));
         await mkdir(work);
-        lines.push(path.extname(file) === Resources.diskImageExtension
+        const extension = path.extname(file);
+        lines.push(extension === Resources.diskImageExtension
           ? await this.checkDiskImageAsync(file, work, productName)
-          : await this.checkArchiveAsync(file, work, productName));
+          : extension === Resources.macInstallerExtension
+            ? await this.checkInstallerAsync(file, work, productName)
+            : await this.checkArchiveAsync(file, work, productName));
       }
     }
     finally {
@@ -73,6 +77,33 @@ export class AppleSignatureCheck {
     }
   }
 
+  public static async locateExpandedAppAsync(expanded: string, productName: string): Promise<string> {
+    const bundle = `${productName}${Resources.appBundleExtension}`;
+    const component = (await readdir(expanded)).find(t => existsSync(path.join(expanded, t, Resources.installerPayloadFolder, bundle)));
+    if (Object.isUndefined(component))
+      throw new BuildException(Resources.formatAppleInstallerAppMissing(expanded, bundle));
+    return path.join(expanded, component, Resources.installerPayloadFolder, bundle);
+  }
+
+  private async checkInstallerAsync(installer: string, work: string, productName: string): Promise<string> {
+    const subject = Resources.formatAppleInstallerSubject(installer);
+    const checked = await this.captureAsync(Resources.pkgutilCommand, [Resources.pkgutilCheckSignatureOption, installer]);
+    const assessed = await this.captureAsync(Resources.spctlCommand, [Resources.spctlAssessOption, ...Resources.spctlInstallerAssessment, Resources.appleVerboseOption, installer]);
+    const stapled = await this.validateStapleAsync(installer);
+    this.requireMet(subject, [
+      [Resources.appleValidSignatureRequirement, checked.isSuccessful],
+      [Resources.appleDeveloperIdInstallerRequirement, checked.isSuccessful && Resources.appleDeveloperIdInstallerPattern.test(checked.text)],
+      [Resources.appleNotarizationRequirement, assessed.isSuccessful && Resources.appleNotarizedPattern.test(assessed.text)],
+      [!AppleSignatureCheck.isNetworkError(stapled) ? Resources.appleStapledRequirement : Resources.appleStapledOfflineRequirement, stapled.isSuccessful]
+    ], [checked, assessed, stapled]);
+    const expanded = path.join(work, Resources.installerExpandedFolder);
+    await this.runner.requireAsync(Resources.pkgutilCommand, [Resources.pkgutilExpandFullOption, installer, expanded], this.folder, Resources.appleSignatureTimeout,
+      this.environment);
+    await this.requireSignedAsync(Resources.formatAppleAppSubject(installer), await AppleSignatureCheck.locateExpandedAppAsync(expanded, productName), true,
+      Resources.spctlAppAssessment);
+    return Resources.formatAppleInstallerVerified(installer);
+  }
+
   private async checkArchiveAsync(archive: string, folder: string, productName: string): Promise<string> {
     await this.runner.requireAsync(Resources.dittoCommand, [...Resources.dittoExtractArguments, archive, folder], this.folder, Resources.appleSignatureTimeout,
       this.environment);
@@ -87,15 +118,18 @@ export class AppleSignatureCheck {
     const details = await this.captureAsync(Resources.codesignCommand, [Resources.codesignDisplayOption, Resources.appleVerboseOption, file]);
     const assessed = await this.captureAsync(Resources.spctlCommand, [Resources.spctlAssessOption, ...assessment, Resources.appleVerboseOption, file]);
     const stapled = await this.validateStapleAsync(file);
-    const requirements: readonly (readonly [string, boolean])[] = [
+    this.requireMet(subject, [
       [Resources.appleValidSignatureRequirement, verified.isSuccessful],
       [Resources.appleDeveloperIdRequirement, details.isSuccessful && Resources.appleDeveloperIdPattern.test(details.text)],
       [Resources.appleNotarizationRequirement, assessed.isSuccessful && Resources.appleNotarizedPattern.test(assessed.text)],
       [!AppleSignatureCheck.isNetworkError(stapled) ? Resources.appleStapledRequirement : Resources.appleStapledOfflineRequirement, stapled.isSuccessful]
-    ];
+    ], [verified, details, assessed, stapled]);
+  }
+
+  private requireMet(subject: string, requirements: readonly (readonly [string, boolean])[], results: readonly ProcessResult[]): void {
     const failed = requirements.filter(([, isMet]) => !isMet).map(([requirement]) => requirement);
     if (failed.length > 0)
-      throw new BuildException(Resources.formatAppleSignatureLacks(subject, failed, [verified, details, assessed, stapled].map(t => t.text)));
+      throw new BuildException(Resources.formatAppleSignatureLacks(subject, failed, results.map(t => t.text)));
   }
 
   private validateStapleAsync(file: string): Promise<ProcessResult> {

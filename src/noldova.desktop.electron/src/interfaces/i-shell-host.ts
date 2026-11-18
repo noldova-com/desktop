@@ -12,4 +12,6 @@ export interface IShellHost {
   openExternal(url: string): Promise<void>;
 
   showItemInFolder(fullPath: string): void;
+
+  trashItem(path: string): Promise<void>;
 }

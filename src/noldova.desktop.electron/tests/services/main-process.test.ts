@@ -18,7 +18,7 @@ import "@noldova/context.core";
 import { type JsonObject, JsonReader, type JsonValue } from "@noldova/context.json";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 import { BuildIdentity, Event, Failure, FailureCode, PreShellData, Response, RuntimeHandover, ShellEvents, UpdateProcess, UpdateSaved } from "@noldova/desktop.protocol";
-import { CallUnansweredException, ConnectionClosedException, DataDirectory, DataDirectoryLocator, DeviceFolder, Installation, PreShellDataFoundException, ProcessPresence, RuntimeBuild, RuntimeEntry, RuntimeHandoverException, UpdateBarrier, UpdateBarrierState, UpdateBarrierStatus, UpdateInProgressException } from "@noldova/desktop.runtime";
+import { CallUnansweredException, ConnectionClosedException, DataDirectory, DataDirectoryLocator, DeviceFolder, Installation, PreShellDataFoundException, ProcessPresence, ProductInfo, RuntimeBuild, RuntimeEntry, RuntimeHandoverException, UpdateBarrier, UpdateBarrierState, UpdateBarrierStatus, UpdateInProgressException } from "@noldova/desktop.runtime";
 import { type IIpcEvent, UnusableFolderException } from "@noldova/desktop.electron";
 
 import { Condition } from "../fixtures/condition.fixture.js";
@@ -1785,6 +1785,38 @@ export class MainProcessTests {
 
     Assert.areEqual(JSON.stringify(["The window's bounds could not be saved: WindowStateRefusedException: The runtime refused desktop.writeWindowBounds: The database is busy."]),
       JSON.stringify(MainProcessStartFixture.readErrors(process, "The window's bounds")));
+  }
+
+  @TestMethod
+  public async movesAPackagedMacAppIntoItsInstallFolderAndStartsNothingElse(): Promise<void> {
+    const name = ProductInfo.current.name;
+    const program = `/Applications/${name}.app/Contents/MacOS/${name}`;
+    const electron = new FakeElectron(true, true);
+    const process = new FakeMainProcessEnvironment("darwin", [program]);
+    process.execPath = program;
+    const renames: string[] = [];
+    process.files = { lstat: () => Promise.reject(new Error("ENOENT")), readlink: () => Promise.reject(new Error("EINVAL")), realpath: t => Promise.resolve(t),
+      rename: (from, to) => {
+        renames.push(`${from} -> ${to}`);
+        return Promise.resolve();
+      },
+      readdir: () => Promise.reject(Object.assign(new Error("ENOENT"), { code: "ENOENT" })) };
+    const launcher = new FakeRuntimeLauncher();
+
+    const starting = MainProcessStartFixture.startAsync(electron, process, launcher);
+    for (let copied = 0; copied < 2; copied++) {
+      await Condition.waitAsync(() => process.programs.waiting > 0);
+      await process.programs.answerAsync(String.empty);
+    }
+    await electron.app.becomeReadyAsync();
+    const settings = await starting;
+
+    Assert.areEqual("Noldova", ProductInfo.current.installFolder);
+    Assert.areEqual(0, settings.length);
+    Assert.areEqual(2, process.programs.runs.length);
+    Assert.areEqual(`/Applications/Noldova/.${process.processId}-${name}.app -> /Applications/Noldova/${name}.app`, renames.join());
+    Assert.areEqual(`relaunch /Applications/Noldova/${name}.app/Contents/MacOS/${name} []`, electron.app.calls.find(t => t.startsWith("relaunch")));
+    Assert.areEqual(`/Applications/${name}.app`, electron.shell.trashed.join());
   }
 
   @TestMethod

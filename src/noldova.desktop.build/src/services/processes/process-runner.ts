@@ -20,9 +20,11 @@ import { Resources } from "../../resources.ts";
 import { StartedProcess } from "./started-process.ts";
 
 export class ProcessRunner {
-  public captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv): Promise<ProcessResult> {
+  public captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv, isVerbatim: boolean = false):
+    Promise<ProcessResult> {
     return new Promise<ProcessResult>((resolve, reject) => {
-      const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, stdio: [Resources.ignoreStdio, Resources.pipeStdio, Resources.pipeStdio], windowsHide: true, env: environment ?? process.env });
+      const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, stdio: [Resources.ignoreStdio, Resources.pipeStdio, Resources.pipeStdio], windowsHide: true,
+        env: environment ?? process.env, windowsVerbatimArguments: isVerbatim, argv0: isVerbatim ? `"${command}"` : command });
       const output: Buffer[] = [];
       const errorOutput: Buffer[] = [];
       let size = 0;
@@ -52,8 +54,9 @@ export class ProcessRunner {
     });
   }
 
-  public async requireAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv): Promise<void> {
-    const result = await this.captureAsync(command, commandArguments, directory, timeout, environment);
+  public async requireAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv, isVerbatim: boolean = false):
+    Promise<void> {
+    const result = await this.captureAsync(command, commandArguments, directory, timeout, environment, isVerbatim);
     if (!result.isSuccessful)
       throw new BuildException(Resources.formatProcessFailed(path.basename(command), commandArguments, result.exitCode, result.text));
   }

@@ -553,7 +553,7 @@ export class ShellOpenerTests {
 
   private static startWithPathsAsync(platform: string, paths: LinkedPathsFixture): Promise<FakeElectron> {
     const environment = new FakeMainProcessEnvironment(platform);
-    environment.files = paths;
+    environment.files = { lstat: t => paths.lstat(t), readlink: t => paths.readlink(t), realpath: t => paths.realpath(t), rename: environment.files.rename, readdir: environment.files.readdir };
     return MainProcessStartFixture.startReadyAsync(platform, new FakeRuntimeLauncher(), new FakeElectron(), new FakeDeviceIdentity(), environment);
   }
 }

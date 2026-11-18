@@ -48,6 +48,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       targets: ${{ steps.targets.outputs.targets }}
+      no-folder-targets: ${{ steps.targets.outputs.no-folder-targets }}
     steps:
       - name: Check out the revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,10 +80,16 @@ jobs:
           set -euo pipefail
           table=$(node src/noldova.desktop.build/src/services/release-command-line.ts list-targets)
           targets=''
+          no_folder=''
           while IFS='|' read -r target runner architecture platform _; do
-            targets="$targets${targets:+,}{\"target\":\"$target\",\"runner\":$runner,\"architecture\":\"$architecture\",\"platform\":\"$platform\",\"signed\":\"false\"}"
+            entry="{\"target\":\"$target\",\"runner\":$runner,\"architecture\":\"$architecture\",\"platform\":\"$platform\",\"signed\":\"false\"}"
+            targets="$targets${targets:+,}$entry"
+            if [ "$platform" = macos ] && [ "$architecture" = arm64 ]; then
+              no_folder="$entry"
+            fi
           done <<< "$table"
           echo "targets=[$targets]" >> "$GITHUB_OUTPUT"
+          echo "no-folder-targets=[$no_folder]" >> "$GITHUB_OUTPUT"
 
   package:
     name: Package unsigned
@@ -91,6 +98,16 @@ jobs:
     with:
       targets: ${{ needs.package-targets.outputs.targets }}
       signed: false
+
+  package-without-folder:
+    name: Package unsigned, without an install folder
+    needs: package-targets
+    uses: ./.github/workflows/package-app.yml
+    with:
+      targets: ${{ needs.package-targets.outputs.no-folder-targets }}
+      signed: false
+      prepare: npm pkg delete desktop.product.installFolder && [ "$(npm pkg get desktop.product.installFolder)" = '{}' ] && npm run build
+      artifact-suffix: -without-folder
 
   code-changes:
     name: Code changes
@@ -157,7 +174,7 @@ jobs:
 
   all-targets:
     name: ${{ github.event_name == 'workflow_dispatch' && 'All targets (by hand)' || 'All targets' }}
-    needs: [versions, build-and-test, package, code-changes, end-to-end]
+    needs: [versions, build-and-test, package, package-without-folder, code-changes, end-to-end]
     if: always()
     runs-on: ${{ fromJSON(needs.versions.outputs.runs-on-linux-x64) }}
     timeout-minutes: 5
@@ -166,14 +183,16 @@ jobs:
         env:
           RESULT: ${{ needs.build-and-test.result }}
           PACKAGE_RESULT: ${{ needs.package.result }}
+          NO_FOLDER_RESULT: ${{ needs.package-without-folder.result }}
           EVENT: ${{ github.event_name }}
           CHANGES_RESULT: ${{ needs.code-changes.result }}
           CODE: ${{ needs.code-changes.outputs.code }}
           END_TO_END_RESULT: ${{ needs.end-to-end.result }}
         run: |
-          echo "The targets' result: $RESULT; the package's result: $PACKAGE_RESULT"
+          echo "The targets' result: $RESULT; the package's result: $PACKAGE_RESULT; the package without an install folder's result: $NO_FOLDER_RESULT"
           test "$RESULT" = success
           test "$PACKAGE_RESULT" = success
+          test "$NO_FOLDER_RESULT" = success
           if [ "$EVENT" = pull_request ]; then
             echo "The code changes' result: $CHANGES_RESULT, code changed: $CODE; the end-to-end specs' result: $END_TO_END_RESULT"
             test "$CHANGES_RESULT" = success

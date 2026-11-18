@@ -18,7 +18,8 @@
       },
       "dataDirectoryVariable": "NOLDOVA_DESKTOP_DATA_DIR",
       "icons": "assets/icons",
-      "releaseRepository": "noldova-com/desktop"
+      "releaseRepository": "noldova-com/desktop",
+      "installFolder": "Noldova"
     },
     "supportedTargets": [],
     "signedPlatforms": [

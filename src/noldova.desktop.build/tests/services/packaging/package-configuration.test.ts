@@ -15,9 +15,11 @@ import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
+import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { ProductIdentity } from "../../../src/models/packages/product-identity.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { PackageConfiguration } from "../../../src/services/packaging/package-configuration.js";
+import { MainPackageConfigurationsFixture } from "../../fixtures/main-package-configurations.fixture.js";
 
 @TestClass
 export class PackageConfigurationTests {
@@ -38,6 +40,9 @@ export class PackageConfigurationTests {
     releaseRepository: "example/sample-app"
   };
   private static readonly PRODUCT: ProductIdentity = ProductIdentity.fromManifest(JsonReader.fromValue({ desktop: { product: PackageConfigurationTests.PRODUCT_FIELDS } }));
+  private static readonly FOLDERED: ProductIdentity = ProductIdentity.fromManifest(JsonReader.fromValue({
+    desktop: { product: { ...PackageConfigurationTests.PRODUCT_FIELDS, installFolder: "Sample Makers" } }
+  }));
 
   @TestMethod
   public unpacksEachAddonAndEachNativeFileItIsGiven(): void {
@@ -134,6 +139,80 @@ export class PackageConfigurationTests {
     Assert.areEqual("Sample App|Sample App|true|false|false", [installer.readString("shortcutName"), installer.readString("uninstallDisplayName"),
       installer.readBoolean("oneClick"), installer.readBoolean("perMachine"), installer.readBoolean("packElevateHelper")].join("|"));
     Assert.isTrue(installer.readString("include").endsWith(path.join("assets", "installer", "installer.nsh")));
+  }
+
+  @TestMethod
+  public describesAnAppThatNamesNoFolderExactlyAsMainDid(): void {
+    const cases: readonly (readonly [string, string, boolean, string | null, boolean])[] = [
+      ["windows", "x64", false, null, false], ["windows", "arm64", true, "CN=Sample", true], ["macos", "arm64", true, null, false], ["macos", "x64", false, null, true],
+      ["linux", "x64", false, null, false], ["linux", "arm64", false, null, true]];
+    const cwd = JSON.stringify(process.cwd()).slice(1, -1);
+
+    for (const [platform, architecture, isSigned, publisher, hasWebViews] of cases) {
+      const target = new PackageTarget(platform, architecture).withInstallFolder(null);
+      const json = JSON.stringify(PackageConfigurationTests.create(target, isSigned, publisher, hasWebViews).toJson(["node_modules/x/build/Release/x.node"]));
+
+      Assert.areEqual(JSON.stringify(MainPackageConfigurationsFixture.configurations[`${platform}-${architecture}`]), json.replaceAll(cwd, "<cwd>").replaceAll("\\\\", "/"),
+        `${platform}-${architecture}`);
+    }
+  }
+
+  @TestMethod
+  public installsInTheFolderTheAppNamesAndPutsItsStartMenuEntryInAFolderOfThatName(): void {
+    const json = PackageConfigurationTests.read(PackageConfigurationTests.create(new PackageTarget("windows", "x64", true), false, null, false, PackageConfigurationTests.ROOT,
+      PackageConfigurationTests.FOLDERED));
+
+    Assert.areEqual("Sample Makers", json.readObject("nsis").readString("menuCategory"));
+    Assert.isFalse(PackageConfigurationTests.read(PackageConfigurationTests.create(new PackageTarget("windows", "x64"), false, null, false)).readObject("nsis")
+      .hasField("menuCategory"));
+  }
+
+  @TestMethod
+  public describesASignedInstallerPackageInPlaceOfTheDiskImageForAnAppThatNamesAFolder(): void {
+    const configuration = PackageConfigurationTests.create(new PackageTarget("macos", "arm64", true), true, null, false, PackageConfigurationTests.ROOT,
+      PackageConfigurationTests.FOLDERED);
+
+    const json = PackageConfigurationTests.read(configuration);
+
+    Assert.isFalse(json.hasField("dmg"));
+    Assert.areEqual(JSON.stringify({ installLocation: "/Applications/Sample Makers", isRelocatable: false, overwriteAction: "upgrade" }), JSON.stringify(json.readValue("pkg")));
+    Assert.areEqual(JSON.stringify([{ target: "pkg", arch: ["arm64"] }, { target: "zip", arch: ["arm64"] }]), JSON.stringify(json.readObject("mac").readValue("target")));
+    Assert.isTrue(json.readObject("mac").readBoolean("notarize"));
+    Assert.areEqual("Sample App-1.2.3-macos-arm64.pkg,Sample App-1.2.3-macos-arm64.zip", configuration.fileNames.join(","));
+  }
+
+  @TestMethod
+  public describesADebianPackageWhoseScriptsAndProfileComeFromTheFolderedTemplates(): void {
+    const json = PackageConfigurationTests.read(PackageConfigurationTests.create(new PackageTarget("linux", "x64", true), false, null, false, PackageConfigurationTests.ROOT,
+      PackageConfigurationTests.FOLDERED));
+    const templates = path.join(PackageConfigurationTests.ROOT, "_build", "package", "debian-templates");
+
+    Assert.areEqual(JSON.stringify({ maintainer: "Sample", afterInstall: path.join(templates, "after-install.tpl"), afterRemove: path.join(templates, "after-remove.tpl"),
+      appArmorProfile: path.join(templates, "apparmor-profile.tpl") }), JSON.stringify(json.readValue("deb")));
+    Assert.areEqual(JSON.stringify([{ target: "AppImage", arch: ["x64"] }, { target: "deb", arch: ["x64"] }]), JSON.stringify(json.readObject("linux").readValue("target")));
+  }
+
+  @TestMethod
+  public async writesElectronBuildersDebianTemplatesWithTheirPathsInTheFolderAsync(): Promise<void> {
+    await using root = await PackageConfigurationTests.createRootAsync();
+    const configuration = PackageConfigurationTests.create(new PackageTarget("linux", "x64", true), false, null, false, root.path, PackageConfigurationTests.FOLDERED);
+
+    await configuration.writeAsync(path.join(root.path, "_build", "package", "electron-builder.json"));
+
+    for (const file of ["after-install.tpl", "after-remove.tpl", "apparmor-profile.tpl"]) {
+      const original = await readFile(path.join(PackageConfiguration.locateBuilderTemplates(), file), "utf8");
+      const written = await readFile(path.join(root.path, "_build", "package", "debian-templates", file), "utf8");
+      Assert.areEqual(original.replaceAll("/opt/${sanitizedProductName}/", "/opt/Sample Makers/${sanitizedProductName}/"), written, file);
+      Assert.isTrue(written.includes("/opt/Sample Makers/${sanitizedProductName}/"), file);
+    }
+  }
+
+  @TestMethod
+  public refusesATemplateThatPlacesNothingUnderOpt(): void {
+    const refusal = Assert.throws(() => PackageConfiguration.placeDebianTemplate("ln -sf '/usr/lib/${executable}'", "after-install.tpl", "Sample Makers"), BuildException);
+
+    Assert.areEqual("electron-builder's Debian template after-install.tpl names no /opt/${sanitizedProductName}/, so the package can't move its paths into /opt/Sample Makers.",
+      refusal.message);
   }
 
   @TestMethod
@@ -272,11 +351,12 @@ export class PackageConfigurationTests {
 
     Assert.isTrue(existsSync(file));
     Assert.isFalse(existsSync(path.join(root.path, "_build", "package", "command")));
+    Assert.isFalse(existsSync(path.join(root.path, "_build", "package", "debian-templates")));
   }
 
-  private static create(target: PackageTarget, isSigned: boolean, publisher: string | null, hasWebViews: boolean, root: string = PackageConfigurationTests.ROOT):
-    PackageConfiguration {
-    return new PackageConfiguration(root, PackageConfigurationTests.PRODUCT, "1.2.3", target, path.join(root, "stage"), path.join(root, "out"), path.join(root, "electron"), "44.5.1",
+  private static create(target: PackageTarget, isSigned: boolean, publisher: string | null, hasWebViews: boolean, root: string = PackageConfigurationTests.ROOT,
+    product: ProductIdentity = PackageConfigurationTests.PRODUCT): PackageConfiguration {
+    return new PackageConfiguration(root, product, "1.2.3", target, path.join(root, "stage"), path.join(root, "out"), path.join(root, "electron"), "44.5.1",
       isSigned, publisher, hasWebViews);
   }
 

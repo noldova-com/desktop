@@ -29,6 +29,8 @@ import { PackagedSandbox } from "../packaging/packaged-sandbox.ts";
 import { PackagedPublisherCheck } from "../packaging/packaged-publisher-check.ts";
 import { PackagedUnpackedFiles } from "../packaging/packaged-unpacked-files.ts";
 import { DebianInstall } from "../packaging/debian-install.ts";
+import type { ISystemInstall } from "../../interfaces/i-system-install.ts";
+import { MacInstall } from "../packaging/mac-install.ts";
 import { ExtractedCopy } from "../packaging/extracted-copy.ts";
 import { MountedAppImage } from "../packaging/mounted-app-image.ts";
 import { SmokeAnswer } from "../packaging/smoke-answer.ts";
@@ -59,7 +61,8 @@ export class PackageSmoke {
   private hasRuntimeStopped: boolean = false;
   private sandboxOption: string | null = null;
   private isDebian: boolean = false;
-  private debian: DebianInstall | null = null;
+  private isMacInstaller: boolean = false;
+  private system: ISystemInstall | null = null;
 
   public constructor(root: string, platform: string, architecture: string, runner: ProcessRunner, temporaryFolder: TemporaryFolder, processes: string, environment: NodeJS.ProcessEnv, output: Writable) {
     this.root = root;
@@ -74,9 +77,10 @@ export class PackageSmoke {
 
   public async runAsync(smokeArguments: readonly string[]): Promise<number> {
     const isDebian = smokeArguments[0] === Resources.smokeDebianOption;
-    const rest = isDebian ? smokeArguments.slice(1) : smokeArguments;
+    const isMacInstaller = smokeArguments[0] === Resources.smokeMacInstallerOption;
+    const rest = isDebian || isMacInstaller ? smokeArguments.slice(1) : smokeArguments;
     const [option] = rest;
-    if (rest.length > 1 || (!Object.isUndefined(option) && !(isDebian ? Resources.smokeSandboxOptions : Resources.smokeOptions).includes(option))) {
+    if (rest.length > 1 || (!Object.isUndefined(option) && !(isDebian ? Resources.smokeSandboxOptions : isMacInstaller ? [] : Resources.smokeOptions).includes(option))) {
       this.output.write(Resources.smokeUsage);
       return Resources.usageExitCode;
     }
@@ -85,7 +89,8 @@ export class PackageSmoke {
 
     this.sandboxOption = option ?? null;
     this.isDebian = isDebian;
-    this.debian = null;
+    this.isMacInstaller = isMacInstaller;
+    this.system = null;
 
     this.folder = null;
     this.runtime = null;
@@ -121,13 +126,16 @@ export class PackageSmoke {
   }
 
   private async checkAsync(): Promise<void> {
-    const target = PackageTarget.fromProcess(this.platform, this.architecture);
-    if (this.isDebian && target.platform !== Resources.linuxTarget)
+    const running = PackageTarget.fromProcess(this.platform, this.architecture);
+    if (this.isDebian && running.platform !== Resources.linuxTarget)
       throw new BuildException(Resources.smokeDebianNotLinux);
     const publisher = this.environment[Resources.windowsPublisherVariable] ?? String.empty;
     delete this.environment[Resources.windowsPublisherVariable];
     const manifest = await RootManifest.readAsync(this.root);
     const product = await ProductIdentity.readAsync(this.root);
+    const target = running.withInstallFolder(product.installFolder);
+    if (this.isMacInstaller && (target.platform !== Resources.macosTarget || !target.isFoldered))
+      throw new BuildException(Resources.smokeMacInstallerNotFoldered);
     this.slug = product.slug;
     const folder = await this.temporaryFolder.createAsync(this.platform, Resources.smokeFolderPrefix);
     this.folder = folder;
@@ -137,10 +145,11 @@ export class PackageSmoke {
       this.output.write(Resources.formatOutputLine(await installer.removeWindowsLeftoverAsync(product, folder, userPath) ?? Resources.smokeNothingLeft));
     const pathBefore = target.platform === Resources.windowsTarget ? await userPath.readAsync() : null;
     const started = Date.now();
-    const installed = this.isDebian ? await this.installDebianAsync(target, product, manifest.productVersion, folder) : await installer.installAsync(target, product, manifest.productVersion, folder);
+    const installed = this.isDebian ? await this.installDebianAsync(target, product, manifest.productVersion, folder)
+      : this.isMacInstaller ? await this.installMacAsync(target, product, manifest.productVersion, folder) : await installer.installAsync(target, product, manifest.productVersion, folder);
     this.output.write(Resources.formatSmokeInstalled((Date.now() - started) / Resources.millisecondsPerSecond, installed.mainProcess));
-    if (!Object.isNull(this.debian))
-      this.output.write(Resources.formatOutputLine(await this.debian.verifyAsync()));
+    if (!Object.isNull(this.system))
+      this.output.write(Resources.formatOutputLine(await this.system.verifyAsync()));
     if (target.platform === Resources.macosTarget)
       this.output.write(Resources.formatOutputLine(await PackagedArchitecture.verifyAsync(path.resolve(installed.program, ...Resources.macBundleFromProgram), target.architecture)));
     await this.checkCookieEncryptionAsync(target, installed);
@@ -180,7 +189,7 @@ export class PackageSmoke {
         throw new BuildException(Resources.formatSmokeDiscoveryNamesNoProcess(path.join(data, ...Resources.runtimeDiscoverySegments)));
       runtime = found;
       this.track(runtime);
-      if (target.platform === Resources.linuxTarget && Object.isNull(this.debian)) {
+      if (target.platform === Resources.linuxTarget && Object.isNull(this.system)) {
         copy = await this.requireCopyAsync(data, runtime, mainProcess, logs);
         await this.replaceAppImageAsync(installed, manifest.productVersion, data, folder, runtime);
       }
@@ -224,16 +233,16 @@ export class PackageSmoke {
         track: this.track.bind(this)
       });
     }
-    if (!Object.isNull(this.debian)) {
-      const debian = this.debian;
-      this.debian = null;
-      this.output.write(Resources.formatOutputLine(await debian.removeAsync()));
+    if (!Object.isNull(this.system)) {
+      const system = this.system;
+      this.system = null;
+      this.output.write(Resources.formatOutputLine(await system.removeAsync()));
     }
     if (Object.isNull(installed.command))
       return;
     await installer.installAsync(target, product, manifest.productVersion, folder);
     await this.requireOnPathAsync(userPath, installed.command, Resources.smokePathHoldsAgainIntro);
-    await installer.uninstallWindowsAsync(product, folder);
+    await installer.uninstallWindowsAsync(target, product, manifest.productVersion, folder);
     const pathAfter = await userPath.readAsync();
     if (pathAfter !== pathBefore)
       throw new BuildException(Resources.formatSmokePathChanged(pathAfter, pathBefore));
@@ -242,8 +251,14 @@ export class PackageSmoke {
 
   private async installDebianAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<InstalledPackage> {
     const file = path.join(new PackageLayout(this.root).output, target.formatFileName(product.name, version, Resources.debianPackageTarget));
-    this.debian = await DebianInstall.installAsync(this.runner, file, product.slug, folder);
-    return this.debian.installed;
+    this.system = await DebianInstall.installAsync(this.runner, file, product.slug, product.installFolder, folder);
+    return this.system.installed;
+  }
+
+  private async installMacAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<InstalledPackage> {
+    const file = path.join(new PackageLayout(this.root).output, target.formatFileName(product.name, version, Resources.macInstallerTarget));
+    this.system = await MacInstall.installAsync(this.runner, file, product, folder);
+    return this.system.installed;
   }
 
   private async checkCookieEncryptionAsync(target: PackageTarget, installed: InstalledPackage): Promise<void> {
@@ -391,14 +406,14 @@ export class PackageSmoke {
     const ending = await this.endRuntimeAsync(this.folder);
     if (!Object.isNull(ending))
       problems.push(ending);
-    const debian = this.debian;
-    this.debian = null;
-    if (!Object.isNull(debian)) {
+    const system = this.system;
+    this.system = null;
+    if (!Object.isNull(system)) {
       try {
-        this.output.write(Resources.formatOutputLine(await debian.removeAsync()));
+        this.output.write(Resources.formatOutputLine(await system.removeAsync()));
       }
       catch (error) {
-        problems.push(Resources.formatSmokeDebianNotRemoved(debian.packageName, error));
+        problems.push(Resources.formatSmokeSystemInstallNotRemoved(system.packageName, error));
       }
     }
     try {

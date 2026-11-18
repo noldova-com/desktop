@@ -60,6 +60,7 @@ import { AppearanceKeeper } from "./appearance-keeper.js";
 import { ApplicationMenu } from "./application-menu.js";
 import { DeviceSettingFollower } from "./device-setting-follower.js";
 import { DeviceState } from "./device-state.js";
+import { InstallFolderMove } from "./install-folder-move.js";
 import { IpcRouter } from "./ipc-router.js";
 import { LayoutKeeper } from "./layout-keeper.js";
 import { LocalWindowStateStore } from "./local-window-state-store.js";
@@ -262,6 +263,8 @@ export class MainProcess {
     for (const failure of unread)
       log.write(Resources.formatRestartArgumentsUnread(String(failure)));
     if (!MainProcess.prepareBeforeReady(electron, process, log))
+      return;
+    if (await new InstallFolderMove(electron.app, electron.shell, process, log).runAsync(isPackaged, Resources.applicationName, Resources.installFolder))
       return;
     if (isPackaged)
       await restartArguments.removeAsync().catch((failure: unknown) => log.write(Resources.formatRestartArgumentsNotForgotten(String(failure))));

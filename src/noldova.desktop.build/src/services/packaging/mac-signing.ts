@@ -29,10 +29,13 @@ export class MacSigning implements IPackageSigning {
   public readonly builderEnvironment: NodeJS.ProcessEnv;
   public readonly windowsPublisher: string | null = null;
 
-  public constructor(runner: ProcessRunner, folder: string, environment: NodeJS.ProcessEnv, credentials: NodeJS.ProcessEnv) {
+  public constructor(runner: ProcessRunner, folder: string, environment: NodeJS.ProcessEnv, credentials: NodeJS.ProcessEnv, hasInstaller: boolean = false) {
     const missing = Resources.macSigningCredentials.filter(t => (credentials[t] ?? String.empty).length === 0);
     if (missing.length > 0)
       throw new BuildException(Resources.formatMacSigningCredentialsMissing(missing));
+    const installerMissing = hasInstaller ? Resources.macInstallerSigningCredentials.filter(t => (credentials[t] ?? String.empty).length === 0) : [];
+    if (installerMissing.length > 0)
+      throw new BuildException(Resources.formatMacInstallerCredentialsMissing(installerMissing));
     this.runner = runner;
     this.folder = folder;
     this.environment = environment;
@@ -45,7 +48,11 @@ export class MacSigning implements IPackageSigning {
       [Resources.builderCertificatePasswordVariable]: credentials[Resources.macCertificatePasswordVariable],
       [Resources.builderAppleKeyVariable]: path.join(folder, Resources.macNotarizationKeyFile),
       [Resources.appleApiKeyIdVariable]: credentials[Resources.appleApiKeyIdVariable],
-      [Resources.appleApiIssuerVariable]: credentials[Resources.appleApiIssuerVariable]
+      [Resources.appleApiIssuerVariable]: credentials[Resources.appleApiIssuerVariable],
+      ...(hasInstaller ? {
+        [Resources.builderInstallerCertificateVariable]: credentials[Resources.macInstallerCertificateVariable],
+        [Resources.builderInstallerCertificatePasswordVariable]: credentials[Resources.macInstallerCertificatePasswordVariable]
+      } : {})
     };
   }
 

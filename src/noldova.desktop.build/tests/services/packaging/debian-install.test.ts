@@ -46,7 +46,7 @@ export class DebianInstallTests {
   public async installsThePackageAndFindsItsProgramThroughItsCommandAsync(): Promise<void> {
     const runner = DebianInstallTests.createRunner(new Map());
 
-    const install = await DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, DebianInstallTests.FOLDER);
+    const install = await DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER);
 
     Assert.areEqual("sample-app", install.packageName);
     Assert.areEqual(DebianInstallTests.PROGRAM, install.installed.program);
@@ -58,12 +58,37 @@ export class DebianInstallTests {
   }
 
   @TestMethod
+  public async findsTheProgramInAFolderOfItsOwnInTheInstallFolderAsync(): Promise<void> {
+    const program = "/opt/Sample Makers/Sample App/sample-app";
+    const runner = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, new ProcessResult(0, `${program}\n`, String.empty)]]));
+
+    const install = await DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, "Sample Makers", DebianInstallTests.FOLDER);
+
+    Assert.areEqual(`${program}|/opt/Sample Makers/Sample App/resources`, `${install.installed.program}|${install.installed.resources}`);
+  }
+
+  @TestMethod
+  public async removesAndRefusesAPackageThatInstalledOutsideItsFolderAsync(): Promise<void> {
+    const runner = DebianInstallTests.createRunner(new Map());
+    const nested = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, new ProcessResult(0, "/opt/Sample Makers/Sample App/sample-app\n", String.empty)]]));
+
+    const outside = await Assert.throwsAsync(() => DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, "Sample Makers", DebianInstallTests.FOLDER),
+      BuildException);
+    const unexpected = await Assert.throwsAsync(() => DebianInstall.installAsync(nested, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER),
+      BuildException);
+
+    Assert.areEqual(`The Debian package installed its program at ${DebianInstallTests.PROGRAM}, outside a folder of its own in /opt/Sample Makers.`, outside.message);
+    Assert.areEqual("The Debian package installed its program at /opt/Sample Makers/Sample App/sample-app, outside a folder of its own in /opt.", unexpected.message);
+    Assert.areEqual(DebianInstallTests.REMOVE, runner.captured.at(-1));
+  }
+
+  @TestMethod
   public async refusesAPackageWithoutANameAsync(): Promise<void> {
     const failed = DebianInstallTests.createRunner(new Map([[DebianInstallTests.FIELD, DebianInstallTests.FAILURE]]));
     const empty = DebianInstallTests.createRunner(new Map([[DebianInstallTests.FIELD, new ProcessResult(0, " \n", String.empty)]]));
 
-    const failure = await Assert.throwsAsync(() => DebianInstall.installAsync(failed, DebianInstallTests.FILE, DebianInstallTests.SLUG, DebianInstallTests.FOLDER), BuildException);
-    const blank = await Assert.throwsAsync(() => DebianInstall.installAsync(empty, DebianInstallTests.FILE, DebianInstallTests.SLUG, DebianInstallTests.FOLDER), BuildException);
+    const failure = await Assert.throwsAsync(() => DebianInstall.installAsync(failed, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER), BuildException);
+    const blank = await Assert.throwsAsync(() => DebianInstall.installAsync(empty, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER), BuildException);
 
     Assert.areEqual(Resources.formatDebianPackageUnnamed(DebianInstallTests.FILE, 1, "refused"), failure.message);
     Assert.areEqual(Resources.formatDebianPackageUnnamed(DebianInstallTests.FILE, 0, String.empty), blank.message);
@@ -74,7 +99,7 @@ export class DebianInstallTests {
   public async reportsAnInstallThatFailsAsync(): Promise<void> {
     const runner = DebianInstallTests.createRunner(new Map([[DebianInstallTests.INSTALL, DebianInstallTests.FAILURE]]));
 
-    const error = await Assert.throwsAsync(() => DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, DebianInstallTests.FOLDER), BuildException);
+    const error = await Assert.throwsAsync(() => DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER), BuildException);
 
     Assert.areEqual(Resources.formatProcessFailed("sudo", [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetInstallArguments, DebianInstallTests.FILE], 1, "refused"),
       error.message);
@@ -127,8 +152,8 @@ export class DebianInstallTests {
     const failed = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, DebianInstallTests.FAILURE]]));
     const empty = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, ScriptedRunnerFixture.SUCCESS]]));
 
-    const failure = await Assert.throwsAsync(() => DebianInstall.installAsync(failed, DebianInstallTests.FILE, DebianInstallTests.SLUG, DebianInstallTests.FOLDER), BuildException);
-    const blank = await Assert.throwsAsync(() => DebianInstall.installAsync(empty, DebianInstallTests.FILE, DebianInstallTests.SLUG, DebianInstallTests.FOLDER), BuildException);
+    const failure = await Assert.throwsAsync(() => DebianInstall.installAsync(failed, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER), BuildException);
+    const blank = await Assert.throwsAsync(() => DebianInstall.installAsync(empty, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER), BuildException);
 
     Assert.areEqual(Resources.formatDebianCommandUnresolved("/usr/bin/sample-app", 1, "refused"), failure.message);
     Assert.areEqual(Resources.formatDebianCommandUnresolved("/usr/bin/sample-app", 0, String.empty), blank.message);
@@ -272,6 +297,6 @@ export class DebianInstallTests {
   }
 
   private static installAsync(runner: ScriptedRunnerFixture): Promise<DebianInstall> {
-    return DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, DebianInstallTests.FOLDER);
+    return DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER);
   }
 }

@@ -19,9 +19,10 @@ export class PackageTarget {
   public readonly formats: readonly string[];
   public readonly extensions: readonly string[];
   public readonly updateExtension: string;
+  public readonly isFoldered: boolean;
 
-  public constructor(platform: string, architecture: string) {
-    const formats = Resources.packageFormats.get(platform);
+  public constructor(platform: string, architecture: string, isFoldered: boolean = false) {
+    const formats = (isFoldered ? Resources.folderedPackageFormats : Resources.packageFormats).get(platform);
     const updateExtension = Resources.packageUpdateExtensions.get(platform);
     const addonPlatform = [...Resources.packagePlatforms].find(([, name]) => name === platform)?.[0];
     if (Object.isUndefined(formats) || Object.isUndefined(updateExtension) || Object.isUndefined(addonPlatform) || !Resources.packageArchitectures.includes(architecture))
@@ -33,6 +34,7 @@ export class PackageTarget {
     this.extensions = [...formats.values()];
     this.updateExtension = updateExtension;
     this.addonPlatform = addonPlatform;
+    this.isFoldered = isFoldered;
   }
 
   public static fromProcess(platform: string, architecture: string): PackageTarget {
@@ -42,6 +44,10 @@ export class PackageTarget {
   public static readArchitecture(environment: NodeJS.ProcessEnv, processArchitecture: string): string {
     const architecture = environment[Resources.targetArchitectureVariable] ?? String.empty;
     return architecture.length > 0 ? architecture : processArchitecture;
+  }
+
+  public withInstallFolder(installFolder: string | null): PackageTarget {
+    return new PackageTarget(this.platform, this.architecture, !Object.isNull(installFolder));
   }
 
   public get id(): string {
