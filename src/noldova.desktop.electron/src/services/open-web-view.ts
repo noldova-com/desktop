@@ -209,10 +209,7 @@ export class OpenWebView {
       return new Promise(resolve => this.navigations.push(resolve));
     }
     this.lookupCount += 1;
-    const allows = await this.allowsAsync(url).catch((error: unknown) => {
-      this.endLookup();
-      throw error;
-    });
+    const allows = await this.allowsAsync(url);
     const guest = this.guest;
     if (!allows || this.isClosed || Object.isNull(guest)) {
       this.endLookup();
