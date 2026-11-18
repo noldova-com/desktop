@@ -16,7 +16,7 @@ import { WorkflowStepFixture } from "./fixtures/workflow-step.fixture.ts";
 const WORKFLOW = "package-app.yml";
 const SMOKE = WorkflowStepFixture.readRun(WORKFLOW, "Install, start and quit the package");
 const LIBFUSE = WorkflowStepFixture.readRun(WORKFLOW, "Remove libfuse2, which a stock Ubuntu does not install");
-const SCREEN = "xvfb-run --auto-servernum --server-args=-screen 0 1920x1080x24 npm run package:smoke";
+const SCREEN = "xvfb-run --auto-servernum --error-file=$RUNNER_TEMP/xvfb.log --server-args=-screen 0 1920x1080x24 npm run package:smoke";
 const SKIPPED = "::notice::Skipped the Debian package's install smoke, which needs root: this self-hosted runner has none, and CI's run on a GitHub-hosted runner covers it.";
 const SMOKE_FAKES = {
   "xvfb-run": "case \"$*\" in *--no-sandbox*) /bin/mkdir -p \"$RUNNER_TEMP/appimage_extracted_1\" ;; esac",
@@ -33,8 +33,10 @@ function libfuseFakes(installed: boolean): Readonly<Record<string, string>> {
 
 async function runAsync(text: string, commands: Readonly<Record<string, string>>, hosted: boolean, isPathKept: boolean = true): Promise<{ status: number | null, calls: readonly string[], output: string }> {
   await using fakes = await CommandFakesFixture.createAsync(commands);
-  const result = await WorkflowStepFixture.runAsync(text, fakes.folder, fakes.bin, { RUNNER_OS: "Linux", HOSTED: String(hosted), RUNNER_TEMP: fakes.folder.split(path.sep).join("/") }, isPathKept);
-  return { status: result.status, calls: await fakes.readCallsAsync(), output: result.output };
+  const temp = fakes.folder.split(path.sep).join("/");
+  const result = await WorkflowStepFixture.runAsync(text, fakes.folder, fakes.bin, { RUNNER_OS: "Linux", HOSTED: String(hosted), RUNNER_TEMP: temp }, isPathKept);
+  const calls = await fakes.readCallsAsync();
+  return { status: result.status, calls: calls.map(t => t.replaceAll(temp, "$RUNNER_TEMP")), output: result.output };
 }
 
 describe("package-app.yml's Linux steps", () => {
@@ -52,6 +54,13 @@ describe("package-app.yml's Linux steps", () => {
     assert.equal(result.status, 0);
     assert.deepEqual(result.calls.filter(t => t.startsWith("xvfb-run")), [SCREEN, `${SCREEN} -- --no-sandbox`]);
     assert.ok(result.output.includes(SKIPPED), result.output);
+  });
+
+  it("smokes the installed package with the sandbox's fallback where unprivileged user namespaces are restricted", async () => {
+    const result = await runAsync(SMOKE, { ...SMOKE_FAKES, "sysctl": "echo 1" }, false, false);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(result.calls.filter(t => t.startsWith("xvfb-run")), [`${SCREEN} -- --require-fallback`, `${SCREEN} -- --no-sandbox`]);
   });
 
   it("fails naming xvfb when the runner has no xvfb-run", async () => {
