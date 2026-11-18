@@ -93,6 +93,7 @@ export class RuntimeApiTests {
       "StopTimedOutException",
       "LaunchSettings",
       "LogFile",
+      "LogFileClosedException",
       "LogText",
       "MethodFailureException",
       "MethodRegistry",

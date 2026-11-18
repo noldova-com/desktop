@@ -10,6 +10,8 @@ import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { InstallFolderMove, type IMainProcessFiles, type IProgramHost, type IShownPathStatus, StartedProgram } from "@noldova/desktop.electron";
 
+import { ClosingMainProcessLog } from "../fixtures/closing-main-process-log.fixture.js";
+import { Condition } from "../fixtures/condition.fixture.js";
 import { FakeApplicationHost } from "../fixtures/fake-application-host.fixture.js";
 import { FakeMainProcessLog } from "../fixtures/fake-main-process-log.fixture.js";
 import { FakeShellHost } from "../fixtures/fake-shell-host.fixture.js";
@@ -90,6 +92,23 @@ export class InstallFolderMoveTests {
   private static readonly TARGET: string = "/Applications/Sample Makers/Sample.app";
   private static readonly STAGING: string = "/Applications/Sample Makers/.4321-Sample.app";
   private static readonly OLD: string = "/Applications/Sample.app";
+
+  @TestMethod
+  public async exitsForTheCopyOnlyOnceItsLogIsClosedAfterFlushingIt(): Promise<void> {
+    const log = new ClosingMainProcessLog();
+    const move = InstallFolderMoveTests.create({ log });
+
+    const moving = move.runAsync();
+    await Condition.waitAsync(() => log.flushedAtClose.length === 1);
+    const hasExitedWhileClosing = move.app.calls.includes("exit 0");
+    log.closing.resolve();
+    const isMoving = await moving;
+
+    Assert.isTrue(isMoving);
+    Assert.isFalse(hasExitedWhileClosing);
+    Assert.areEqual(JSON.stringify([1]), JSON.stringify(log.flushedAtClose));
+    Assert.areEqual("exit 0", move.app.calls.at(-1));
+  }
 
   @TestMethod
   public async copiesTheAppIntoItsFolderTrashesTheOldCopyAndStartsTheCopy(): Promise<void> {
@@ -254,7 +273,7 @@ export class InstallFolderMoveTests {
   }
 
   private static create(options: Partial<{ platform: string, program: string, isPackaged: boolean, installFolder: string | null, existing: readonly string[],
-    failures: ReadonlyMap<string, Error>, bundles: ReadonlyMap<string, readonly [string, string]>, processes: ReadonlyMap<number, Error | null> }> = {}): {
+    failures: ReadonlyMap<string, Error>, bundles: ReadonlyMap<string, readonly [string, string]>, processes: ReadonlyMap<number, Error | null>, log: FakeMainProcessLog }> = {}): {
     runAsync: () => Promise<boolean>, app: FakeApplicationHost, shell: FakeShellHost, programs: ScriptedPrograms, files: ExistingFiles, log: FakeMainProcessLog,
     probed: readonly number[] } {
     const app = new FakeApplicationHost(true, true);
@@ -262,7 +281,7 @@ export class InstallFolderMoveTests {
     const shell = new FakeShellHost();
     const programs = new ScriptedPrograms(options.failures ?? new Map(), options.bundles ?? new Map());
     const files = new ExistingFiles(options.existing ?? []);
-    const log = new FakeMainProcessLog();
+    const log = options.log ?? new FakeMainProcessLog();
     const program = options.program ?? InstallFolderMoveTests.PROGRAM;
     const probed: number[] = [];
     const processes = options.processes ?? new Map();

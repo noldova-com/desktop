@@ -9,4 +9,5 @@
 export interface IMainProcessLog {
   write(text: string): void;
   flush(): void;
+  closeAsync?(): Promise<void>;
 }

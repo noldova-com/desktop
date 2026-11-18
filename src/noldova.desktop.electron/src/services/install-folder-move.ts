@@ -51,6 +51,7 @@ export class InstallFolderMove {
     this.app.releaseSingleInstanceLock();
     this.app.relaunch({ execPath: posix.join(target, posix.relative(bundle, process.execPath)), args: process.argv.slice(1) });
     this.log.flush();
+    await this.log.closeAsync?.();
     this.app.exit(Resources.quitExitCode);
     return true;
   }

@@ -17,18 +17,20 @@ import { Condition } from "../fixtures/condition.fixture.js";
 import { FakeApplicationHost } from "../fixtures/fake-application-host.fixture.js";
 import { FakeMainProcessLog } from "../fixtures/fake-main-process-log.fixture.js";
 import { FakeMainProcessEnvironment } from "../fixtures/fake-main-process-environment.fixture.js";
+import { ClosingMainProcessLog } from "../fixtures/closing-main-process-log.fixture.js";
 import { FakeDialogHost } from "../fixtures/fake-dialog-host.fixture.js";
 
 class Failed {
   public readonly app: FakeApplicationHost = new FakeApplicationHost(true, false);
   public readonly process: FakeMainProcessEnvironment = new FakeMainProcessEnvironment("linux", [], {}, "/home/user1");
-  public readonly log: FakeMainProcessLog = new FakeMainProcessLog();
+  public readonly log: FakeMainProcessLog;
   public readonly dialog: FakeDialogHost;
   public readonly recovery: MainProcessRecovery;
   public logFolders: number = 0;
   public releaseFailure: Error | null = null;
 
-  public constructor(answers: readonly number[], isAttached: boolean = true) {
+  public constructor(answers: readonly number[], isAttached: boolean = true, log: FakeMainProcessLog = new FakeMainProcessLog()) {
+    this.log = log;
     this.dialog = new FakeDialogHost(answers);
     this.recovery = new MainProcessRecovery(this.app, this.dialog, this.process.errorOutput, new DiagnosticRedactor(this.process.homeFolder));
     if (isAttached)
@@ -163,6 +165,23 @@ export class MainProcessRecoveryTests {
       failed.log.lines.join("\n"));
     Assert.areEqual(JSON.stringify([failed.log.lines]), JSON.stringify(failed.log.flushed));
     Assert.areEqual(JSON.stringify(["exit 0"]), JSON.stringify(failed.app.calls));
+  }
+
+  @TestMethod
+  public async exitsOnlyOnceItsLogIsClosedAfterFlushingIt(): Promise<void> {
+    const log = new ClosingMainProcessLog();
+    const failed = new Failed([2], true, log);
+
+    failed.recovery.receive(new Error("The pipe broke."), MainProcessFailureKind.UncaughtException);
+    await failed.app.becomeReadyAsync();
+    await Condition.waitAsync(() => log.flushedAtClose.length === 1);
+    const callsWhileClosing = [...failed.app.calls];
+    log.closing.resolve();
+    await Condition.waitAsync(() => failed.app.calls.includes("exit 0"));
+
+    Assert.areEqual(JSON.stringify(["release"]), JSON.stringify(callsWhileClosing));
+    Assert.areEqual(JSON.stringify([1]), JSON.stringify(log.flushedAtClose));
+    Assert.areEqual(JSON.stringify(["release", "exit 0"]), JSON.stringify(failed.app.calls));
   }
 
   @TestMethod
