@@ -1345,15 +1345,19 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async endsACallToThePageWhoseGuestAMoveDestroysDuringTheRoundTripSoThePersonsLaterPressesAreNotTakenForTheCallsWhicheverGuestTheMoveBindsFirst(): Promise<void> {
+  public async endsACallToThePageWhoseGuestAMoveDestroysWhileItsCommandOrRoundTripIsPendingSoThePersonsLaterPressesAreNotTakenForTheCallsWhicheverGuestTheMoveBindsFirst(): Promise<void> {
     const results: string[] = [];
-    for (const isBoundFirst of [false, true]) {
+    for (const [isCommandPending, isBoundFirst] of [[false, false], [false, true], [true, false], [true, true]] as const) {
       const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
       const reached = new Promise<void>(started => {
-        harness.contents.onIsolated = () => {
+        const pending = (): Promise<unknown> => {
           started();
           return new Promise(() => undefined);
         };
+        if (isCommandPending)
+          harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, pending);
+        else
+          harness.contents.onIsolated = pending;
       });
       const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
       await reached;
@@ -1369,7 +1373,7 @@ export class OpenWebViewTests {
       results.push(`${OpenWebViewTests.describe(await answering)} ${harness.inputs.join(",")}`);
     }
 
-    Assert.areEqual("1 null Unavailable Start,End|1 null Unavailable Start,End", results.join("|"));
+    Assert.areEqual(Array.from({ length: 4 }, () => "1 null Unavailable Start,End").join("|"), results.join("|"));
   }
 
   @TestMethod

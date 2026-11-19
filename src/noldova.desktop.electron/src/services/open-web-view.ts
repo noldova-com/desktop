@@ -410,9 +410,9 @@ export class OpenWebView {
     const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
     if (isInput)
       void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
-    const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent, this.guestGone) : sent;
+    const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
     if (isPageCall)
-      void handled.then(() => this.endPageCall(), () => this.endPageCall());
+      void Promise.race([handled, this.guestGone]).then(() => this.endPageCall(), () => this.endPageCall());
     handled.then(
       reply => finish(OpenWebView.answer(call, reply)),
       (error: unknown) => finish(new WebViewAnswered(call, null,
@@ -943,8 +943,8 @@ export class OpenWebView {
       this.report(new WebViewEvent(this.info.module, this.info.id, kind, details));
   }
 
-  private static afterRendererAsync(guest: IWebViewContents, sent: Promise<unknown>, gone: Promise<void>): Promise<unknown> {
-    return sent.finally(() => Promise.race([guest.executeJavaScriptInIsolatedWorld(Resources.focusBarrierWorld, [{ code: Resources.focusBarrierScript }]).catch(() => undefined), gone]));
+  private static afterRendererAsync(guest: IWebViewContents, sent: Promise<unknown>): Promise<unknown> {
+    return sent.finally(() => guest.executeJavaScriptInIsolatedWorld(Resources.focusBarrierWorld, [{ code: Resources.focusBarrierScript }]).catch(() => undefined));
   }
 
   private static async relayAsync(guest: IWebViewContents, method: string, params: JsonObject): Promise<unknown> {
