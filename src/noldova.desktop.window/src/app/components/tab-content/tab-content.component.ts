@@ -9,21 +9,27 @@
 import { FocusTrapFactory } from "@angular/cdk/a11y";
 import { NgComponentOutlet } from "@angular/common";
 import {
-  Component, DestroyRef, ElementRef, Injector, type InputSignal, type ResourceRef, type Signal, afterRenderEffect, computed, inject, input, resource,
-  untracked
+  Component, DestroyRef, ElementRef, ErrorHandler, Injector, type InputSignal, type ResourceRef, type Signal, type Type, afterRenderEffect, computed, inject, input,
+  resource, untracked
 } from "@angular/core";
 
 import "@noldova/context.core";
+import { ModuleState } from "@noldova/desktop.protocol";
 
 import { ContentPadding } from "../../enums/content-padding.js";
+import { PageNotLoadedException } from "../../exceptions/page-not-loaded.exception.js";
 import { ContentPaddingRef } from "../../models/content-padding-ref.js";
 import { Bounds } from "../../models/layout/bounds.js";
 import { DocumentTab } from "../../models/layout/document-tab.js";
 import type { Tab } from "../../models/layout/tab.js";
+import { ModuleFailure } from "../../models/module-failure.js";
 import { TabContent } from "../../models/tab-content.js";
+import type { WindowPartContext } from "../../models/window-part-context.js";
 import { WindowPartTokens } from "../../models/window-part-tokens.js";
+import { Resources } from "../../../resources.js";
 import { DockGrowthService } from "../../services/dock-growth.service.js";
 import { LayoutService } from "../../services/layout.service.js";
+import { ModuleStatusService } from "../../services/module-status.service.js";
 import { TabFocusService } from "../../services/tab-focus.service.js";
 import { TabLabelService } from "../../services/tab-label.service.js";
 import { WindowPartHostService } from "../../services/window-part-host.service.js";
@@ -49,6 +55,8 @@ export class TabContentComponent {
   private readonly focusTraps: FocusTrapFactory = inject(FocusTrapFactory);
   private readonly growth: DockGrowthService = inject(DockGrowthService);
   private readonly layout: LayoutService = inject(LayoutService);
+  private readonly statuses: ModuleStatusService = inject(ModuleStatusService);
+  private readonly errors: ErrorHandler = inject(ErrorHandler);
   private readonly revision: Signal<number> = computed(() => this.host.revisionOf(this.tab()));
   private readonly stableTab: Signal<Tab> = computed(() => this.tab(), { equal: (a, b) => a.equals(b) });
   private readonly isActiveDocument: Signal<boolean> = computed(() => this.tab().equals(this.layout.layout().documents.active));
@@ -145,7 +153,13 @@ export class TabContentComponent {
       return Object.isNull(failure) ? null : new TabContent(ModuleFailureCardComponent, this.injector, { failure }, ContentPadding.Default, pagePadding);
     }
 
-    const component = await match.loadComponent();
+    let component: Type<unknown>;
+    try {
+      component = await match.loadComponent();
+    }
+    catch (error) {
+      return this.failLoad(match.context, error, pagePadding);
+    }
     const page = [{ provide: WindowPartTokens.contentPadding, useValue: pagePadding }, { provide: WindowPartTokens.shown, useValue: this.isShown },
       { provide: WindowPartTokens.activeDocument, useValue: this.isActiveDocument }];
     if (Object.isNull(match.context))
@@ -153,5 +167,16 @@ export class TabContentComponent {
     const injector = Injector.create({ providers: [{ provide: WindowPartTokens.context, useValue: match.context }, ...page], parent: this.injector });
     const inputs = tab instanceof DocumentTab || !Object.isUndefined(tab.instance) ? { instance: tab.instance, title: this.labels.of(tab).title } : {};
     return new TabContent(component, injector, inputs, match.padding, pagePadding);
+  }
+
+  private failLoad(context: WindowPartContext | null, error: unknown, pagePadding: ContentPaddingRef): TabContent | null {
+    if (Object.isNull(context)) {
+      this.errors.handleError(error);
+      return null;
+    }
+    this.errors.handleError(new PageNotLoadedException(context.moduleId, error));
+    const displayName = this.statuses.modules().find(t => t.id === context.moduleId)?.displayName ?? context.moduleId;
+    const failure = new ModuleFailure(context.moduleId, displayName, ModuleState.Failed, Resources.pageLoadFailed, []);
+    return new TabContent(ModuleFailureCardComponent, this.injector, { failure }, ContentPadding.Default, pagePadding);
   }
 }

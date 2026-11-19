@@ -584,6 +584,7 @@ export class Resources {
   public static readonly settingsPageKind: string = "settings page";
   public static readonly settingsPageLoading: string = "Loading the page";
   public static readonly settingsPageLoadFailed: string = "Its settings page could not be loaded.";
+  public static readonly pageLoadFailed: string = "Its page could not be loaded.";
   public static readonly openSettingsPageLabel: string = "Open page";
   public static readonly viewOrDocumentKind: string = "view or document";
   public static readonly instanceViewKind: string = "view with instances";

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { Component, type InputSignal, type Signal, type WritableSignal, inject, input, signal } from "@angular/core";
+import { Component, ErrorHandler, type InputSignal, type Signal, type WritableSignal, inject, input, signal } from "@angular/core";
 import { type ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 
@@ -17,6 +17,7 @@ import { TabContentComponent } from "../../../../src/app/components/tab-content/
 import { ContentPadding } from "../../../../src/app/enums/content-padding";
 import { PanelEdge } from "../../../../src/app/enums/panel-edge";
 import { FileSaveOutcome } from "../../../../src/app/enums/file-save-outcome";
+import { WindowPartFailureException } from "../../../../src/app/exceptions/window-part-failure.exception";
 import type { IWindowPartContext } from "../../../../src/app/interfaces/i-window-part-context";
 import type { ContentPaddingRef } from "../../../../src/app/models/content-padding-ref";
 import { ContributionMatch } from "../../../../src/app/models/contribution-match";
@@ -37,6 +38,7 @@ import { WindowPartHostService } from "../../../../src/app/services/window-part-
 import { DomFixture } from "../../../fixtures/dom.fixture";
 import { LayoutFixture } from "../../../fixtures/layout.fixture";
 import { LayoutServiceFixture } from "../../../fixtures/layout-service.fixture";
+import { ModuleStatusFixture } from "../../../fixtures/module-status.fixture";
 import { PreloadBridgeFixture } from "../../../fixtures/preload-bridge.fixture";
 
 @Component({
@@ -365,6 +367,51 @@ describe("TabContentComponent", () => {
     const element = await renderAsync(tab);
 
     expect(element.querySelector("nol-module-failure-card")?.textContent).toMatch(/Clock didn't start\s*Its runtime part failed to activate\./);
+  });
+
+  it("shows a card naming its module for a page that fails to load, by the runtime's name when it reports one and by its id when not, and reports each failure once", async () => {
+    const errors: unknown[] = [];
+    TestBed.overrideProvider(ErrorHandler, { useValue: { handleError: (error: unknown) => errors.push(error) } });
+    const failing = (name: string): ViewTab => {
+      const tab = new ViewTab(name);
+      host.contributions.set(tab.key, new ContributionMatch(() => Promise.reject(new Error(`No ${name} chunk.`)), context, ContentPadding.Default));
+      return tab;
+    };
+    const renderFixtureAsync = async (tab: Tab): Promise<ComponentFixture<TabContentComponent>> => {
+      const fixture = TestBed.createComponent(TabContentComponent);
+      fixture.componentRef.setInput("tab", tab);
+      await fixture.whenStable();
+      return fixture;
+    };
+
+    const unnamed = await renderFixtureAsync(failing("notes.list"));
+    ModuleStatusFixture.report(ModuleStatusFixture.create("notes", "Notes"));
+    const named = await renderFixtureAsync(failing("notes.editor"));
+    unnamed.detectChanges();
+    named.detectChanges();
+
+    expect([unnamed, named].map(t => DomFixture.host(t).querySelector("nol-module-failure-card")?.textContent))
+      .toEqual([expect.stringMatching(/notes didn't start\s*Its page could not be loaded\./), expect.stringMatching(/Notes didn't start\s*Its page could not be loaded\./)]);
+    expect([unnamed, named].map(t => DomFixture.host(t).classList.contains("nol-tab-content-padded"))).toEqual([true, true]);
+    expect(errors.map(t => t instanceof WindowPartFailureException ? [t.name, t.moduleId, t.message, t.cause instanceof Error ? t.cause.message : null] : t)).toEqual([
+      ["PageNotLoadedException", "notes", "Its page could not be loaded.", "No notes.list chunk."],
+      ["PageNotLoadedException", "notes", "Its page could not be loaded.", "No notes.editor chunk."]
+    ]);
+  });
+
+  it("shows nothing for a shell page that fails to load and reports its failure once", async () => {
+    const errors: unknown[] = [];
+    TestBed.overrideProvider(ErrorHandler, { useValue: { handleError: (error: unknown) => errors.push(error) } });
+    const failure = new Error("No settings chunk.");
+    const tab = new DocumentTab("desktop.settings");
+    host.contributions.set(tab.key, new ContributionMatch(() => Promise.reject(failure), null, ContentPadding.Default));
+    const fixture = TestBed.createComponent(TabContentComponent);
+    fixture.componentRef.setInput("tab", tab);
+    await fixture.whenStable();
+
+    fixture.detectChanges();
+
+    expect([DomFixture.host(fixture).children.length, DomFixture.host(fixture).classList.contains("nol-tab-content-padded"), errors]).toEqual([0, false, [failure]]);
   });
 
   it("shows nothing for a tab no module contributes and loads again when its revision changes", async () => {
