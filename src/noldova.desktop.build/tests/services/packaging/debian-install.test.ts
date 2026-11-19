@@ -39,6 +39,8 @@ export class DebianInstallTests {
   private static readonly FOLDER_MISSING: string = "test ! -e /opt/Sample App";
   private static readonly COMPARE: string = `cmp --silent ${DebianInstallTests.SOURCE} ${DebianInstallTests.PROFILE}`;
   private static readonly LOADED: string = "sudo --non-interactive grep --quiet --fixed-strings --line-regexp sample-app (unconfined) /sys/kernel/security/apparmor/profiles";
+  private static readonly TYPE: string = "/opt/Sample App/resources/package-type";
+  private static readonly TYPED: string = `grep --quiet --fixed-strings --line-regexp deb ${DebianInstallTests.TYPE}`;
   private static readonly REMOVE: string = "sudo --non-interactive apt-get remove --yes sample-app";
   private static readonly FAILURE: ProcessResult = new ProcessResult(1, String.empty, "refused");
 
@@ -169,10 +171,12 @@ export class DebianInstallTests {
 
     Assert.areEqual([
       Resources.formatDebianSandboxHelperChecked(DebianInstallTests.HELPER, "0:755", true),
-      Resources.formatDebianProfileInstalled(DebianInstallTests.PROFILE)
+      Resources.formatDebianProfileInstalled(DebianInstallTests.PROFILE),
+      Resources.formatDebianPackageTypeChecked(DebianInstallTests.TYPE)
     ].join(Resources.lineSeparator), verified);
     Assert.areEqual([
-      DebianInstallTests.PROBE, DebianInstallTests.STAT, DebianInstallTests.ENABLED, DebianInstallTests.PARSE, DebianInstallTests.COMPARE, DebianInstallTests.LOADED
+      DebianInstallTests.PROBE, DebianInstallTests.STAT, DebianInstallTests.ENABLED, DebianInstallTests.PARSE, DebianInstallTests.COMPARE, DebianInstallTests.LOADED,
+      DebianInstallTests.TYPED
     ].join("\n"), runner.captured.slice(4).join("\n"));
   }
 
@@ -212,8 +216,9 @@ export class DebianInstallTests {
     const offVerified = await (await DebianInstallTests.installAsync(off)).verifyAsync();
     const refusedVerified = await (await DebianInstallTests.installAsync(refused)).verifyAsync();
 
-    Assert.isTrue(offVerified.endsWith(Resources.formatDebianProfileSkipped(DebianInstallTests.PROFILE, false)), offVerified);
-    Assert.isTrue(refusedVerified.endsWith(Resources.formatDebianProfileSkipped(DebianInstallTests.PROFILE, true)), refusedVerified);
+    const typed = `${Resources.lineSeparator}${Resources.formatDebianPackageTypeChecked(DebianInstallTests.TYPE)}`;
+    Assert.isTrue(offVerified.endsWith(`${Resources.formatDebianProfileSkipped(DebianInstallTests.PROFILE, false)}${typed}`), offVerified);
+    Assert.isTrue(refusedVerified.endsWith(`${Resources.formatDebianProfileSkipped(DebianInstallTests.PROFILE, true)}${typed}`), refusedVerified);
     Assert.isFalse(off.captured.includes(DebianInstallTests.PARSE));
     Assert.isTrue(off.captured.includes(DebianInstallTests.PROFILE_MISSING));
     Assert.isFalse(refused.captured.includes(DebianInstallTests.COMPARE));
@@ -248,6 +253,16 @@ export class DebianInstallTests {
     Assert.areEqual(Resources.formatDebianProfileNotCopied(DebianInstallTests.PROFILE, DebianInstallTests.SOURCE), differsError.message);
     Assert.areEqual(Resources.formatDebianProfileNotLoaded(DebianInstallTests.SLUG, Resources.apparmorLoadedProfiles), unloadedError.message);
     Assert.isFalse(differs.captured.includes(DebianInstallTests.LOADED));
+  }
+
+  @TestMethod
+  public async refusesAnInstalledCopyWhoseResourcesDoNotNameTheDebianPackageAsync(): Promise<void> {
+    const runner = DebianInstallTests.createRunner(new Map([[DebianInstallTests.TYPED, DebianInstallTests.FAILURE]]));
+
+    const error = await Assert.throwsAsync(async () => await (await DebianInstallTests.installAsync(runner)).verifyAsync(), BuildException);
+
+    Assert.areEqual(Resources.formatDebianPackageTypeMissing(DebianInstallTests.TYPE), error.message);
+    Assert.isTrue(error.message.startsWith("/opt/Sample App/resources/package-type doesn't hold deb,"), error.message);
   }
 
   @TestMethod

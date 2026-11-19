@@ -26,6 +26,8 @@ export class ViewContribution {
   public readonly hasInstances: boolean;
   public readonly tabRowPlace: string | null;
   public readonly isRenamable: boolean;
+  public readonly defaultGroup: number;
+  public readonly defaultOrder: number | null;
 
   public constructor(name: string, title: string, icon: string, defaultSide: DockSide, isShownByDefault: boolean, loadComponent: () => Promise<Type<unknown>>,
     padding?: ContentPadding, options: IViewOptions = {}) {
@@ -37,6 +39,8 @@ export class ViewContribution {
       throw new ArgumentException(Resources.invalidContributionName, Resources.optionsParameterName);
     if (options.isRenamable === true && options.hasInstances !== true)
       throw new ArgumentException(Resources.renamableViewWithoutInstances, Resources.optionsParameterName);
+    if ([options.defaultGroup, options.defaultOrder].some(t => !Object.isUndefined(t) && (!Number.isSafeInteger(t) || t < 0)))
+      throw new ArgumentException(Resources.invalidDefaultPlace, Resources.optionsParameterName);
 
     this.name = name;
     this.title = title;
@@ -48,5 +52,7 @@ export class ViewContribution {
     this.hasInstances = options.hasInstances === true;
     this.tabRowPlace = options.tabRowPlace ?? null;
     this.isRenamable = options.isRenamable === true;
+    this.defaultGroup = options.defaultGroup ?? 0;
+    this.defaultOrder = options.defaultOrder ?? null;
   }
 }

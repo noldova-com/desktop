@@ -164,6 +164,19 @@ export class PosixProcessApiTests {
   }
 
   @TestMethod
+  @PlatformFixture.macOnly()
+  public async listsAnotherUsersProcessWithItsStartTimeOnMacOS(): Promise<void> {
+    const before = Date.now();
+
+    const launchd = (await PosixProcessApi.create().listProcessesAsync()).find(t => t[0] === 1);
+
+    Assert.isDefined(launchd);
+    Assert.areEqual(0, launchd[1]);
+    Assert.isTrue(launchd[4] > 0 && launchd[4] < before, String(launchd[4]));
+    Assert.areEqual(0, launchd[5] ?? 0);
+  }
+
+  @TestMethod
   @PlatformFixture.posixOnly()
   public async listsAProcessThatEndedUnreapedAsAZombieOnLinuxAndLeavesItOutOnMacOS(): Promise<void> {
     const parent = spawn("/bin/sh", ["-c", "sleep 0.1 & echo $!; exec sleep 30"], { stdio: ["ignore", "pipe", "ignore"] });
