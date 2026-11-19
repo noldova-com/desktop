@@ -694,6 +694,39 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async givesNoPressToARequestFromAFrameWhoseReportHadNoFrame(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+
+    harness.contents.emit("ipc-message", { processId: 4, frameId: 1, senderFrame: null }, "desktop:web-view-press", "start", 1);
+    const gone = OpenWebViewTests.request(harness);
+    OpenWebViewTests.press(harness, { processId: 4, frameId: 2 }, "start", 2);
+
+    Assert.areEqual("null,2", [gone, OpenWebViewTests.request(harness)].map(t => String(t)).join(","));
+  }
+
+  @TestMethod
+  public async asksNoFrameOfAPageDestroyedDuringARelayedPressAndEndsItsWaitAtOnce(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
+    const frame = { processId: 4, frameId: 1 };
+    let asked = 0;
+    harness.contents.onFrame = () => {
+      asked += 1;
+      return Promise.resolve(0);
+    };
+    harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, () => {
+      harness.contents.destroyed = true;
+      return Promise.resolve({});
+    });
+
+    await harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+    await OpenWebViewTests.drainAsync();
+    harness.contents.destroyed = false;
+    const ids = [1, 2].map(t => [OpenWebViewTests.press(harness, frame, "start", t), OpenWebViewTests.request(harness)][1]);
+
+    Assert.areEqual("0 null,1", `${asked} ${ids.map(t => String(t)).join(",")}`);
+  }
+
+  @TestMethod
   public async givesNoPressIdToAPressWhileAnInputCallItCannotCountRunsAndForgetsThePressesOfAPageItLetsGo(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
     const frame = { processId: 4, frameId: 1 };
