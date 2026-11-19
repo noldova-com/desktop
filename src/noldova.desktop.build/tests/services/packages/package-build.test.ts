@@ -48,6 +48,10 @@ export class PackageBuildTests {
     "src/app.window.app/package.json": JSON.stringify({ name: "app-window", private: true }),
     "src/app.window.app/tsconfig.json": "{}"
   };
+  private static readonly LOCKFILE: string = JSON.stringify({ name: "app", lockfileVersion: 3, packages: {
+    "node_modules/@angular/cdk": { version: "22.2.7", peerDependencies: { "@angular/common": "^22.0.0" } },
+    "node_modules/@angular/common": { version: "22.2.6" }
+  } });
   private static readonly SCRIPT: string = "src/noldova.desktop.styles/scripts/build.ts";
   private static readonly INSTALLED: string = "Angular packages built and installed: 1.\n";
   private static readonly REUSED_INSTALL: string = "Angular packages built: 1; the app's install already holds them, unchanged since the last build.\n";
@@ -185,6 +189,62 @@ export class PackageBuildTests {
       JSON.stringify(JsonReader.parse(await readFile(path.join(tree.path, "node_modules", ...runtime.split("/"), "package.json"), "utf8")).readObject("dependencies").toJson()));
     Assert.isTrue(existsSync(path.join(tree.path, "_build", "tests", "noldova.desktop.protocol", "tests", "protocol.test.js")));
     Assert.isTrue(existsSync(path.join(tree.path, "_build", "tests", "noldova.desktop.protocol", "src", "package.json")));
+  }
+
+  @TestMethod
+  public async installsTheBuiltArchivesWithEachPeerAtTheLockfilesVersionAfterThem(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      ...PackageBuildTests.BUILD_ROOT,
+      ...PackageBuildTests.describePackage(PackageBuildTests.PROTOCOL),
+      "package-lock.json": PackageBuildTests.LOCKFILE
+    });
+    const runner = new PackageToolsRunnerFixture(tree.path, {
+      installedLockfile: JSON.stringify({ name: "app", lockfileVersion: 3, packages: { "node_modules/@angular/common": { version: "22.2.6" } } })
+    });
+
+    await PackageBuildTests.create(tree, runner).buildAsync(new PassThrough());
+
+    Assert.areEqual(JSON.stringify([[PackageBuildTests.archive(PackageBuildTests.PROTOCOL), "@angular/common@22.2.6"]]), JSON.stringify(runner.installed));
+  }
+
+  @TestMethod
+  public async namesEachPeerTheBuiltPackagesDeclareAtTheLockfilesVersionButNotABuiltPackage(): Promise<void> {
+    const { PROTOCOL, RUNTIME } = PackageBuildTests;
+    const lockfile = { name: "app", lockfileVersion: 3, packages: {
+      "node_modules/@noldova/ui.components.angular": { version: "0.0.12" },
+      "node_modules/@noldova/desktop.protocol": { version: "0.0.1" }
+    } };
+    await using tree = await SourceTreeFixture.createAsync({
+      ...PackageBuildTests.BUILD_ROOT,
+      ...PackageBuildTests.describePackage(PROTOCOL),
+      ...PackageBuildTests.describePackage(RUNTIME, [PROTOCOL], { peerDependencies: { "@noldova/desktop.protocol": ">=__VERSION__ <__NEXT_MINOR__", "@noldova/ui.components.angular": ">=0.0.5 <0.1.0" } }),
+      "package-lock.json": JSON.stringify(lockfile)
+    });
+    const runner = new PackageToolsRunnerFixture(tree.path, { installedLockfile: JSON.stringify(lockfile) });
+
+    await PackageBuildTests.create(tree, runner).buildAsync(new PassThrough());
+
+    const last = runner.installed.at(-1) ?? [];
+    Assert.isTrue(last.includes(PackageBuildTests.archive(RUNTIME)), JSON.stringify(runner.installed));
+    Assert.isTrue(last.includes("@noldova/ui.components.angular@0.0.12"), JSON.stringify(runner.installed));
+    Assert.isFalse(runner.installed.flat().includes("@noldova/desktop.protocol@0.0.1"), JSON.stringify(runner.installed));
+  }
+
+  @TestMethod
+  public async failsTheBuildNamingAPackageTheInstallPutAtAVersionTheLockfileDoesNotHold(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      ...PackageBuildTests.BUILD_ROOT,
+      ...PackageBuildTests.describePackage(PackageBuildTests.PROTOCOL),
+      "package-lock.json": PackageBuildTests.LOCKFILE
+    });
+    const runner = new PackageToolsRunnerFixture(tree.path, {
+      installedLockfile: JSON.stringify({ name: "app", lockfileVersion: 3, packages: { "node_modules/@angular/common": { version: "22.3.0" } } })
+    });
+
+    const error = await Assert.throwsAsync(() => PackageBuildTests.create(tree, runner).buildAsync(new PassThrough()), BuildException);
+
+    Assert.areEqual(Resources.formatUnlockedInstall("node_modules/@angular/common", "22.3.0", "22.2.6"), error.message);
+    Assert.areEqual(1, runner.installed.length);
   }
 
   @TestMethod
