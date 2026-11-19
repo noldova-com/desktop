@@ -79,7 +79,7 @@ export class DebianInstall implements ISystemInstall {
   }
 
   public async verifyAsync(): Promise<string> {
-    return [await this.verifySandboxHelperAsync(), await this.verifyProfileAsync()].join(Resources.lineSeparator);
+    return [await this.verifySandboxHelperAsync(), await this.verifyProfileAsync(), await this.verifyPackageTypeAsync()].join(Resources.lineSeparator);
   }
 
   public async removeAsync(): Promise<string> {
@@ -121,6 +121,13 @@ export class DebianInstall implements ISystemInstall {
     if (!loaded.isSuccessful)
       throw new BuildException(Resources.formatDebianProfileNotLoaded(this.slug, Resources.apparmorLoadedProfiles));
     return Resources.formatDebianProfileInstalled(this.profile);
+  }
+
+  private async verifyPackageTypeAsync(): Promise<string> {
+    const file = path.posix.join(this.installed.resources, Resources.packageTypeFile);
+    if (!(await this.runAsync(Resources.grepCommand, [...Resources.grepWholeLineOptions, Resources.debianPackageTarget, file])).isSuccessful)
+      throw new BuildException(Resources.formatDebianPackageTypeMissing(file));
+    return Resources.formatDebianPackageTypeChecked(file);
   }
 
   private runAsRootAsync(command: string, commandArguments: readonly string[]): Promise<ProcessResult> {
