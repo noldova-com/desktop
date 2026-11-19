@@ -1186,7 +1186,7 @@ describe("WindowPartHostService", () => {
     await vi.waitFor(() => expect(host.generation()).toBe(1));
 
     bridge.publishEvent("desktop.modulesChanged", { modules: [status("tasks"), status("git")] });
-    await vi.waitFor(() => expect(layout.registry().hasView("tasks.list")).toBe(true));
+    await vi.waitFor(() => expect(layout.registry().view("tasks.list").isShownByDefault).toBe(true));
     layout.reset();
 
     expect(layout.registry().views.map(t => t.name)).toEqual(["tasks.list", "git.branches"]);
