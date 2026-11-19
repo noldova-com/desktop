@@ -122,6 +122,10 @@ export class UpdateRestart {
     return this.question?.answer(prompt, choice) === true;
   }
 
+  public dismiss(prompt: IQuitPrompt): void {
+    this.question?.dismiss(prompt);
+  }
+
   private async handOffAsync(record: UpdateReadyRecord, handoff: IUpdateHandoff): Promise<number | null> {
     if (this.process.platform === Resources.linuxPlatform || this.handoverFolders.length === 0)
       return handoff.handOffAsync(record);
