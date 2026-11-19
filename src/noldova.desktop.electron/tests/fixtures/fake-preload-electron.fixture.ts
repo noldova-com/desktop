@@ -58,10 +58,10 @@ export class FakePreloadElectron {
     }
   };
 
-  public static load(argument: string | null = new PreloadSettings(null).toArgument()): FakePreloadElectron {
+  public static load(argument: string | null = new PreloadSettings(null).toArgument(), file: string = "preload.cjs"): FakePreloadElectron {
     const electron = new FakePreloadElectron();
     const require = createRequire(import.meta.url);
-    const preloadPath = path.join(path.dirname(require.resolve("@noldova/desktop.electron/package.json")), "preload.cjs");
+    const preloadPath = path.join(path.dirname(require.resolve("@noldova/desktop.electron/package.json")), file);
     const electronPath = createRequire(preloadPath).resolve("electron");
     const fake = new Module(electronPath);
     fake.filename = electronPath;
@@ -79,6 +79,10 @@ export class FakePreloadElectron {
       process.argv.splice(process.argv.length - added.length, added.length);
     }
     return electron;
+  }
+
+  public get exposedNames(): readonly string[] {
+    return [...this.exposed.keys()];
   }
 
   public api(name: string): Record<string, unknown> {

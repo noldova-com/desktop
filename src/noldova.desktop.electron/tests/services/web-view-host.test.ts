@@ -1529,7 +1529,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async passesANewWindowRequestToAModuleThatTakesThemWithItsReferrersOrigin(): Promise<void> {
+  public async passesANewWindowRequestToAModuleThatTakesThemWithItsReferrersOriginAndThePressItCameDuring(): Promise<void> {
     const [electron, , connection] = await WebViewHostTests.startAsync({ browser: WebViewHostTests.NEW_WINDOWS });
     const window = MainProcessStartFixture.firstWindow(electron);
     await WebViewHostTests.openAsync(electron);
@@ -1538,14 +1538,14 @@ export class WebViewHostTests {
     const answers = [
       contents.openWindow("https://example.com/next", "https://example.com/page"),
       contents.openWindow("https://example.net/other", String.empty, "new-window"),
-      contents.openWindow("https://example.com/data", "data:text/html,x", "background-tab")
+      WebViewHostTests.openDuringPress(contents, "https://example.com/data", "data:text/html,x", "background-tab")
     ];
     await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.runtimeEvents(connection)).length === 3);
 
     const expected = JSON.stringify([
-      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab" },
-      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window" },
-      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab" }
+      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab", pressId: null },
+      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window", pressId: null },
+      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab", pressId: 1 }
     ]);
     Assert.areEqual("deny,deny,deny", answers.map(t => t?.action).join(","));
     Assert.areEqual(expected, JSON.stringify(WebViewHostTests.requested(WebViewHostTests.windowEvents(window))));
@@ -1904,6 +1904,11 @@ export class WebViewHostTests {
 
   private static json(value: unknown): JsonObject {
     return JsonReader.fromValue(value).toJson();
+  }
+
+  private static openDuringPress(contents: FakeWebView["contents"], url: string, referrer: string, disposition: string): ReturnType<FakeWebView["contents"]["openWindow"]> {
+    contents.emit("ipc-message", { processId: 4, frameId: 1 }, "desktop:web-view-press", "start", 12.5);
+    return contents.openWindow(url, referrer, disposition);
   }
 
   private static details(event: JsonObject | undefined): JsonObject {

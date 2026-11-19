@@ -38,6 +38,7 @@ import { WebViewEventCut } from "./web-view-event-cut.js";
 import { WebViewFavicon } from "./web-view-favicon.js";
 import { WebViewKeyInput } from "./web-view-key-input.js";
 import type { WebViewOriginCheck } from "./web-view-origin-check.js";
+import { WebViewPresses } from "./web-view-presses.js";
 
 export class OpenWebView {
   private readonly session: IWebViewSession;
@@ -61,6 +62,7 @@ export class OpenWebView {
   private readonly finds: Map<number, (found: JsonObject | null) => void> = new Map();
   private readonly navigations: ((answer: JsonObject | null) => void)[] = [];
   private readonly favicon: WebViewFavicon;
+  private readonly presses: WebViewPresses = new WebViewPresses();
   private windowRequests: readonly number[] = [];
   private lastInput: number | undefined;
   private relayedInputs: number = 0;
@@ -171,6 +173,7 @@ export class OpenWebView {
     this.isReady = false;
     this.isFocusHeld = false;
     this.isCrashed = false;
+    this.presses.forget();
     if (!Object.isNull(previous) && !previous.isDestroyed() && previous.debugger.isAttached())
       previous.debugger.detach();
     this.listen(guest);
@@ -402,6 +405,7 @@ export class OpenWebView {
       this.relayedInputs += 1;
     if (!Object.isNull(press))
       this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
+    this.presses.addRelayed(presses + OpenWebView.countKeyPresses(method, params));
     if (isUncounted)
       this.uncountedInputs += 1;
     if (isPageCall)
@@ -428,6 +432,10 @@ export class OpenWebView {
     guest.on(Resources.inputEvent, (_event, input) => {
       if (this.isBound(guest))
         this.noteInput(input.type);
+    });
+    guest.on(Resources.ipcMessageEvent, (event, channel, kind, stamp) => {
+      if (this.isBound(guest) && channel === Resources.webViewPressChannel)
+        this.presses.note(`${event.processId}:${event.frameId}`, kind, stamp, this.uncountedInputs > 0);
     });
     guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
     guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
@@ -729,7 +737,8 @@ export class OpenWebView {
       [Resources.addressField]: details.url,
       [Resources.hadRecentInputField]: !Object.isUndefined(this.lastInput) && now - this.lastInput <= Resources.recentInputMilliseconds,
       [Resources.originField]: origin === Resources.nullOrigin ? null : origin,
-      ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition }
+      ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition },
+      [Resources.pressIdField]: this.presses.read()
     });
   }
 
@@ -962,6 +971,10 @@ export class OpenWebView {
   private static isSameStroke(relayed: IKeyStroke, pressed: IKeyStroke): boolean {
     return relayed.key === pressed.key && (relayed.code === String.empty || relayed.code === pressed.code)
       && relayed.ctrlKey === pressed.ctrlKey && relayed.altKey === pressed.altKey && relayed.shiftKey === pressed.shiftKey && relayed.metaKey === pressed.metaKey;
+  }
+
+  private static countKeyPresses(method: string, params: JsonObject): number {
+    return method === Resources.dispatchKeyEventMethod && Resources.keyDownInputs.includes(String(params[Resources.typeField])) && params[Resources.autoRepeatField] !== true ? 1 : 0;
   }
 
   private countPresses(method: string, params: JsonObject): number {

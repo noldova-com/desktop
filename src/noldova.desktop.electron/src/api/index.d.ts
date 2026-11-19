@@ -3083,7 +3083,7 @@ export interface IWebViewEngine {
   findGuest(contentsId: number): IWebViewGuest | null;
 
   /**
-   * Judges every `<webview>` before it attaches: a page's own is refused, and a window's only when its partition is one the window may use; an allowed one starts at `about:blank`, whatever address the element carries, such as the page's own once the element moves in the window, unless `claim` takes it, and runs sandboxed and context-isolated, without a preload, Node.js or nested views.
+   * Judges every `<webview>` before it attaches: a page's own is refused, and a window's only when its partition is one the window may use; an allowed one starts at `about:blank`, whatever address the element carries, such as the page's own once the element moves in the window, unless `claim` takes it, and runs sandboxed and context-isolated, without Node.js, nested views or any preload but the host's press script, which runs in every frame.
    * A claimed one loads no page, so the view it replaces can restore its history in it, and `attached` gets its page once it attaches.
    *
    * @param isAllowed Says whether a window may use a partition.
@@ -3573,6 +3573,15 @@ export interface IWebViewContents {
    * @returns Electron's own return value, which the main process does not use.
    */
   on(event: "input-event", listener: (event: unknown, input: IWebViewInputEvent) => void): unknown;
+
+  /**
+   * Listens for each IPC message a frame of the page sends, which only the host's press script in its isolated world can send.
+   *
+   * @param event The event's name.
+   * @param listener Receives the sending frame's process and frame ids, the channel and the message's values.
+   * @returns Electron's own return value, which the main process does not use.
+   */
+  on(event: "ipc-message", listener: (event: { readonly processId: number; readonly frameId: number }, channel: string, ...values: unknown[]) => void): unknown;
 
   /**
    * Listens for a site or a proxy asking for credentials, which the listener answers.

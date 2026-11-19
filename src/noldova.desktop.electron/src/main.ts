@@ -112,7 +112,7 @@ await MainProcess.startAsync(
     tray: { create: t => new Tray(t) },
     shortcuts: globalShortcut,
     nativeUpdater: autoUpdater,
-    webViews: new ElectronWebViewEngine(),
+    webViews: new ElectronWebViewEngine(join(import.meta.dirname, Resources.pressWatchFileName)),
     safeStorage,
     createWindow: t => new BrowserWindow(t)
   },

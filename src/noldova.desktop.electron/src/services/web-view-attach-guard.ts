@@ -17,11 +17,13 @@ export class WebViewAttachGuard {
   private readonly isAllowed: (windowId: number, partition: string) => boolean;
   private readonly claim: (windowId: number, partition: string) => boolean;
   private readonly log: (text: string) => void;
+  private readonly preloadPath: string;
 
-  public constructor(isAllowed: (windowId: number, partition: string) => boolean, claim: (windowId: number, partition: string) => boolean, log: (text: string) => void) {
+  public constructor(isAllowed: (windowId: number, partition: string) => boolean, claim: (windowId: number, partition: string) => boolean, log: (text: string) => void, preloadPath: string) {
     this.isAllowed = isAllowed;
     this.claim = claim;
     this.log = log;
+    this.preloadPath = preloadPath;
   }
 
   public judge(contentsId: number, isGuest: boolean, event: IPreventableEvent, preferences: IWebViewAttachPreferences, params: IWebViewAttachParams): void {
@@ -35,8 +37,9 @@ export class WebViewAttachGuard {
     params.src = this.claim(contentsId, partition) ? String.empty : Resources.blankPage;
     delete preferences.preload;
     delete preferences.preloadURL;
+    preferences.preload = this.preloadPath;
     preferences.nodeIntegration = false;
-    preferences.nodeIntegrationInSubFrames = false;
+    preferences.nodeIntegrationInSubFrames = true;
     preferences.nodeIntegrationInWorker = false;
     preferences.contextIsolation = true;
     preferences.sandbox = true;

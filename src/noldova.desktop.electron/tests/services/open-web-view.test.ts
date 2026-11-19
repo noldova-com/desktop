@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
-import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 import { WebViewAction, type WebViewAnswered, WebViewDeclaration, type WebViewEvent, WebViewInfo, WebViewPane } from "@noldova/desktop.protocol";
 
 import { OpenWebView } from "../../src/services/open-web-view.js";
@@ -134,6 +134,13 @@ export class OpenWebViewTests {
   });
 
   private static readonly PAGE_CALLS_AND_WINDOWS: WebViewDeclaration = new WebViewDeclaration(OpenWebViewTests.PAGE_CALLS.methods, OpenWebViewTests.PAGE_CALLS.events, [], true);
+  private static readonly RELAYED_PRESSES: WebViewDeclaration = new WebViewDeclaration(WebViewDeclaration.fromJson({
+    methods: [
+      { name: "Input.dispatchMouseEvent", parameters: { type: { required: true }, x: {}, y: {} } },
+      { name: "Input.dispatchKeyEvent", parameters: { type: { required: true }, key: {}, autoRepeat: {} } },
+      { name: "Input.synthesizeTapGesture", parameters: { x: { required: true }, y: { required: true } } }
+    ]
+  }).methods, OpenWebViewTests.PAGE_CALLS.events, [], true);
 
   @TestMethod
   public async bindsItsPageWithoutLoadingItAndAttachesToTheProtocolWithItsDefaults(): Promise<void> {
@@ -619,10 +626,88 @@ export class OpenWebViewTests {
     Assert.areEqual(JSON.stringify([{ action: "deny" }, { action: "deny" }]), JSON.stringify([refused, first]));
     Assert.areEqual("RequestRefused {\"request\":\"newWindow\",\"origin\":\"null\"}", refusing.describe());
     Assert.areEqual([
-      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\",\"disposition\":\"foreground-tab\"}",
-      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\"}",
-      "NewWindowRequested {\"address\":\"https://example.com/third\",\"hadRecentInput\":true,\"origin\":null}"
+      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\",\"disposition\":\"foreground-tab\",\"pressId\":null}",
+      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\",\"pressId\":null}",
+      "NewWindowRequested {\"address\":\"https://example.com/third\",\"hadRecentInput\":true,\"origin\":null,\"pressId\":null}"
     ].join("|"), asking.describe());
+  }
+
+  @TestMethod
+  public async numbersEachPressItsPageReportsAndGivesItToEveryRequestMadeWhileAFrameHandlesIt(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    const main = { processId: 4, frameId: 1 };
+    const sub = { processId: 9, frameId: 2 };
+
+    const ids = [
+      OpenWebViewTests.request(harness),
+      OpenWebViewTests.press(harness, main, "start", 10.5), OpenWebViewTests.request(harness), OpenWebViewTests.request(harness),
+      OpenWebViewTests.press(harness, main, "end"), OpenWebViewTests.request(harness),
+      OpenWebViewTests.press(harness, main, "resume"), OpenWebViewTests.request(harness), OpenWebViewTests.press(harness, main, "end"),
+      OpenWebViewTests.press(harness, main, "start", 11.5), OpenWebViewTests.press(harness, main, "start", 11.5), OpenWebViewTests.request(harness),
+      OpenWebViewTests.press(harness, sub, "start", 3), OpenWebViewTests.request(harness),
+      OpenWebViewTests.press(harness, sub, "end"), OpenWebViewTests.request(harness),
+      OpenWebViewTests.press(harness, main, "end"), OpenWebViewTests.request(harness),
+      OpenWebViewTests.press(harness, sub, "resume"), OpenWebViewTests.request(harness)
+    ].filter(t => !Object.isUndefined(t));
+
+    Assert.areEqual("null,1,1,null,1,2,3,2,null,3", ids.map(t => String(t)).join(","));
+  }
+
+  @TestMethod
+  @TestData("resume", 1)
+  @TestData("start", "1")
+  @TestData("start", Number.NaN)
+  @TestData("start", Number.POSITIVE_INFINITY)
+  @TestData("press", 1)
+  @TestData(7, 1)
+  public async opensNoPressForAReportItDoesNotKnow(kind: unknown, stamp: unknown): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+
+    OpenWebViewTests.press(harness, { processId: 4, frameId: 1 }, kind, stamp);
+    harness.contents.emit("ipc-message", { processId: 4, frameId: 1 }, "desktop:other", "start", 1);
+
+    Assert.isNull(OpenWebViewTests.request(harness));
+  }
+
+  @TestMethod
+  public async givesNoPressIdToThePressesTheRelaySentInTheOrderSentAndNumbersThePersonsAfterThem(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
+    const frame = { processId: 4, frameId: 1 };
+
+    await harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+    await harness.open.sendAsync(2, OpenWebViewTests.MOUSE, { type: "mouseReleased", x: 1, y: 1 }, 1000);
+    await harness.open.sendAsync(3, "Input.dispatchKeyEvent", { type: "keyDown", key: "a", autoRepeat: false }, 1000);
+    await harness.open.sendAsync(4, "Input.dispatchKeyEvent", { type: "rawKeyDown", key: "a", autoRepeat: true }, 1000);
+    await harness.open.sendAsync(5, "Input.dispatchKeyEvent", { type: "keyUp", key: "a" }, 1000);
+    const ids = [1, 2, 3, 4].map(t => {
+      OpenWebViewTests.press(harness, frame, "start", t);
+      return OpenWebViewTests.request(harness);
+    });
+
+    Assert.areEqual("null,null,1,2", ids.map(t => String(t)).join(","));
+  }
+
+  @TestMethod
+  public async givesNoPressIdToAPressWhileAnInputCallItCannotCountRunsAndForgetsThePressesOfAPageItLetsGo(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
+    const frame = { processId: 4, frameId: 1 };
+    let during: unknown;
+    harness.contents.debugger.replies.set("Input.synthesizeTapGesture", () => {
+      OpenWebViewTests.press(harness, frame, "start", 1);
+      during = OpenWebViewTests.request(harness);
+      return Promise.resolve({});
+    });
+
+    await harness.open.sendAsync(1, "Input.synthesizeTapGesture", { x: 1, y: 1 }, 1000);
+    await harness.open.sendAsync(2, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+    OpenWebViewTests.destroy(harness);
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    Assert.isTrue(await harness.open.bindAsync(fresh));
+    fresh.emit("ipc-message", frame, "desktop:web-view-press", "resume");
+    const resumed = OpenWebViewTests.requestIn(harness, fresh);
+    fresh.emit("ipc-message", frame, "desktop:web-view-press", "start", 2);
+
+    Assert.areEqual("null,null,1", [during, resumed, OpenWebViewTests.requestIn(harness, fresh)].map(t => String(t)).join(","));
   }
 
   @TestMethod
@@ -1466,6 +1551,21 @@ export class OpenWebViewTests {
 
   private static drainAsync(): Promise<void> {
     return new Promise(resolve => setImmediate(resolve));
+  }
+
+  private static press(harness: OpenWebViewHarness, frame: { readonly processId: number; readonly frameId: number }, kind: unknown, stamp?: unknown): undefined {
+    harness.contents.emit("ipc-message", frame, "desktop:web-view-press", kind, stamp);
+    return undefined;
+  }
+
+  private static request(harness: OpenWebViewHarness): unknown {
+    return OpenWebViewTests.requestIn(harness, harness.contents);
+  }
+
+  private static requestIn(harness: OpenWebViewHarness, contents: FakeWebViewContents): unknown {
+    harness.time += 1000;
+    contents.openWindow("https://example.com/new");
+    return harness.events.at(-1)?.details["pressId"];
   }
 
   private static destroy(harness: OpenWebViewHarness): void {

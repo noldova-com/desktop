@@ -30,7 +30,7 @@ The package's bin, `noldova-desktop-build`, then builds the app, starts it in de
 |---|---|
 | [`desktop.protocol`](src/noldova.desktop.protocol) | The local protocol between the parts. |
 | [`desktop.runtime`](src/noldova.desktop.runtime) | The runtime, which hosts modules' runtime parts and keeps state. |
-| [`desktop.electron`](src/noldova.desktop.electron) | The main process and its preload. |
+| [`desktop.electron`](src/noldova.desktop.electron) | The main process, the window's preload and the web views' press script. |
 | [`desktop.window`](src/noldova.desktop.window) | The window's interface in Angular. |
 | [`desktop.cli`](src/noldova.desktop.cli) | The command line. |
 | [`desktop.build`](src/noldova.desktop.build) | The app build. |

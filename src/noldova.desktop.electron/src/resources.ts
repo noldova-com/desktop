@@ -222,6 +222,12 @@ export class Resources {
   public static readonly modifiersField: string = "modifiers";
   public static readonly originField: string = "origin";
   public static readonly dispositionField: string = "disposition";
+  public static readonly pressIdField: string = "pressId";
+  public static readonly webViewPressChannel: string = "desktop:web-view-press";
+  public static readonly pressStartKind: string = "start";
+  public static readonly pressResumeKind: string = "resume";
+  public static readonly pressEndKind: string = "end";
+  public static readonly pressFrameLimit: number = 64;
   public static readonly altModifier: number = 1;
   public static readonly ctrlModifier: number = 2;
   public static readonly metaModifier: number = 4;
@@ -614,6 +620,7 @@ export class Resources {
   public static readonly resumeAgentsLabel: string = "Resume agents";
   public static readonly stopKeyRefusedTitle: string = "The stop key works only in the app";
   public static readonly preloadFileName: string = "preload.cjs";
+  public static readonly pressWatchFileName: string = "press-watch.cjs";
   public static readonly preloadArgument: string = "--desktop-preload=";
   public static readonly bridgeName: string = "desktop";
   public static readonly preloadChannels: IPreloadChannels = {
@@ -734,6 +741,7 @@ export class Resources {
   public static readonly rendererEndLimit: number = 5_000;
   public static readonly renderProcessGoneEvent: "render-process-gone" = "render-process-gone";
   public static readonly inputEvent: "input-event" = "input-event";
+  public static readonly ipcMessageEvent: "ipc-message" = "ipc-message";
   public static readonly didStartLoadingEvent: "did-start-loading" = "did-start-loading";
   public static readonly didStartNavigationEvent: "did-start-navigation" = "did-start-navigation";
   public static readonly contextMenuEvent: "context-menu" = "context-menu";
