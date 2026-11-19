@@ -256,7 +256,8 @@ export class ProcessSupervisor {
     const requested = this.clock.now();
     const library = this.spawnTerminal(program, launch, request);
     const handle = new WatchedPseudoTerminalHandle(library, this.terminalWatchMilliseconds, this.terminalReportMilliseconds, () => this.readExitCodeAsync(moduleId, program, library.pid));
-    const terminal = new PseudoTerminal(handle, program, new Date(), t => this.stopTerminalAsync(t), (t, u) => this.foregroundGroups.readAsync(t, u));
+    const terminal = new PseudoTerminal(handle, program, new Date(), t => this.stopTerminalAsync(t), (t, u) => this.foregroundGroups.readAsync(t, u),
+      (t, u) => this.foregroundGroups.readProcessAsync(t, u));
     const terminalConsole = new PseudoTerminalConsole(library, this.platform);
     const exitTime = terminal.exited.then(() => this.clock.now());
     await ProcessSupervisor.waitForProcessAsync(handle, terminal, request.signal);

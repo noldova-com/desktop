@@ -203,6 +203,31 @@ export class MainProcessLogTests {
     });
   }
 
+  @TestMethod
+  public async keepsEveryLineWrittenAfterItClosesOnStandardErrorAndNoneInTheFile(): Promise<void> {
+    await MainProcessLogTests.runAsync(async (folder, directory) => {
+      const process = new FakeMainProcessEnvironment("linux");
+      const log = new MainProcessLog(directory, process.errorOutput, new DiagnosticRedactor(folder), () => MainProcessLogTests.MOMENT);
+      await log.openAsync();
+      log.write("Before the close.");
+
+      await log.closeAsync();
+      log.write("After the close.");
+      log.writeKept("Kept after the close.");
+      log.writeShared("Shared after the close.");
+
+      const stamp = "2026-10-02T23:40:01.250Z";
+      Assert.areEqual(`${stamp} Before the close.\n`, await readFile(directory.mainProcessLog, "utf8"));
+      Assert.areEqual([
+        `${stamp} Before the close.\n`,
+        `${stamp} After the close.\n`,
+        `${stamp} Kept after the close.\n`,
+        `${stamp} Shared after the close.\n`,
+        `${stamp} The main process's log could not be written, so its records go to standard error only: LogFileClosedException: The log ${path.join("~", "data", "logs", "main.log")} is closed, so the line was not written.\n`
+      ].join(String.empty), process.errors);
+    });
+  }
+
   private static async runAsync(test: (folder: string, directory: DataDirectory) => Promise<void>): Promise<void> {
     const folder = await mkdtemp(path.join(os.tmpdir(), "desktop-main-process-log-"));
     try {

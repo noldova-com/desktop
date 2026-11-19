@@ -121,6 +121,32 @@ export declare class DataDirectoryOwnedException extends RuntimeException {
 }
 
 /**
+ * The exception thrown when a line is given to a log after it was closed, so the line is refused rather than lost
+ * without a trace.
+ */
+export declare class LogFileClosedException extends RuntimeException {
+  /**
+   * The absolute path of the closed log.
+   */
+  public readonly file: string;
+
+  /**
+   * Creates the exception.
+   *
+   * @param file The absolute path of the closed log.
+   * @example
+   * ```ts
+   * import { LogFileClosedException } from "@noldova/desktop.runtime";
+   *
+   * export function fail(): never {
+   *   throw new LogFileClosedException("/data/logs/app.log");
+   * }
+   * ```
+   */
+  public constructor(file: string);
+}
+
+/**
  * The category of the exceptions thrown when discovery metadata is malformed or has an
  * unsupported format version: {@link DiscoveryUnreadableException},
  * {@link DiscoveryVersionUnsupportedException}, {@link DiscoveryNotObjectException} and
@@ -1846,6 +1872,7 @@ export declare class LogFile {
   /**
    * Starts an empty file. The existing file, if there is one, becomes the previous file, replacing it. When it cannot, the failure is thrown and the existing file keeps what it holds.
    *
+   * @throws {LogFileClosedException} Thrown once the log is closed.
    * @throws {Error} Thrown when the existing file cannot become the previous file or the file cannot be written.
    * @example
    * ```ts
@@ -1863,6 +1890,7 @@ export declare class LogFile {
    * writes them, then this one. When it would take the file over its size limit, the file first becomes the previous file.
    *
    * @param line The line from {@link LogFile.format}.
+   * @throws {LogFileClosedException} Thrown once the log is closed.
    * @throws {Error} Thrown when the file cannot become the previous file, in which case it keeps what it holds, or cannot be written.
    * @example
    * ```ts
@@ -1882,6 +1910,7 @@ export declare class LogFile {
    *
    * @param line The line from {@link LogFile.format}.
    * @returns A promise that settles once the line is written; the caller handles its rejection.
+   * @throws {LogFileClosedException} Rejected once the log is closed.
    * @throws {Error} Rejected when the file cannot become the previous file, in which case it keeps what it holds, or cannot be written; later lines are still tried.
    * @example
    * ```ts
@@ -1925,6 +1954,23 @@ export declare class LogFile {
    * ```
    */
   public flushAsync(): Promise<void>;
+
+  /**
+   * Closes the log: writes the lines still waiting at once, as {@link LogFile.flush} does, then waits until the file is
+   * no longer open, a write already under way included, so the folder that holds it can be removed. Once closed, the
+   * log refuses every line with a {@link LogFileClosedException}.
+   *
+   * @returns A promise that resolves once the file is closed; it never rejects.
+   * @example
+   * ```ts
+   * import type { LogFile } from "@noldova/desktop.runtime";
+   *
+   * export async function endAsync(log: LogFile): Promise<void> {
+   *   await log.closeAsync();
+   * }
+   * ```
+   */
+  public closeAsync(): Promise<void>;
 }
 
 /**
@@ -10033,6 +10079,81 @@ export declare class PseudoTerminalExit {
 }
 
 /**
+ * The process group that holds a pseudo-terminal, with its leader's program
+ * and command line and the terminal program's own, read in one step, so a
+ * module can tell whether a command's process has started its program or is
+ * still the copy of the shell that forked it.
+ */
+export declare class ForegroundProcess {
+  /**
+   * The id of the process group that holds the terminal, which is also its
+   * leader's process id.
+   */
+  public readonly group: number;
+
+  /**
+   * The group leader's program, or `null` when the leader exited before it
+   * was read: on Linux the path its `/proc/<pid>/exe` link resolves to, and
+   * on macOS its `comm`, as `ps` shows it.
+   */
+  public readonly program: string | null;
+
+  /**
+   * The group leader's command line, its arguments joined by spaces, or
+   * `null` when the leader exited before it was read: on Linux from
+   * `/proc/<pid>/cmdline`, and on macOS its `args`, as `ps` shows them.
+   */
+  public readonly commandLine: string | null;
+
+  /**
+   * The terminal program's own program, read the same way and in the same
+   * step.
+   */
+  public readonly terminalProgram: string;
+
+  /**
+   * The terminal program's own command line, read the same way and in the
+   * same step.
+   */
+  public readonly terminalCommandLine: string;
+
+  /**
+   * Creates the foreground process.
+   *
+   * @param group The id of the process group that holds the terminal.
+   * @param program The group leader's program, or `null`.
+   * @param commandLine The group leader's command line, or `null`.
+   * @param terminalProgram The terminal program's own program.
+   * @param terminalCommandLine The terminal program's own command line.
+   * @example
+   * ```ts
+   * import { ForegroundProcess } from "@noldova/desktop.runtime";
+   *
+   * export function atPrompt(processId: number): ForegroundProcess {
+   *   return new ForegroundProcess(processId, "/usr/bin/bash", "/bin/bash -i", "/usr/bin/bash", "/bin/bash -i");
+   * }
+   * ```
+   */
+  public constructor(group: number, program: string | null, commandLine: string | null, terminalProgram: string, terminalCommandLine: string);
+
+  /**
+   * Whether the group leader has the terminal's own program and command
+   * line: the program itself at its prompt, or a copy of it that hasn't yet
+   * started a command's program. On Linux the programs are compared as the
+   * system resolves them, so `/bin/bash` and `/usr/bin/bash` through a link
+   * are one program; on macOS as `ps` shows them. A command that runs the
+   * terminal's own program, such as `bash x.sh` at a Bash prompt, has its
+   * own command line, so it doesn't count. A copy that never starts another
+   * program, such as a subshell `( … )` or a part of a pipeline that runs
+   * the shell's own code, like `while …; done | tee log`, counts for its whole
+   * run, and so does a command run with exactly the terminal's own command
+   * line. False when the leader exited before it was read, or, on Linux,
+   * when the system won't let the module read its program, as for `sudo`.
+   */
+  public get isTerminalProgram(): boolean;
+}
+
+/**
  * A program the runtime started for a module in a pseudo-terminal.
  */
 export declare class PseudoTerminal {
@@ -10066,6 +10187,10 @@ export declare class PseudoTerminal {
    * @param readForegroundGroupAsync Reads the foreground process group of the
    * terminal of the process with the given id and start, or null when that
    * process is no longer the program; by default it answers null.
+   * @param readForegroundAsync Reads the same group with its leader's and the
+   * terminal program's own program and command line, or null when there's no
+   * group; by
+   * default it answers null.
    * @example
    * ```ts
    * import { type IPseudoTerminalHandle, PseudoTerminal } from "@noldova/desktop.runtime";
@@ -10079,7 +10204,8 @@ export declare class PseudoTerminal {
    * ```
    */
   public constructor(handle: IPseudoTerminalHandle, program: string, started: Date, stop: (terminal: PseudoTerminal) => Promise<boolean>,
-    readForegroundGroupAsync?: (processId: number, started: Date) => Promise<number | null>);
+    readForegroundGroupAsync?: (processId: number, started: Date) => Promise<number | null>,
+    readForegroundAsync?: (processId: number, started: Date) => Promise<ForegroundProcess | null>);
 
   /**
    * The program's process id, which on Windows node-pty knows only once the
@@ -10121,6 +10247,50 @@ export declare class PseudoTerminal {
    * ```
    */
   public readForegroundProcessGroupAsync(): Promise<number | null>;
+
+  /**
+   * Reads the terminal's foreground process group as
+   * {@link readForegroundProcessGroupAsync} does, with its leader's program
+   * and command line and the terminal program's own in the same read: on
+   * Linux each one's `/proc/<pid>/exe` link and `/proc/<pid>/cmdline`, and on
+   * macOS the `comm` and then the `args` that `ps -o pid=,comm=` and
+   * `ps -o pid=,args=` show for both. Each program is read before its command
+   * line, so a copy that starts a command's program between the two reads
+   * reads as started. A shell gives a command's new process group the terminal right
+   * after it forks, before the command's program starts, so for a moment the
+   * group's leader is a copy of the shell, with the shell's own handling of
+   * Ctrl+C; a module can wait, before it sends one, until
+   * {@link ForegroundProcess.isTerminalProgram} is false, for a bounded time:
+   * a copy that never starts another program, such as a subshell or a part
+   * of a pipeline that runs shell code, reads true for its whole run, so once
+   * the bound passes the module sends Ctrl+C anyway.
+   *
+   * @returns The group with the programs; null on Windows, once the program
+   * has exited, when the process id is no longer the program's, while no
+   * group holds the terminal, and for a pseudo-terminal built without the
+   * reader. The leader's program and command line are null when the leader
+   * exited between the reads; on Linux, each is also null when the system
+   * won't let the module read it, as for `sudo`, `su` or `ping`, or the
+   * leader has exited but isn't yet reaped.
+   * @throws {SystemCommandException} When the group or the terminal
+   * program's own program cannot be read while it runs, as when `ps` doesn't
+   * answer within 1 second, or the leader's cannot for another reason.
+   * @example
+   * ```ts
+   * import type { PseudoTerminal } from "@noldova/desktop.runtime";
+   *
+   * export async function interruptAsync(terminal: PseudoTerminal, boundMilliseconds: number): Promise<void> {
+   *   const deadline = Date.now() + boundMilliseconds;
+   *   let foreground = await terminal.readForegroundProcessAsync();
+   *   while (foreground !== null && foreground.isTerminalProgram && foreground.group !== terminal.processId && Date.now() < deadline) {
+   *     await new Promise(resolve => setTimeout(resolve, 20));
+   *     foreground = await terminal.readForegroundProcessAsync();
+   *   }
+   *   terminal.write(String.fromCharCode(3));
+   * }
+   * ```
+   */
+  public readForegroundProcessAsync(): Promise<ForegroundProcess | null>;
 
   /**
    * Calls the listener with each piece of the program's output. The first

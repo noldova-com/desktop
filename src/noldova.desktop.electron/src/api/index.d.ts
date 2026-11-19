@@ -1039,7 +1039,8 @@ export declare class AppImageHandoff implements IUpdateHandoff {
 
 /**
  * The one-time move of a macOS app that names an install folder, from `/Applications/<Product>.app`, where an earlier
- * release installed it, into `/Applications/<Folder>/<Product>.app`. The data folder stays where it is.
+ * release installed it, into `/Applications/<Folder>/<Product>.app`, and the removal of a second copy a person installed in
+ * the home folder's Applications. The data folder stays where it is.
  */
 export declare class InstallFolderMove {
   /**
@@ -1067,10 +1068,13 @@ export declare class InstallFolderMove {
    * `ditto` beside the target under a name unique to this process and renames it into place, which fails rather than
    * nesting when the target appeared meanwhile, moves the old copy to the Trash, starts the copy in the folder with the
    * same arguments and exits. When the folder already holds the app, with the same bundle id and a version as new or
-   * newer, it moves the old copy to the Trash and starts that one; any other bundle there is left alone, and so is this
+   * newer than this copy's release version, it moves the old copy to the Trash and starts that one; any other bundle there is left alone, and so is this
    * copy. Where it can't write the folder, it removes its unfinished copy, logs why and keeps running where it is.
    * Before it copies, it removes the unfinished copies, `.<process id>-<Product>.app`, that processes which are gone left
-   * in the folder, and logs any it can't remove.
+   * in the folder, and logs any it can't remove. When the app runs from `/Applications/<Folder>/<Product>.app` itself, it
+   * moves a copy in `$HOME/Applications/<Folder>/<Product>.app` to the Trash when that copy has the same bundle id and a
+   * release version as old or older, logs and leaves any other or one whose path resolves anywhere but itself, and keeps
+   * running.
    *
    * @param isPackaged Whether this is a packaged build; a development build never moves.
    * @param productName The product's name, that of its `.app` bundle.
@@ -4730,6 +4734,24 @@ export interface IMainProcessLog {
    * ```
    */
   flush(): void;
+
+  /**
+   * Closes the log's file, when the log has one, before the main process exits: it resolves only once no write still
+   * holds the file open. A line written afterwards still reaches standard error but no longer the file.
+   *
+   * @returns A promise that resolves once the file is closed; it never rejects.
+   * @example
+   * ```ts
+   * import type { IMainProcessLog } from "@noldova/desktop.electron";
+   *
+   * export async function closeAndExitAsync(log: IMainProcessLog, exit: () => void): Promise<void> {
+   *   log.flush();
+   *   await log.closeAsync?.();
+   *   exit();
+   * }
+   * ```
+   */
+  closeAsync?(): Promise<void>;
 }
 
 /**
@@ -10957,6 +10979,22 @@ export declare class MainProcessLog implements IMainProcessLog {
    * ```
    */
   public flush(): void;
+
+  /**
+   * Closes the file once the lines still waiting are written and no write still holds it open, as when the main process
+   * exits. A line written afterwards still reaches standard error but no longer the file.
+   *
+   * @returns A promise that resolves once the file is closed; it never rejects.
+   * @example
+   * ```ts
+   * import type { MainProcessLog } from "@noldova/desktop.electron";
+   *
+   * export async function finishAsync(log: MainProcessLog): Promise<void> {
+   *   await log.closeAsync();
+   * }
+   * ```
+   */
+  public closeAsync(): Promise<void>;
 }
 
 /**

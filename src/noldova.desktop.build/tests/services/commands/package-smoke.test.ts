@@ -509,8 +509,8 @@ export class PackageSmokeTests {
     ].join(String.empty), PackageSmokeTests.withoutTimes(result.output));
     Assert.isTrue(result.output.includes(` s: ${program}\n`), result.output);
     Assert.areEqual(`${SmokeRunnerFixture.SLUG} --device-dir=${path.join(result.folder, "device")} --data-dir=${result.data} --no-sandbox`, runner.started.join("|"));
-    Assert.isTrue(runner.captured.includes(`sudo --non-interactive apt-get install --yes ${file}`), runner.captured.join("\n"));
-    Assert.areEqual(1, runner.captured.filter(t => t === "sudo --non-interactive apt-get remove --yes sample-app").length);
+    Assert.isTrue(runner.captured.includes(`sudo --non-interactive apt-get -o DPkg::Lock::Timeout=60 install --yes ${file}`), runner.captured.join("\n"));
+    Assert.areEqual(1, runner.captured.filter(t => t === "sudo --non-interactive apt-get -o DPkg::Lock::Timeout=60 remove --yes sample-app").length);
     Assert.isFalse(runner.captured.some(t => t.startsWith("unshare") || t.startsWith(`${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-linux-x64.AppImage`)), runner.captured.join("\n"));
     Assert.isFalse(existsSync(runner.debianFolder));
     Assert.isFalse(existsSync(result.folder));
@@ -548,7 +548,7 @@ export class PackageSmokeTests {
 
     const result = await PackageSmokeTests.smokeAsync(app, parent.path, "linux", runner, ["--deb"]);
 
-    const error = new BuildException(Resources.formatProcessFailed("sudo", ["--non-interactive", "apt-get", "remove", "--yes", SmokeRunnerFixture.SLUG], 100, "locked"));
+    const error = new BuildException(Resources.formatProcessFailed("sudo", ["--non-interactive", "apt-get", ...Resources.aptGetRemoveArguments, SmokeRunnerFixture.SLUG], 100, "locked"));
     Assert.areEqual(1, result.exitCode);
     Assert.isTrue(result.output.endsWith(Resources.formatSmokeCleanUpFailed([Resources.formatSmokeSystemInstallNotRemoved(SmokeRunnerFixture.SLUG, error)])), result.output);
     Assert.isFalse(existsSync(result.folder));

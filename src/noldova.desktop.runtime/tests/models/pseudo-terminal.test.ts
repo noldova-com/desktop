@@ -11,7 +11,7 @@ import { constants } from "node:os";
 import "@noldova/context.core";
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { PseudoTerminal } from "@noldova/desktop.runtime";
+import { ForegroundProcess, PseudoTerminal } from "@noldova/desktop.runtime";
 
 import { PseudoTerminalHandleFixture } from "../fixtures/pseudo-terminal-handle.fixture.js";
 
@@ -149,6 +149,43 @@ export class PseudoTerminalTests {
     const reading = terminal.readForegroundProcessGroupAsync();
     handle.exit({ exitCode: 0 });
     answer(4_210);
+
+    Assert.isNull(await reading);
+  }
+
+  @TestMethod
+  public async readsTheForegroundProcessOfItsProgramsTerminalAndNullWithoutAReaderOrOnceTheProgramExited(): Promise<void> {
+    const handle = new PseudoTerminalHandleFixture();
+    const asked: string[] = [];
+    const foreground = new ForegroundProcess(4_388, "/usr/bin/sleep", "sleep 600", "/usr/bin/bash", "/bin/bash -i");
+    const terminal = new PseudoTerminal(handle, "/bin/bash", new Date(0), async () => true, async () => 4_388, async (t, u) => {
+      asked.push(`${t} ${u.toISOString()}`);
+      return foreground;
+    });
+    const unread = PseudoTerminalTests.create(new PseudoTerminalHandleFixture());
+
+    const running = await terminal.readForegroundProcessAsync();
+    const withoutReader = await unread.readForegroundProcessAsync();
+    handle.exit({ exitCode: 0 });
+    const exited = await terminal.readForegroundProcessAsync();
+
+    Assert.isTrue(running === foreground);
+    Assert.isNull(withoutReader);
+    Assert.isNull(exited);
+    Assert.areEqual("4210 1970-01-01T00:00:00.000Z", asked.join(","));
+  }
+
+  @TestMethod
+  public async answersNullForAForegroundProcessReadWhileTheProgramExited(): Promise<void> {
+    const handle = new PseudoTerminalHandleFixture();
+    let answer: (foreground: ForegroundProcess | null) => void = () => undefined;
+    const terminal = new PseudoTerminal(handle, "/bin/bash", new Date(0), async () => true, async () => null, () => new Promise<ForegroundProcess | null>(resolve => {
+      answer = resolve;
+    }));
+
+    const reading = terminal.readForegroundProcessAsync();
+    handle.exit({ exitCode: 0 });
+    answer(new ForegroundProcess(4_210, "/usr/bin/bash", "/bin/bash -i", "/usr/bin/bash", "/bin/bash -i"));
 
     Assert.isNull(await reading);
   }

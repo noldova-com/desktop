@@ -95,7 +95,7 @@ describe("package-app.yml's Linux steps", () => {
     const result = await runAsync(LIBFUSE, libfuseFakes(true), true);
 
     assert.equal(result.status, 0);
-    assert.deepEqual(result.calls.filter(t => t.startsWith("sudo")), ["sudo apt-get remove -y libfuse2"]);
+    assert.deepEqual(result.calls.filter(t => t.startsWith("sudo")), ["sudo apt-get -o DPkg::Lock::Timeout=60 remove -y libfuse2"]);
   });
 
   it("passes without sudo on a self-hosted runner without libfuse2", async () => {

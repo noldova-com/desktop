@@ -29,6 +29,7 @@ import { FailingLoadElectron } from "../fixtures/failing-load-electron.fixture.j
 import { FailingLoadWindow } from "../fixtures/failing-load-window.fixture.js";
 import { FakeDeviceFiles } from "../fixtures/fake-device-files.fixture.js";
 import { FakeDeviceChooserContents } from "../fixtures/fake-device-chooser-contents.fixture.js";
+import { HeldCloseFixture } from "../fixtures/held-close.fixture.js";
 import { FakeDeviceIdentity } from "../fixtures/fake-device-identity.fixture.js";
 import { FakeElectron } from "../fixtures/fake-electron.fixture.js";
 import { FakePathCommand } from "../fixtures/fake-path-command.fixture.js";
@@ -41,6 +42,7 @@ import { TrayFixture } from "../fixtures/tray.fixture.js";
 export class MainProcessTests {
   private static readonly IF_IDLE: object = { policy: "IfIdle", keepsWhileShared: true };
   private static readonly WINDOWS: string = "desktop.appWindowsChanged";
+  private static readonly QUIT_ANSWER: number = 2;
   private static readonly SHORTCUTS: string = "desktop.appShortcutsChanged";
   private static readonly MAC_KEYS: readonly JsonObject[] = ["Mod+Q", "Mod+H", "Mod+Alt+H", "Mod+M", "Mod+Shift+W"].map(t => ({ key: t, command: null, isGlobal: false }));
 
@@ -1915,6 +1917,8 @@ export class MainProcessTests {
       Assert.isTrue(process.errors.includes("main-process.test"), "the log keeps the error's stack");
       Assert.areEqual(JSON.stringify([null, null]), JSON.stringify(electron.dialog.boxes.map(t => t.windowId)));
       Assert.areEqual(JSON.stringify([join(data, "logs")]), JSON.stringify(electron.shell.opened));
+      electron.dialog.pendingBoxes[0]?.({ response: MainProcessTests.QUIT_ANSWER, checkboxChecked: false });
+      await MainProcessTests.exitAsync(electron, process);
     }
     finally {
       await rm(data, { recursive: true, force: true });
@@ -1937,6 +1941,37 @@ export class MainProcessTests {
       await Condition.waitAsync(() => electron.app.calls.includes("exit 0"));
 
       Assert.areEqual(1, process.programs.stops);
+    }
+    finally {
+      await rm(data, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  public async exitsAfterAMainProcessFailureOnlyOnceItsLogNoLongerHoldsItsFileOpen(): Promise<void> {
+    const data = await mkdtemp(join(tmpdir(), "desktop-main-process-"));
+    try {
+      using closes = new HeldCloseFixture(data);
+      const process = new FakeMainProcessEnvironment("linux", [`--data-dir=${data}`]);
+      const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(), new FakeElectron(), new FakeDeviceIdentity(), process);
+      await Condition.waitAsync(() => existsSync(join(data, "logs", "main.log")));
+      electron.dialog.answers.push(MainProcessTests.QUIT_ANSWER);
+      closes.holdNext();
+      let openAtExit = -1;
+      electron.app.exiting = () => {
+        openAtExit = closes.openCount;
+      };
+
+      for (const listener of process.exceptionListeners)
+        listener(new Error("The pipe broke."));
+      await closes.heldAsync();
+      await Condition.waitAsync(() => process.errors.includes(" chose Quit."));
+      const hasExitedWhileOpen = electron.app.calls.includes("exit 0");
+      closes.release();
+      await Condition.waitAsync(() => electron.app.calls.includes("exit 0"));
+
+      Assert.isFalse(hasExitedWhileOpen);
+      Assert.areEqual(0, openAtExit);
     }
     finally {
       await rm(data, { recursive: true, force: true });
@@ -1983,13 +2018,15 @@ export class MainProcessTests {
       electron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), { background: "red" });
       refusedElectron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), { background: "red" });
       await Condition.waitAsync(() => MainProcessStartFixture.firstWindow(refusedElectron).isShown);
-      await Condition.waitAsync(() => readFileSync(join(owned, "logs", "main.log"), "utf8").includes(" The window reported"));
+      const log = join(owned, "logs", "main.log");
+      await Condition.waitAsync(() => existsSync(log) && readFileSync(log, "utf8").includes(" The window reported"));
 
-      const lines = (await readFile(join(owned, "logs", "main.log"), "utf8")).trimEnd().split("\n");
+      const lines = (await readFile(log, "utf8")).trimEnd().split("\n");
       Assert.areEqual(1, lines.length);
       Assert.isTrue(/^\d{4}-\d\d-\d\dT[\d:.]+Z The window reported an appearance that is not valid/.test(lines[0] ?? String.empty));
       Assert.isFalse(existsSync(join(refused, "logs")));
       Assert.areEqual(1, MainProcessStartFixture.readErrors(refusedProcess, "The window reported").length);
+      await MainProcessTests.exitAsync(electron, ownedProcess);
     }
     finally {
       await rm(data, { recursive: true, force: true });
@@ -2005,7 +2042,8 @@ export class MainProcessTests {
       const looping = new FakeElectron();
       looping.dialog.answers.push(0, 0);
       await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(), quitting);
-      await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(), looping, new FakeDeviceIdentity(), new FakeMainProcessEnvironment("linux", [`--data-dir=${data}`]));
+      const loopingProcess = new FakeMainProcessEnvironment("linux", [`--data-dir=${data}`]);
+      await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(), looping, new FakeDeviceIdentity(), loopingProcess);
 
       MainProcessStartFixture.firstWindow(quitting).webContents.crashed = true;
       MainProcessStartFixture.firstWindow(quitting).webContents.goAway("crashed", 5);
@@ -2017,6 +2055,7 @@ export class MainProcessTests {
       Assert.areEqual(1, quitting.app.calls.filter(t => t === "quit").length);
       Assert.areEqual(JSON.stringify([join(data, "logs")]), JSON.stringify(looping.shell.opened));
       Assert.areEqual(0, looping.app.calls.filter(t => t === "quit").length);
+      await MainProcessTests.exitAsync(looping, loopingProcess);
     }
     finally {
       await rm(data, { recursive: true, force: true });
@@ -2228,6 +2267,20 @@ export class MainProcessTests {
     return connection.payloads.filter((_t, u) => connection.calls[u] === "desktop.stop");
   }
 
+  private static async exitAsync(electron: FakeElectron, process: FakeMainProcessEnvironment): Promise<void> {
+    if (!MainProcessTests.hasExited(electron)) {
+      electron.dialog.answers.splice(0, electron.dialog.answers.length, MainProcessTests.QUIT_ANSWER);
+      for (const listener of process.exceptionListeners)
+        listener(new Error("The test is over."));
+      await electron.app.becomeReadyAsync();
+    }
+    await Condition.waitAsync(() => MainProcessTests.hasExited(electron));
+  }
+
+  private static hasExited(electron: FakeElectron): boolean {
+    return electron.app.calls.some(t => t.startsWith("exit "));
+  }
+
   private static quitQuestions(window: FakeMainProcessWindow): unknown[] {
     return window.webContents.sent.filter(t => t[0] === "desktop:quitQuestion").map(t => t[1]);
   }
@@ -2257,6 +2310,7 @@ export class MainProcessTests {
       const electron = await MainProcessStartFixture.startReadyAsync("linux", launcher, new FakeElectron(), new FakeDeviceIdentity(), process);
       await Condition.waitAsync(() => existsSync(join(data, "logs", "main.log")));
       await test(data, launcher, electron, process);
+      await MainProcessTests.exitAsync(electron, process);
     }
     finally {
       await rm(data, { recursive: true, force: true });

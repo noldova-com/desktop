@@ -802,6 +802,8 @@ export class Resources {
   public static readonly appBundleExtension: string = ".app";
   public static readonly bundleFromProgramSegments: readonly string[] = ["..", "..", ".."];
   public static readonly macApplicationsFolder: string = "/Applications";
+  public static readonly macHomeApplicationsFolder: string = "Applications";
+  public static readonly homeVariable: string = "HOME";
   public static readonly installFolderStagingPrefix: string = ".";
   public static readonly dittoProgram: string = "/usr/bin/ditto";
   public static readonly installFolderStagingSeparator: string = "-";
@@ -1069,6 +1071,18 @@ export class Resources {
 
   public static formatInstallFolderTargetUnread(bundle: string, target: string, reason: string): string {
     return `${bundle} stays where it is, since ${target} already exists and could not be read: ${reason}`;
+  }
+
+  public static formatInstallFolderHomeCopyTrashed(copy: string, target: string): string {
+    return `${target} holds the app, as new as ${copy} or newer, so the copy in the home folder's Applications was moved to the Trash.`;
+  }
+
+  public static formatInstallFolderHomeCopyLinked(copy: string, target: string, resolved: string): string {
+    return `${copy} stays where it is, since it is not a copy of its own beside ${target}: it resolves to ${resolved}.`;
+  }
+
+  public static formatInstallFolderHomeCopyKept(copy: string, target: string, reason: string): string {
+    return `${target} holds the app, but the copy in the home folder's Applications, ${copy}, could not be moved to the Trash: ${reason}`;
   }
 
   public static formatInstallFolderStagingLeft(staging: string, reason: string): string {

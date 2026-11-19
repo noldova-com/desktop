@@ -19,12 +19,11 @@ export class ReleaseNotes {
       throw new BuildException(Resources.formatReleaseRunInvalid(runUrl));
     const name = product.name;
     const ciOnly = targets.filter(t => !supported.some(u => u.id === t.id));
-    const paragraphs = [
-      Resources.formatReleaseSummary(name, request.version.text, ReleaseNotes.formatTargets(targets), ReleaseNotes.describeSigning(signed)),
-      supported.length === 0
-        ? Resources.releaseNoneSupported
-        : Resources.formatReleaseSupported(ReleaseNotes.formatTargets(supported), ciOnly.length === 0 ? null : ReleaseNotes.formatTargets(ciOnly))
-    ];
+    const paragraphs = [Resources.formatReleaseSummary(name, request.version.text, ReleaseNotes.formatTargets(targets), ReleaseNotes.describeSigning(signed))];
+    if (supported.length === 0)
+      paragraphs.push(Resources.releaseNoneSupported);
+    else if (ciOnly.length > 0)
+      paragraphs.push(Resources.formatReleaseCiOnly(ReleaseNotes.formatTargets(ciOnly)));
     if (!request.isBuiltApart)
       paragraphs.push(Resources.formatReleaseRunCheck(runUrl));
     if (request.isSeparate)

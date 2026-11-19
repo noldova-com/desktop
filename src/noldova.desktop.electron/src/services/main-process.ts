@@ -358,8 +358,9 @@ export class MainProcess {
       return;
     }
     app.releaseSingleInstanceLock();
-    void relaunch.startAsync(() => app.whenReady()).then(() => {
+    void relaunch.startAsync(() => app.whenReady()).then(async () => {
       this.options.log.flush();
+      await this.options.log.closeAsync();
       app.exit(Resources.quitExitCode);
     }, (error: unknown) => this.stayInTerminal(error));
   }
@@ -552,7 +553,7 @@ export class MainProcess {
     this.startup.close();
     this.release();
     this.options.log.flush();
-    this.options.electron.app.exit(Resources.quitExitCode);
+    void this.options.log.closeAsync().then(() => this.options.electron.app.exit(Resources.quitExitCode));
   }
 
   private release(): void {

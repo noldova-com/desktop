@@ -19,13 +19,17 @@ export class ClosePatchFixture implements Disposable {
   private readonly failure: NodeJS.ErrnoException | null;
 
   public calls: number = 0;
+  public closed: number = 0;
 
   public constructor(failure: NodeJS.ErrnoException | null) {
     const close = fs.close;
     this.failure = failure;
     const replaced = mock.method(fs, "close", (handle: number, callback: CloseCallback): void => {
       this.calls++;
-      close(handle, error => callback(this.failure ?? error));
+      close(handle, error => {
+        this.closed++;
+        callback(this.failure ?? error);
+      });
     });
     this.restore = () => replaced.mock.restore();
     syncBuiltinESMExports();

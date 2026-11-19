@@ -952,6 +952,13 @@ export class Resources {
   public static readonly shimOneLinePattern: RegExp = /^@"%~dp0\\([^"%]+)" %\*$/;
   public static readonly shimProgramLinePattern: RegExp = /^"%dp0%\\([^"%]+)" %\*$/;
   public static readonly processStatFile: string = "stat";
+  public static readonly processExecutableFile: string = "exe";
+  public static readonly processCommandLineFile: string = "cmdline";
+  public static readonly processArgumentSeparator: string = String.fromCharCode(0);
+  public static readonly processArgumentsEndPattern: RegExp = /\u0000$/u;
+  public static readonly processIdListSeparator: string = ",";
+  public static readonly unreadableLeaderErrorCodes: readonly string[] = ["EACCES", "EPERM", "ENOENT"];
+  public static readonly unreadProgram: readonly [null, null] = [null, null];
   public static readonly processStatFieldSeparator: string = " ";
   public static readonly processNameEnd: string = ")";
   public static readonly processStatFields: readonly number[] = [1, 2, 4, 19];
@@ -963,6 +970,9 @@ export class Resources {
   public static readonly foregroundGroupEnvironment: Readonly<Record<string, string>> = { LC_ALL: "C" };
   public static readonly foregroundGroupTimeoutMilliseconds: number = 1_000;
   public static readonly foregroundGroupStatusPattern: RegExp = /^([A-Z][a-z]{2} [A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4}) +(-?\d+)$/;
+  public static readonly foregroundProgramArguments: readonly string[] = ["-o", "pid=,comm=", "-p"];
+  public static readonly foregroundCommandLineArguments: readonly string[] = ["-o", "pid=,args=", "-p"];
+  public static readonly foregroundRowPattern: RegExp = /^ *(\d+) (.*)$/u;
   public static readonly secondMilliseconds: number = 1_000;
   public static readonly processReadBatch: number = 64;
   public static readonly processSkippedCodes: readonly string[] = ["ENOENT", "ESRCH", "EACCES", "EPERM"];
@@ -1330,6 +1340,10 @@ export class Resources {
 
   public static formatDiscoveryUnreadable(file: string, reason: string): string {
     return `The discovery file ${file} is not valid: ${reason}`;
+  }
+
+  public static formatLogFileClosed(file: string): string {
+    return `The log ${file} is closed, so the line was not written.`;
   }
 
   public static formatOwned(productName: string, root: string): string {

@@ -162,6 +162,10 @@ export class Resources {
   public static readonly pkgutilExpandFullOption: string = "--expand-full";
   public static readonly installerPayloadFolder: string = "Payload";
   public static readonly installerExpandedFolder: string = "expanded";
+  public static readonly installerDistributionFile: string = "Distribution";
+  public static readonly installerDomainsPattern: RegExp = /<domains\b[^>]*>/gu;
+  public static readonly xmlAttributePattern: RegExp = /([\w:-]+)\s*=\s*"([^"]*)"/gu;
+  public static readonly macInstallerDomains: ReadonlyMap<string, string> = new Map([["enable_anywhere", "false"], ["enable_currentUserHome", "false"], ["enable_localSystem", "true"]]);
   public static readonly appleDeveloperIdInstallerPattern: RegExp = /^\s*1\. Developer ID Installer: /m;
   public static readonly appleDeveloperIdInstallerRequirement: string = "a Developer ID Installer signature";
   public static readonly spctlDiskImageAssessment: readonly string[] = [Resources.spctlTypeOption, "open", "--context", "context:primary-signature"];
@@ -1274,8 +1278,9 @@ export class Resources {
   public static readonly installerPackageInfoFromApp: readonly string[] = ["..", "..", "PackageInfo"];
   public static readonly sudoNonInteractiveOption: string = "--non-interactive";
   public static readonly aptGetCommand: string = "apt-get";
-  public static readonly aptGetInstallArguments: readonly string[] = ["install", "--yes"];
-  public static readonly aptGetRemoveArguments: readonly string[] = ["remove", "--yes"];
+  public static readonly aptGetLockWaitSeconds: number = 60;
+  public static readonly aptGetInstallArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "install", "--yes"];
+  public static readonly aptGetRemoveArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "remove", "--yes"];
   public static readonly aptGetSimulateArguments: readonly string[] = ["--simulate", "install", "--yes"];
   public static readonly aptGetUpdateArguments: readonly string[] = ["update"];
   public static readonly aptGetInstalledPrefix: string = "Inst ";
@@ -1310,6 +1315,8 @@ export class Resources {
   public static readonly smokeNothingLeft: string = "Nothing an earlier run installed was left.";
   public static readonly smokeNoRuntimeExitCode: number = 3;
   public static readonly smokeCommandLimit: number = 30_000;
+  public static readonly timedOutOutputLines: number = 20;
+  public static readonly trailingCarriageReturn: RegExp = /\r$/u;
   public static readonly smokeStartLimit: number = 60_000;
   public static readonly smokeQuitLimit: number = 30_000;
   public static readonly smokeStopLimit: number = 90_000;
@@ -3726,6 +3733,12 @@ export class Resources {
     return `The installer package ${installer} installs elsewhere than ${location}:\n${information}`;
   }
 
+  public static formatMacInstallerDomainsOpen(installer: string, location: string, domains: readonly string[]): string {
+    const found = domains.length === 0 ? "it has no <domains> element" : `it has ${domains.join(" and ")}`;
+    return `The installer package ${installer} must install only into ${location} on the startup disk, with one `
+      + `<domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/> in its Distribution, but ${found}.`;
+  }
+
   public static formatMacNeighbourTouched(neighbour: string): string {
     return `Installing the installer package removed or replaced ${neighbour}, which it must leave beside the app.`;
   }
@@ -4392,9 +4405,8 @@ export class Resources {
     return `${name} ${version} for ${targets}. ${signing}`;
   }
 
-  public static formatReleaseSupported(supported: string, ciOnly: string | null): string {
-    return `Supported after their native acceptance: ${supported}.`
-      + (Object.isNull(ciOnly) ? String.empty : ` Accepted by a CI run only: ${ciOnly}.`);
+  public static formatReleaseCiOnly(ciOnly: string): string {
+    return `Accepted by a CI run only: ${ciOnly}.`;
   }
 
   public static formatReleaseRunCheck(runUrl: string): string {
@@ -4640,8 +4652,14 @@ export class Resources {
     return `"${command}" wrote more than ${Resources.processOutputLimit} bytes.`;
   }
 
-  public static formatProcessTimedOut(command: string, timeout: number): string {
-    return `"${command}" did not finish within ${timeout} ms.`;
+  public static formatProcessTimedOut(command: string, timeout: number, output: string | null): string {
+    const message = `"${command}" did not finish within ${timeout} ms.`;
+    if (Object.isNull(output))
+      return message;
+    const lines = output.split(Resources.lineSeparator).map(t => t.replace(Resources.trailingCarriageReturn, String.empty)).filter(t => t.trim().length > 0)
+      .slice(-Resources.timedOutOutputLines);
+    return lines.length === 0 ? `${message} It wrote nothing before it was stopped.`
+      : `${message} Its last output before it was stopped:${Resources.lineSeparator}${lines.join(Resources.lineSeparator)}`;
   }
 
   public static formatProcessNotStarted(command: string): string {

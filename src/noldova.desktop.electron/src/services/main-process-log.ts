@@ -82,6 +82,11 @@ export class MainProcessLog implements IMainProcessLog {
     this.file.flush();
   }
 
+  public async closeAsync(): Promise<void> {
+    this.isOpen = false;
+    await this.file.closeAsync();
+  }
+
   private append(line: string): void {
     if (this.isOpen)
       void this.file.appendAsync(line).catch((failure: unknown) => this.fail(failure));

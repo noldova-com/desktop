@@ -10,6 +10,7 @@ import { appendFileSync, close, closeSync, fstatSync, open, openSync, readSync, 
 
 import "@noldova/context.core";
 
+import { LogFileClosedException } from "../../exceptions/log-file-closed.exception.js";
 import { SystemErrorCode } from "../../models/system-error-code.js";
 import { Resources } from "../../resources.js";
 import type { DiagnosticRedactor } from "./diagnostic-redactor.js";
@@ -31,6 +32,7 @@ export class LogFile {
   private size: number = 0;
   private landed: number = 0;
   private generation: number = 0;
+  private isClosed: boolean = false;
 
   public constructor(
     file: string,
@@ -58,12 +60,14 @@ export class LogFile {
   }
 
   public open(): void {
+    this.refuseWhenClosed();
     this.flush();
     this.rollOver();
     this.size = 0;
   }
 
   public append(line: string): void {
+    this.refuseWhenClosed();
     this.flush();
     const length = Buffer.byteLength(line);
     if (this.size > 0 && this.size + length > this.limit)
@@ -75,6 +79,8 @@ export class LogFile {
   }
 
   public appendAsync(line: string): Promise<void> {
+    if (this.isClosed)
+      return Promise.reject(new LogFileClosedException(this.file));
     const length = Buffer.byteLength(line);
     const isRollOver = this.size > 0 && this.size + length > this.limit;
     this.size = (isRollOver ? 0 : this.size) + length;
@@ -101,6 +107,17 @@ export class LogFile {
   public async flushAsync(): Promise<void> {
     while (!Object.isNull(this.writing))
       await this.writing;
+  }
+
+  public async closeAsync(): Promise<void> {
+    this.flush();
+    this.isClosed = true;
+    await this.flushAsync();
+  }
+
+  private refuseWhenClosed(): void {
+    if (this.isClosed)
+      throw new LogFileClosedException(this.file);
   }
 
   private writeAtOnce(batch: LogBatch, isRollOver: boolean): void {

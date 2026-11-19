@@ -200,7 +200,7 @@ export class FakeWebViewContents implements IWebViewContents {
       get detached(): boolean {
         return isDetached();
       },
-      isDestroyed: () => false,
+      isDestroyed: () => this.destroyed,
       executeJavaScript: () => this.onFrame(index)
     };
   }
