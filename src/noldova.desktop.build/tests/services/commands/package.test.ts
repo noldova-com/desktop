@@ -722,6 +722,22 @@ export class PackageTests {
   }
 
   @TestMethod
+  public async keepsTheMacOsSigningKeyInTheRunnersTemporaryFolderAndRemovesItAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const temporary = path.join(app.path, "runner-temp");
+    const layout = new PackageLayout(app.path, { RUNNER_TEMP: temporary });
+    const application = path.join(layout.output, "mac", `${PackageTests.PRODUCT_NAME}.app`);
+
+    const result = await PackageTests.buildAsync(app, "darwin", "x64", true, ["--signed"], { ...PackageTests.MAC_CREDENTIALS, RUNNER_TEMP: temporary },
+      (t, u) => new SignedMacBuilderRunnerFixture(t, u, application));
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.areEqual(path.join(temporary, "noldova-package-signing", "notarization-key.p8"), result.environments[0]?.["APPLE_API_KEY"]);
+    Assert.isFalse(existsSync(layout.signing));
+    Assert.isFalse(existsSync(new PackageLayout(app.path).signing));
+  }
+
+  @TestMethod
   public async throwsAFailureThatIsNotThePackagesOwnAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync();
     await mkdir(new PackageLayout(app.path).configuration, { recursive: true });
