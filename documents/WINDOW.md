@@ -14,6 +14,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - The window listens to the preload's events once and converts each event's payload once, however many listen.
   It passes the event to the window's own services that take every event, and to the window parts' listeners of that event's name alone, so every listener of an event gets the same payload.
 - The renderer stays sandboxed and context-isolated, as the organization's Electron standard, `https://github.com/noldova-com/.github/blob/main/standards/stacks/ELECTRON.md`, says.
+- No page gets a web permission: the main process refuses every permission request and check, and turns Web Bluetooth off before ready, by adding `WebBluetooth` to any `--disable-blink-features` value already given, so a page has no `navigator.bluetooth` and the system is never asked for Bluetooth; every web contents also cancels a Bluetooth device choice, with `preventDefault()` and an empty device id.
 - The sandboxed preload loads no file of its own, so the main process hands it, in one `--desktop-preload=` argument, the bridge's name, the limit on pasted bytes, the window's last appearance and each IPC channel's name, all from the electron package's `Resources`; the preload refuses to start without them, and refuses an answer other than `true` or `false` to a question the window asks as yes or no.
 - External content is never rendered as markup that can reach the bridge.
 - The window never navigates away from its page and never opens another window.

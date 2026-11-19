@@ -56,6 +56,16 @@ export class WebViewAttachGuardTests {
   }
 
   @TestMethod
+  public dropsTheWebviewsOwnBlinkFeaturesSoItKeepsTheWindowsOnes(): void {
+    const [guard] = WebViewAttachGuardTests.create();
+    const preferences: IWebViewAttachPreferences = { disableBlinkFeatures: "Auxclick", enableBlinkFeatures: "WebBluetooth", experimentalFeatures: true };
+
+    guard.judge(WebViewAttachGuardTests.WINDOW, false, new FakePreventableEvent(), preferences, { src: "about:blank", partition: WebViewAttachGuardTests.PARTITION });
+
+    Assert.areEqual(JSON.stringify([false, false, false]), JSON.stringify(["disableBlinkFeatures", "enableBlinkFeatures", "experimentalFeatures"].map(t => t in preferences)));
+  }
+
+  @TestMethod
   @TestData("persist:other.workspace-1", "about:blank")
   @TestData(null, "about:blank")
   @TestData(null, "https://example.com/")
