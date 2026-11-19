@@ -46,21 +46,35 @@ export class PackageBuilder {
   }
 
   public async computeAsync(options: unknown): Promise<boolean> {
-    const installFolder = this.installFolder;
-    if (Object.isNull(installFolder) || !Array.isArray(options))
+    if (!Array.isArray(options))
       return false;
     const [packageArguments, desktopFile]: readonly unknown[] = options;
     if (!Array.isArray(packageArguments) || !Object.isString(desktopFile))
       return false;
     const values: unknown[] = packageArguments;
     const index = values.findIndex(t => Object.isString(t) && Resources.debianAppMappingPattern.test(t));
+    if (!Object.isNull(this.installFolder))
+      await PackageBuilder.placeAsync(values, index, desktopFile, this.installFolder);
+    const option = values.indexOf(Resources.fpmPackageOption);
+    const file = option < 0 ? undefined : values[option + 1];
+    if (index >= 0 && Object.isString(file))
+      await PackageBuilder.addPackageTypeAsync(values, String(values[index]), file, desktopFile);
+    return false;
+  }
+
+  private static async placeAsync(values: unknown[], index: number, desktopFile: string, installFolder: string): Promise<void> {
     const entry = await readFile(desktopFile, Resources.textEncoding);
     if (index < 0 || !Resources.debianExecPattern.test(entry))
       throw new BuildException(Resources.formatDebianInstallFolderUnplaced(installFolder, desktopFile));
     values[index] = String(values[index]).replace(Resources.debianAppMappingPattern, (_match: string, source: string, product: string) =>
       `${source}${Resources.formatDebianInstallFolder(installFolder)}/${product}`);
     await writeFile(desktopFile, entry.replace(Resources.debianExecPattern, (_match: string, key: string) => `${key}${Resources.formatDebianInstallFolder(installFolder)}/`));
-    return false;
+  }
+
+  private static async addPackageTypeAsync(values: unknown[], app: string, file: string, desktopFile: string): Promise<void> {
+    const source = Resources.formatPackageTypeSource(desktopFile);
+    await writeFile(source, path.extname(file).slice(1));
+    values.push(Resources.formatPackageTypeMapping(source, app.slice(app.lastIndexOf(Resources.fpmAppMappingSeparator) + Resources.fpmAppMappingSeparator.length)));
   }
 
   private static isBuild(value: unknown): value is (options: IBuilderRun) => Promise<unknown> {

@@ -48,6 +48,7 @@ export { Handshake } from "../models/handshake.js";
 export { KeptRuntime } from "../models/kept-runtime.js";
 export { KeyChord } from "../models/key-chord.js";
 export { KeyName } from "../models/key-name.js";
+export { KeyText } from "../models/key-text.js";
 export { MainWindow } from "../models/main-window.js";
 export { ModuleStatus } from "../models/module-status.js";
 export { ModuleStatusList } from "../models/module-status-list.js";

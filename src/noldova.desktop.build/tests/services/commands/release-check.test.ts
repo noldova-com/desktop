@@ -98,9 +98,37 @@ export class ReleaseCheckTests {
     const other = await ReleaseCheckTests.runAsync(app.path, ReleaseCheckTests.passing(), { ...ReleaseCheckTests.request(ReleaseCheckTests.FORK), RELEASE_VERSION: "1.2.4" });
     const older = await ReleaseCheckTests.runAsync(app.path, released, ReleaseCheckTests.request(ReleaseCheckTests.FORK));
 
-    Assert.areEqual("The root manifest's version is 1.2.3, not 1.2.4; raise it on main first.\n", other.output);
+    Assert.areEqual("The root manifest's version is 1.2.3, not 1.2.4; raise it on main first, or let the release set it.\n", other.output);
     Assert.areEqual("1.2.3 is not newer than the highest release, 1.3.0.\n", older.output);
     Assert.areEqual("1,1", [other.exitCode, older.exitCode].join());
+  }
+
+  @TestMethod
+  public async takesAVersionTheRootManifestDoesNotNameWhenTheReleaseSetsItAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const released = ReleaseCheckTests.passing();
+    released.addRelease("v1.2.3", ReleaseCheckTests.OTHER, false);
+    const request = { ...ReleaseCheckTests.request(ReleaseCheckTests.FORK), RELEASE_VERSION: "1.2.4" };
+
+    const set = await ReleaseCheckTests.runAsync(app.path, ReleaseCheckTests.passing(), { ...request, RELEASE_SETS_VERSION: "true" });
+    const kept = await ReleaseCheckTests.runAsync(app.path, ReleaseCheckTests.passing(), { ...request, RELEASE_SETS_VERSION: "false" });
+    const older = await ReleaseCheckTests.runAsync(app.path, released, { ...ReleaseCheckTests.request(ReleaseCheckTests.FORK), RELEASE_SETS_VERSION: "true" });
+
+    Assert.areEqual(`v1.2.4 of ${ReleaseCheckTests.FORK} from ${ReleaseCheckTests.REVISION}: the version is new, the revision is on main `
+      + "and its Build and test run there passed. Signed platforms: none.\n", set.output);
+    Assert.areEqual("The root manifest's version is 1.2.3, not 1.2.4; raise it on main first, or let the release set it.\n", kept.output);
+    Assert.areEqual("1.2.3 is not newer than the highest release, 1.2.3.\n", older.output);
+    Assert.areEqual("0,1,1", [set.exitCode, kept.exitCode, older.exitCode].join());
+  }
+
+  @TestMethod
+  public async refusesAValueOfTheSetVersionFlagThatIsNotTrueOrFalseAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+
+    const result = await ReleaseCheckTests.runAsync(app.path, ReleaseCheckTests.passing(), { ...ReleaseCheckTests.request(ReleaseCheckTests.FORK), RELEASE_SETS_VERSION: "yes" });
+
+    Assert.areEqual("RELEASE_SETS_VERSION must be true or false, not \"yes\".\n", result.output);
+    Assert.areEqual(1, result.exitCode);
   }
 
   @TestMethod

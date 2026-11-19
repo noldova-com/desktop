@@ -13,8 +13,8 @@ export class ProcessTimeoutException extends BuildException {
   public readonly command: string;
   public readonly timeout: number;
 
-  public constructor(command: string, timeout: number) {
-    super(Resources.formatProcessTimedOut(command, timeout));
+  public constructor(command: string, timeout: number, output: string | null = null) {
+    super(Resources.formatProcessTimedOut(command, timeout, output));
 
     this.command = command;
     this.timeout = timeout;

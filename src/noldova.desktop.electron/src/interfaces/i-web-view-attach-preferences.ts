@@ -9,6 +9,9 @@
 export interface IWebViewAttachPreferences {
   preload?: string;
   preloadURL?: string;
+  disableBlinkFeatures?: string;
+  enableBlinkFeatures?: string;
+  experimentalFeatures?: boolean;
   nodeIntegration?: boolean;
   nodeIntegrationInSubFrames?: boolean;
   nodeIntegrationInWorker?: boolean;

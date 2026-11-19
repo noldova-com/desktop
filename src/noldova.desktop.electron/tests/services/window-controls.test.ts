@@ -12,6 +12,7 @@ import { pathToFileURL } from "node:url";
 import "@noldova/context.core";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 
+import { Condition } from "../fixtures/condition.fixture.js";
 import { MainProcessStartFixture } from "../fixtures/main-process-start.fixture.js";
 import { FakeMainProcessEnvironment } from "../fixtures/fake-main-process-environment.fixture.js";
 import { FakeDeviceIdentity } from "../fixtures/fake-device-identity.fixture.js";
@@ -62,6 +63,8 @@ export class WindowControlsTests {
     Assert.areEqual(false, refused);
     Assert.areEqual(JSON.stringify([true, true, true, false, false, false, false, false, true]), JSON.stringify(answers));
     Assert.areEqual(JSON.stringify(["minimize", "maximize", "unmaximize", "close"]), JSON.stringify(window.calls));
+    await Condition.waitAsync(() => MainProcessStartFixture.closeRequests(window).length === 1);
+    Assert.isTrue(electron.ipcMain.invoke("desktop:closeAnswer", trusted, MainProcessStartFixture.closeRequests(window)[0], false) === true);
   }
 
   @TestMethod

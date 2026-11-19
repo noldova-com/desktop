@@ -53,6 +53,45 @@ export class ShipItProcessTests {
   }
 
   @TestMethod
+  public async findsTheProcessOfAShipItJobInTheSystemDomainWhenTheUsersDomainHasNone(): Promise<void> {
+    const calls: [string, readonly string[]][] = [];
+    const shipIt = new ShipItProcess(ShipItProcessTests.BUNDLE, ShipItProcessTests.createDomainsCommand(calls, ShipItProcessTests.describeSystemJob("\tstate = running\n\tpid = 4600\n")));
+
+    const processId = await shipIt.findAsync();
+
+    Assert.areEqual(4600, processId);
+    Assert.areEqual(JSON.stringify([["/bin/launchctl", ["list"]], ["/bin/launchctl", ["print", "system/com.noldova.desktop.ShipIt"]]]), JSON.stringify(calls));
+  }
+
+  @TestMethod
+  public async findsNoProcessWhenTheSystemDomainsShipItJobIsNotRunningOrMissing(): Promise<void> {
+    const stopped = new ShipItProcess(ShipItProcessTests.BUNDLE, ShipItProcessTests.createDomainsCommand([], ShipItProcessTests.describeSystemJob("\tstate = not running\n")));
+    const missing = new ShipItProcess(ShipItProcessTests.BUNDLE, ShipItProcessTests.createFailedPrintCommand(
+      Object.assign(new Error("Could not find service \"com.noldova.desktop.ShipIt\" in domain for system"), { code: 113 })));
+
+    Assert.isNull(await stopped.findAsync());
+    Assert.isNull(await missing.findAsync());
+  }
+
+  @TestMethod
+  public async reportsASystemDomainJobThatCannotBeReadForAnyReasonButAMissingService(): Promise<void> {
+    const timedOut = new CommandFailedException("/bin/launchctl", Object.assign(new Error("Command failed: /bin/launchctl print"), { killed: true, signal: "SIGTERM", code: null }));
+    const refused = new CommandFailedException("/bin/launchctl", Object.assign(new Error("Bad request."), { code: 5 }));
+    const odd = new Error("The command could not start.");
+    const failures: unknown[] = [];
+
+    for (const failure of [timedOut, refused, odd]) {
+      const shipIt = new ShipItProcess(ShipItProcessTests.BUNDLE, { runAsync: (_file: string, commandArguments: readonly string[]) => commandArguments[0] === "list" ? Promise.resolve("PID\tStatus\tLabel\n") : Promise.reject(failure) });
+      failures.push((await Assert.throwsAsync(() => shipIt.findAsync(), ShipItUnreadableException)).cause);
+    }
+
+    Assert.areEqual(3, failures.length);
+    Assert.areEqual(timedOut, failures[0]);
+    Assert.areEqual(refused, failures[1]);
+    Assert.areEqual(odd, failures[2]);
+  }
+
+  @TestMethod
   public async removesItsJobOnlyWhenItIsListed(): Promise<void> {
     const calls: [string, readonly string[]][] = [];
     const listed = new ShipItProcess(ShipItProcessTests.BUNDLE, ShipItProcessTests.createCommand(calls, ShipItProcessTests.LIST));
@@ -141,6 +180,41 @@ export class ShipItProcessTests {
       String.empty
     ].join("\n"));
     return file;
+  }
+
+  private static describeSystemJob(state: string): string {
+    return [
+      "system/com.noldova.desktop.ShipIt = {",
+      "\tactive count = 1",
+      "\tpath = (submitted by smd[104])",
+      "\ttype = Submitted",
+      state,
+      "\tprogram = /Applications/Noldova/Desktop.app/Contents/Frameworks/Squirrel.framework/Resources/ShipIt",
+      "\tdomain = system",
+      "\tendpoints = {",
+      "\t\t\"com.noldova.desktop.ShipIt\" = {",
+      "\t\t\tport = 0x12c183",
+      "\t\t}",
+      "\t}",
+      "}",
+      String.empty
+    ].join("\n");
+  }
+
+  private static createFailedPrintCommand(cause: Error): Pick<SystemCommand, "runAsync"> {
+    return {
+      runAsync: (_file: string, commandArguments: readonly string[]) => commandArguments[0] === "list" ? Promise.resolve("PID\tStatus\tLabel\n")
+        : Promise.reject(new CommandFailedException("/bin/launchctl", cause))
+    };
+  }
+
+  private static createDomainsCommand(calls: [string, readonly string[]][], system: string): Pick<SystemCommand, "runAsync"> {
+    return {
+      runAsync(file: string, commandArguments: readonly string[]): Promise<string> {
+        calls.push([file, commandArguments]);
+        return Promise.resolve(commandArguments[0] === "print" ? system : "PID\tStatus\tLabel\n811\t0\tcom.example.other.ShipIt\n");
+      }
+    };
   }
 
   private static createCommand(calls: [string, readonly string[]][], output: string): Pick<SystemCommand, "runAsync"> {

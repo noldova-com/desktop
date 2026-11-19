@@ -61,7 +61,10 @@ export class ReleaseCheck {
     const manifest = await RootManifest.readAsync(this.root);
     const product = await ProductIdentity.readAsync(this.root);
     const signed = (await ReleaseSigning.readAsync(this.root)).listSignedPlatforms(product, request.repository);
-    if (manifest.productVersion !== request.version.text)
+    const setsVersion = this.environment[Resources.releaseSetsVersionVariable] ?? String.empty;
+    if (!Resources.releaseSetsVersionValues.includes(setsVersion))
+      throw new BuildException(Resources.formatReleaseSetsVersionInvalid(setsVersion));
+    if (setsVersion !== Resources.releaseSetsVersionValue && manifest.productVersion !== request.version.text)
       throw new BuildException(Resources.formatRootVersionMismatch(manifest.productVersion, request.version.text));
     if (request.isSeparate && Object.isNull(product.namedUpdateFeed))
       throw new BuildException(Resources.formatSeparateReleaseNeedsFeed(request.repository, request.sourceRepository));
