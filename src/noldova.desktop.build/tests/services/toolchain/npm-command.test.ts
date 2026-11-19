@@ -6,12 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { Resources } from "../../../src/resources.js";
 import { NpmCommand } from "../../../src/services/toolchain/npm-command.js";
 import { RecordingRunnerFixture } from "../../fixtures/recording-runner.fixture.js";
+import { TemporaryFolderRunnerFixture } from "../../fixtures/temporary-folder-runner.fixture.js";
 
 @TestClass
 export class NpmCommandTests {
@@ -31,6 +36,21 @@ export class NpmCommandTests {
       const error = await Assert.throwsAsync(() => new NpmCommand(new RecordingRunnerFixture(), environment).runAsync(["ci"], "/app"), BuildException);
 
       Assert.areEqual(Resources.npmUnavailable, error.message);
+    }
+  }
+
+  @TestMethod
+  public async keepsNodesCompileCacheOutOfTheTemporaryFolderATestGivesNpm(): Promise<void> {
+    const folder = await mkdtemp(path.join(tmpdir(), "npm-command-"));
+    try {
+      const temporary = path.join(folder, "temporary");
+
+      await new NpmCommand(await TemporaryFolderRunnerFixture.createAsync(temporary), process.env).runAsync(["--version"], folder);
+
+      Assert.areEqual("global.npmrc,user.npmrc", (await readdir(temporary)).sort().join());
+    }
+    finally {
+      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
     }
   }
 }
