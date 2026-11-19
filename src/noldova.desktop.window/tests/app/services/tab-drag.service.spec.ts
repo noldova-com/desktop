@@ -269,4 +269,16 @@ describe("TabDragService", () => {
 
     expect(layout.layout().documents.tabs).toEqual([LayoutFixture.todo, LayoutFixture.plan]);
   });
+
+  it("stops following the pointer once its injector is destroyed, so a later release places nothing", () => {
+    const before = layout.layout();
+    start(LayoutFixture.files);
+    moveOver("side");
+    const isDragging = !Object.isNull(drag.dragging());
+
+    TestBed.resetTestingModule();
+    document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
+
+    expect([isDragging, drag.dragging(), drag.target(), layout.layout()]).toEqual([true, null, null, before]);
+  });
 });
