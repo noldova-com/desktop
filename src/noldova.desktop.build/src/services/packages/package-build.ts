@@ -76,7 +76,6 @@ export class PackageBuild {
       return packages;
 
     const versions = await this.readVersionsAsync(all);
-    const archives = packages.map(t => this.layout.locateArchive(t, versions.of(t.name)));
     const common = await this.hashCommonInputsAsync();
     const builder = await this.createBuilderAsync(versions);
     const archiveHashes = new Map<string, string>();
@@ -85,7 +84,7 @@ export class PackageBuild {
       const artifacts = this.listSourceArtifacts(manifest, versions);
       const isCurrent = await PackageBuild.isCurrentAsync(this.layout.locateRecord(manifest), inputs, artifacts);
       if (!isCurrent)
-        await builder.buildSourceAsync(manifest, archives);
+        await builder.buildSourceAsync(manifest, packages);
       await (await PackageBuild.hashRecordAsync(inputs, artifacts)).writeAsync(this.layout.locateRecord(manifest));
       archiveHashes.set(manifest.name, await ContentHash.ofFileAsync(this.layout.locateArchive(manifest, versions.of(manifest.name))));
       output.write(Resources.formatPackageBuilt(manifest.name, isCurrent));
@@ -150,7 +149,7 @@ export class PackageBuild {
       const isCurrent = await PackageBuild.isCurrentAsync(this.layout.locateRecord(manifest), inputs, artifacts);
       if (!isCurrent && manifest.isFixture && !isOwnInstalled) {
         await builder.installAsync(Resources.angularInstallSubject, this.layout.root,
-          [...all.filter(t => !t.isAngular && !PackageBuild.buildsOnAngular(t, all)), ...packages.slice(0, index).filter(t => !t.isFixture)].map(t => this.layout.locateArchive(t, versions.of(t.name))));
+          [...all.filter(t => !t.isAngular && !PackageBuild.buildsOnAngular(t, all)), ...packages.slice(0, index).filter(t => !t.isFixture)]);
         isOwnInstalled = true;
       }
       if (!isCurrent)
@@ -183,7 +182,7 @@ export class PackageBuild {
     const isCurrent = await record.isRecordedAsync(this.layout.windowInstallRecord) && await this.isInstalledAsync(installed);
     if (!isCurrent) {
       await rm(this.layout.windowInstallRecord, { force: true });
-      await builder.installAsync(Resources.angularInstallSubject, this.layout.root, [...all.filter(t => !t.isAngular), ...packages].map(t => this.layout.locateArchive(t, versions.of(t.name))));
+      await builder.installAsync(Resources.angularInstallSubject, this.layout.root, [...all.filter(t => !t.isAngular), ...packages]);
       await record.writeAsync(this.layout.windowInstallRecord);
     }
     await this.tree.checkAsync();
@@ -238,7 +237,6 @@ export class PackageBuild {
     const rooted = all.filter(t => !t.isAngular);
     const parts = new Set(rooted.flatMap(t => t.dependencies));
     const angularParts = all.filter(t => t.isAngular && parts.has(t.name));
-    const locate = (manifests: readonly PackageManifest[]): readonly string[] => manifests.map(t => this.layout.locateArchive(t, versions.of(t.name)));
     for (const manifest of rooted.filter(t => !packages.includes(t) && !archiveHashes.has(t.name)))
       archiveHashes.set(manifest.name, await ContentHash.ofFileAsync(this.layout.locateArchive(manifest, versions.of(manifest.name))));
     let arePartsInstalled = false;
@@ -247,7 +245,7 @@ export class PackageBuild {
       const artifacts = [this.layout.locateArchive(manifest, versions.of(manifest.name))];
       const isCurrent = await PackageBuild.isCurrentAsync(this.layout.locateRecord(manifest), inputs, artifacts);
       if (!isCurrent && !arePartsInstalled) {
-        await builder.installAsync(Resources.rootInstallSubject, this.layout.root, locate([...rooted.filter(t => !packages.includes(t)), ...angularParts]));
+        await builder.installAsync(Resources.rootInstallSubject, this.layout.root, [...rooted.filter(t => !packages.includes(t)), ...angularParts]);
         arePartsInstalled = true;
       }
       if (!isCurrent)
@@ -257,7 +255,7 @@ export class PackageBuild {
       output.write(Resources.formatPackageBuilt(manifest.name, isCurrent));
     }
 
-    await builder.installAsync(Resources.rootInstallSubject, this.layout.root, locate([...rooted, ...angularParts]));
+    await builder.installAsync(Resources.rootInstallSubject, this.layout.root, [...rooted, ...angularParts]);
     output.write(Resources.formatRootPackagesInstalled(packages.length));
   }
 

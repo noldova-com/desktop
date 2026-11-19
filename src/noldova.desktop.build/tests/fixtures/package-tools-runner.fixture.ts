@@ -24,6 +24,7 @@ export interface IPackageToolsAnswers {
   readonly scriptFiles?: Readonly<Record<string, string>>;
   readonly status?: string;
   readonly commit?: string;
+  readonly installedLockfile?: string;
 }
 
 export class PackageToolsRunnerFixture extends ProcessRunner {
@@ -37,6 +38,7 @@ export class PackageToolsRunnerFixture extends ProcessRunner {
 
   public readonly calls: string[] = [];
   public readonly installs: (readonly string[])[] = [];
+  public readonly installed: (readonly string[])[] = [];
 
   public constructor(root: string, answers: IPackageToolsAnswers = {}) {
     super();
@@ -79,7 +81,7 @@ export class PackageToolsRunnerFixture extends ProcessRunner {
     if (call.startsWith("pack "))
       await this.packAsync(directory);
     else if (call === "install")
-      await this.installAsync(commandArguments.filter(t => t.endsWith(".tgz")));
+      await this.installAsync(commandArguments.filter(t => t.endsWith(".tgz")), commandArguments.slice(2).filter(t => !t.startsWith("-")));
     else if (call.startsWith("compile "))
       await PackageToolsRunnerFixture.compileAsync(PackageToolsRunnerFixture.option(commandArguments, "--rootDir"), PackageToolsRunnerFixture.option(commandArguments, "--outDir"));
     else if (call.startsWith("inputs "))
@@ -95,8 +97,11 @@ export class PackageToolsRunnerFixture extends ProcessRunner {
     await writeFile(archive, TarballFixture.create(await PackageToolsRunnerFixture.readTreeAsync(folder)));
   }
 
-  private async installAsync(archives: readonly string[]): Promise<void> {
+  private async installAsync(archives: readonly string[], packages: readonly string[]): Promise<void> {
     this.installs.push(archives.map(t => path.basename(t)).sort());
+    this.installed.push(packages.map(t => t.endsWith(".tgz") ? path.basename(t) : t));
+    if (!Object.isUndefined(this.answers.installedLockfile))
+      await PackageToolsRunnerFixture.writeAsync(path.join(this.layout.root, "node_modules", ".package-lock.json"), this.answers.installedLockfile);
     for (const archive of archives) {
       const entries = await new ArchiveReader().readAsync(archive);
       const manifest = entries.get(`${PackageToolsRunnerFixture.ARCHIVE_FOLDER}package.json`);
