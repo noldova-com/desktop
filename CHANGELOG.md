@@ -12,6 +12,9 @@ Each version's section is written by the pull request that changes the version, 
   A failure to read that job other than its absence fails the handoff as unreadable.
   `@noldova/desktop.runtime`'s process table on macOS lists other users' processes, root's included, with their start times.
 - Every Debian and RPM package holds `resources/package-type` naming its type, so a copy installed from a `.deb` updates through the Debian updater rather than taking the AppImage's; `package:smoke --deb` checks the file.
+- A view can name its default group on its side and its place in that group's tab row, `defaultGroup` and `defaultOrder` in `IViewOptions`; a new layout and Reset the layout split a side into those groups, order their tabs across modules and show each group's first tab.
+  A saved layout keeps its groups until Reset the layout, and views that name neither open as before.
+- `@noldova/desktop.window` takes `@angular/cdk`, `@angular/common`, `@angular/core` and `@angular/platform-browser` at exactly 22.3.0, `@noldova/ui.components.angular` from 0.0.15, and `@noldova/context.core`, `context.exceptions` and `context.json` from 0.0.8, so an app moves its Angular pins to 22.3.0 and its kit to 0.0.15 or later with this version.
 
 ## 0.0.6
 
