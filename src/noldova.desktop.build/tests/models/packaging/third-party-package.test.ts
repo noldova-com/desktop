@@ -153,7 +153,8 @@ export class ThirdPartyPackageTests {
 
     Assert.isTrue(headers.message.startsWith(`sample@1.0.0 could not be downloaded from ${silent.url}/sample-1.0.0.tgz: TimeoutError`), headers.message);
     Assert.isTrue(body.message.startsWith(`sample@1.0.0 could not be downloaded from ${stalled.url}/sample-1.0.0.tgz: TimeoutError`), body.message);
-    Assert.areEqual([1, 1], [silent.requests(), stalled.requests()]);
+    Assert.areEqual(1, silent.requests());
+    Assert.areEqual(1, stalled.requests());
     Assert.areEqual(0, output.readableLength);
   }
 
