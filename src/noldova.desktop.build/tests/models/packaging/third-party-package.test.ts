@@ -139,22 +139,31 @@ export class ThirdPartyPackageTests {
   public async failsAtOnceWhenItsLimitRunsOutBeforeTheAnswerOrDuringItsBody(): Promise<void> {
     const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License\n" });
     await using silent = await ThirdPartyPackageTests.serveInTurnAsync([() => undefined]);
-    await using stalled = await ThirdPartyPackageTests.serveInTurnAsync([(_request, response) => {
-      response.writeHead(200, { "content-length": String(tarball.length) });
-      response.write(tarball.subarray(0, 1));
-    }]);
     await using folder = await ThirdPartyPackageTests.createFolderAsync();
     const output = new PassThrough();
-    const prepare = (resolved: string): Promise<ThirdPartyPackage> => ThirdPartyPackage.prepareAsync(ThirdPartyPackageTests.lock(tarball, resolved), folder.path, [],
-      new AcceptedLicenses(), new TypeOnlyPeers(), output, ThirdPartyPackageTests.LIMIT, 0);
+    let answered = 0;
+    const stalled = (_input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
+      answered++;
+      const signal = init?.signal ?? null;
+      const stream = new ReadableStream<Uint8Array>({
+        start: controller => {
+          if (!Object.isNull(signal))
+            signal.addEventListener("abort", () => controller.error(signal.reason), { once: true });
+        }
+      });
+      return Promise.resolve(new Response(stream, { status: 200 }));
+    };
+    const prepare = (resolved: string, download: typeof fetch = fetch): Promise<ThirdPartyPackage> =>
+      ThirdPartyPackage.prepareAsync(ThirdPartyPackageTests.lock(tarball, resolved), folder.path, [], new AcceptedLicenses(), new TypeOnlyPeers(), output,
+        ThirdPartyPackageTests.LIMIT, 0, download);
 
     const headers = await Assert.throwsAsync(() => prepare(`${silent.url}/sample-1.0.0.tgz`), BuildException);
-    const body = await Assert.throwsAsync(() => prepare(`${stalled.url}/sample-1.0.0.tgz`), BuildException);
+    const body = await Assert.throwsAsync(() => prepare("https://registry.example.test/sample-1.0.0.tgz", stalled), BuildException);
 
     Assert.isTrue(headers.message.startsWith(`sample@1.0.0 could not be downloaded from ${silent.url}/sample-1.0.0.tgz: TimeoutError`), headers.message);
-    Assert.isTrue(body.message.startsWith(`sample@1.0.0 could not be downloaded from ${stalled.url}/sample-1.0.0.tgz: TimeoutError`), body.message);
+    Assert.isTrue(body.message.startsWith("sample@1.0.0 could not be downloaded from https://registry.example.test/sample-1.0.0.tgz: TimeoutError"), body.message);
     Assert.areEqual(1, silent.requests());
-    Assert.areEqual(1, stalled.requests());
+    Assert.areEqual(1, answered);
     Assert.areEqual(0, output.readableLength);
   }
 

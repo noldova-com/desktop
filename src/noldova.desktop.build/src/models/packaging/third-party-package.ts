@@ -40,11 +40,11 @@ export class ThirdPartyPackage {
   }
 
   public static async prepareAsync(locked: LockedPackage, folder: string, reviewedLicenses: readonly string[], accepted: AcceptedLicenses, typeOnly: TypeOnlyPeers,
-    output: Writable, limit: number = Resources.thirdPartyDownloadTimeout, pause: number = Resources.downloadRetryPause):
+    output: Writable, limit: number = Resources.thirdPartyDownloadTimeout, pause: number = Resources.downloadRetryPause, download: typeof fetch = fetch):
     Promise<ThirdPartyPackage> {
     const file = path.join(folder, locked.fileName);
     const kept = existsSync(file) ? await readFile(file) : null;
-    const data = !Object.isNull(kept) && locked.matches(kept) ? kept : await ThirdPartyPackage.downloadAsync(locked, output, limit, pause);
+    const data = !Object.isNull(kept) && locked.matches(kept) ? kept : await ThirdPartyPackage.downloadAsync(locked, output, limit, pause, download);
     await mkdir(folder, { recursive: true });
     await writeFile(file, data);
 
@@ -93,11 +93,11 @@ export class ThirdPartyPackage {
     return (await readFile(file, Resources.textEncoding)).trim();
   }
 
-  private static async downloadAsync(locked: LockedPackage, output: Writable, limit: number, pause: number): Promise<Buffer> {
+  private static async downloadAsync(locked: LockedPackage, output: Writable, limit: number, pause: number, download: typeof fetch): Promise<Buffer> {
     let data = Buffer.alloc(0);
     await RetriedDownload.runAsync(Resources.formatDownloadSubject(locked.id, locked.resolved), output, async () => {
       const signal = AbortSignal.timeout(limit);
-      const response = await ThirdPartyPackage.fetchAsync(locked, signal);
+      const response = await ThirdPartyPackage.fetchAsync(locked, signal, download);
       if (Object.isString(response))
         return response;
       if (!response.ok && (response.status >= Resources.httpServerErrorStatus || Resources.downloadRetriedStatuses.includes(response.status))) {
@@ -121,9 +121,9 @@ export class ThirdPartyPackage {
     return data;
   }
 
-  private static async fetchAsync(locked: LockedPackage, signal: AbortSignal): Promise<Response | string> {
+  private static async fetchAsync(locked: LockedPackage, signal: AbortSignal, download: typeof fetch): Promise<Response | string> {
     try {
-      return await fetch(locked.resolved, { signal });
+      return await download(locked.resolved, { signal });
     }
     catch (error) {
       if (!Object.isNull(ThirdPartyPackage.codeOf(error)))
