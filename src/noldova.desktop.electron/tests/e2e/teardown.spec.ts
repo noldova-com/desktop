@@ -610,12 +610,17 @@ test.describe("the harness's teardown", () => {
   test("a main process that stops answering fails the call that waited on it, is reported with what it was asked, and is killed with every process it started", async ({ mainProcess }, testInfo) => {
     const main = await mainProcess.application.evaluate(() => process.pid);
     const outliving = await OutlivingProcess.startAsync(mainProcess, testInfo);
-    const blocked = mainProcess.application.evaluate(() => {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15_000);
-    });
+    const answer = path.join(mainProcess.root, "answer");
+    const blocked = mainProcess.application.evaluate((_, file) => {
+      const { existsSync: exists } = process.getBuiltinModule("node:fs");
+      const pause = new Int32Array(new SharedArrayBuffer(4));
+      while (!exists(file))
+        Atomics.wait(pause, 0, 0, 100);
+    }, answer);
     blocked.catch(() => undefined);
 
     const failure = await mainProcess.isVisibleAsync().then(() => null, (error: unknown) => ErrorCodeFixture.messageOf(error));
+    await writeFile(answer, String.empty);
     await mainProcess.disposeAsync(false);
     const report = testInfo.attachments.find(t => t.name === "main-process.txt")?.body?.toString() ?? String.empty;
 
