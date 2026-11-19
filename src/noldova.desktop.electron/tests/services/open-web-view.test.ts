@@ -695,7 +695,7 @@ export class OpenWebViewTests {
 
   @TestMethod
   public async givesNoPressToARequestFromAFrameWhoseReportHadNoFrame(): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
 
     harness.contents.emit("ipc-message", { processId: 4, frameId: 1, senderFrame: null }, "desktop:web-view-press", "start", 1);
     const gone = OpenWebViewTests.request(harness);
