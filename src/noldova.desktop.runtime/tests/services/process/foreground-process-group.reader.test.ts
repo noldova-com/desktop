@@ -258,15 +258,17 @@ export class ForegroundProcessGroupReaderTests {
   }
 
   @TestMethod
-  @TestData("linux")
-  @TestData("darwin")
-  public async answersNullWhenTheProgramExitsBeforeItsOwnProgramIsRead(platform: string): Promise<void> {
+  @TestData("linux", false)
+  @TestData("linux", true)
+  @TestData("darwin", false)
+  public async answersNullWhenTheProgramExitsBeforeItsOwnProgramIsRead(platform: string, atItsPrompt: boolean): Promise<void> {
     const ended = ForegroundProcessGroupReaderTests.ENDED_PROCESS_ID;
+    const group = atItsPrompt ? String(ended) : "4188";
     const command: AnsweringCommand = new AnsweringCommand(() => command.calls.length === 1
-      ? Promise.resolve(ForegroundProcessGroupReaderTests.status("4188"))
+      ? Promise.resolve(ForegroundProcessGroupReaderTests.status(group))
       : Promise.reject(new CommandFailedException("/bin/ps", new Error("exited with 1"))));
     const reader = platform === "linux"
-      ? ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat("4188", String(ended)), { 4188: ["/usr/bin/sleep", "sleep 600"] }, [])
+      ? ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat(group, String(ended)), { 4188: ["/usr/bin/sleep", "sleep 600"] }, [])
       : new ForegroundProcessGroupReader(platform, command);
 
     Assert.isNull(await reader.readProcessAsync(ended, ForegroundProcessGroupReaderTests.STARTED));
