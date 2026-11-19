@@ -18,10 +18,9 @@ import { FakePreventableEvent } from "../fixtures/fake-preventable-event.fixture
 export class WebViewAttachGuardTests {
   private static readonly WINDOW: number = 3;
   private static readonly PARTITION: string = "persist:browser.workspace-1";
-  private static readonly PRELOAD: string = "/desktop/press-watch.cjs";
 
   @TestMethod
-  public allowsTheWindowsWebviewOnABlankPageInItsViewsPartitionAndLocksItDownWithOnlyTheHostsPreloadInEveryFrame(): void {
+  public allowsTheWindowsWebviewOnABlankPageInItsViewsPartitionAndLocksItDown(): void {
     const [guard, asked, logs] = WebViewAttachGuardTests.create();
     const event = new FakePreventableEvent();
     const preferences: IWebViewAttachPreferences = {
@@ -43,15 +42,14 @@ export class WebViewAttachGuardTests {
     Assert.isFalse(event.isPrevented);
     Assert.areEqual(JSON.stringify({
       nodeIntegration: false,
-      nodeIntegrationInSubFrames: true,
+      nodeIntegrationInSubFrames: false,
       nodeIntegrationInWorker: false,
       contextIsolation: true,
       sandbox: true,
       webviewTag: false,
       navigateOnDragDrop: false,
       safeDialogs: true,
-      zoomMode: "isolated",
-      preload: WebViewAttachGuardTests.PRELOAD
+      zoomMode: "isolated"
     }), JSON.stringify(preferences));
     Assert.areEqual(`3 ${WebViewAttachGuardTests.PARTITION}`, asked.join(","));
     Assert.areEqual(0, logs.length);
@@ -91,14 +89,12 @@ export class WebViewAttachGuardTests {
   public startsTheWindowsWebviewInItsViewsPartitionOnABlankPageWhateverAddressItCarries(src: string | null): void {
     const [guard, , logs] = WebViewAttachGuardTests.create();
     const event = new FakePreventableEvent();
-    const preferences: IWebViewAttachPreferences = {};
     const params: IWebViewAttachParams = Object.isNull(src) ? { partition: WebViewAttachGuardTests.PARTITION } : { src, partition: WebViewAttachGuardTests.PARTITION };
 
-    guard.judge(WebViewAttachGuardTests.WINDOW, false, event, preferences, params);
+    guard.judge(WebViewAttachGuardTests.WINDOW, false, event, {}, params);
 
     Assert.isFalse(event.isPrevented);
     Assert.areEqual("about:blank", params.src);
-    Assert.areEqual(JSON.stringify([WebViewAttachGuardTests.PRELOAD, undefined, true]), JSON.stringify([preferences.preload, preferences.preloadURL, preferences.nodeIntegrationInSubFrames]));
     Assert.areEqual(0, logs.length);
   }
 
@@ -115,7 +111,7 @@ export class WebViewAttachGuardTests {
 
     Assert.isFalse(event.isPrevented);
     Assert.areEqual(String.empty, params.src);
-    Assert.areEqual(JSON.stringify([WebViewAttachGuardTests.PRELOAD, true]), JSON.stringify([preferences.preload, preferences.sandbox]));
+    Assert.areEqual(JSON.stringify([undefined, true]), JSON.stringify([preferences.preload, preferences.sandbox]));
     Assert.areEqual(0, logs.length);
   }
 
@@ -136,7 +132,7 @@ export class WebViewAttachGuardTests {
     const guard = new WebViewAttachGuard((windowId, partition) => {
       asked.push(`${windowId} ${partition}`);
       return windowId === WebViewAttachGuardTests.WINDOW && partition === WebViewAttachGuardTests.PARTITION;
-    }, (windowId, partition) => claimed.includes(`${windowId} ${partition}`), t => logs.push(t), WebViewAttachGuardTests.PRELOAD);
+    }, (windowId, partition) => claimed.includes(`${windowId} ${partition}`), t => logs.push(t));
     return [guard, asked, logs];
   }
 }

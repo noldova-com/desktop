@@ -25,8 +25,6 @@
     "**/*.js.map",
     "preload.cjs",
     "preload.cjs.map",
-    "press-watch.cjs",
-    "press-watch.cjs.map",
     "api/index.d.ts"
   ],
   "publishConfig": {

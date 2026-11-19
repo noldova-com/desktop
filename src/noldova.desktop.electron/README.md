@@ -1,6 +1,6 @@
 # Electron
 
-**Scope:** The `@noldova/desktop.electron` package, `src/noldova.desktop.electron`, which is Noldova Desktop's Electron main process, the window's preload and the web views' press script, under the [window rules](../../documents/WINDOW.md#the-main-process).
+**Scope:** The `@noldova/desktop.electron` package, `src/noldova.desktop.electron`, which is Noldova Desktop's Electron main process and the window's preload, under the [window rules](../../documents/WINDOW.md#the-main-process).
 
 ## 1. Purpose
 
@@ -19,7 +19,6 @@ The app installs the package at the exact version its Noldova Desktop version pi
 |---|---|
 | `main.js` | The main process: it composes `MainProcess` from Electron's own modules and starts it. |
 | `preload.cjs` | The window's preload, which runs sandboxed and exposes the bridge the window calls. |
-| `press-watch.cjs` | The press script, every web view's only preload, which runs sandboxed in an isolated world of each frame, exposes nothing to the page and reports the person's presses over the frame's IPC channel, as [WEB-VIEWS.md](../../documents/WEB-VIEWS.md#new-windows) says. |
 | `utility-entry.js` | The Electron utility process that starts a detached program on Windows. |
 | `api/index.js` | The package's exports, which `api/index.d.ts` documents member by member: the main process's classes, the interfaces they take, and the exceptions the package throws, all extending `ElectronException`. |
 

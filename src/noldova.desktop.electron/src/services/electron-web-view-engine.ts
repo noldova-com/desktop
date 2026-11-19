@@ -22,11 +22,6 @@ import { WebViewAttachGuard } from "./web-view-attach-guard.js";
 
 export class ElectronWebViewEngine implements IWebViewEngine {
   private readonly partitions: WeakMap<Session, string> = new WeakMap();
-  private readonly preloadPath: string;
-
-  public constructor(preloadPath: string) {
-    this.preloadPath = preloadPath;
-  }
 
   public readSession(partition: string): IWebViewSession {
     const profile = session.fromPartition(partition, { cache: false });
@@ -43,7 +38,7 @@ export class ElectronWebViewEngine implements IWebViewEngine {
 
   public watchAttach(isAllowed: (windowId: number, partition: string) => boolean, log: (text: string) => void,
     claim: (windowId: number, partition: string) => boolean = () => false, attached: (windowId: number, contents: IWebViewContents) => void = () => undefined): void {
-    const guard = new WebViewAttachGuard(isAllowed, claim, log, this.preloadPath);
+    const guard = new WebViewAttachGuard(isAllowed, claim, log);
     app.on(Resources.webContentsCreatedEvent, (_event, contents) => {
       contents.on(Resources.willAttachWebviewEvent, (event, preferences, params) =>
         guard.judge(contents.id, contents.getType() === Resources.webViewContentsType, event, preferences, params));

@@ -3127,7 +3127,7 @@ export interface IWebViewEngine {
   findGuest(contentsId: number): IWebViewGuest | null;
 
   /**
-   * Judges every `<webview>` before it attaches: a page's own is refused, and a window's only when its partition is one the window may use; an allowed one starts at `about:blank`, whatever address the element carries, such as the page's own once the element moves in the window, unless `claim` takes it, and runs sandboxed and context-isolated, without Node.js, nested views or any preload but the host's press script, which runs in every frame.
+   * Judges every `<webview>` before it attaches: a page's own is refused, and a window's only when its partition is one the window may use; an allowed one starts at `about:blank`, whatever address the element carries, such as the page's own once the element moves in the window, unless `claim` takes it, and runs sandboxed and context-isolated, without a preload, Node.js or nested views.
    * A claimed one loads no page, so the view it replaces can restore its history in it, and `attached` gets its page once it attaches.
    *
    * @param isAllowed Says whether a window may use a partition.
@@ -3296,11 +3296,6 @@ export interface IWebViewContents {
    * The page's debugger, which the relay sends its calls through.
    */
   readonly debugger: IWebViewDebugger;
-
-  /**
-   * The page's main frame, whose `framesInSubtree` lists it and every frame in it.
-   */
-  readonly mainFrame: { readonly framesInSubtree: readonly IWebViewFrame[] };
 
   /**
    * Starts loading an address.
@@ -3624,15 +3619,6 @@ export interface IWebViewContents {
   on(event: "input-event", listener: (event: unknown, input: IWebViewInputEvent) => void): unknown;
 
   /**
-   * Listens for each IPC message a frame of the page sends, which only the host's press script in its isolated world can send.
-   *
-   * @param event The event's name.
-   * @param listener Receives the sending frame's process and frame ids, the sending frame with its current origin, or `null` once it is gone, the channel and the message's values.
-   * @returns Electron's own return value, which the main process does not use.
-   */
-  on(event: "ipc-message", listener: (event: { readonly processId: number; readonly frameId: number; readonly senderFrame: { readonly origin: string } | null }, channel: string, ...values: unknown[]) => void): unknown;
-
-  /**
    * Listens for a site or a proxy asking for credentials, which the listener answers.
    *
    * @param event The event's name.
@@ -3667,26 +3653,6 @@ export interface IWebViewContents {
    * @returns Electron's own return value, which the main process does not use.
    */
   on(event: "page-favicon-updated", listener: (event: unknown, favicons: string[]) => void): unknown;
-}
-
-/**
- * A frame of a web view's page, as Electron's `WebFrameMain` provides it.
- */
-export interface IWebViewFrame {
-  /**
-   * Whether the frame has left its page's frame tree, as a removed frame or one another document replaced does.
-   */
-  readonly detached: boolean;
-
-  /**
-   * Whether the frame is gone.
-   */
-  isDestroyed(): boolean;
-
-  /**
-   * Runs a script in the frame's page's world, answered once the frame has run it; a frame that goes away first never answers.
-   */
-  executeJavaScript(code: string): Promise<unknown>;
 }
 
 /**

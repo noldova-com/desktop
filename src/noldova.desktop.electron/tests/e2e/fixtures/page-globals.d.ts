@@ -60,6 +60,5 @@ declare global {
   var desktopWindowRestore: (() => void) | undefined;
   var desktopAskedBoxes: string[] | undefined;
   var nativePerformanceNow: (() => number) | undefined;
-  var clockShift: number | undefined;
   var scrollReveals: WeakMap<Element, () => void> | undefined;
 }

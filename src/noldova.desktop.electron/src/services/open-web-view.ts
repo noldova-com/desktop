@@ -25,7 +25,6 @@ import {
 import type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
-import type { IWebViewFrame } from "../interfaces/i-web-view-frame.js";
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
@@ -39,7 +38,6 @@ import { WebViewEventCut } from "./web-view-event-cut.js";
 import { WebViewFavicon } from "./web-view-favicon.js";
 import { WebViewKeyInput } from "./web-view-key-input.js";
 import type { WebViewOriginCheck } from "./web-view-origin-check.js";
-import { WebViewPresses } from "./web-view-presses.js";
 
 export class OpenWebView {
   private readonly session: IWebViewSession;
@@ -63,9 +61,9 @@ export class OpenWebView {
   private readonly finds: Map<number, (found: JsonObject | null) => void> = new Map();
   private readonly navigations: ((answer: JsonObject | null) => void)[] = [];
   private readonly favicon: WebViewFavicon;
-  private readonly presses: WebViewPresses = new WebViewPresses();
   private windowRequests: readonly number[] = [];
   private lastInput: number | undefined;
+  private presses: readonly number[] = [];
   private relayedInputs: number = 0;
   private relayedPresses: readonly symbol[] = [];
   private heldInputs: readonly (readonly [IWebViewContents, IWebViewInput, boolean])[] = [];
@@ -73,10 +71,7 @@ export class OpenWebView {
   private declinedKey: IKeyStroke | null = null;
   private isAnswerAwaited: boolean = false;
   private touchPoints: readonly unknown[] = [];
-  private touchIds: ReadonlyMap<unknown, number> = new Map();
-  private nextTouchId: number = Resources.relayedTouchIdBase;
   private uncountedInputs: number = 0;
-  private pressWaits: ReadonlyMap<symbol, readonly IWebViewFrame[] | null> = new Map();
   private openPageCalls: number = 0;
   private releases: Set<() => void> = new Set();
   private allowed: readonly string[] = [];
@@ -179,9 +174,6 @@ export class OpenWebView {
     this.isReady = false;
     this.isFocusHeld = false;
     this.isCrashed = false;
-    this.presses.forget();
-    this.pressWaits = new Map();
-    this.touchIds = new Map();
     if (!Object.isNull(previous) && !previous.isDestroyed() && previous.debugger.isAttached())
       previous.debugger.detach();
     this.listen(guest);
@@ -409,27 +401,19 @@ export class OpenWebView {
     const presses = this.countPresses(method, params);
     const press = presses > 0 ? Symbol(method) : null;
     const isUncounted = isInput && !Resources.pressFreeInputMethods.includes(method);
-    const isPressing = isInput && !Resources.nonPressingInputMethods.includes(method);
     if (isInput)
       this.relayedInputs += 1;
     if (!Object.isNull(press))
       this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
-    const relayed = this.giveTouchIds(method, params);
-    this.presses.addRelayed((method === Resources.dispatchTouchEventMethod ? 0 : presses) + OpenWebView.countKeyPresses(method, params) + OpenWebView.countGesturePresses(method, params));
     if (isUncounted)
       this.uncountedInputs += 1;
-    const wait = Symbol(method);
-    if (isPressing)
-      this.pressWaits = new Map([...this.pressWaits, [wait, null]]);
     if (isPageCall)
       this.startPageCall();
-    const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, relayed)) : OpenWebView.relayAsync(guest, method, relayed);
+    const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
     if (isInput) {
       const settle = this.untilReleased(() => this.settleInput(press, isUncounted));
       void sent.then(settle, settle);
     }
-    if (isPressing)
-      void this.afterFramesAsync(guest, sent, wait);
     const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
     if (isPageCall) {
       const end = this.untilReleased(() => this.endPageCall());
@@ -451,10 +435,6 @@ export class OpenWebView {
     guest.on(Resources.inputEvent, (_event, input) => {
       if (this.isBound(guest))
         this.noteInput(input.type);
-    });
-    guest.on(Resources.ipcMessageEvent, (event, channel, kind, stamp, touches) => {
-      if (this.isBound(guest) && channel === Resources.webViewPressChannel)
-        this.presses.note(`${event.processId}:${event.frameId}`, event.senderFrame?.origin ?? null, kind, stamp, this.isPressRelayed(), touches);
     });
     guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
     guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
@@ -542,7 +522,6 @@ export class OpenWebView {
     this.endFind();
     this.end(WebViewFailureKind.Unavailable);
     this.releaseCalls();
-    this.pressWaits = new Map();
   }
 
   private untilReleased(release: () => void): () => void {
@@ -775,8 +754,15 @@ export class OpenWebView {
       [Resources.hadRecentInputField]: !Object.isUndefined(this.lastInput) && now - this.lastInput <= Resources.recentInputMilliseconds,
       [Resources.originField]: origin === Resources.nullOrigin ? null : origin,
       ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition },
-      [Resources.pressIdField]: this.presses.read(origin === Resources.nullOrigin ? null : origin)
+      [Resources.fromPressField]: this.takePress(now)
     });
+  }
+
+  private takePress(now: number): boolean {
+    this.presses = this.presses.filter(t => now - t <= Resources.recentInputMilliseconds);
+    const isFromPress = this.presses.length > 0;
+    this.presses = this.presses.slice(1);
+    return isFromPress;
   }
 
   private settleInput(press: symbol | null, isUncounted: boolean): void {
@@ -816,8 +802,11 @@ export class OpenWebView {
     const isPersonInput = Resources.personInputTypes.includes(type);
     if (isPersonInput && this.relayCopies > 0)
       this.relayCopies -= 1;
-    else if (this.relayedInputs === 0 && isPersonInput)
-      this.lastInput = this.now();
+    else if (this.relayedInputs === 0 && isPersonInput) {
+      const now = this.now();
+      this.lastInput = now;
+      this.presses = [...this.presses.filter(t => now - t <= Resources.recentInputMilliseconds), now];
+    }
     if (this.openPageCalls > 0 && isPress && this.uncountedInputs === 0)
       this.input(Resources.inputPressKind);
   }
@@ -983,26 +972,6 @@ export class OpenWebView {
       this.report(new WebViewEvent(this.info.module, this.info.id, kind, details));
   }
 
-  private async afterFramesAsync(guest: IWebViewContents, sent: Promise<unknown>, wait: symbol): Promise<void> {
-    await sent.catch(() => undefined);
-    if (!this.pressWaits.has(wait))
-      return;
-    const frames = guest.isDestroyed() ? [] : guest.mainFrame.framesInSubtree;
-    this.keepWait(wait, frames);
-    for (const frame of frames)
-      void frame.executeJavaScript(Resources.frameBarrierScript).catch(() => undefined).then(() => this.keepWait(wait, (this.pressWaits.get(wait) ?? []).filter(t => t !== frame)));
-  }
-
-  private keepWait(wait: symbol, frames: readonly IWebViewFrame[]): void {
-    if (this.pressWaits.has(wait))
-      this.pressWaits = new Map([...this.pressWaits].map(([key, value]) => [key, key === wait ? frames : value] as const).filter(([, value]) => value?.length !== 0));
-  }
-
-  private isPressRelayed(): boolean {
-    this.pressWaits = new Map([...this.pressWaits].map(([key, value]) => [key, value?.filter(t => !t.detached && !t.isDestroyed()) ?? null] as const).filter(([, value]) => value?.length !== 0));
-    return this.pressWaits.size > 0;
-  }
-
   private static afterRendererAsync(guest: IWebViewContents, sent: Promise<unknown>): Promise<unknown> {
     return sent.finally(() => guest.executeJavaScriptInIsolatedWorld(Resources.focusBarrierWorld, [{ code: Resources.focusBarrierScript }]).catch(() => undefined));
   }
@@ -1028,40 +997,6 @@ export class OpenWebView {
   private static isSameStroke(relayed: IKeyStroke, pressed: IKeyStroke): boolean {
     return relayed.key === pressed.key && (relayed.code === String.empty || relayed.code === pressed.code)
       && relayed.ctrlKey === pressed.ctrlKey && relayed.altKey === pressed.altKey && relayed.shiftKey === pressed.shiftKey && relayed.metaKey === pressed.metaKey;
-  }
-
-  private static countKeyPresses(method: string, params: JsonObject): number {
-    return method === Resources.dispatchKeyEventMethod && Resources.keyDownInputs.includes(String(params[Resources.typeField])) && params[Resources.autoRepeatField] !== true ? 1 : 0;
-  }
-
-  private static countGesturePresses(method: string, params: JsonObject): number {
-    const isTouch = params[Resources.gestureSourceField] === Resources.touchGestureSource;
-    const taps = params[Resources.tapCountField];
-    const repeats = params[Resources.repeatCountField];
-    if (method === Resources.tapGestureMethod)
-      return Number.isSafeInteger(taps) && Number(taps) > 1 ? Number(taps) : 1;
-    if (method === Resources.touchFromMouseMethod)
-      return params[Resources.typeField] === Resources.mousePressedType ? 1 : 0;
-    if (method === Resources.scrollGestureMethod && isTouch)
-      return Number.isSafeInteger(repeats) && Number(repeats) > 0 ? Number(repeats) + 1 : 1;
-    return method === Resources.pinchGestureMethod && isTouch ? Resources.pinchTouchPoints : 0;
-  }
-
-  private giveTouchIds(method: string, params: JsonObject): JsonObject {
-    const listed = params[Resources.touchPointsField];
-    if (method !== Resources.dispatchTouchEventMethod)
-      return params;
-    const points: readonly unknown[] = Array.isArray(listed) ? listed : [];
-    const held = this.touchIds;
-    const given = points.map((point, index) => {
-      const fields = OpenWebView.readObject(point) ?? {};
-      const own = fields[Resources.touchPointIdField];
-      const key = Number.isSafeInteger(own) ? own : `#${String(index)}`;
-      return [key, held.get(key) ?? this.nextTouchId++, fields] as const;
-    });
-    this.touchIds = new Map(given.map(([key, id]) => [key, id]));
-    this.presses.addRelayedTouches(given.filter(([key]) => !held.has(key)).map(([, id]) => id));
-    return Array.isArray(listed) ? { ...params, [Resources.touchPointsField]: given.map(([, id, fields]) => ({ ...fields, [Resources.touchPointIdField]: id })) } : params;
   }
 
   private countPresses(method: string, params: JsonObject): number {

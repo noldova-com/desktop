@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { WindowOpenHandlerResponse } from "electron";
-import { type IWebViewContents, type IWebViewFrame, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
+import { type IWebViewContents, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
 
 import { FakeFrameNavigation } from "./fake-frame-navigation.fixture.js";
 import { FakePreventableEvent } from "./fake-preventable-event.fixture.js";
@@ -43,16 +43,9 @@ export class FakeWebViewContents implements IWebViewContents {
   public onInput: (event: IWebViewKeyEvent) => void = () => undefined;
   public onText: (text: string) => Promise<void> = () => Promise.resolve();
   public onIsolated: () => Promise<unknown> = () => Promise.resolve(0);
-  public frameCount: number = 1;
-  public onFrame: (index: number) => Promise<unknown> = () => Promise.resolve(0);
-  public detachedFrames: readonly number[] = [];
 
   public constructor(id: number) {
     this.id = id;
-  }
-
-  public get mainFrame(): { readonly framesInSubtree: readonly IWebViewFrame[] } {
-    return { framesInSubtree: Array.from({ length: this.frameCount }, (_, index) => this.frame(index)) };
   }
 
   public loadURL(url: string): Promise<void> {
@@ -192,16 +185,5 @@ export class FakeWebViewContents implements IWebViewContents {
     this.history = [...this.history.slice(0, this.index + 1), url];
     this.index = this.history.length - 1;
     this.emit("did-navigate");
-  }
-
-  private frame(index: number): IWebViewFrame {
-    const isDetached = (): boolean => this.detachedFrames.includes(index);
-    return {
-      get detached(): boolean {
-        return isDetached();
-      },
-      isDestroyed: () => this.destroyed,
-      executeJavaScript: () => this.onFrame(index)
-    };
   }
 }

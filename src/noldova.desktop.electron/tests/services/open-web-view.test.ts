@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
-import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { WebViewAction, type WebViewAnswered, WebViewDeclaration, type WebViewEvent, WebViewInfo, WebViewPane } from "@noldova/desktop.protocol";
 
 import { OpenWebView } from "../../src/services/open-web-view.js";
@@ -134,19 +134,6 @@ export class OpenWebViewTests {
   });
 
   private static readonly PAGE_CALLS_AND_WINDOWS: WebViewDeclaration = new WebViewDeclaration(OpenWebViewTests.PAGE_CALLS.methods, OpenWebViewTests.PAGE_CALLS.events, [], true);
-  private static readonly PAGE_ORIGIN: string = "https://example.com";
-  private static readonly RELAYED_PRESSES: WebViewDeclaration = new WebViewDeclaration(WebViewDeclaration.fromJson({
-    methods: [
-      { name: "Input.dispatchMouseEvent", parameters: { type: { required: true }, x: {}, y: {} } },
-      { name: "Input.dispatchKeyEvent", parameters: { type: { required: true }, key: {}, autoRepeat: {} } },
-      { name: "Input.synthesizeTapGesture", parameters: { x: { required: true }, y: { required: true }, tapCount: {} } },
-      { name: "Input.dispatchTouchEvent", parameters: { type: { required: true }, touchPoints: {} } },
-      { name: "Input.emulateTouchFromMouseEvent", parameters: { type: { required: true }, x: {}, y: {}, button: {} } },
-      { name: "Input.synthesizeScrollGesture", parameters: { x: {}, y: {}, yDistance: {}, repeatCount: {}, gestureSourceType: {} } },
-      { name: "Input.synthesizePinchGesture", parameters: { x: {}, y: {}, scaleFactor: {}, gestureSourceType: {} } },
-      { name: "Input.insertText", parameters: { text: {} } }
-    ]
-  }).methods, OpenWebViewTests.PAGE_CALLS.events, [], true);
 
   @TestMethod
   public async bindsItsPageWithoutLoadingItAndAttachesToTheProtocolWithItsDefaults(): Promise<void> {
@@ -632,241 +619,34 @@ export class OpenWebViewTests {
     Assert.areEqual(JSON.stringify([{ action: "deny" }, { action: "deny" }]), JSON.stringify([refused, first]));
     Assert.areEqual("RequestRefused {\"request\":\"newWindow\",\"origin\":\"null\"}", refusing.describe());
     Assert.areEqual([
-      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\",\"disposition\":\"foreground-tab\",\"pressId\":null}",
-      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\",\"pressId\":null}",
-      "NewWindowRequested {\"address\":\"https://example.com/third\",\"hadRecentInput\":true,\"origin\":null,\"pressId\":null}"
+      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\",\"disposition\":\"foreground-tab\",\"fromPress\":false}",
+      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\",\"fromPress\":true}",
+      "NewWindowRequested {\"address\":\"https://example.com/third\",\"hadRecentInput\":true,\"origin\":null,\"fromPress\":false}"
     ].join("|"), asking.describe());
   }
 
   @TestMethod
-  public async numbersEachPressItsPageReportsAndGivesItToEveryRequestMadeWhileAFrameHandlesIt(): Promise<void> {
+  public async givesEachOfThePersonsPressesInItsViewOneNewWindowForFiveSecondsAndNoneToAnotherView(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
-    const main = { processId: 4, frameId: 1 };
-    const sub = { processId: 9, frameId: 2 };
-
-    const ids = [
-      OpenWebViewTests.request(harness),
-      OpenWebViewTests.press(harness, main, "start", 10.5), OpenWebViewTests.request(harness), OpenWebViewTests.request(harness),
-      OpenWebViewTests.press(harness, main, "end"), OpenWebViewTests.request(harness),
-      OpenWebViewTests.press(harness, main, "resume"), OpenWebViewTests.request(harness), OpenWebViewTests.press(harness, main, "end"),
-      OpenWebViewTests.press(harness, main, "start", 11.5), OpenWebViewTests.press(harness, main, "start", 11.5), OpenWebViewTests.request(harness),
-      OpenWebViewTests.press(harness, sub, "start", 3), OpenWebViewTests.request(harness),
-      OpenWebViewTests.press(harness, sub, "end"), OpenWebViewTests.request(harness),
-      OpenWebViewTests.press(harness, main, "end"), OpenWebViewTests.request(harness),
-      OpenWebViewTests.press(harness, sub, "resume"), OpenWebViewTests.request(harness)
-    ].filter(t => !Object.isUndefined(t));
-
-    Assert.areEqual("null,1,1,null,1,2,3,2,null,3", ids.map(t => String(t)).join(","));
-  }
-
-  @TestMethod
-  @TestData("resume", 1)
-  @TestData("start", "1")
-  @TestData("start", Number.NaN)
-  @TestData("start", Number.POSITIVE_INFINITY)
-  @TestData("press", 1)
-  @TestData(7, 1)
-  public async opensNoPressForAReportItDoesNotKnow(kind: unknown, stamp: unknown): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
-
-    OpenWebViewTests.press(harness, { processId: 4, frameId: 1 }, kind, stamp);
-    harness.contents.emit("ipc-message", { processId: 4, frameId: 1 }, "desktop:other", "start", 1);
-
-    Assert.isNull(OpenWebViewTests.request(harness));
-  }
-
-  @TestMethod
-  public async givesNoPressIdToThePressesTheRelaySentInTheOrderSentAndNumbersThePersonsAfterThem(): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
-    const frame = { processId: 4, frameId: 1 };
-
-    await harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
-    await harness.open.sendAsync(2, OpenWebViewTests.MOUSE, { type: "mouseReleased", x: 1, y: 1 }, 1000);
-    await harness.open.sendAsync(3, "Input.dispatchKeyEvent", { type: "keyDown", key: "a", autoRepeat: false }, 1000);
-    await harness.open.sendAsync(4, "Input.dispatchKeyEvent", { type: "rawKeyDown", key: "a", autoRepeat: true }, 1000);
-    await harness.open.sendAsync(5, "Input.dispatchKeyEvent", { type: "keyUp", key: "a" }, 1000);
-    await OpenWebViewTests.drainAsync();
-    const ids = [1, 2, 3, 4].map(t => {
-      OpenWebViewTests.press(harness, frame, "start", t);
-      return OpenWebViewTests.request(harness);
-    });
-
-    Assert.areEqual("null,null,1,2", ids.map(t => String(t)).join(","));
-  }
-
-  @TestMethod
-  public async givesNoPressToARequestFromAFrameWhoseReportHadNoFrame(): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
-
-    harness.contents.emit("ipc-message", { processId: 4, frameId: 1, senderFrame: null }, "desktop:web-view-press", "start", 1);
-    const gone = OpenWebViewTests.request(harness);
-    OpenWebViewTests.press(harness, { processId: 4, frameId: 2 }, "start", 2);
-
-    Assert.areEqual("null,2", [gone, OpenWebViewTests.request(harness)].map(t => String(t)).join(","));
-  }
-
-  @TestMethod
-  public async asksNoFrameOfAPageDestroyedDuringARelayedPressAndEndsItsWaitAtOnce(): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
-    const frame = { processId: 4, frameId: 1 };
-    let asked = 0;
-    harness.contents.onFrame = () => {
-      asked += 1;
-      return Promise.resolve(0);
+    const other = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    const fromPress = (open: OpenWebViewHarness, address: string): boolean => {
+      open.contents.openWindow(address);
+      return open.describe().split("|").at(-1)?.includes("\"fromPress\":true") === true;
     };
-    harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, () => {
-      harness.contents.destroyed = true;
-      return Promise.resolve({});
-    });
 
-    await harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
-    await OpenWebViewTests.drainAsync();
-    harness.contents.destroyed = false;
-    const ids = [1, 2].map(t => [OpenWebViewTests.press(harness, frame, "start", t), OpenWebViewTests.request(harness)][1]);
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    harness.contents.emit("input-event", {}, { type: "rawKeyDown" });
+    harness.time = 100;
+    const twoPresses = [fromPress(harness, "https://example.com/a"), fromPress(harness, "https://example.com/b"), fromPress(harness, "https://example.com/c")];
+    harness.contents.emit("input-event", {}, { type: "touchStart" });
+    const inOtherView = fromPress(other, "https://example.com/d");
+    harness.time = 5101;
+    const late = fromPress(harness, "https://example.com/e");
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    harness.time = 10101;
+    const atTheEdge = fromPress(harness, "https://example.com/f");
 
-    Assert.areEqual("0 null,1", `${asked} ${ids.map(t => String(t)).join(",")}`);
-  }
-
-  @TestMethod
-  public async givesNoPressIdToAPressWhileAnInputCallItCannotCountRunsAndForgetsThePressesOfAPageItLetsGo(): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
-    const frame = { processId: 4, frameId: 1 };
-    let during: unknown;
-    harness.contents.debugger.replies.set("Input.synthesizeTapGesture", () => {
-      OpenWebViewTests.press(harness, frame, "start", 1);
-      during = OpenWebViewTests.request(harness);
-      return Promise.resolve({});
-    });
-
-    await harness.open.sendAsync(1, "Input.synthesizeTapGesture", { x: 1, y: 1 }, 1000);
-    await harness.open.sendAsync(2, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
-    OpenWebViewTests.destroy(harness);
-    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
-    Assert.isTrue(await harness.open.bindAsync(fresh));
-    fresh.emit("ipc-message", { ...frame, senderFrame: { origin: OpenWebViewTests.PAGE_ORIGIN } }, "desktop:web-view-press", "resume");
-    const resumed = OpenWebViewTests.requestIn(harness, fresh);
-    fresh.emit("ipc-message", { ...frame, senderFrame: { origin: OpenWebViewTests.PAGE_ORIGIN } }, "desktop:web-view-press", "start", 2);
-
-    Assert.areEqual("null,null,1", [during, resumed, OpenWebViewTests.requestIn(harness, fresh)].map(t => String(t)).join(","));
-  }
-
-  @TestMethod
-  @TestData("Input.synthesizeTapGesture", { x: 1, y: 1 }, 1)
-  @TestData("Input.synthesizeTapGesture", { x: 1, y: 1, tapCount: 3 }, 3)
-  @TestData("Input.emulateTouchFromMouseEvent", { type: "mousePressed", x: 1, y: 1, button: "left" }, 1)
-  @TestData("Input.emulateTouchFromMouseEvent", { type: "mouseReleased", x: 1, y: 1, button: "left" }, 0)
-  @TestData("Input.synthesizeScrollGesture", { x: 1, y: 1, yDistance: -50, gestureSourceType: "touch" }, 1)
-  @TestData("Input.synthesizeScrollGesture", { x: 1, y: 1, yDistance: -50, repeatCount: 2, gestureSourceType: "touch" }, 3)
-  @TestData("Input.synthesizeScrollGesture", { x: 1, y: 1, yDistance: -50, gestureSourceType: "mouse" }, 0)
-  @TestData("Input.synthesizePinchGesture", { x: 1, y: 1, scaleFactor: 2, gestureSourceType: "touch" }, 2)
-  @TestData("Input.synthesizePinchGesture", { x: 1, y: 1, scaleFactor: 2 }, 0)
-  public async countsThePressesOfEachRelayedGestureAndGivesThatManyStartsNull(method: string, params: JsonObject, presses: number): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
-    const frame = { processId: 4, frameId: 1 };
-
-    await harness.open.sendAsync(1, method, params, 1000);
-    await OpenWebViewTests.drainAsync();
-    const ids = Array.from({ length: presses + 1 }, (_, index) => {
-      OpenWebViewTests.press(harness, frame, "start", index + 1);
-      return OpenWebViewTests.request(harness);
-    });
-
-    Assert.areEqual([...Array.from({ length: presses }, () => "null"), "1"].join(","), ids.map(t => String(t)).join(","));
-  }
-
-  @TestMethod
-  public async givesNullToEveryStartUntilEachFrameAnswersAfterARelayedInputCallSoARelayedPressReportedLateNeverTakesTheNumber(): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
-    const frame = { processId: 4, frameId: 1 };
-    const answers: (() => void)[] = [];
-    harness.contents.frameCount = 2;
-    harness.contents.onFrame = index => index === 0 ? new Promise(resolve => answers.push(() => resolve(0))) : Promise.reject(new Error("The frame is gone."));
-
-    await harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
-    await OpenWebViewTests.drainAsync();
-    const person = [OpenWebViewTests.press(harness, frame, "start", 1), OpenWebViewTests.request(harness)][1];
-    const relayed = [OpenWebViewTests.press(harness, frame, "start", 2), OpenWebViewTests.request(harness)][1];
-    await harness.open.sendAsync(2, "Input.insertText", { text: "a" }, 1000);
-    const typed = [OpenWebViewTests.press(harness, frame, "start", 3), OpenWebViewTests.request(harness)][1];
-    answers.forEach(t => t());
-    await OpenWebViewTests.drainAsync();
-    OpenWebViewTests.press(harness, frame, "start", 4);
-
-    Assert.areEqual("null,null,null,1", [person, relayed, typed, OpenWebViewTests.request(harness)].map(t => String(t)).join(","));
-    Assert.areEqual(1, answers.length);
-  }
-
-  @TestMethod
-  public async givesThePersonsPressItsNumberAgainOnceAFrameThatNeverAnswersAfterARelayedPressIsDetachedOrDestroyedOrTheViewBindsAnotherPage(): Promise<void> {
-    const results: string[] = [];
-    for (const step of ["detached", "rebound", "pending", "destroyed"]) {
-      const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
-      const frame = { processId: 4, frameId: 1 };
-      const late: (() => void)[] = [];
-      const unanswered = (): Promise<unknown> => new Promise(resolve => late.push(() => resolve({})));
-      harness.contents.frameCount = 2;
-      harness.contents.onFrame = index => index === 0 ? Promise.resolve(0) : unanswered();
-      if (step === "pending" || step === "destroyed")
-        harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, unanswered);
-      void harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
-      await OpenWebViewTests.drainAsync();
-      OpenWebViewTests.press(harness, frame, "start", 1);
-      const waiting = [OpenWebViewTests.press(harness, frame, "start", 2), OpenWebViewTests.request(harness)][1];
-      const page = step === "detached" ? harness.contents : new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
-      if (page === harness.contents)
-        harness.contents.detachedFrames = [1];
-      if (step === "destroyed")
-        OpenWebViewTests.destroy(harness);
-      if (page !== harness.contents)
-        await harness.open.bindAsync(page);
-      page.emit("ipc-message", { ...frame, senderFrame: { origin: OpenWebViewTests.PAGE_ORIGIN } }, "desktop:web-view-press", "start", 3);
-      const freed = OpenWebViewTests.requestIn(harness, page);
-      late.forEach(t => t());
-      await OpenWebViewTests.drainAsync();
-      page.emit("ipc-message", { ...frame, senderFrame: { origin: OpenWebViewTests.PAGE_ORIGIN } }, "desktop:web-view-press", "start", 4);
-      results.push(`${String(waiting)} ${String(freed)} ${String(OpenWebViewTests.requestIn(harness, page))}`);
-    }
-
-    Assert.areEqual("null 1 2|null 1 2|null 1 2|null 1 2", results.join("|"));
-  }
-
-  @TestMethod
-  public async givesEachTouchPointItRelaysAnIdOfItsOwnForAsLongAsTheRelayListsItSoItsPressGetsNullWhileThePersonsTouchAndMouseGetTheirNumbers(): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
-    const frame = { processId: 4, frameId: 1 };
-
-    await harness.open.sendAsync(1, "Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 1, y: 1, id: 5 }, { x: 2, y: 2 }] }, 1000);
-    await harness.open.sendAsync(2, "Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 3, y: 3, id: 5 }, 7] }, 1000);
-    await harness.open.sendAsync(3, "Input.dispatchTouchEvent", { type: "touchEnd" }, 1000);
-    await harness.open.sendAsync(4, "Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 4, y: 4, id: 5 }] }, 1000);
-    await OpenWebViewTests.drainAsync();
-    const relayed = [OpenWebViewTests.press(harness, frame, "start", 1, [1000000000]), OpenWebViewTests.request(harness)][1];
-    const mouse = [OpenWebViewTests.press(harness, frame, "start", 2), OpenWebViewTests.request(harness)][1];
-    const touch = [OpenWebViewTests.press(harness, frame, "start", 3, [9]), OpenWebViewTests.request(harness)][1];
-    OpenWebViewTests.press(harness, frame, "end");
-    const touchEnd = [OpenWebViewTests.press(harness, frame, "resume"), OpenWebViewTests.request(harness)][1];
-    const again = [OpenWebViewTests.press(harness, frame, "start", 4, [1000000002]), OpenWebViewTests.request(harness)][1];
-
-    Assert.areEqual(JSON.stringify([[{ x: 1, y: 1, id: 1000000000 }, { x: 2, y: 2, id: 1000000001 }], [{ x: 3, y: 3, id: 1000000000 }, { id: 1000000001 }], null, [{ x: 4, y: 4, id: 1000000002 }]]),
-      JSON.stringify(harness.contents.debugger.sent.filter(t => t[0] === "Input.dispatchTouchEvent").map(t => Reflect.get(t[1], "touchPoints") ?? null)));
-    Assert.areEqual("null,1,2,2,null", [relayed, mouse, touch, touchEnd, again].map(t => String(t)).join(","));
-  }
-
-  @TestMethod
-  public async givesAPressOnlyToARequestFromTheOriginOfAFrameHandlingItSoAnOtherSitesFrameNeverTakesThePersonsTopFramePress(): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
-    const top = { processId: 4, frameId: 1 };
-    const ad = { processId: 9, frameId: 2, origin: "https://ads.example.net" };
-
-    OpenWebViewTests.press(harness, top, "start", 1);
-    const fromAd = OpenWebViewTests.requestIn(harness, harness.contents, "https://ads.example.net/frame");
-    const withoutReferrer = OpenWebViewTests.requestIn(harness, harness.contents, String.empty);
-    const fromTop = OpenWebViewTests.request(harness);
-    OpenWebViewTests.press(harness, ad, "start", 2);
-    const fromAdPressed = OpenWebViewTests.requestIn(harness, harness.contents, "https://ads.example.net/frame");
-    const fromTopAfter = OpenWebViewTests.request(harness);
-
-    Assert.areEqual("null,null,1,2,1", [fromAd, withoutReferrer, fromTop, fromAdPressed, fromTopAfter].map(t => String(t)).join(","));
+    Assert.areEqual("true,true,false|false|false|true", [twoPresses.join(","), inOtherView, late, atTheEdge].join("|"));
   }
 
   @TestMethod
@@ -1770,6 +1550,7 @@ export class OpenWebViewTests {
 
     Assert.areEqual(JSON.stringify(["Start", "End"]), JSON.stringify(harness.inputs));
     Assert.isTrue(harness.describe().includes("\"hadRecentInput\":false"), harness.describe());
+    Assert.isTrue(harness.describe().includes("\"fromPress\":false"), harness.describe());
   }
 
   @TestMethod
@@ -1816,22 +1597,6 @@ export class OpenWebViewTests {
 
   private static drainAsync(): Promise<void> {
     return new Promise(resolve => setImmediate(resolve));
-  }
-
-  private static press(harness: OpenWebViewHarness, frame: { readonly processId: number; readonly frameId: number; readonly origin?: string }, kind: unknown, stamp?: unknown, touches?: readonly number[]): undefined {
-    const { origin, ...ids } = frame;
-    harness.contents.emit("ipc-message", { ...ids, senderFrame: { origin: origin ?? OpenWebViewTests.PAGE_ORIGIN } }, "desktop:web-view-press", kind, stamp, touches);
-    return undefined;
-  }
-
-  private static request(harness: OpenWebViewHarness): unknown {
-    return OpenWebViewTests.requestIn(harness, harness.contents);
-  }
-
-  private static requestIn(harness: OpenWebViewHarness, contents: FakeWebViewContents, referrer: string = `${OpenWebViewTests.PAGE_ORIGIN}/page`): unknown {
-    harness.time += 1000;
-    contents.openWindow("https://example.com/new", referrer);
-    return harness.events.at(-1)?.details["pressId"];
   }
 
   private static destroy(harness: OpenWebViewHarness): void {

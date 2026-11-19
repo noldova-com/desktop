@@ -10,7 +10,6 @@ import type { RenderProcessGoneDetails, WindowOpenHandlerResponse } from "electr
 
 import type { IFrameNavigation } from "./i-frame-navigation.js";
 import type { IPreventableEvent } from "./i-preventable-event.js";
-import type { IWebViewFrame } from "./i-web-view-frame.js";
 import type { IWebViewDebugger } from "./i-web-view-debugger.js";
 import type { IWebViewInput } from "./i-web-view-input.js";
 import type { IWebViewInputEvent } from "./i-web-view-input-event.js";
@@ -22,7 +21,6 @@ import type { WebViewHistory } from "../models/web-view-history.js";
 export interface IWebViewContents {
   readonly id: number;
   readonly debugger: IWebViewDebugger;
-  readonly mainFrame: { readonly framesInSubtree: readonly IWebViewFrame[] };
 
   loadURL(url: string): Promise<void>;
   getURL(): string;
@@ -57,7 +55,6 @@ export interface IWebViewContents {
   on(event: "certificate-error", listener: (event: IPreventableEvent, url: string, error: string, certificate: unknown, callback: (isTrusted: boolean) => void) => void): unknown;
   on(event: "select-client-certificate", listener: (event: IPreventableEvent, url: string, list: unknown, callback: () => void) => void): unknown;
   on(event: "input-event", listener: (event: unknown, input: IWebViewInputEvent) => void): unknown;
-  on(event: "ipc-message", listener: (event: { readonly processId: number; readonly frameId: number; readonly senderFrame: { readonly origin: string } | null }, channel: string, ...values: unknown[]) => void): unknown;
   on(event: "login", listener: (event: IPreventableEvent, details: { readonly url: string }, info: unknown, callback: () => void) => void): unknown;
   on(event: "found-in-page", listener: (event: unknown, result: { readonly requestId: number; readonly activeMatchOrdinal: number; readonly matches: number; readonly finalUpdate: boolean }) => void): unknown;
   on(event: "zoom-changed", listener: (event: unknown, direction: string) => void): unknown;

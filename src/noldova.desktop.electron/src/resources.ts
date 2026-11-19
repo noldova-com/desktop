@@ -222,14 +222,6 @@ export class Resources {
   public static readonly modifiersField: string = "modifiers";
   public static readonly originField: string = "origin";
   public static readonly dispositionField: string = "disposition";
-  public static readonly pressIdField: string = "pressId";
-  public static readonly webViewPressChannel: string = "desktop:web-view-press";
-  public static readonly pressStartKind: string = "start";
-  public static readonly pressResumeKind: string = "resume";
-  public static readonly pressEndKind: string = "end";
-  public static readonly pressFrameLimit: number = 64;
-  public static readonly relayedTouchLimit: number = 64;
-  public static readonly relayedTouchIdBase: number = 1000000000;
   public static readonly altModifier: number = 1;
   public static readonly ctrlModifier: number = 2;
   public static readonly metaModifier: number = 4;
@@ -308,24 +300,11 @@ export class Resources {
   public static readonly touchPointsField: string = "touchPoints";
   public static readonly touchPointIdField: string = "id";
   public static readonly pressFreeInputMethods: readonly string[] = ["Input.dispatchMouseEvent", "Input.dispatchTouchEvent", "Input.dispatchKeyEvent", "Input.insertText"];
-  public static readonly nonPressingInputMethods: readonly string[] = [
-    "Input.insertText", "Input.imeSetComposition", "Input.dispatchDragEvent", "Input.setIgnoreInputEvents", "Input.setInterceptDrags", "Input.cancelDragging"
-  ];
-  public static readonly tapGestureMethod: string = "Input.synthesizeTapGesture";
-  public static readonly touchFromMouseMethod: string = "Input.emulateTouchFromMouseEvent";
-  public static readonly scrollGestureMethod: string = "Input.synthesizeScrollGesture";
-  public static readonly pinchGestureMethod: string = "Input.synthesizePinchGesture";
-  public static readonly tapCountField: string = "tapCount";
-  public static readonly repeatCountField: string = "repeatCount";
-  public static readonly gestureSourceField: string = "gestureSourceType";
-  public static readonly touchGestureSource: string = "touch";
-  public static readonly mousePressedType: string = "mousePressed";
-  public static readonly pinchTouchPoints: number = 2;
-  public static readonly frameBarrierScript: string = "0";
   public static readonly inputStartKind: string = "Start";
   public static readonly inputEndKind: string = "End";
   public static readonly inputPressKind: string = "Press";
   public static readonly recentInputMilliseconds: number = 5000;
+  public static readonly fromPressField: string = "fromPress";
   public static readonly newWindowRequestLimit: number = 5;
   public static readonly newWindowRequestMilliseconds: number = 1000;
   public static readonly permissionRequest: string = "permission";
@@ -638,7 +617,6 @@ export class Resources {
   public static readonly resumeAgentsLabel: string = "Resume agents";
   public static readonly stopKeyRefusedTitle: string = "The stop key works only in the app";
   public static readonly preloadFileName: string = "preload.cjs";
-  public static readonly pressWatchFileName: string = "press-watch.cjs";
   public static readonly preloadArgument: string = "--desktop-preload=";
   public static readonly bridgeName: string = "desktop";
   public static readonly preloadChannels: IPreloadChannels = {
@@ -760,7 +738,6 @@ export class Resources {
   public static readonly rendererEndLimit: number = 5_000;
   public static readonly renderProcessGoneEvent: "render-process-gone" = "render-process-gone";
   public static readonly inputEvent: "input-event" = "input-event";
-  public static readonly ipcMessageEvent: "ipc-message" = "ipc-message";
   public static readonly didStartLoadingEvent: "did-start-loading" = "did-start-loading";
   public static readonly didStartNavigationEvent: "did-start-navigation" = "did-start-navigation";
   public static readonly contextMenuEvent: "context-menu" = "context-menu";

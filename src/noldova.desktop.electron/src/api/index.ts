@@ -67,7 +67,6 @@ export type { IContextMenuParams } from "../interfaces/i-context-menu-params.js"
 export type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 export type { IWebViewDebugger } from "../interfaces/i-web-view-debugger.js";
 export type { IWebViewEngine } from "../interfaces/i-web-view-engine.js";
-export type { IWebViewFrame } from "../interfaces/i-web-view-frame.js";
 export type { IWebViewGuest } from "../interfaces/i-web-view-guest.js";
 export type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 export type { IWebViewInputEvent } from "../interfaces/i-web-view-input-event.js";

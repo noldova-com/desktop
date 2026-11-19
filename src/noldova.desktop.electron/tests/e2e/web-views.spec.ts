@@ -23,11 +23,7 @@ import { TabDragFixture } from "./fixtures/tab-drag.fixture.ts";
 import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 
 const host = "127.0.0.1";
-const hostReach = "[typeof require, typeof process, typeof ipcRenderer, typeof electron, Object.getOwnPropertyNames(globalThis).filter(t => /desktop|electron|ipc/iu.test(t)).length]";
-const noHostReach = ["undefined", "undefined", "undefined", "undefined", 0];
-const preloadReach = "(() => { try { require('fs'); return 'loaded'; } catch { return [typeof process, typeof Buffer, typeof module, typeof ipcRenderer].join(','); } })()";
-const noPreloadReach = "undefined,undefined,undefined,undefined";
-const titles = new Map([["/first", "First page"], ["/second", "Second page"], ["/a", "Page A"], ["/b", "Page B"]]);
+const titles = new Map([["/first", "First page"], ["/second", "Second page"]]);
 const iconRequests: string[] = [];
 const keysPage = "<!doctype html><title>Loading</title><p>Keys</p><script>const keys = []; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Keys\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"keydown\", event => { keys.push(event.key); document.title = [\"Keys\", ...keys].join(\" \"); });</script>";
 const typePage = "<!doctype html><title>Loading</title><p>Type</p><input><script>const field = document.querySelector(\"input\"); const keys = []; let painted = false; let typed = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Type\", field.value, ...keys, blurs].join(\" \").trim(); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); field.addEventListener(\"input\", () => { typed = true; show(); }); field.addEventListener(\"blur\", () => { blurs += typed ? 1 : 0; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); }); field.focus();</script>";
@@ -36,9 +32,7 @@ const manualFormPage = formPage.replace("<script>", "<script>history.scrollResto
 const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><a href=\"/focus?linked\" style=\"position:absolute;left:10px;top:60px;width:150px;height:30px;display:block\">Next</a><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
-const handlersPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:100px;height:40px\">D</div><a href=\"/a\" target=\"_blank\" style=\"display:block;width:100px;height:40px\">A</a><script>const d = document.getElementById(\"d\"); d.addEventListener(\"auxclick\", e => { if (e.button === 1) { window.open(\"/a\"); window.open(\"/b\"); } }); d.addEventListener(\"click\", e => { if (e.ctrlKey || e.metaKey) { window.open(\"/a\"); window.open(\"/b\"); } }); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Handlers\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"message\", e => { if (e.data === \"open\") window.open(\"/c\"); }); globalThis.touchIds = []; addEventListener(\"touchstart\", e => touchIds.push(...Array.from(e.changedTouches, t => t.identifier))); addEventListener(\"touchend\", () => window.open(\"/t\"));</script></body>";
-const framedPage = (source: string): string => `<!doctype html><title>Loading</title><body style="margin:0"><iframe src="${source}/handlers" style="position:absolute;left:0;top:0;width:300px;height:120px;border:0" onload="document.title = 'Framed'"></iframe><script>addEventListener("pointerdown", e => { if (e.button !== 1) return; frames[0].postMessage("open", "*"); const end = performance.now() + 300; while (performance.now() < end); window.open("/d"); });</script></body>`;
-const busyFramedPage = (source: string): string => `<!doctype html><title>Loading</title><body style="margin:0"><iframe src="${source}/handlers" style="position:absolute;left:0;top:0;width:300px;height:120px;border:0" onload="document.title = 'Framed'"></iframe><script>addEventListener("pointerdown", e => { if (e.button === 1) window.open("/d"); });</script></body>`;
+const pressPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:200px;height:100px\">D</div><div id=\"t\" style=\"width:200px;height:100px\">T</div><script>const d = document.getElementById(\"d\"); d.addEventListener(\"auxclick\", e => { if (e.button === 1) { window.open(\"/a\"); window.open(\"/b\"); } }); d.addEventListener(\"click\", () => window.open(\"/r\")); document.getElementById(\"t\").addEventListener(\"touchend\", () => window.open(\"/t\")); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Presses\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
 function png(side: number): Buffer {
@@ -198,78 +192,6 @@ function holdClockAsync(mainProcess: MainProcessFixture, isHeld: boolean): Promi
   }, isHeld);
 }
 
-function shiftClockAsync(mainProcess: MainProcessFixture, milliseconds: number): Promise<void> {
-  return mainProcess.application.evaluate((_, shift) => {
-    const native = globalThis.nativePerformanceNow ?? performance.now.bind(performance);
-    globalThis.nativePerformanceNow = native;
-    globalThis.clockShift = (globalThis.clockShift ?? 0) + shift;
-    performance.now = (): number => native() + (globalThis.clockShift ?? 0);
-  }, milliseconds);
-}
-
-function readFirstViewPreloadWorldsAsync(mainProcess: MainProcessFixture): Promise<{ readonly main: unknown; readonly frames: readonly unknown[] } | null> {
-  return mainProcess.application.evaluate(async ({ webContents }, code) => {
-    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
-    if (first === undefined)
-      return null;
-    const field = (value: unknown, name: string): unknown => typeof value === "object" && value !== null ? Object.getOwnPropertyDescriptor(value, name)?.value : undefined;
-    const sessions: string[] = [];
-    const contexts: (readonly [string, unknown])[] = [];
-    const listen = (_event: unknown, method: string, params: unknown, sessionId: string): void => {
-      const session = field(params, "sessionId");
-      if (method === "Target.attachedToTarget" && typeof session === "string")
-        sessions.push(session);
-      const context = field(params, "context");
-      if (method === "Runtime.executionContextCreated" && sessionId.length > 0 && field(field(context, "auxData"), "isDefault") === false)
-        contexts.push([sessionId, field(context, "id")]);
-    };
-    first.debugger.on("message", listen);
-    try {
-      await first.debugger.sendCommand("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
-      for (const session of [...sessions])
-        await first.debugger.sendCommand("Runtime.enable", {}, session);
-      const frames: unknown[] = [];
-      for (const [session, id] of contexts)
-        frames.push(field(field(await first.debugger.sendCommand("Runtime.evaluate", { expression: code, contextId: id, returnByValue: true }, session), "result"), "value"));
-      for (const session of sessions)
-        await first.debugger.sendCommand("Target.detachFromTarget", { sessionId: session });
-      const main: unknown = await first.executeJavaScriptInIsolatedWorld(999, [{ code }]);
-      return { main, frames };
-    }
-    finally {
-      first.debugger.removeListener("message", listen);
-      await first.debugger.sendCommand("Target.setAutoAttach", { autoAttach: false, waitForDebuggerOnStart: false }).catch(() => undefined);
-    }
-  }, preloadReach);
-}
-
-function readFirstViewFramesAsync(mainProcess: MainProcessFixture): Promise<readonly [number, number] | null> {
-  return mainProcess.application.evaluate(({ webContents }) => {
-    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
-    const frame = first?.mainFrame.frames[0];
-    return first === undefined || frame === undefined ? null : [first.mainFrame.processId, frame.processId] as const;
-  });
-}
-
-function isFirstViewFrameHoveredAsync(mainProcess: MainProcessFixture): Promise<boolean> {
-  return mainProcess.application.evaluate(({ webContents }) => {
-    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
-    const frame = first?.mainFrame.frames[0];
-    return frame === undefined ? false : frame.executeJavaScript("document.querySelector(':hover') !== null").then(t => t === true, () => false);
-  });
-}
-
-async function hoverFirstViewFrameAsync(window: Page, mainProcess: MainProcessFixture, x: number, y: number): Promise<boolean> {
-  await window.mouse.move(x + 1, y);
-  await window.mouse.move(x, y);
-  return isFirstViewFrameHoveredAsync(mainProcess);
-}
-
-async function readRequestsWithoutInputAsync(window: Page, from: number): Promise<string[]> {
-  const requests = (await view(window, 0).getAttribute("data-requests")) ?? String.empty;
-  return requests.slice(from).split("\n").map(t => t.split(" ").filter((_, index) => index !== 1).join(" "));
-}
-
 function runInFirstViewAsync(mainProcess: MainProcessFixture, script: string): Promise<boolean> {
   return mainProcess.application.evaluate(async ({ webContents }, code) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
@@ -304,14 +226,6 @@ function readFirstViewAsync(mainProcess: MainProcessFixture, script: string): Pr
   }, script);
 }
 
-function readFirstViewFrameAsync(mainProcess: MainProcessFixture, script: string): Promise<unknown> {
-  return mainProcess.application.evaluate(({ webContents }, code) => {
-    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
-    const frame = first?.mainFrame.frames[0];
-    return frame === undefined ? null : frame.executeJavaScript(code);
-  }, script);
-}
-
 function readFirstViewAddressAsync(mainProcess: MainProcessFixture): Promise<{ address: string; isLoading: boolean } | null> {
   return mainProcess.application.evaluate(({ webContents }) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
@@ -319,16 +233,15 @@ function readFirstViewAddressAsync(mainProcess: MainProcessFixture): Promise<{ a
   });
 }
 
-function clickInFirstViewAsync(mainProcess: MainProcessFixture, x: number, y: number, button: "left" | "middle" = "left", clicks: number = 1): Promise<boolean> {
-  return mainProcess.application.evaluate(({ webContents }, [left, top, pressed, count]) => {
+function clickInFirstViewAsync(mainProcess: MainProcessFixture, x: number, y: number, button: "left" | "middle" = "left"): Promise<boolean> {
+  return mainProcess.application.evaluate(({ webContents }, [left, top, pressed]) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
     if (first === undefined)
       return false;
-    for (let index = 0; index < count; index++)
-      for (const type of ["mouseDown", "mouseUp"] as const)
-        first.sendInputEvent({ type, x: left, y: top, button: pressed, clickCount: 1 });
+    for (const type of ["mouseDown", "mouseUp"] as const)
+      first.sendInputEvent({ type, x: left, y: top, button: pressed, clickCount: 1 });
     return true;
-  }, [x, y, button, clicks] as const);
+  }, [x, y, button] as const);
 }
 
 function isFirstDebuggerAttachedAsync(mainProcess: MainProcessFixture): Promise<boolean> {
@@ -375,16 +288,8 @@ async function startServerAsync(): Promise<Server> {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(clicksPage);
       return;
     }
-    if (request.url === "/handlers") {
-      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(handlersPage);
-      return;
-    }
-    if (request.url?.startsWith("/framed?") === true) {
-      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(framedPage(decodeURIComponent(request.url.slice("/framed?".length))));
-      return;
-    }
-    if (request.url?.startsWith("/busy-framed?") === true) {
-      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(busyFramedPage(decodeURIComponent(request.url.slice("/busy-framed?".length))));
+    if (request.url === "/presses") {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(pressPage);
       return;
     }
     if (request.url === "/opener") {
@@ -1279,9 +1184,9 @@ test.describe("web views", () => {
       await expect(view(window, 0)).toHaveText("Opener");
       const id = await view(window, 0).getAttribute("data-view");
 
-      const script = `${origin}/second false ${origin} foreground-tab null\n`;
-      const popup = `${origin}/second false ${origin} new-window null\n`;
-      const link = `${origin}/first true ${origin} foreground-tab 1\n`;
+      const script = `${origin}/second false ${origin} foreground-tab false\n`;
+      const popup = `${origin}/second false ${origin} new-window false\n`;
+      const link = `${origin}/first true ${origin} foreground-tab true\n`;
       expect(await runInFirstViewAsync(mainProcess, "window.open('/second')")).toBe(true);
       await expect(view(window, 0)).toHaveAttribute("data-requests", script);
       await expect(view(window, 1)).toHaveText("Second page");
@@ -1291,7 +1196,7 @@ test.describe("web views", () => {
       await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}`);
       await expect(view(window, 1)).toHaveText("First page");
       expect(await clickInFirstViewAsync(mainProcess, 20, 20, "middle")).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}${origin}/first true ${origin} background-tab 2\n`);
+      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}${origin}/first true ${origin} background-tab true\n`);
       expect(await readPlacesAsync(window)).toHaveLength(2);
 
       await holdClockAsync(mainProcess, true);
@@ -1310,116 +1215,42 @@ test.describe("web views", () => {
     }
   });
 
-  test("a page's own handler that opens two windows during one press of the person's gets one press id for both, a second press close after it the next, a press in a cross-origin frame its own, and a relayed press, a script and a page's faked press none, while the page's script can't reach the host's press script", async ({ mainProcess }) => {
+  test("a press of the person's in a view gives its page one new window, so a handler's second request, a relayed click's and a script's get none, and a touch gives one as a click does", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const server = await startServerAsync();
     try {
       const origin = `http://${host}:${portOf(server)}`;
-      const other = `http://localhost:${portOf(server)}`;
       await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
       await CommandSearchFixture.searchAsync(window, "Open the page");
       await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
       await window.keyboard.press("Enter");
       await expect(view(window, 1)).toHaveAttribute("data-view", /./);
-      await requestAsync(window, "pages.allow", [origin, other]);
-      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/handlers` })).toEqual({ kind: "Started", origin: null });
-      await expect(view(window, 0)).toHaveText("Handlers");
-      const pair = (from: string, input: boolean, disposition: string, press: string): string => `${from}/a ${input} ${from} ${disposition} ${press}\n${from}/b ${input} ${from} ${disposition} ${press}\n`;
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/presses` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Presses");
+      const line = (path: string, disposition: string, isFromPress: boolean): string => `${origin}${path} true ${origin} ${disposition} ${String(isFromPress)}\n`;
 
       expect(await clickInFirstViewAsync(mainProcess, 50, 20, "middle")).toBe(true);
-      const one = pair(origin, true, "background-tab", "1");
-      await expect(view(window, 0)).toHaveAttribute("data-requests", one);
-      await shiftClockAsync(mainProcess, 1100);
-      expect(await clickInFirstViewAsync(mainProcess, 50, 20, "middle", 2)).toBe(true);
-      const two = `${one}${pair(origin, true, "background-tab", "2")}${pair(origin, true, "background-tab", "3")}`;
-      await expect(view(window, 0)).toHaveAttribute("data-requests", two);
-
-      expect(await readFirstViewAsync(mainProcess, hostReach)).toEqual(noHostReach);
-      await shiftClockAsync(mainProcess, 6000);
-      expect(await runInFirstViewAsync(mainProcess, "(() => { const target = document.getElementById('d'); for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) target.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 1, buttons: 4 })); target.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 })); })()")).toBe(true);
-      const faked = `${two}${pair(origin, false, "foreground-tab", "null")}`;
-      await expect(view(window, 0)).toHaveAttribute("data-requests", faked);
-      await shiftClockAsync(mainProcess, 1100);
-      await requestAsync(window, "pages.click", { view: 0, x: 50, y: 60 });
-      expect(await runInFirstViewAsync(mainProcess, "window.open('/b')")).toBe(true);
-      const relayed = `${faked}${origin}/a false ${origin} foreground-tab null\n${origin}/b false ${origin} foreground-tab null\n`;
+      const middle = `${line("/a", "background-tab", true)}${line("/b", "background-tab", false)}`;
+      await expect(view(window, 0)).toHaveAttribute("data-requests", middle);
+      await requestAsync(window, "pages.click", { view: 0, x: 50, y: 20 });
+      const relayed = `${middle}${line("/r", "foreground-tab", false)}`;
       await expect(view(window, 0)).toHaveAttribute("data-requests", relayed);
-      await shiftClockAsync(mainProcess, 1100);
-      await requestAsync(window, "pages.touch", { view: 0, x: 50, y: 20 });
-      const touched = `${relayed}${origin}/t false ${origin} foreground-tab null\n`;
-      await expect(view(window, 0)).toHaveAttribute("data-requests", touched);
-      expect(await readFirstViewAsync(mainProcess, "touchIds")).toEqual([1000000000]);
-
-      await shiftClockAsync(mainProcess, 1100);
-      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/framed?${encodeURIComponent(other)}` })).toEqual({ kind: "Started", origin: null });
-      await expect(view(window, 0)).toHaveText("Framed");
-      const processes = await readFirstViewFramesAsync(mainProcess);
-      expect(processes).not.toBeNull();
-      expect(processes?.[0]).not.toBe(processes?.[1]);
-      await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.title")).toBe("Handlers");
-      expect(await readFirstViewFrameAsync(mainProcess, hostReach)).toEqual(noHostReach);
-      const worlds = await readFirstViewPreloadWorldsAsync(mainProcess);
-      expect(worlds?.main).toBe(noPreloadReach);
-      expect(worlds?.frames.length).toBeGreaterThan(0);
-      expect(worlds?.frames).toEqual(worlds?.frames.map(() => noPreloadReach));
-      const box = await readViewBoxAsync(window);
-      if (Object.isNull(box))
-        throw new Error("The view has no element in the window.");
-      await expect.poll(() => hoverFirstViewFrameAsync(window, mainProcess, box.x + 50, box.y + 20)).toBe(true);
-      await window.mouse.click(box.x + 50, box.y + 20, { button: "middle" });
-      await expect.poll(() => readRequestsWithoutInputAsync(window, touched.length)).toEqual([`${other}/a ${other} background-tab 4`, `${other}/b ${other} background-tab 4`, String.empty]);
-      expect((await view(window, 0).getAttribute("data-requests"))?.startsWith(relayed)).toBe(true);
-      const framed = (await view(window, 0).getAttribute("data-requests")) ?? String.empty;
-      await shiftClockAsync(mainProcess, 1100);
-      await expect.poll(async () => {
-        await window.mouse.move(box.x + 351, box.y + 20);
-        await window.mouse.move(box.x + 350, box.y + 20);
-        return readFirstViewAsync(mainProcess, "document.documentElement.matches(':hover') && document.querySelector('iframe:hover') === null");
-      }).toBe(true);
-      await window.mouse.click(box.x + 350, box.y + 20, { button: "middle" });
-      await expect.poll(async () => [...await readRequestsWithoutInputAsync(window, framed.length)].sort()).toEqual([`${other}/c ${other} foreground-tab null`, `${origin}/d ${origin} foreground-tab 5`, String.empty].sort());
-
-      await shiftClockAsync(mainProcess, 1100);
-      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/framed?${encodeURIComponent(origin)}` })).toEqual({ kind: "Started", origin: null });
-      await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.readyState")).toBe("complete");
-      expect(await readFirstViewFrameAsync(mainProcess, hostReach)).toEqual(noHostReach);
-      expect(await readFirstViewAsync(mainProcess, "document.querySelector('iframe').contentDocument.getElementById('d').textContent")).toBe("D");
+      const touched = await mainProcess.application.evaluate(async ({ webContents }) => {
+        const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+        if (first === undefined)
+          return false;
+        await first.debugger.sendCommand("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 50, y: 150 }] });
+        await first.debugger.sendCommand("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        return true;
+      });
+      expect(touched).toBe(true);
+      await expect.poll(async () => ((await view(window, 0).getAttribute("data-requests")) ?? String.empty).startsWith(`${relayed}${origin}/t true ${origin} `)).toBe(true);
+      expect((await view(window, 0).getAttribute("data-requests"))?.split("\n").find(t => t.startsWith(`${origin}/t `))?.endsWith(" true")).toBe(true);
+      expect(await runInFirstViewAsync(mainProcess, "window.open('/s')")).toBe(true);
+      await expect.poll(async () => (await view(window, 0).getAttribute("data-requests"))?.split("\n").find(t => t.startsWith(`${origin}/s `))).toBe(`${origin}/s true ${origin} foreground-tab false`);
     }
     finally {
-      await holdClockAsync(mainProcess, false);
-      await stopServerAsync(server);
-    }
-  });
-
-  test("a press of the person's after a relayed press gets its number again once a frame that can't answer the host's wait after the relayed press is removed", async ({ mainProcess }) => {
-    const window = mainProcess.window;
-    const server = await startServerAsync();
-    try {
-      const origin = `http://${host}:${portOf(server)}`;
-      const other = `http://localhost:${portOf(server)}`;
-      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
-      await CommandSearchFixture.searchAsync(window, "Open the page");
-      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
-      await window.keyboard.press("Enter");
-      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
-      await requestAsync(window, "pages.allow", [origin, other]);
-      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/busy-framed?${encodeURIComponent(other)}` })).toEqual({ kind: "Started", origin: null });
-      await expect(view(window, 0)).toHaveText("Framed");
-      await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.title")).toBe("Handlers");
-      const processes = await readFirstViewFramesAsync(mainProcess);
-      expect(processes?.[0]).not.toBe(processes?.[1]);
-
-      expect(await readFirstViewFrameAsync(mainProcess, "setTimeout(() => { for (;;); }, 0), true")).toBe(true);
-      await requestAsync(window, "pages.click", { view: 0, x: 350, y: 20 });
-      expect(await runInFirstViewAsync(mainProcess, "document.querySelector('iframe').remove()")).toBe(true);
-      await expect.poll(() => readFirstViewAsync(mainProcess, "document.querySelector('iframe') === null")).toBe(true);
-      await shiftClockAsync(mainProcess, 1100);
-      expect(await clickInFirstViewAsync(mainProcess, 350, 20, "middle")).toBe(true);
-
-      await expect.poll(() => readRequestsWithoutInputAsync(window, 0)).toEqual([`${origin}/d ${origin} foreground-tab 1`, String.empty]);
-    }
-    finally {
-      await holdClockAsync(mainProcess, false);
       await stopServerAsync(server);
     }
   });
