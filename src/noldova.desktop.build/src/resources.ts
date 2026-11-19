@@ -1155,6 +1155,9 @@ export class Resources {
   public static readonly gitHubPrivateField: string = "private";
   public static readonly sourceRepositoryLabel: string = "the source repository";
   public static readonly releaseTagPrefixVariable: string = "RELEASE_TAG_PREFIX";
+  public static readonly releaseSetsVersionVariable: string = "RELEASE_SETS_VERSION";
+  public static readonly releaseSetsVersionValue: string = "true";
+  public static readonly releaseSetsVersionValues: readonly string[] = [String.empty, "false", Resources.releaseSetsVersionValue];
   public static readonly feedWaitVariable: string = "FEED_WAIT_SECONDS";
   public static readonly feedSkipValue: string = "true";
   public static readonly feedSkipValues: readonly string[] = [String.empty, "false", Resources.feedSkipValue];
@@ -3499,7 +3502,7 @@ export class Resources {
 
   public static formatReleaseCheckUsage(command: string): string {
     return `Usage: ${Resources.releaseRepositoryVariable}=<owner/name> ${Resources.releaseVersionVariable}=<N.N.N> ${Resources.releaseRevisionVariable}=<commit> `
-      + `${Resources.formatReleaseSourceOptions()} ${command} ${Resources.releaseCheckCommand}\n`;
+      + `${Resources.formatReleaseSourceOptions()} [${Resources.releaseSetsVersionVariable}=true] ${command} ${Resources.releaseCheckCommand}\n`;
   }
 
   public static formatReleaseSourceOptions(): string {
@@ -3507,7 +3510,11 @@ export class Resources {
   }
 
   public static formatRootVersionMismatch(rootVersion: string, version: string): string {
-    return `The root manifest's version is ${rootVersion}, not ${version}; raise it on ${Resources.mainBranch} first.`;
+    return `The root manifest's version is ${rootVersion}, not ${version}; raise it on ${Resources.mainBranch} first, or let the release set it.`;
+  }
+
+  public static formatReleaseSetsVersionInvalid(value: string): string {
+    return `${Resources.releaseSetsVersionVariable} must be true or false, not "${value}".`;
   }
 
   public static formatReleaseLabel(index: number): string {

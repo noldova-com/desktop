@@ -25,6 +25,10 @@ on:
         description: The full commit SHA to package; empty takes the commit that started the run.
         type: string
         default: ''
+      set-version:
+        description: The version the app takes before its install, from its repository's npm run set-version -- <version> at the repository's root; empty keeps the revision's own.
+        type: string
+        default: ''
       targets:
         description: The targets as a JSON array of objects with target, runner, architecture, platform and signed, as release-app.yml lists them.
         type: string
@@ -198,6 +202,21 @@ jobs:
             test "$(npm --version)" = "$EXPECTED_NPM"
           fi
           test "$(node --print process.arch)" = "$EXPECTED_ARCHITECTURE"
+
+      - name: Set the version
+        if: inputs.set-version != ''
+        timeout-minutes: 2
+        env:
+          VERSION: ${{ inputs.set-version }}
+          APP_FOLDER: ${{ inputs.app-folder }}
+          npm_config_ignore_scripts: 'true'
+        run: |
+          npm run set-version -- "$VERSION"
+          found="$(node --print 'require(require("node:path").resolve(process.env.APP_FOLDER, "package.json")).version')"
+          if [ "$found" != "$VERSION" ]; then
+            echo "::error::npm run set-version left $APP_FOLDER/package.json at $found, not $VERSION."
+            exit 1
+          fi
 
       - name: Install the dependencies
         timeout-minutes: 15

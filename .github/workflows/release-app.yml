@@ -18,7 +18,7 @@ on:
         type: string
         default: npm run build
       version:
-        description: The version to release, which is the app manifest's, such as 0.0.2.
+        description: The version to release, such as 0.0.2, which is the app manifest's unless set-version is true.
         type: string
         required: true
       revision:
@@ -85,6 +85,10 @@ on:
         description: What the release's tag starts with before its version, v or lowercase words joined by dashes and ending in a dash, such as app- for app-1.0.0; empty is v. A release-repository other than the source repository refuses v, so name the app there, such as app-. In a shared release-repository, only releases under this prefix count as this app's.
         type: string
         default: ''
+      set-version:
+        description: True sets version in each build after checkout, with npm run set-version -- <version> at the repository's root, so the revision's own version may differ; the app's repository brings the script, which writes every file that holds the version.
+        type: boolean
+        default: false
       skip-feed-check:
         description: True skips the update feed check after the release publishes, for an app whose releases its installed copies can't read yet.
         type: boolean
@@ -379,6 +383,7 @@ jobs:
           RELEASE_TAG_PREFIX: ${{ inputs.release-tag-prefix }}
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_REVISION: ${{ inputs.revision }}
+          RELEASE_SETS_VERSION: ${{ inputs.set-version }}
         run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" release-check
 
       - name: Choose the update feed and the packages' version
@@ -440,6 +445,7 @@ jobs:
       prepare: ${{ inputs.prepare }}
       repository: ${{ inputs.source-repository }}
       revision: ${{ inputs.revision }}
+      set-version: ${{ inputs.set-version && inputs.version || '' }}
       targets: ${{ needs.check.outputs.targets }}
       update-feed: ${{ needs.check.outputs.update-feed }}
       package-version: ${{ needs.check.outputs.package-version }}
@@ -459,6 +465,7 @@ jobs:
       prepare: ${{ inputs.prepare }}
       repository: ${{ inputs.source-repository }}
       revision: ${{ inputs.revision }}
+      set-version: ${{ inputs.set-version && inputs.version || '' }}
       targets: ${{ needs.check.outputs.signed-targets }}
       signed: true
       signing-environment: ${{ inputs.signing-environment }}
