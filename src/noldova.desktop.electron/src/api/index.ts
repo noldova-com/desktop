@@ -17,6 +17,7 @@ export type { IDeviceFileStore } from "../interfaces/i-device-file-store.js";
 export type { IDialogHost } from "../interfaces/i-dialog-host.js";
 export type { IDisplayHost } from "../interfaces/i-display-host.js";
 export type { ICommandLineHost } from "../interfaces/i-command-line-host.js";
+export type { IDeviceChooserContents } from "../interfaces/i-device-chooser-contents.js";
 export type { IDockHost } from "../interfaces/i-dock-host.js";
 export type { IElectron } from "../interfaces/i-electron.js";
 export type { IFeedResponse } from "../interfaces/i-feed-response.js";

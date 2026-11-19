@@ -11,16 +11,19 @@ import { DestroyRef, Injectable, type Signal, type WritableSignal, computed, inj
 import "@noldova/context.core";
 import type { JsonValue } from "@noldova/context.json";
 import {
+  KeyText,
   QualifiedName,
   SettingChange,
+  SettingDefinition,
   SettingEntry,
   SettingKey,
+  SettingOption,
+  SettingType,
   SettingValue,
   SettingsQuery,
   SettingsSnapshot,
   ShellEvents,
   ShellMethods,
-  type SettingDefinition,
   type SettingScope
 } from "@noldova/desktop.protocol";
 
@@ -55,7 +58,7 @@ export class SettingsService {
     try {
       const snapshot = SettingsSnapshot.fromJson(await this.bridge.requestAsync(ShellMethods.settings.text, new SettingsQuery(null).toJson()));
       if (load === this.loads) {
-        this.definitionList.set(snapshot.definitions);
+        this.definitionList.set(snapshot.definitions.map(t => this.forPlatform(t)));
         this.valueMap.set(new Map(snapshot.entries.map(t => [t.name.text, t.value])));
         this.setNames.set(new Set(snapshot.entries.filter(t => t.isSet).map(t => t.name.text)));
         for (const change of this.received)
@@ -120,5 +123,13 @@ export class SettingsService {
     const name = change.key.name.text;
     this.valueMap.update(t => new Map([...t, [name, change.value]]));
     this.setNames.update(t => new Set(change.isSet ? [...t, name] : [...t].filter(u => u !== name)));
+  }
+
+  private forPlatform(definition: SettingDefinition): SettingDefinition {
+    const platform = this.bridge.platform;
+    const options = definition.type.options;
+    const type = options.length === 0 ? definition.type : SettingType.choice(options.map(t => new SettingOption(t.value, KeyText.format(t.title, platform))));
+    return new SettingDefinition(definition.name, KeyText.format(definition.title, platform), KeyText.format(definition.description, platform), type, definition.defaultValue,
+      definition.locality, definition.scopes, definition.page, definition.group);
   }
 }

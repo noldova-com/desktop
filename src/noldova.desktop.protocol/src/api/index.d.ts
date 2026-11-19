@@ -5176,7 +5176,8 @@ export declare class SettingOption {
    *
    * @param value The stored value; empty, such as for a "Provider default"
    * option, or not blank.
-   * @param title The title people see; not blank.
+   * @param title The title people see; not blank, and it may name keys by
+   * `{key:<chord>}` tokens, as `KeyText` reads them.
    * @throws ArgumentException synchronously when the value is only white
    * space or the title is blank.
    *
@@ -5630,8 +5631,10 @@ export declare class SettingDefinition {
    * Creates the definition.
    *
    * @param name The setting's name.
-   * @param title The title; not blank.
-   * @param description The description; not blank.
+   * @param title The title; not blank, and it may name keys by
+   * `{key:<chord>}` tokens, as `KeyText` reads them.
+   * @param description The description; not blank, and it may name keys by
+   * `{key:<chord>}` tokens.
    * @param type The values it accepts.
    * @param defaultValue The default; a value the type accepts.
    * @param locality Where the value is kept.
@@ -6501,6 +6504,34 @@ export declare class KeyChord {
    * ```
    */
   public toString(): string;
+}
+
+/**
+ * Text that names keys by tokens, such as `Send with {key:Mod+Enter}`: each
+ * `{key:<chord>}` holds a chord as `KeyChord` reads it, and shows as that
+ * chord in words: on Windows and Linux as `KeyChord.label` gives it, such as
+ * `Send with Ctrl+Enter`, and on macOS with `Control`, `Option`, `Shift` and
+ * `Cmd` in that order joined by `+` to the key, such as `Send with
+ * Cmd+Enter`. Text without a token, braces that don't form one, and a token
+ * that names no key stay as they are.
+ */
+export declare class KeyText {
+  /**
+   * Returns a text with each key token replaced by its chord in words on a
+   * platform.
+   *
+   * @param text The text.
+   * @param platform The platform, as in `process.platform`.
+   * @returns The text people see there.
+   *
+   * @example
+   * ```ts
+   * import { KeyText } from "@noldova/desktop.protocol";
+   *
+   * export const title: string = KeyText.format("Send with {key:Mod+Enter}", "darwin");
+   * ```
+   */
+  public static format(text: string, platform: string): string;
 }
 
 /**

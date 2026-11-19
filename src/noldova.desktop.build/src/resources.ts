@@ -1510,7 +1510,10 @@ export class Resources {
   public static readonly addonBuiltSegments: readonly string[] = ["build", "Release"];
   public static readonly addonNodeApiVersion: number = 8;
   public static readonly addonNodeApiDefine: string = `NAPI_VERSION=${Resources.addonNodeApiVersion}`;
-  public static readonly addonRebuildArguments: readonly string[] = ["rebuild", "--loglevel=error", "--enable-lto=false", "--enable-thin-lto=false", "--devdir"];
+  public static readonly addonRebuildArguments: readonly string[] = ["rebuild", "--loglevel=error", "--enable-lto=false", "--enable-thin-lto=false"];
+  public static readonly addonHeadersDownloadOption: string = "--devdir";
+  public static readonly addonLocalHeadersOption: string = "--nodedir";
+  public static readonly addonLocalHeadersSegments: readonly string[] = ["include", "node", "common.gypi"];
   public static readonly addonNoToolchainText: string = "Could not find any Visual Studio installation to use";
   public static readonly addonKindWindows: string = "Windows";
   public static readonly addonKindPosix: string = "POSIX";
