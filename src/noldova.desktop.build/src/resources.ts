@@ -162,6 +162,10 @@ export class Resources {
   public static readonly pkgutilExpandFullOption: string = "--expand-full";
   public static readonly installerPayloadFolder: string = "Payload";
   public static readonly installerExpandedFolder: string = "expanded";
+  public static readonly installerDistributionFile: string = "Distribution";
+  public static readonly installerDomainsPattern: RegExp = /<domains\b[^>]*>/gu;
+  public static readonly xmlAttributePattern: RegExp = /([\w:-]+)\s*=\s*"([^"]*)"/gu;
+  public static readonly macInstallerDomains: ReadonlyMap<string, string> = new Map([["enable_anywhere", "false"], ["enable_currentUserHome", "false"], ["enable_localSystem", "true"]]);
   public static readonly appleDeveloperIdInstallerPattern: RegExp = /^\s*1\. Developer ID Installer: /m;
   public static readonly appleDeveloperIdInstallerRequirement: string = "a Developer ID Installer signature";
   public static readonly spctlDiskImageAssessment: readonly string[] = [Resources.spctlTypeOption, "open", "--context", "context:primary-signature"];
@@ -3721,6 +3725,12 @@ export class Resources {
 
   public static formatMacInstallerElsewhere(installer: string, location: string, information: string): string {
     return `The installer package ${installer} installs elsewhere than ${location}:\n${information}`;
+  }
+
+  public static formatMacInstallerDomainsOpen(installer: string, location: string, domains: readonly string[]): string {
+    const found = domains.length === 0 ? "it has no <domains> element" : `it has ${domains.join(" and ")}`;
+    return `The installer package ${installer} must install only into ${location} on the startup disk, with one `
+      + `<domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/> in its Distribution, but ${found}.`;
   }
 
   public static formatMacNeighbourTouched(neighbour: string): string {

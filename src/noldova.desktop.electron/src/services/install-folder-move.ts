@@ -36,16 +36,22 @@ export class InstallFolderMove {
     const process = this.process;
     const bundleName = `${productName}${Resources.appBundleExtension}`;
     const bundle = posix.resolve(process.execPath, ...Resources.bundleFromProgramSegments);
-    if (!isPackaged || process.platform !== Resources.macPlatform || Object.isNull(installFolder) || bundle !== posix.join(Resources.macApplicationsFolder, bundleName))
+    if (!isPackaged || process.platform !== Resources.macPlatform || Object.isNull(installFolder))
       return false;
     const target = posix.join(Resources.macApplicationsFolder, installFolder, bundleName);
+    if (bundle === target) {
+      await this.trashHomeCopyAsync(posix.join(process.env[Resources.homeVariable] ?? String.empty, Resources.macHomeApplicationsFolder, installFolder, bundleName), target);
+      return false;
+    }
+    if (bundle !== posix.join(Resources.macApplicationsFolder, bundleName))
+      return false;
     if (await this.existsAsync(target)) {
       if (!await this.isReplacedAsync(bundle, target))
         return false;
-      await this.trashAsync(bundle, target, Resources.formatInstallFolderAlreadyThere(bundle, target));
+      await this.trashAsync(bundle, Resources.formatInstallFolderAlreadyThere(bundle, target), t => Resources.formatInstallFolderOldCopyKept(bundle, target, t));
     }
     else if (await this.copyAsync(bundle, target))
-      await this.trashAsync(bundle, target, Resources.formatInstallFolderMoved(bundle, target));
+      await this.trashAsync(bundle, Resources.formatInstallFolderMoved(bundle, target), t => Resources.formatInstallFolderOldCopyKept(bundle, target, t));
     else
       return false;
     this.app.releaseSingleInstanceLock();
@@ -55,14 +61,20 @@ export class InstallFolderMove {
     return true;
   }
 
-  private async trashAsync(bundle: string, target: string, moved: string): Promise<void> {
+  private async trashHomeCopyAsync(copy: string, target: string): Promise<void> {
+    if (!posix.isAbsolute(copy) || !await this.existsAsync(copy) || !await this.isReplacedAsync(copy, target))
+      return;
+    await this.trashAsync(copy, Resources.formatInstallFolderHomeCopyTrashed(copy, target), t => Resources.formatInstallFolderHomeCopyKept(copy, target, t));
+  }
+
+  private async trashAsync(bundle: string, moved: string, kept: (reason: string) => string): Promise<void> {
     await this.app.whenReady();
     try {
       await this.shell.trashItem(bundle);
       this.log.write(moved);
     }
     catch (error) {
-      this.log.write(Resources.formatInstallFolderOldCopyKept(bundle, target, String(error)));
+      this.log.write(kept(String(error)));
     }
   }
 

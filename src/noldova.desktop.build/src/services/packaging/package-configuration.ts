@@ -200,7 +200,8 @@ export class PackageConfiguration {
           },
           ...Object.isNull(product.installFolder)
             ? this.isSigned ? { dmg: { sign: true } } : {}
-            : { pkg: { installLocation: Resources.formatMacInstallLocation(product.installFolder), isRelocatable: false, overwriteAction: Resources.macInstallerOverwriteAction } }
+            : { pkg: { installLocation: Resources.formatMacInstallLocation(product.installFolder), isRelocatable: false, overwriteAction: Resources.macInstallerOverwriteAction,
+              allowAnywhere: false, allowCurrentUserHome: false, allowRootDirectory: true } }
         };
       default:
         return {
