@@ -1414,15 +1414,7 @@ test.describe("web views", () => {
       expect(await runInFirstViewAsync(mainProcess, "document.querySelector('iframe').remove()")).toBe(true);
       await expect.poll(() => readFirstViewAsync(mainProcess, "document.querySelector('iframe') === null")).toBe(true);
       await shiftClockAsync(mainProcess, 1100);
-      const box = await readViewBoxAsync(window);
-      if (Object.isNull(box))
-        throw new Error("The view has no element in the window.");
-      await expect.poll(async () => {
-        await window.mouse.move(box.x + 351, box.y + 20);
-        await window.mouse.move(box.x + 350, box.y + 20);
-        return readFirstViewAsync(mainProcess, "document.documentElement.matches(':hover')");
-      }).toBe(true);
-      await window.mouse.click(box.x + 350, box.y + 20, { button: "middle" });
+      expect(await clickInFirstViewAsync(mainProcess, 350, 20, "middle")).toBe(true);
 
       await expect.poll(() => readRequestsWithoutInputAsync(window, 0)).toEqual([`${origin}/d ${origin} foreground-tab 1`, String.empty]);
     }
