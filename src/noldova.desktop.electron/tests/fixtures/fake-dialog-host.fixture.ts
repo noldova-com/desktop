@@ -15,6 +15,7 @@ export class FakeDialogHost implements IDialogHost {
   public readonly answers: number[];
   public readonly boxes: { windowId: number | null; options: MessageBoxOptions }[] = [];
   public failure: Error | null = null;
+  public isAppReady: () => boolean = () => true;
   public readonly pendingBoxes: ((result: MessageBoxReturnValue) => void)[] = [];
   public readonly openDialogs: { windowId: number; options: OpenDialogOptions; answer: (result: OpenDialogReturnValue) => void }[] = [];
   public readonly saveDialogs: { windowId: number; options: SaveDialogOptions; answer: (result: SaveDialogReturnValue) => void }[] = [];
@@ -24,6 +25,8 @@ export class FakeDialogHost implements IDialogHost {
   }
 
   public showMessageBox(windowId: number | null, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
+    if (!this.isAppReady())
+      return Promise.reject(new Error("A message box can't show before the app is ready."));
     this.boxes.push({ windowId, options });
     if (!Object.isNull(this.failure))
       return Promise.reject(this.failure);

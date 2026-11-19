@@ -25,12 +25,15 @@ export class IpcRouterTests {
     return MainProcessStartFixture.startReadyAsync("linux", launcher).then(async electron => {
       const window = MainProcessStartFixture.firstWindow(electron);
 
+      const startup = JSON.stringify(electron.ipcMain.invoke("desktop:readStartup", MainProcessStartFixture.trustedEvent("linux")));
       Assert.areEqual(false, electron.ipcMain.invoke("desktop:startupAction", { sender: { id: 1 }, senderFrame: null }, "moveAside"));
       window.isGone = true;
+      const sent = window.webContents.sent.length;
       Assert.areEqual(true, await electron.ipcMain.invoke("desktop:startupAction", MainProcessStartFixture.trustedEvent("linux"), "moveAside"));
 
+      Assert.isTrue(startup.includes("\"PreShellData\""), startup);
       Assert.areEqual(JSON.stringify(["attach main IfIdle", "moveAside main IfIdle"]), JSON.stringify(launcher.calls));
-      Assert.areEqual(2, window.webContents.sent.length);
+      Assert.areEqual(sent, window.webContents.sent.length);
     });
   }
 
