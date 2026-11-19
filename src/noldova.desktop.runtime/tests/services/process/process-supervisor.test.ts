@@ -617,7 +617,7 @@ export class NodePtyTerminalsTests {
 
   @TestMethod
   @PlatformFixture.posixOnly()
-  public async readsTheShellsOwnProgramAtItsPromptAndInItsCopyAndTheCommandsOnceItStarts(): Promise<void> {
+  public async readsTheShellsOwnProgramAtItsPromptAndInItsCopyButNotInAScriptOfItsProgramNorACommandOnceItStarts(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
     const processes = ProcessSupervisorFixture.create(settings);
@@ -626,36 +626,44 @@ export class NodePtyTerminalsTests {
     const output = NodePtyTerminalsTests.collect(shell);
     const copyPattern = /copy=(\d+)/u;
     const runPattern = /run=(\d+)/u;
+    const scriptPattern = /script=(\d+)/u;
     const own = process.platform === "linux" ? realpathSync(NodePtyTerminalsTests.SHELL) : NodePtyTerminalsTests.SHELL;
     const sleep = process.platform === "linux" ? realpathSync(execFileSync("/bin/sh", ["-c", "command -v sleep"], { encoding: "utf8" }).trim()) : "sleep";
     const reads: string[] = [];
-    const holds = async (group: number, program: string): Promise<boolean> => {
+    const holds = async (group: number, program: string, isTerminalProgram: boolean): Promise<boolean> => {
       const foreground = await shell.readForegroundProcessAsync();
-      reads.push(`${foreground?.group} ${foreground?.program} ${foreground?.terminalProgram} ${foreground?.isTerminalProgram}`);
-      return foreground?.group === group && foreground.program === program && foreground.isTerminalProgram === (program === own) && foreground.terminalProgram === own;
+      reads.push(`${foreground?.group} ${foreground?.program} ${foreground?.commandLine} ${foreground?.isTerminalProgram}`);
+      return foreground?.group === group && foreground.program === program && foreground.isTerminalProgram === isTerminalProgram && foreground.terminalProgram === own;
     };
     const printed = (): string => `The shell printed: ${JSON.stringify(output())}; the reads were ${reads.join(",")}; ${NodePtyTerminalsTests.describe(shell.processId)}`;
     await ProcessSupervisorFixture.waitForAsync(() => NodePtyTerminalsTests.PROMPT_PATTERN.test(output()), printed, ProgramFixture.LAUNCH_MILLISECONDS);
     let copy = 0;
+    let script = 0;
     let run = 0;
     try {
-      const atPrompt = await WaitFixture.untilAsync(() => holds(shell.processId, own), ProgramFixture.LAUNCH_MILLISECONDS);
+      const atPrompt = await WaitFixture.untilAsync(() => holds(shell.processId, own, true), ProgramFixture.LAUNCH_MILLISECONDS);
       shell.write("( /bin/sh -c 'echo copy=$PPID'; read -r _ )\r");
       await ProcessSupervisorFixture.waitForAsync(() => copyPattern.test(output()), printed, ProgramFixture.LAUNCH_MILLISECONDS);
       copy = Number(copyPattern.exec(output())?.[1]);
-      const inCopy = await WaitFixture.untilAsync(() => holds(copy, own), ProgramFixture.LAUNCH_MILLISECONDS);
+      const inCopy = await WaitFixture.untilAsync(() => holds(copy, own, true), ProgramFixture.LAUNCH_MILLISECONDS);
       shell.write("\u0003");
       const copyEnded = await ProgramFixture.waitForEndAsync(copy, ProgramFixture.LAUNCH_MILLISECONDS);
+      shell.write(`${NodePtyTerminalsTests.SHELL} --norc -c 'echo script=$$; read -r _'\r`);
+      await ProcessSupervisorFixture.waitForAsync(() => scriptPattern.test(output()), printed, ProgramFixture.LAUNCH_MILLISECONDS);
+      script = Number(scriptPattern.exec(output())?.[1]);
+      const inScript = await WaitFixture.untilAsync(() => holds(script, own, false), ProgramFixture.LAUNCH_MILLISECONDS);
+      shell.write("\u0003");
+      const scriptEnded = await ProgramFixture.waitForEndAsync(script, ProgramFixture.LAUNCH_MILLISECONDS);
       shell.write("/bin/sh -c 'echo run=$$; exec sleep 600'\r");
       await ProcessSupervisorFixture.waitForAsync(() => runPattern.test(output()), printed, ProgramFixture.LAUNCH_MILLISECONDS);
       run = Number(runPattern.exec(output())?.[1]);
-      const inProgram = await WaitFixture.untilAsync(() => holds(run, sleep), ProgramFixture.LAUNCH_MILLISECONDS);
+      const inProgram = await WaitFixture.untilAsync(() => holds(run, sleep, false), ProgramFixture.LAUNCH_MILLISECONDS);
 
-      Assert.isTrue(atPrompt && inCopy && copyEnded && inProgram, printed());
+      Assert.isTrue(atPrompt && inCopy && copyEnded && inScript && scriptEnded && inProgram, printed());
     }
     finally {
       await shell.stopAsync();
-      for (const job of [copy, run])
+      for (const job of [copy, script, run])
         if (job > 0 && ProgramFixture.isRunning(job))
           process.kill(job, "SIGKILL");
     }

@@ -13,14 +13,17 @@ import { ForegroundProcess } from "@noldova/desktop.runtime";
 @TestClass
 export class ForegroundProcessTests {
   @TestMethod
-  public runsTheTerminalsProgramOnlyWhileItsLeadersProgramIsTheTerminalsOwn(): void {
-    const copy = new ForegroundProcess(4_188, "/usr/bin/bash", "/usr/bin/bash");
-    const started = new ForegroundProcess(4_188, "/usr/bin/sleep", "/usr/bin/bash");
-    const exited = new ForegroundProcess(4_188, null, "/usr/bin/bash");
+  public runsTheTerminalsProgramOnlyWhileItsLeaderHasTheTerminalsProgramAndCommandLine(): void {
+    const copy = new ForegroundProcess(4_188, "/usr/bin/bash", "/bin/bash -i", "/usr/bin/bash", "/bin/bash -i");
+    const script = new ForegroundProcess(4_188, "/usr/bin/bash", "bash x.sh", "/usr/bin/bash", "/bin/bash -i");
+    const started = new ForegroundProcess(4_188, "/usr/bin/sleep", "sleep 600", "/usr/bin/bash", "/bin/bash -i");
+    const exited = new ForegroundProcess(4_188, null, null, "/usr/bin/bash", "/bin/bash -i");
 
     Assert.isTrue(copy.isTerminalProgram);
+    Assert.isFalse(script.isTerminalProgram);
     Assert.isFalse(started.isTerminalProgram);
     Assert.isFalse(exited.isTerminalProgram);
-    Assert.areEqual("4188 /usr/bin/sleep /usr/bin/bash", `${started.group} ${started.program} ${started.terminalProgram}`);
+    Assert.areEqual("4188 /usr/bin/sleep sleep 600 /usr/bin/bash /bin/bash -i",
+      `${started.group} ${started.program} ${started.commandLine} ${started.terminalProgram} ${started.terminalCommandLine}`);
   }
 }

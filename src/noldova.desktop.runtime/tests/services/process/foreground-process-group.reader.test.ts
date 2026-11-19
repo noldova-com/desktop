@@ -15,6 +15,7 @@ import {
   CommandFailedException,
   ForegroundGroupReadFailedException,
   ForegroundGroupUnreadableException,
+  type ForegroundProcess,
   SystemCommand,
   type SystemCommandException
 } from "@noldova/desktop.runtime";
@@ -50,7 +51,7 @@ export class ForegroundProcessGroupReaderTests {
   }
 
   private static status(group: string, start: string = ForegroundProcessGroupReaderTests.START): string {
-    return `${start}  ${group} /bin/bash\n`;
+    return `${start}  ${group}\n`;
   }
 
   private static linux(stat: string): ForegroundProcessGroupReader {
@@ -94,7 +95,7 @@ export class ForegroundProcessGroupReaderTests {
     const group = await reader.readAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
 
     Assert.areEqual(4_188, group);
-    Assert.areEqual("/bin/ps -o lstart=,tpgid=,comm= -p 4120 LC_ALL=C kept=true 1000", command.calls.join(","));
+    Assert.areEqual("/bin/ps -o lstart=,tpgid= -p 4120 LC_ALL=C kept=true 1000", command.calls.join(","));
   }
 
   @TestMethod
@@ -168,7 +169,6 @@ export class ForegroundProcessGroupReaderTests {
   @TestData("linux", "4120 (a) S 1 4120 x 34816 4188")
   @TestData("darwin", "tty")
   @TestData("darwin", "Tue Nov  3 09:04:05 2026  x")
-  @TestData("darwin", "Tue Nov  3 09:04:05 2026  4188")
   public async throwsWhatItCannotReadAsAGroup(platform: string, text: string): Promise<void> {
     const reader = platform === "linux" ? ForegroundProcessGroupReaderTests.linux(text) : ForegroundProcessGroupReaderTests.mac(text);
 
@@ -178,89 +178,99 @@ export class ForegroundProcessGroupReaderTests {
   }
 
   @TestMethod
-  @TestData("/usr/bin/bash", true)
-  @TestData("/usr/bin/sleep", false)
-  public async readsTheLeadersProgramAndTheTerminalsOwnFromTheirExecutableLinksOnLinux(leader: string, isTerminalProgram: boolean): Promise<void> {
-    const linked: string[] = [];
-    const reader = new ForegroundProcessGroupReader("linux", new AnsweringCommand(async () => String.empty), ForegroundProcessGroupReaderTests.FOLDER,
-      async () => ForegroundProcessGroupReaderTests.stat("4188"), async t => {
-        linked.push(t);
-        return t.includes("4188") ? leader : "/usr/bin/bash";
-      });
+  @TestData("/usr/bin/bash", "/bin/bash --norc -i", true)
+  @TestData("/usr/bin/bash", "bash x.sh", false)
+  @TestData("/usr/bin/sleep", "sleep 600", false)
+  public async readsTheLeadersAndTheTerminalsProgramAndCommandLineFromProcOnLinux(program: string, commandLine: string, isTerminalProgram: boolean): Promise<void> {
+    const read: string[] = [];
+    const reader = ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat("4188"),
+      { 4120: ["/usr/bin/bash", "/bin/bash --norc -i"], 4188: [program, commandLine] }, read);
 
     const foreground = await reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
 
-    Assert.areEqual(`4188 ${leader} /usr/bin/bash ${isTerminalProgram}`,
-      `${foreground?.group} ${foreground?.program} ${foreground?.terminalProgram} ${foreground?.isTerminalProgram}`);
-    Assert.areEqual([path.join(ForegroundProcessGroupReaderTests.FOLDER, "4120", "exe"), path.join(ForegroundProcessGroupReaderTests.FOLDER, "4188", "exe")].join(","), linked.join(","));
+    Assert.areEqual(`4188 ${program}|${commandLine} /usr/bin/bash|/bin/bash --norc -i ${isTerminalProgram}`, ForegroundProcessGroupReaderTests.describe(foreground));
+    Assert.areEqual(["4120/stat", "4120/exe", "4120/cmdline", "4188/exe", "4188/cmdline"].map(t => path.join(ForegroundProcessGroupReaderTests.FOLDER, ...t.split("/"))).join(","),
+      read.join(","));
   }
 
   @TestMethod
-  @TestData("/bin/bash", true)
-  @TestData("sleep", false)
-  public async readsTheProgramsCommWithItsGroupAndTheLeadersWithOneMorePsOnMacOS(leader: string, isTerminalProgram: boolean): Promise<void> {
-    const answers = [ForegroundProcessGroupReaderTests.status("4188"), `${leader}\n`];
-    const command: AnsweringCommand = new AnsweringCommand(async () => answers[command.calls.length - 1] ?? String.empty);
-    const reader = new ForegroundProcessGroupReader("darwin", command);
+  @TestData("/bin/bash", "/bin/bash --norc -i", true)
+  @TestData("/bin/bash", "/bin/bash x.sh", false)
+  @TestData("sleep", "sleep 600", false)
+  public async readsTheLeadersAndTheTerminalsProgramAndCommandLineWithPsOnMacOS(program: string, commandLine: string, isTerminalProgram: boolean): Promise<void> {
+    const command = ForegroundProcessGroupReaderTests.macWith("4188", ` 4120 /bin/bash\n 4188 ${program}\n`, ` 4120 /bin/bash --norc -i\n 4188 ${commandLine}\n`);
 
-    const foreground = await reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
+    const foreground = await new ForegroundProcessGroupReader("darwin", command).readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
 
-    Assert.areEqual(`4188 ${leader} /bin/bash ${isTerminalProgram}`,
-      `${foreground?.group} ${foreground?.program} ${foreground?.terminalProgram} ${foreground?.isTerminalProgram}`);
-    Assert.areEqual("/bin/ps -o lstart=,tpgid=,comm= -p 4120 LC_ALL=C kept=true 1000,/bin/ps -o comm= -p 4188 LC_ALL=C kept=true 1000", command.calls.join(","));
+    Assert.areEqual(`4188 ${program}|${commandLine} /bin/bash|/bin/bash --norc -i ${isTerminalProgram}`, ForegroundProcessGroupReaderTests.describe(foreground));
+    Assert.areEqual([
+      "/bin/ps -o lstart=,tpgid= -p 4120 LC_ALL=C kept=true 1000",
+      "/bin/ps -o pid=,comm= -p 4120,4188 LC_ALL=C kept=true 1000",
+      "/bin/ps -o pid=,args= -p 4120,4188 LC_ALL=C kept=true 1000"
+    ].join(","), command.calls.join(","));
   }
 
   @TestMethod
   @TestData("linux")
   @TestData("darwin")
-  public async readsTheProgramOnceWhileItHoldsItsOwnTerminal(platform: string): Promise<void> {
-    const command = new AnsweringCommand(async () => ForegroundProcessGroupReaderTests.status("4120"));
-    const linked: string[] = [];
-    const reader = new ForegroundProcessGroupReader(platform, command, ForegroundProcessGroupReaderTests.FOLDER, async () => ForegroundProcessGroupReaderTests.stat("4120"),
-      async t => {
-        linked.push(t);
-        return "/usr/bin/bash";
-      });
+  public async readsOnlyTheProgramWhileItHoldsItsOwnTerminal(platform: string): Promise<void> {
+    const read: string[] = [];
+    const command = ForegroundProcessGroupReaderTests.macWith("4120", " 4120 /bin/bash\n", " 4120 /bin/bash -i\n");
+    const reader = platform === "linux"
+      ? ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat("4120"), { 4120: ["/usr/bin/bash", "/bin/bash -i"] }, read)
+      : new ForegroundProcessGroupReader(platform, command);
 
     const foreground = await reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
 
-    Assert.areEqual(4_120, foreground?.group);
     Assert.areEqual(true, foreground?.isTerminalProgram);
-    Assert.areEqual(1, command.calls.length + linked.length);
+    Assert.areEqual(platform === "linux" ? "4120/stat,4120/exe,4120/cmdline" : "-p 4120,-p 4120,-p 4120",
+      platform === "linux" ? read.map(t => path.relative(ForegroundProcessGroupReaderTests.FOLDER, t).split(path.sep).join("/")).join(",") : command.calls.map(t => t.split(" ").slice(3, 5).join(" ")).join(","));
   }
 
   @TestMethod
-  @TestData("linux")
-  @TestData("darwin")
-  public async givesNoProgramForALeaderThatExitedBetweenTheTwoReads(platform: string): Promise<void> {
+  @TestData("linux", "")
+  @TestData("darwin", "")
+  @TestData("darwin", " 2147483644 /bin/bash\n")
+  public async givesNoProgramForALeaderThatExitedBeforeOrBetweenItsReads(platform: string, leaderName: string): Promise<void> {
     const ended = String(ForegroundProcessGroupReaderTests.ENDED_PROCESS_ID);
-    const gone = Object.assign(new Error("gone"), { code: "ENOENT" });
-    const command: AnsweringCommand = new AnsweringCommand(() => command.calls.length === 1
-      ? Promise.resolve(ForegroundProcessGroupReaderTests.status(ended))
-      : Promise.reject(new CommandFailedException("/bin/ps", new Error("exited with 1"))));
-    const reader = new ForegroundProcessGroupReader(platform, command, ForegroundProcessGroupReaderTests.FOLDER, async () => ForegroundProcessGroupReaderTests.stat(ended),
-      t => t.includes(ended) ? Promise.reject(gone) : Promise.resolve("/usr/bin/bash"));
+    const reader = platform === "linux"
+      ? ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat(ended), { 4120: ["/usr/bin/bash", "/bin/bash -i"] }, [])
+      : new ForegroundProcessGroupReader(platform, ForegroundProcessGroupReaderTests.macWith(ended, ` 4120 /bin/bash\n${leaderName}`, " 4120 /bin/bash -i\n"));
 
     const foreground = await reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
 
-    Assert.areEqual(ForegroundProcessGroupReaderTests.ENDED_PROCESS_ID, foreground?.group);
-    Assert.isNull(foreground?.program);
-    Assert.areEqual(false, foreground?.isTerminalProgram);
+    Assert.areEqual(`${ended} null|null ${platform === "linux" ? "/usr/bin/bash" : "/bin/bash"}|/bin/bash -i false`, ForegroundProcessGroupReaderTests.describe(foreground));
   }
 
   @TestMethod
   @TestData("linux")
   @TestData("darwin")
-  public async throwsWhenTheProgramOfALeaderThatRunsCannotBeRead(platform: string): Promise<void> {
+  public async answersNullWhenTheProgramExitsBeforeItsOwnProgramIsRead(platform: string): Promise<void> {
+    const ended = ForegroundProcessGroupReaderTests.ENDED_PROCESS_ID;
+    const command: AnsweringCommand = new AnsweringCommand(() => command.calls.length === 1
+      ? Promise.resolve(ForegroundProcessGroupReaderTests.status("4188"))
+      : Promise.reject(new CommandFailedException("/bin/ps", new Error("exited with 1"))));
+    const reader = platform === "linux"
+      ? ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat("4188", String(ended)), { 4188: ["/usr/bin/sleep", "sleep 600"] }, [])
+      : new ForegroundProcessGroupReader(platform, command);
+
+    Assert.isNull(await reader.readProcessAsync(ended, ForegroundProcessGroupReaderTests.STARTED));
+  }
+
+  @TestMethod
+  @TestData("linux")
+  @TestData("darwin")
+  public async throwsWhenAProgramOfAProcessThatRunsCannotBeRead(platform: string): Promise<void> {
     const group = String(process.pid);
     const command: AnsweringCommand = new AnsweringCommand(() => command.calls.length === 1
       ? Promise.resolve(ForegroundProcessGroupReaderTests.status(group))
       : Promise.reject(new CommandFailedException("/bin/ps", new Error("timed out"))));
-    const reader = new ForegroundProcessGroupReader(platform, command, ForegroundProcessGroupReaderTests.FOLDER, async () => ForegroundProcessGroupReaderTests.stat(group),
-      t => t === path.join(ForegroundProcessGroupReaderTests.FOLDER, group, "exe") ? Promise.reject(Object.assign(new Error("denied"), { code: "EACCES" })) : Promise.resolve("/usr/bin/bash"));
+    const reader = platform === "linux"
+      ? ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat(group), { 4120: ["/usr/bin/bash", "/bin/bash -i"] }, [], group)
+      : new ForegroundProcessGroupReader(platform, command);
     const thrown: new (...arguments_: never[]) => SystemCommandException = platform === "linux" ? ForegroundGroupReadFailedException : CommandFailedException;
 
-    const failure = await Assert.throwsAsync(() => reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED), thrown);
+    const failure = await Assert.throwsAsync(() => reader.readProcessAsync(platform === "linux" ? 4_120 : process.pid, ForegroundProcessGroupReaderTests.STARTED), thrown);
 
     Assert.areEqual(platform === "linux"
       ? "The foreground process group of process 4120's terminal could not be read from: Error: denied"
@@ -268,12 +278,12 @@ export class ForegroundProcessGroupReaderTests {
   }
 
   @TestMethod
-  public async answersNullOnLinuxWhenTheProgramExitsBeforeItsOwnLinkIsRead(): Promise<void> {
-    const ended = ForegroundProcessGroupReaderTests.ENDED_PROCESS_ID;
-    const reader = new ForegroundProcessGroupReader("linux", new AnsweringCommand(async () => String.empty), ForegroundProcessGroupReaderTests.FOLDER,
-      async () => ForegroundProcessGroupReaderTests.stat("4188", String(ended)), () => Promise.reject(Object.assign(new Error("gone"), { code: "ENOENT" })));
+  public async throwsARowItCannotReadAsAProgramOnMacOS(): Promise<void> {
+    const reader = new ForegroundProcessGroupReader("darwin", ForegroundProcessGroupReaderTests.macWith("4188", " 4120 /bin/bash\nps: no row\n", String.empty));
 
-    Assert.isNull(await reader.readProcessAsync(ended, ForegroundProcessGroupReaderTests.STARTED));
+    const failure = await Assert.throwsAsync(() => reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED), ForegroundGroupUnreadableException);
+
+    Assert.areEqual("The foreground process group of process 4120's terminal could not be read from: ps: no row", failure.message);
   }
 
   @TestMethod
@@ -281,17 +291,43 @@ export class ForegroundProcessGroupReaderTests {
   @TestData("linux", "-1")
   @TestData("darwin", "0")
   public async readsNoProgramWithoutAGroupOrOnWindows(platform: string, group: string): Promise<void> {
-    const command = new AnsweringCommand(async () => platform === "win32" ? "4188" : ForegroundProcessGroupReaderTests.status(group));
-    const linked: string[] = [];
-    const reader = new ForegroundProcessGroupReader(platform, command, ForegroundProcessGroupReaderTests.FOLDER, async () => ForegroundProcessGroupReaderTests.stat(group),
-      async t => {
-        linked.push(t);
-        return "/usr/bin/bash";
-      });
+    const read: string[] = [];
+    const command = ForegroundProcessGroupReaderTests.macWith(group, " 4120 /bin/bash\n", " 4120 /bin/bash -i\n");
+    const reader = platform === "linux"
+      ? ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat(group), { 4120: ["/usr/bin/bash", "/bin/bash -i"] }, read)
+      : new ForegroundProcessGroupReader(platform, command);
 
-    const foreground = await reader.readProcessAsync(process.pid, ForegroundProcessGroupReaderTests.STARTED);
+    Assert.isNull(await reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED));
+    Assert.areEqual(platform === "darwin" ? 1 : 0, command.calls.length + read.length - (platform === "linux" ? 1 : 0));
+  }
 
-    Assert.isNull(foreground);
-    Assert.areEqual(platform === "darwin" ? 1 : 0, command.calls.length + linked.length);
+  private static describe(foreground: ForegroundProcess | null): string {
+    return `${foreground?.group} ${foreground?.program}|${foreground?.commandLine} ${foreground?.terminalProgram}|${foreground?.terminalCommandLine} ${foreground?.isTerminalProgram}`;
+  }
+
+  private static linuxWith(stat: string, programs: Readonly<Record<number, readonly [string, string]>>, read: string[], denied: string = String.empty): ForegroundProcessGroupReader {
+    const answer = (file: string, part: 0 | 1): Promise<string> => {
+      read.push(file);
+      const [id = String.empty, name = String.empty] = path.relative(ForegroundProcessGroupReaderTests.FOLDER, file).split(path.sep);
+      if (id === denied)
+        return Promise.reject(Object.assign(new Error("denied"), { code: "EACCES" }));
+      if (name === "stat")
+        return Promise.resolve(stat);
+      const program = programs[Number(id)];
+      return Object.isUndefined(program)
+        ? Promise.reject(Object.assign(new Error("gone"), { code: "ENOENT" }))
+        : Promise.resolve(part === 0 ? program[0] : `${program[1].split(" ").join(String.fromCharCode(0))}${String.fromCharCode(0)}`);
+    };
+    return new ForegroundProcessGroupReader("linux", new AnsweringCommand(async () => String.empty), ForegroundProcessGroupReaderTests.FOLDER, t => answer(t, 1), t => answer(t, 0));
+  }
+
+  private static macWith(group: string, names: string, commandLines: string): AnsweringCommand {
+    const command: AnsweringCommand = new AnsweringCommand(async () => {
+      const call = command.calls.at(-1) ?? String.empty;
+      if (call.includes("lstart="))
+        return ForegroundProcessGroupReaderTests.status(group);
+      return call.includes("comm=") ? names : commandLines;
+    });
+    return command;
   }
 }

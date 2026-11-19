@@ -36,44 +36,66 @@ export class ForegroundProcessGroupReader {
   }
 
   public async readAsync(processId: number, started: Date): Promise<number | null> {
-    return (await this.readStatusAsync(processId, started))?.[0] ?? null;
-  }
-
-  public async readProcessAsync(processId: number, started: Date): Promise<ForegroundProcess | null> {
-    const status = await this.readStatusAsync(processId, started);
-    if (Object.isNull(status))
-      return null;
-    const [group, name] = status;
-    const own = this.platform === Resources.linuxPlatform ? await this.attemptAsync(processId, processId, () => this.readLink(this.executableOf(processId))) : name;
-    if (Object.isNull(own))
-      return null;
-    const program = group === processId ? own : await this.attemptAsync(processId, group, () => this.readProgramAsync(group));
-    return new ForegroundProcess(group, program, own);
-  }
-
-  private async readStatusAsync(processId: number, started: Date): Promise<readonly [number, string | null] | null> {
     if (this.platform === Resources.windowsPlatform)
       return null;
     const text = await this.attemptAsync(processId, processId, () => this.platform === Resources.linuxPlatform
-      ? this.read(path.join(this.processFolder, String(processId), Resources.processStatFile))
-      : this.command.runAsync(Resources.processStatusCommand, [...Resources.foregroundGroupArguments, String(processId)],
-        { ...process.env, ...Resources.foregroundGroupEnvironment }, Resources.foregroundGroupTimeoutMilliseconds));
+      ? this.read(this.fileOf(processId, Resources.processStatFile))
+      : this.runStatusAsync([...Resources.foregroundGroupArguments, String(processId)]));
     if (Object.isNull(text))
       return null;
-    const [isProgram, group, name] = this.platform === Resources.linuxPlatform
+    const [isProgram, group] = this.platform === Resources.linuxPlatform
       ? ForegroundProcessGroupReader.fromStat(processId, text)
       : ForegroundProcessGroupReader.fromStatus(started, text);
     if (!Number.isInteger(group) || Object.isNull(isProgram))
       throw new ForegroundGroupUnreadableException(processId, text.trim());
-    return isProgram && group > 0 ? [group, name] : null;
+    return isProgram && group > 0 ? group : null;
   }
 
-  private async readProgramAsync(group: number): Promise<string> {
-    if (this.platform === Resources.linuxPlatform)
-      return await this.readLink(this.executableOf(group));
-    const text = await this.command.runAsync(Resources.processStatusCommand, [...Resources.foregroundProgramArguments, String(group)],
-      { ...process.env, ...Resources.foregroundGroupEnvironment }, Resources.foregroundGroupTimeoutMilliseconds);
-    return text.trim();
+  public async readProcessAsync(processId: number, started: Date): Promise<ForegroundProcess | null> {
+    const group = await this.readAsync(processId, started);
+    if (Object.isNull(group))
+      return null;
+    const programs = this.platform === Resources.linuxPlatform
+      ? await this.readLinuxProgramsAsync(processId, group)
+      : await this.readMacProgramsAsync(processId, group);
+    const own = programs.get(processId);
+    if (Object.isUndefined(own))
+      return null;
+    const leader = programs.get(group);
+    return new ForegroundProcess(group, leader?.[0] ?? null, leader?.[1] ?? null, own[0], own[1]);
+  }
+
+  private async readLinuxProgramsAsync(processId: number, group: number): Promise<ReadonlyMap<number, readonly [string, string]>> {
+    const programs = new Map<number, readonly [string, string]>();
+    for (const id of new Set([processId, group])) {
+      const program = await this.attemptAsync(processId, id, async () => {
+        const file = await this.readLink(this.fileOf(id, Resources.processExecutableFile));
+        const commandLine = await this.read(this.fileOf(id, Resources.processCommandLineFile));
+        return [file, commandLine.replace(Resources.processArgumentsEndPattern, String.empty).split(Resources.processArgumentSeparator).join(Resources.commandLineSeparator)] as const;
+      });
+      if (!Object.isNull(program))
+        programs.set(id, program);
+    }
+    return programs;
+  }
+
+  private async readMacProgramsAsync(processId: number, group: number): Promise<ReadonlyMap<number, readonly [string, string]>> {
+    const ids = [...new Set([processId, group])].join(Resources.processIdListSeparator);
+    const names = await this.attemptAsync(processId, processId, () => this.runStatusAsync([...Resources.foregroundProgramArguments, ids]));
+    const lines = await this.attemptAsync(processId, processId, () => this.runStatusAsync([...Resources.foregroundCommandLineArguments, ids]));
+    const commandLines = ForegroundProcessGroupReader.rowsOf(processId, lines ?? String.empty);
+    const programs = new Map<number, readonly [string, string]>();
+    for (const [id, name] of ForegroundProcessGroupReader.rowsOf(processId, names ?? String.empty)) {
+      const commandLine = commandLines.get(id);
+      if (!Object.isUndefined(commandLine))
+        programs.set(id, [name, commandLine]);
+    }
+    return programs;
+  }
+
+  private runStatusAsync(commandArguments: readonly string[]): Promise<string> {
+    return this.command.runAsync(Resources.processStatusCommand, commandArguments, { ...process.env, ...Resources.foregroundGroupEnvironment },
+      Resources.foregroundGroupTimeoutMilliseconds);
   }
 
   private async attemptAsync<T>(processId: number, watched: number, read: () => Promise<T>): Promise<T | null> {
@@ -89,22 +111,32 @@ export class ForegroundProcessGroupReader {
     }
   }
 
-  private executableOf(processId: number): string {
-    return path.join(this.processFolder, String(processId), Resources.processExecutableFile);
+  private fileOf(processId: number, name: string): string {
+    return path.join(this.processFolder, String(processId), name);
   }
 
-  private static fromStat(processId: number, text: string): readonly [boolean | null, number, null] {
+  private static rowsOf(processId: number, text: string): ReadonlyMap<number, string> {
+    const rows = new Map<number, string>();
+    for (const line of text.split(Resources.lineBreakPattern).filter(t => t.trim() !== String.empty)) {
+      const match = Resources.foregroundRowPattern.exec(line);
+      if (Object.isNull(match))
+        throw new ForegroundGroupUnreadableException(processId, line.trim());
+      rows.set(Number(match[1]), String(match[2]));
+    }
+    return rows;
+  }
+
+  private static fromStat(processId: number, text: string): readonly [boolean | null, number] {
     const end = text.lastIndexOf(Resources.processNameEnd);
     const fields = end < 0 ? [] : text.slice(end + 1).trim().split(Resources.processStatFieldSeparator);
     const session = Number(fields[Resources.processSessionField]);
-    return [Number.isInteger(session) ? session === processId : null, Number(fields[Resources.foregroundGroupField]), null];
+    return [Number.isInteger(session) ? session === processId : null, Number(fields[Resources.foregroundGroupField])];
   }
 
-  private static fromStatus(started: Date, text: string): readonly [boolean | null, number, string | null] {
+  private static fromStatus(started: Date, text: string): readonly [boolean | null, number] {
     const match = Resources.foregroundGroupStatusPattern.exec(text.trim());
     const start = Date.parse(match?.[1] ?? String.empty);
     const late = started.getTime() - start;
-    return [Number.isNaN(start) ? null : late >= -Resources.posixStartMargin && late < Resources.secondMilliseconds + Resources.posixStartMargin, Number(match?.[2]),
-      match?.[3] ?? null];
+    return [Number.isNaN(start) ? null : late >= -Resources.posixStartMargin && late < Resources.secondMilliseconds + Resources.posixStartMargin, Number(match?.[2])];
   }
 }

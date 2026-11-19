@@ -157,7 +157,7 @@ export class PseudoTerminalTests {
   public async readsTheForegroundProcessOfItsProgramsTerminalAndNullWithoutAReaderOrOnceTheProgramExited(): Promise<void> {
     const handle = new PseudoTerminalHandleFixture();
     const asked: string[] = [];
-    const foreground = new ForegroundProcess(4_388, "/usr/bin/sleep", "/usr/bin/bash");
+    const foreground = new ForegroundProcess(4_388, "/usr/bin/sleep", "sleep 600", "/usr/bin/bash", "/bin/bash -i");
     const terminal = new PseudoTerminal(handle, "/bin/bash", new Date(0), async () => true, async () => 4_388, async (t, u) => {
       asked.push(`${t} ${u.toISOString()}`);
       return foreground;
@@ -185,7 +185,7 @@ export class PseudoTerminalTests {
 
     const reading = terminal.readForegroundProcessAsync();
     handle.exit({ exitCode: 0 });
-    answer(new ForegroundProcess(4_210, "/usr/bin/bash", "/usr/bin/bash"));
+    answer(new ForegroundProcess(4_210, "/usr/bin/bash", "/bin/bash -i", "/usr/bin/bash", "/bin/bash -i"));
 
     Assert.isNull(await reading);
   }

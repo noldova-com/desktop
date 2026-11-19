@@ -10034,9 +10034,9 @@ export declare class PseudoTerminalExit {
 
 /**
  * The process group that holds a pseudo-terminal, with its leader's program
- * and the terminal program's own, read in one step, so a module can tell
- * whether a command's process has started its program or is still the copy
- * of the shell that forked it.
+ * and command line and the terminal program's own, read in one step, so a
+ * module can tell whether a command's process has started its program or is
+ * still the copy of the shell that forked it.
  */
 export declare class ForegroundProcess {
   /**
@@ -10053,36 +10053,52 @@ export declare class ForegroundProcess {
   public readonly program: string | null;
 
   /**
-   * The terminal program's own, read the same way and in the same step.
+   * The group leader's command line, its arguments joined by spaces, or
+   * `null` when the leader exited before it was read: on Linux from
+   * `/proc/<pid>/cmdline`, and on macOS its `args`, as `ps` shows them.
+   */
+  public readonly commandLine: string | null;
+
+  /**
+   * The terminal program's own program, read the same way and in the same
+   * step.
    */
   public readonly terminalProgram: string;
+
+  /**
+   * The terminal program's own command line, read the same way and in the
+   * same step.
+   */
+  public readonly terminalCommandLine: string;
 
   /**
    * Creates the foreground process.
    *
    * @param group The id of the process group that holds the terminal.
    * @param program The group leader's program, or `null`.
-   * @param terminalProgram The terminal program's own.
+   * @param commandLine The group leader's command line, or `null`.
+   * @param terminalProgram The terminal program's own program.
+   * @param terminalCommandLine The terminal program's own command line.
    * @example
    * ```ts
    * import { ForegroundProcess } from "@noldova/desktop.runtime";
    *
    * export function atPrompt(processId: number): ForegroundProcess {
-   *   return new ForegroundProcess(processId, "/usr/bin/bash", "/usr/bin/bash");
+   *   return new ForegroundProcess(processId, "/usr/bin/bash", "/bin/bash -i", "/usr/bin/bash", "/bin/bash -i");
    * }
    * ```
    */
-  public constructor(group: number, program: string | null, terminalProgram: string);
+  public constructor(group: number, program: string | null, commandLine: string | null, terminalProgram: string, terminalCommandLine: string);
 
   /**
-   * Whether the group leader runs the terminal's own program: the program
-   * itself at its prompt, or a copy of it that hasn't yet started a
-   * command's program. On Linux the paths are compared as the system
-   * resolves them, so `/bin/bash` and `/usr/bin/bash` through a link are
-   * one program; on macOS the two `comm` values are compared as `ps` shows
-   * them, the same for the program and a copy of it. A command that starts
-   * the terminal's own program also counts, such as `bash` typed at a Bash
-   * prompt on Linux. False when the leader exited before it was read.
+   * Whether the group leader has the terminal's own program and command
+   * line: the program itself at its prompt, or a copy of it that hasn't yet
+   * started a command's program. On Linux the programs are compared as the
+   * system resolves them, so `/bin/bash` and `/usr/bin/bash` through a link
+   * are one program; on macOS as `ps` shows them. A command that runs the
+   * terminal's own program, such as `bash x.sh` at a Bash prompt, has its
+   * own command line, so it doesn't count. False when the leader exited
+   * before it was read.
    */
   public get isTerminalProgram(): boolean;
 }
@@ -10121,8 +10137,9 @@ export declare class PseudoTerminal {
    * @param readForegroundGroupAsync Reads the foreground process group of the
    * terminal of the process with the given id and start, or null when that
    * process is no longer the program; by default it answers null.
-   * @param readForegroundAsync Reads the same group with its leader's program
-   * and the terminal program's own, or null when there's no group; by
+   * @param readForegroundAsync Reads the same group with its leader's and the
+   * terminal program's own program and command line, or null when there's no
+   * group; by
    * default it answers null.
    * @example
    * ```ts
@@ -10160,7 +10177,7 @@ export declare class PseudoTerminal {
    * checks that the process is still the program, since an id can be reused
    * before the exit is reported: from `/proc/<pid>/stat` on Linux, a file
    * read, whose session must be the program's own, and from
-   * `ps -o lstart=,tpgid=,comm= -p <pid>` on macOS, a process started for each
+   * `ps -o lstart=,tpgid= -p <pid>` on macOS, a process started for each
    * read, whose start must match the program's within a second and the
    * start margin.
    *
@@ -10184,11 +10201,12 @@ export declare class PseudoTerminal {
   /**
    * Reads the terminal's foreground process group as
    * {@link readForegroundProcessGroupAsync} does, with its leader's program
-   * and the terminal program's own in the same read: on Linux the links
-   * `/proc/<group>/exe` and `/proc/<pid>/exe`, and on macOS the `comm` that
-   * `ps` shows for each, the program's in the same `ps` as its group and the
-   * leader's in one more `ps -o comm= -p <group>` while a command holds the
-   * terminal. A shell gives a command's new process group the terminal right
+   * and command line and the terminal program's own in the same read: on
+   * Linux each one's `/proc/<pid>/exe` link and `/proc/<pid>/cmdline`, and on
+   * macOS the `comm` and then the `args` that `ps -o pid=,comm=` and
+   * `ps -o pid=,args=` show for both. Each program is read before its command
+   * line, so a copy that starts a command's program between the two reads
+   * reads as started. A shell gives a command's new process group the terminal right
    * after it forks, before the command's program starts, so for a moment the
    * group's leader is a copy of the shell, with the shell's own handling of
    * Ctrl+C; a module can wait, before it sends one, until
@@ -10197,8 +10215,8 @@ export declare class PseudoTerminal {
    * @returns The group with the programs; null on Windows, once the program
    * has exited, when the process id is no longer the program's, while no
    * group holds the terminal, and for a pseudo-terminal built without the
-   * reader. The leader's program is null when the leader exited between the
-   * two reads.
+   * reader. The leader's program and command line are null when the leader
+   * exited between the reads.
    * @throws {SystemCommandException} When the group or a program of a process
    * that still runs cannot be read, as when `ps` doesn't answer within
    * 1 second.
