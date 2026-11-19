@@ -9,6 +9,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { Writable } from "node:stream";
 
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
@@ -19,6 +20,7 @@ import { LicenseExpression } from "./license-expression.ts";
 import type { LockedPackage } from "./locked-package.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
+import { RetriedDownload } from "../../services/processes/retried-download.ts";
 import { TarArchive } from "./tar-archive.ts";
 import type { TypeOnlyPeers } from "./type-only-peers.ts";
 
@@ -37,11 +39,12 @@ export class ThirdPartyPackage {
     this.skipped = skipped;
   }
 
-  public static async prepareAsync(locked: LockedPackage, folder: string, reviewedLicenses: readonly string[], accepted: AcceptedLicenses, typeOnly: TypeOnlyPeers):
+  public static async prepareAsync(locked: LockedPackage, folder: string, reviewedLicenses: readonly string[], accepted: AcceptedLicenses, typeOnly: TypeOnlyPeers,
+    output: Writable):
     Promise<ThirdPartyPackage> {
     const file = path.join(folder, locked.fileName);
     const kept = existsSync(file) ? await readFile(file) : null;
-    const data = !Object.isNull(kept) && locked.matches(kept) ? kept : await ThirdPartyPackage.downloadAsync(locked);
+    const data = !Object.isNull(kept) && locked.matches(kept) ? kept : await ThirdPartyPackage.downloadAsync(locked, output);
     await mkdir(folder, { recursive: true });
     await writeFile(file, data);
 
@@ -90,19 +93,39 @@ export class ThirdPartyPackage {
     return (await readFile(file, Resources.textEncoding)).trim();
   }
 
-  private static async downloadAsync(locked: LockedPackage): Promise<Buffer> {
-    let response: Response;
-    try {
-      response = await fetch(locked.resolved, { signal: AbortSignal.timeout(Resources.thirdPartyDownloadTimeout) });
-    }
-    catch (error) {
-      throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
-    }
-    if (!response.ok)
-      throw new BuildException(Resources.formatDownloadStatus(locked.id, locked.resolved, response.status));
-    const data = Buffer.from(await response.arrayBuffer());
+  // Downloads the tarball, trying again after a dropped or timed-out connection and after a server's error, 408 or 429, as the
+  // Electron binary's download does; a refused connection, another status and a tarball that doesn't match fail at once.
+  private static async downloadAsync(locked: LockedPackage, output: Writable): Promise<Buffer> {
+    let data = Buffer.alloc(0);
+    await RetriedDownload.runAsync(Resources.formatDownloadSubject(locked.id, locked.resolved), output, async () => {
+      const response = await ThirdPartyPackage.fetchAsync(locked);
+      if (Object.isString(response))
+        return response;
+      if (!response.ok && (response.status >= Resources.httpServerErrorStatus || Resources.downloadRetriedStatuses.includes(response.status)))
+        return Resources.formatHttpStatus(response.status);
+      if (!response.ok)
+        throw new BuildException(Resources.formatDownloadStatus(locked.id, locked.resolved, response.status));
+      try {
+        data = Buffer.from(await response.arrayBuffer());
+      }
+      catch (error) {
+        return String(error);
+      }
+      return null;
+    });
     if (!locked.matches(data))
       throw new BuildException(Resources.formatTarballIntegrityMismatch(locked.id, locked.resolved));
     return data;
+  }
+
+  private static async fetchAsync(locked: LockedPackage): Promise<Response | string> {
+    try {
+      return await fetch(locked.resolved, { signal: AbortSignal.timeout(Resources.thirdPartyDownloadTimeout) });
+    }
+    catch (error) {
+      if (error instanceof Error && error.cause instanceof Error && "code" in error.cause && error.cause.code === Resources.connectionRefusedCode)
+        throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
+      return String(error);
+    }
   }
 }
