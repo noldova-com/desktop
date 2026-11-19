@@ -1983,9 +1983,10 @@ export class MainProcessTests {
       electron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), { background: "red" });
       refusedElectron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), { background: "red" });
       await Condition.waitAsync(() => MainProcessStartFixture.firstWindow(refusedElectron).isShown);
-      await Condition.waitAsync(() => readFileSync(join(owned, "logs", "main.log"), "utf8").includes(" The window reported"));
+      const log = join(owned, "logs", "main.log");
+      await Condition.waitAsync(() => existsSync(log) && readFileSync(log, "utf8").includes(" The window reported"));
 
-      const lines = (await readFile(join(owned, "logs", "main.log"), "utf8")).trimEnd().split("\n");
+      const lines = (await readFile(log, "utf8")).trimEnd().split("\n");
       Assert.areEqual(1, lines.length);
       Assert.isTrue(/^\d{4}-\d\d-\d\dT[\d:.]+Z The window reported an appearance that is not valid/.test(lines[0] ?? String.empty));
       Assert.isFalse(existsSync(join(refused, "logs")));
