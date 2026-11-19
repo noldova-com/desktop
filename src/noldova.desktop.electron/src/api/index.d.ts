@@ -3294,6 +3294,11 @@ export interface IWebViewContents {
   readonly debugger: IWebViewDebugger;
 
   /**
+   * The page's main frame, whose `framesInSubtree` lists it and every frame in it, each of which runs a script in its page's world.
+   */
+  readonly mainFrame: { readonly framesInSubtree: readonly { executeJavaScript(code: string): Promise<unknown> }[] };
+
+  /**
    * Starts loading an address.
    *
    * @param url The address.
@@ -3618,10 +3623,10 @@ export interface IWebViewContents {
    * Listens for each IPC message a frame of the page sends, which only the host's press script in its isolated world can send.
    *
    * @param event The event's name.
-   * @param listener Receives the sending frame's process and frame ids, the channel and the message's values.
+   * @param listener Receives the sending frame's process and frame ids, the sending frame with its current origin, or `null` once it is gone, the channel and the message's values.
    * @returns Electron's own return value, which the main process does not use.
    */
-  on(event: "ipc-message", listener: (event: { readonly processId: number; readonly frameId: number }, channel: string, ...values: unknown[]) => void): unknown;
+  on(event: "ipc-message", listener: (event: { readonly processId: number; readonly frameId: number; readonly senderFrame: { readonly origin: string } | null }, channel: string, ...values: unknown[]) => void): unknown;
 
   /**
    * Listens for a site or a proxy asking for credentials, which the listener answers.

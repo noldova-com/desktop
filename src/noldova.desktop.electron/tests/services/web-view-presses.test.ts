@@ -13,19 +13,21 @@ import { WebViewPresses } from "../../src/services/web-view-presses.js";
 
 @TestClass
 export class WebViewPressesTests {
+  private static readonly ORIGIN: string = "https://example.com";
+
   @TestMethod
   public keepsThePressesOfItsLatest64FramesSoAnOlderFramesLaterEventStartsNoPress(): void {
     const presses = new WebViewPresses();
     for (let index = 0; index < 65; index++) {
-      presses.note(`1:${index}`, "start", index, false);
-      presses.note(`1:${index}`, "end", undefined, false);
+      presses.note(`1:${index}`, WebViewPressesTests.ORIGIN, "start", index, false);
+      presses.note(`1:${index}`, WebViewPressesTests.ORIGIN, "end", undefined, false);
     }
 
-    presses.note("1:0", "resume", undefined, false);
-    const oldest = presses.read();
-    presses.note("1:1", "resume", undefined, false);
+    presses.note("1:0", WebViewPressesTests.ORIGIN, "resume", undefined, false);
+    const oldest = presses.read(WebViewPressesTests.ORIGIN);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "resume", undefined, false);
 
-    Assert.areEqual("null,2", [oldest, presses.read()].map(t => String(t)).join(","));
+    Assert.areEqual("null,2", [oldest, presses.read(WebViewPressesTests.ORIGIN)].map(t => String(t)).join(","));
   }
 
   @TestMethod
@@ -33,16 +35,29 @@ export class WebViewPressesTests {
     const presses = new WebViewPresses();
 
     presses.addRelayed(1);
-    presses.note("1:1", "start", 1, false);
-    const relayed = presses.read();
-    presses.note("1:1", "start", 2, true);
-    const running = presses.read();
-    presses.note("1:1", "start", 3, false);
-    const first = presses.read();
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 1, false);
+    const relayed = presses.read(WebViewPressesTests.ORIGIN);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 2, true);
+    const running = presses.read(WebViewPressesTests.ORIGIN);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 3, false);
+    const first = presses.read(WebViewPressesTests.ORIGIN);
     presses.addRelayed(2);
     presses.forget();
-    presses.note("1:1", "start", 4, false);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 4, false);
 
-    Assert.areEqual("null,null,1,2", [relayed, running, first, presses.read()].map(t => String(t)).join(","));
+    Assert.areEqual("null,null,1,2", [relayed, running, first, presses.read(WebViewPressesTests.ORIGIN)].map(t => String(t)).join(","));
+  }
+
+  @TestMethod
+  public readsThePressOfTheLatestOpenFrameOfTheRequestsOriginAndKeepsAFramesNewOriginFromItsResume(): void {
+    const presses = new WebViewPresses();
+
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 1, false);
+    presses.note("2:1", "https://other.example", "start", 2, false);
+    const reads = [presses.read(WebViewPressesTests.ORIGIN), presses.read("https://other.example"), presses.read("https://third.example"), presses.read(null)];
+    presses.note("2:1", "https://other.example", "end", undefined, false);
+    presses.note("2:1", "https://moved.example", "resume", undefined, false);
+
+    Assert.areEqual("1,2,null,null,null,2", [...reads, presses.read("https://other.example"), presses.read("https://moved.example")].map(t => String(t)).join(","));
   }
 }

@@ -23,6 +23,8 @@ import { TabDragFixture } from "./fixtures/tab-drag.fixture.ts";
 import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 
 const host = "127.0.0.1";
+const hostReach = "[typeof require, typeof process, typeof ipcRenderer, typeof electron, Object.getOwnPropertyNames(globalThis).filter(t => /desktop|electron|ipc/iu.test(t)).length]";
+const noHostReach = ["undefined", "undefined", "undefined", "undefined", 0];
 const titles = new Map([["/first", "First page"], ["/second", "Second page"], ["/a", "Page A"], ["/b", "Page B"]]);
 const iconRequests: string[] = [];
 const keysPage = "<!doctype html><title>Loading</title><p>Keys</p><script>const keys = []; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Keys\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"keydown\", event => { keys.push(event.key); document.title = [\"Keys\", ...keys].join(\" \"); });</script>";
@@ -32,8 +34,8 @@ const manualFormPage = formPage.replace("<script>", "<script>history.scrollResto
 const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><a href=\"/focus?linked\" style=\"position:absolute;left:10px;top:60px;width:150px;height:30px;display:block\">Next</a><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
-const handlersPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:100px;height:40px\">D</div><a href=\"/a\" target=\"_blank\" style=\"display:block;width:100px;height:40px\">A</a><script>const d = document.getElementById(\"d\"); d.addEventListener(\"auxclick\", e => { if (e.button === 1) { window.open(\"/a\"); window.open(\"/b\"); } }); d.addEventListener(\"click\", e => { if (e.ctrlKey || e.metaKey) { window.open(\"/a\"); window.open(\"/b\"); } }); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Handlers\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
-const framedPage = (source: string): string => `<!doctype html><title>Loading</title><body style="margin:0"><iframe src="${source}/handlers" style="position:absolute;left:0;top:0;width:300px;height:120px;border:0" onload="document.title = 'Framed'"></iframe></body>`;
+const handlersPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:100px;height:40px\">D</div><a href=\"/a\" target=\"_blank\" style=\"display:block;width:100px;height:40px\">A</a><script>const d = document.getElementById(\"d\"); d.addEventListener(\"auxclick\", e => { if (e.button === 1) { window.open(\"/a\"); window.open(\"/b\"); } }); d.addEventListener(\"click\", e => { if (e.ctrlKey || e.metaKey) { window.open(\"/a\"); window.open(\"/b\"); } }); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Handlers\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"message\", e => { if (e.data === \"open\") window.open(\"/c\"); });</script></body>";
+const framedPage = (source: string): string => `<!doctype html><title>Loading</title><body style="margin:0"><iframe src="${source}/handlers" style="position:absolute;left:0;top:0;width:300px;height:120px;border:0" onload="document.title = 'Framed'"></iframe><script>addEventListener("auxclick", () => { frames[0].postMessage("open", "*"); const end = performance.now() + 300; while (performance.now() < end); window.open("/d"); });</script></body>`;
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
 function png(side: number): Buffer {
@@ -260,6 +262,14 @@ function readFirstViewAsync(mainProcess: MainProcessFixture, script: string): Pr
   return mainProcess.application.evaluate(({ webContents }, code) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
     return first === undefined ? null : first.executeJavaScript(code);
+  }, script);
+}
+
+function readFirstViewFrameAsync(mainProcess: MainProcessFixture, script: string): Promise<unknown> {
+  return mainProcess.application.evaluate(({ webContents }, code) => {
+    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+    const frame = first?.mainFrame.frames[0];
+    return frame === undefined ? null : frame.executeJavaScript(code);
   }, script);
 }
 
@@ -1281,7 +1291,7 @@ test.describe("web views", () => {
       const two = `${one}${pair(origin, true, "background-tab", "2")}${pair(origin, true, "background-tab", "3")}`;
       await expect(view(window, 0)).toHaveAttribute("data-requests", two);
 
-      expect(await readFirstViewAsync(mainProcess, "[typeof require, typeof process, typeof ipcRenderer, typeof electron, Object.getOwnPropertyNames(globalThis).filter(t => /desktop|electron|ipc/iu.test(t)).length]")).toEqual(["undefined", "undefined", "undefined", "undefined", 0]);
+      expect(await readFirstViewAsync(mainProcess, hostReach)).toEqual(noHostReach);
       await shiftClockAsync(mainProcess, 6000);
       expect(await runInFirstViewAsync(mainProcess, "(() => { const target = document.getElementById('d'); for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) target.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 1, buttons: 4 })); target.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 })); })()")).toBe(true);
       const faked = `${two}${pair(origin, false, "foreground-tab", "null")}`;
@@ -1298,6 +1308,8 @@ test.describe("web views", () => {
       const processes = await readFirstViewFramesAsync(mainProcess);
       expect(processes).not.toBeNull();
       expect(processes?.[0]).not.toBe(processes?.[1]);
+      await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.title")).toBe("Handlers");
+      expect(await readFirstViewFrameAsync(mainProcess, hostReach)).toEqual(noHostReach);
       const box = await readViewBoxAsync(window);
       if (Object.isNull(box))
         throw new Error("The view has no element in the window.");
@@ -1305,6 +1317,16 @@ test.describe("web views", () => {
       await window.mouse.click(box.x + 50, box.y + 20, { button: "middle" });
       await expect.poll(() => readRequestsWithoutInputAsync(window, relayed.length)).toEqual([`${other}/a ${other} background-tab 4`, `${other}/b ${other} background-tab 4`, String.empty]);
       expect((await view(window, 0).getAttribute("data-requests"))?.startsWith(relayed)).toBe(true);
+      const framed = (await view(window, 0).getAttribute("data-requests")) ?? String.empty;
+      await shiftClockAsync(mainProcess, 1100);
+      await window.mouse.click(box.x + 50, box.y + 200, { button: "middle" });
+      await expect.poll(() => readRequestsWithoutInputAsync(window, framed.length)).toEqual([`${other}/c ${other} foreground-tab null`, `${origin}/d ${origin} background-tab 5`, String.empty]);
+
+      await shiftClockAsync(mainProcess, 1100);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/framed?${encodeURIComponent(origin)}` })).toEqual({ kind: "Started", origin: null });
+      await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.title")).toBe("Handlers");
+      expect(await readFirstViewFrameAsync(mainProcess, hostReach)).toEqual(noHostReach);
+      expect(await readFirstViewAsync(mainProcess, "document.querySelector('iframe').contentDocument.title")).toBe("Handlers");
     }
     finally {
       await holdClockAsync(mainProcess, false);

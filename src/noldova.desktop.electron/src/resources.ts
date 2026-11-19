@@ -306,6 +306,20 @@ export class Resources {
   public static readonly touchPointsField: string = "touchPoints";
   public static readonly touchPointIdField: string = "id";
   public static readonly pressFreeInputMethods: readonly string[] = ["Input.dispatchMouseEvent", "Input.dispatchTouchEvent", "Input.dispatchKeyEvent", "Input.insertText"];
+  public static readonly nonPressingInputMethods: readonly string[] = [
+    "Input.insertText", "Input.imeSetComposition", "Input.dispatchDragEvent", "Input.setIgnoreInputEvents", "Input.setInterceptDrags", "Input.cancelDragging"
+  ];
+  public static readonly tapGestureMethod: string = "Input.synthesizeTapGesture";
+  public static readonly touchFromMouseMethod: string = "Input.emulateTouchFromMouseEvent";
+  public static readonly scrollGestureMethod: string = "Input.synthesizeScrollGesture";
+  public static readonly pinchGestureMethod: string = "Input.synthesizePinchGesture";
+  public static readonly tapCountField: string = "tapCount";
+  public static readonly repeatCountField: string = "repeatCount";
+  public static readonly gestureSourceField: string = "gestureSourceType";
+  public static readonly touchGestureSource: string = "touch";
+  public static readonly mousePressedType: string = "mousePressed";
+  public static readonly pinchTouchPoints: number = 2;
+  public static readonly frameBarrierScript: string = "0";
   public static readonly inputStartKind: string = "Start";
   public static readonly inputEndKind: string = "End";
   public static readonly inputPressKind: string = "Press";

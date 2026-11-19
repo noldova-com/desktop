@@ -73,6 +73,7 @@ export class OpenWebView {
   private isAnswerAwaited: boolean = false;
   private touchPoints: readonly unknown[] = [];
   private uncountedInputs: number = 0;
+  private pressingInputs: number = 0;
   private openPageCalls: number = 0;
   private allowed: readonly string[] = [];
   private guest: IWebViewContents | null = null;
@@ -401,18 +402,25 @@ export class OpenWebView {
     const presses = this.countPresses(method, params);
     const press = presses > 0 ? Symbol(method) : null;
     const isUncounted = isInput && !Resources.pressFreeInputMethods.includes(method);
+    const isPressing = isInput && !Resources.nonPressingInputMethods.includes(method);
     if (isInput)
       this.relayedInputs += 1;
     if (!Object.isNull(press))
       this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
-    this.presses.addRelayed(presses + OpenWebView.countKeyPresses(method, params));
+    this.presses.addRelayed(presses + OpenWebView.countKeyPresses(method, params) + OpenWebView.countGesturePresses(method, params));
     if (isUncounted)
       this.uncountedInputs += 1;
+    if (isPressing)
+      this.pressingInputs += 1;
     if (isPageCall)
       this.startPageCall();
     const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
     if (isInput)
       void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
+    if (isPressing)
+      void OpenWebView.afterFramesAsync(guest, sent).then(() => {
+        this.pressingInputs -= 1;
+      });
     const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
     if (isPageCall)
       void handled.then(() => this.endPageCall(), () => this.endPageCall());
@@ -435,7 +443,7 @@ export class OpenWebView {
     });
     guest.on(Resources.ipcMessageEvent, (event, channel, kind, stamp) => {
       if (this.isBound(guest) && channel === Resources.webViewPressChannel)
-        this.presses.note(`${event.processId}:${event.frameId}`, kind, stamp, this.uncountedInputs > 0);
+        this.presses.note(`${event.processId}:${event.frameId}`, event.senderFrame?.origin ?? null, kind, stamp, this.pressingInputs > 0);
     });
     guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
     guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
@@ -738,7 +746,7 @@ export class OpenWebView {
       [Resources.hadRecentInputField]: !Object.isUndefined(this.lastInput) && now - this.lastInput <= Resources.recentInputMilliseconds,
       [Resources.originField]: origin === Resources.nullOrigin ? null : origin,
       ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition },
-      [Resources.pressIdField]: this.presses.read()
+      [Resources.pressIdField]: this.presses.read(origin === Resources.nullOrigin ? null : origin)
     });
   }
 
@@ -946,6 +954,12 @@ export class OpenWebView {
       this.report(new WebViewEvent(this.info.module, this.info.id, kind, details));
   }
 
+  private static async afterFramesAsync(guest: IWebViewContents, sent: Promise<unknown>): Promise<void> {
+    await sent.catch(() => undefined);
+    const frames = guest.isDestroyed() ? [] : guest.mainFrame.framesInSubtree;
+    await Promise.allSettled(frames.map(t => t.executeJavaScript(Resources.frameBarrierScript)));
+  }
+
   private static afterRendererAsync(guest: IWebViewContents, sent: Promise<unknown>): Promise<unknown> {
     return sent.finally(() => guest.executeJavaScriptInIsolatedWorld(Resources.focusBarrierWorld, [{ code: Resources.focusBarrierScript }]).catch(() => undefined));
   }
@@ -975,6 +989,19 @@ export class OpenWebView {
 
   private static countKeyPresses(method: string, params: JsonObject): number {
     return method === Resources.dispatchKeyEventMethod && Resources.keyDownInputs.includes(String(params[Resources.typeField])) && params[Resources.autoRepeatField] !== true ? 1 : 0;
+  }
+
+  private static countGesturePresses(method: string, params: JsonObject): number {
+    const isTouch = params[Resources.gestureSourceField] === Resources.touchGestureSource;
+    const taps = params[Resources.tapCountField];
+    const repeats = params[Resources.repeatCountField];
+    if (method === Resources.tapGestureMethod)
+      return Number.isSafeInteger(taps) && Number(taps) > 1 ? Number(taps) : 1;
+    if (method === Resources.touchFromMouseMethod)
+      return params[Resources.typeField] === Resources.mousePressedType ? 1 : 0;
+    if (method === Resources.scrollGestureMethod && isTouch)
+      return Number.isSafeInteger(repeats) && Number(repeats) > 0 ? Number(repeats) + 1 : 1;
+    return method === Resources.pinchGestureMethod && isTouch ? Resources.pinchTouchPoints : 0;
   }
 
   private countPresses(method: string, params: JsonObject): number {

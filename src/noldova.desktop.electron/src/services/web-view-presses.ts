@@ -13,37 +13,35 @@ import { Resources } from "../resources.js";
 export class WebViewPresses {
   private relayed: number = 0;
   private count: number = 0;
-  private frames: ReadonlyMap<string, readonly [number | null, number]> = new Map();
+  private frames: ReadonlyMap<string, readonly [number | null, number, string | null]> = new Map();
   private open: readonly string[] = [];
 
   public addRelayed(presses: number): void {
     this.relayed += presses;
   }
 
-  public note(frame: string, kind: unknown, stamp: unknown, isRelayRunning: boolean): void {
+  public note(frame: string, origin: string | null, kind: unknown, stamp: unknown, isRelayRunning: boolean): void {
     if (kind === Resources.pressEndKind) {
       this.open = this.open.filter(t => t !== frame);
       return;
     }
     const last = this.frames.get(frame);
     if (kind === Resources.pressResumeKind && !Object.isUndefined(last))
-      return this.openFrame(frame);
+      return this.openFrame(frame, [last[0], last[1], origin]);
     if (kind !== Resources.pressStartKind || !Number.isFinite(stamp))
       return;
     if (!Object.isUndefined(last) && last[1] === stamp)
-      return this.openFrame(frame);
+      return this.openFrame(frame, [last[0], last[1], origin]);
     const isRelayed = this.relayed > 0 || isRelayRunning;
     if (this.relayed > 0)
       this.relayed -= 1;
     if (!isRelayed)
       this.count += 1;
-    const kept = [...this.frames].filter(([key]) => key !== frame).slice(1 - Resources.pressFrameLimit);
-    this.frames = new Map([...kept, [frame, [isRelayed ? null : this.count, Number(stamp)]]]);
-    this.openFrame(frame);
+    this.openFrame(frame, [isRelayed ? null : this.count, Number(stamp), origin]);
   }
 
-  public read(): number | null {
-    const handling = this.open.at(-1);
+  public read(origin: string | null): number | null {
+    const handling = Object.isNull(origin) ? undefined : this.open.findLast(t => this.frames.get(t)?.[2] === origin);
     return Object.isUndefined(handling) ? null : this.frames.get(handling)?.[0] ?? null;
   }
 
@@ -53,7 +51,9 @@ export class WebViewPresses {
     this.open = [];
   }
 
-  private openFrame(frame: string): void {
+  private openFrame(frame: string, press: readonly [number | null, number, string | null]): void {
+    const kept = [...this.frames].filter(([key]) => key !== frame).slice(1 - Resources.pressFrameLimit);
+    this.frames = new Map([...kept, [frame, press]]);
     this.open = [...this.open.filter(t => t !== frame && this.frames.has(t)), frame];
   }
 }

@@ -43,9 +43,15 @@ export class FakeWebViewContents implements IWebViewContents {
   public onInput: (event: IWebViewKeyEvent) => void = () => undefined;
   public onText: (text: string) => Promise<void> = () => Promise.resolve();
   public onIsolated: () => Promise<unknown> = () => Promise.resolve(0);
+  public frameCount: number = 1;
+  public onFrame: (index: number) => Promise<unknown> = () => Promise.resolve(0);
 
   public constructor(id: number) {
     this.id = id;
+  }
+
+  public get mainFrame(): { readonly framesInSubtree: readonly { executeJavaScript(code: string): Promise<unknown> }[] } {
+    return { framesInSubtree: Array.from({ length: this.frameCount }, (_, index) => ({ executeJavaScript: () => this.onFrame(index) })) };
   }
 
   public loadURL(url: string): Promise<void> {
