@@ -10,6 +10,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { chmod, mkdir, realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { setTimeout } from "node:timers/promises";
 
 import "@noldova/context.core";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
@@ -37,11 +38,11 @@ export class MacFolderProtectorTests {
     return new NativeAddon<IPosixProcessAddon>(fake.file, functions);
   }
 
-  private static detach(disk: string): void {
+  private static async detachAsync(disk: string): Promise<void> {
     const failures: string[] = [];
     for (let attempt = 1; attempt <= MacFolderProtectorTests.DETACH_ATTEMPTS; attempt++) {
       if (attempt > 1)
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, MacFolderProtectorTests.DETACH_PAUSE_MILLISECONDS);
+        await setTimeout(MacFolderProtectorTests.DETACH_PAUSE_MILLISECONDS);
       const result = spawnSync("/usr/bin/hdiutil", ["detach", "-force", disk], { encoding: "utf8" });
       if (result.status === 0)
         return;
@@ -199,7 +200,7 @@ export class MacFolderProtectorTests {
 
       Assert.areEqual(`the volume ${await realpath(mountPoint)} is mounted with ownership ignored, so every account acts as the owner of its files`, exception.access);
     } finally {
-      MacFolderProtectorTests.detach(disk ?? mountPoint);
+      await MacFolderProtectorTests.detachAsync(disk ?? mountPoint);
     }
   }
 }
