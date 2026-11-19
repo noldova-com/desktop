@@ -35,7 +35,7 @@ const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><a href=\"/focus?linked\" style=\"position:absolute;left:10px;top:60px;width:150px;height:30px;display:block\">Next</a><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
 const handlersPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:100px;height:40px\">D</div><a href=\"/a\" target=\"_blank\" style=\"display:block;width:100px;height:40px\">A</a><script>const d = document.getElementById(\"d\"); d.addEventListener(\"auxclick\", e => { if (e.button === 1) { window.open(\"/a\"); window.open(\"/b\"); } }); d.addEventListener(\"click\", e => { if (e.ctrlKey || e.metaKey) { window.open(\"/a\"); window.open(\"/b\"); } }); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Handlers\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"message\", e => { if (e.data === \"open\") window.open(\"/c\"); });</script></body>";
-const framedPage = (source: string): string => `<!doctype html><title>Loading</title><body style="margin:0"><iframe src="${source}/handlers" style="position:absolute;left:0;top:0;width:300px;height:120px;border:0" onload="document.title = 'Framed'"></iframe><script>addEventListener("auxclick", () => { frames[0].postMessage("open", "*"); const end = performance.now() + 300; while (performance.now() < end); window.open("/d"); });</script></body>`;
+const framedPage = (source: string): string => `<!doctype html><title>Loading</title><body style="margin:0"><iframe src="${source}/handlers" style="position:absolute;left:0;top:0;width:300px;height:120px;border:0" onload="document.title = 'Framed'"></iframe><script>addEventListener("pointerdown", e => { if (e.button !== 1) return; frames[0].postMessage("open", "*"); const end = performance.now() + 300; while (performance.now() < end); window.open("/d"); });</script></body>`;
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
 function png(side: number): Buffer {
@@ -1319,14 +1319,19 @@ test.describe("web views", () => {
       expect((await view(window, 0).getAttribute("data-requests"))?.startsWith(relayed)).toBe(true);
       const framed = (await view(window, 0).getAttribute("data-requests")) ?? String.empty;
       await shiftClockAsync(mainProcess, 1100);
+      await expect.poll(async () => {
+        await window.mouse.move(box.x + 351, box.y + 20);
+        await window.mouse.move(box.x + 350, box.y + 20);
+        return readFirstViewAsync(mainProcess, "document.documentElement.matches(':hover') && document.querySelector('iframe:hover') === null");
+      }).toBe(true);
       await window.mouse.click(box.x + 350, box.y + 20, { button: "middle" });
       await expect.poll(async () => [...await readRequestsWithoutInputAsync(window, framed.length)].sort()).toEqual([`${other}/c ${other} foreground-tab null`, `${origin}/d ${origin} background-tab 5`, String.empty].sort());
 
       await shiftClockAsync(mainProcess, 1100);
       expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/framed?${encodeURIComponent(origin)}` })).toEqual({ kind: "Started", origin: null });
-      await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.title")).toBe("Handlers");
+      await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.readyState")).toBe("complete");
       expect(await readFirstViewFrameAsync(mainProcess, hostReach)).toEqual(noHostReach);
-      expect(await readFirstViewAsync(mainProcess, "document.querySelector('iframe').contentDocument.title")).toBe("Handlers");
+      expect(await readFirstViewAsync(mainProcess, "document.querySelector('iframe').contentDocument.getElementById('d').textContent")).toBe("D");
     }
     finally {
       await holdClockAsync(mainProcess, false);
