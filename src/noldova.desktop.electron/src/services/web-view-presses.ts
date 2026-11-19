@@ -15,12 +15,17 @@ export class WebViewPresses {
   private count: number = 0;
   private frames: ReadonlyMap<string, readonly [number | null, number, string | null]> = new Map();
   private open: readonly string[] = [];
+  private touches: readonly number[] = [];
 
   public addRelayed(presses: number): void {
     this.relayed += presses;
   }
 
-  public note(frame: string, origin: string | null, kind: unknown, stamp: unknown, isRelayRunning: boolean): void {
+  public addRelayedTouches(ids: readonly number[]): void {
+    this.touches = [...this.touches, ...ids].slice(-Resources.relayedTouchLimit);
+  }
+
+  public note(frame: string, origin: string | null, kind: unknown, stamp: unknown, isRelayRunning: boolean, touches: unknown = []): void {
     if (kind === Resources.pressEndKind) {
       this.open = this.open.filter(t => t !== frame);
       return;
@@ -32,8 +37,12 @@ export class WebViewPresses {
       return;
     if (!Object.isUndefined(last) && last[1] === stamp)
       return this.openFrame(frame, [last[0], last[1], origin]);
-    const isRelayed = this.relayed > 0 || isRelayRunning;
-    if (this.relayed > 0)
+    const ids: readonly unknown[] = Array.isArray(touches) ? touches : [];
+    const isTouchRelayed = this.touches.some(t => ids.includes(t));
+    this.touches = this.touches.filter(t => !ids.includes(t));
+    const isCounted = !isTouchRelayed && this.relayed > 0;
+    const isRelayed = isCounted || isTouchRelayed || isRelayRunning;
+    if (isCounted)
       this.relayed -= 1;
     if (!isRelayed)
       this.count += 1;
@@ -47,6 +56,7 @@ export class WebViewPresses {
 
   public forget(): void {
     this.relayed = 0;
+    this.touches = [];
     this.frames = new Map();
     this.open = [];
   }

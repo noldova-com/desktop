@@ -73,6 +73,8 @@ export class OpenWebView {
   private declinedKey: IKeyStroke | null = null;
   private isAnswerAwaited: boolean = false;
   private touchPoints: readonly unknown[] = [];
+  private touchIds: ReadonlyMap<unknown, number> = new Map();
+  private nextTouchId: number = Resources.relayedTouchIdBase;
   private uncountedInputs: number = 0;
   private pressWaits: ReadonlyMap<symbol, readonly IWebViewFrame[] | null> = new Map();
   private openPageCalls: number = 0;
@@ -177,6 +179,7 @@ export class OpenWebView {
     this.isCrashed = false;
     this.presses.forget();
     this.pressWaits = new Map();
+    this.touchIds = new Map();
     if (!Object.isNull(previous) && !previous.isDestroyed() && previous.debugger.isAttached())
       previous.debugger.detach();
     this.listen(guest);
@@ -409,7 +412,8 @@ export class OpenWebView {
       this.relayedInputs += 1;
     if (!Object.isNull(press))
       this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
-    this.presses.addRelayed(presses + OpenWebView.countKeyPresses(method, params) + OpenWebView.countGesturePresses(method, params));
+    const relayed = this.giveTouchIds(method, params);
+    this.presses.addRelayed((method === Resources.dispatchTouchEventMethod ? 0 : presses) + OpenWebView.countKeyPresses(method, params) + OpenWebView.countGesturePresses(method, params));
     if (isUncounted)
       this.uncountedInputs += 1;
     const wait = Symbol(method);
@@ -417,7 +421,7 @@ export class OpenWebView {
       this.pressWaits = new Map([...this.pressWaits, [wait, null]]);
     if (isPageCall)
       this.startPageCall();
-    const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
+    const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, relayed)) : OpenWebView.relayAsync(guest, method, relayed);
     if (isInput)
       void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
     if (isPressing)
@@ -442,9 +446,9 @@ export class OpenWebView {
       if (this.isBound(guest))
         this.noteInput(input.type);
     });
-    guest.on(Resources.ipcMessageEvent, (event, channel, kind, stamp) => {
+    guest.on(Resources.ipcMessageEvent, (event, channel, kind, stamp, touches) => {
       if (this.isBound(guest) && channel === Resources.webViewPressChannel)
-        this.presses.note(`${event.processId}:${event.frameId}`, event.senderFrame?.origin ?? null, kind, stamp, this.isPressRelayed());
+        this.presses.note(`${event.processId}:${event.frameId}`, event.senderFrame?.origin ?? null, kind, stamp, this.isPressRelayed(), touches);
     });
     guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
     guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
@@ -1017,6 +1021,23 @@ export class OpenWebView {
     if (method === Resources.scrollGestureMethod && isTouch)
       return Number.isSafeInteger(repeats) && Number(repeats) > 0 ? Number(repeats) + 1 : 1;
     return method === Resources.pinchGestureMethod && isTouch ? Resources.pinchTouchPoints : 0;
+  }
+
+  private giveTouchIds(method: string, params: JsonObject): JsonObject {
+    const listed = params[Resources.touchPointsField];
+    if (method !== Resources.dispatchTouchEventMethod)
+      return params;
+    const points: readonly unknown[] = Array.isArray(listed) ? listed : [];
+    const held = this.touchIds;
+    const given = points.map((point, index) => {
+      const fields = OpenWebView.readObject(point) ?? {};
+      const own = fields[Resources.touchPointIdField];
+      const key = Number.isSafeInteger(own) ? own : `#${String(index)}`;
+      return [key, held.get(key) ?? this.nextTouchId++, fields] as const;
+    });
+    this.touchIds = new Map(given.map(([key, id]) => [key, id]));
+    this.presses.addRelayedTouches(given.filter(([key]) => !held.has(key)).map(([, id]) => id));
+    return Array.isArray(listed) ? { ...params, [Resources.touchPointsField]: given.map(([, id, fields]) => ({ ...fields, [Resources.touchPointIdField]: id })) } : params;
   }
 
   private countPresses(method: string, params: JsonObject): number {

@@ -10,7 +10,7 @@ import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { Condition } from "./fixtures/condition.fixture.js";
-import { FakeKeyboardEvent, FakePointerEvent, FakePressPage } from "./fixtures/fake-press-page.fixture.js";
+import { FakeKeyboardEvent, FakePointerEvent, FakePressPage, FakeTouchEvent } from "./fixtures/fake-press-page.fixture.js";
 
 @TestClass
 export class PressWatchTests {
@@ -18,7 +18,7 @@ export class PressWatchTests {
   public listensOnThePagesWindowAheadOfItsListenersWithoutBlockingScrollAndExposesNothing(): void {
     const page = FakePressPage.load();
 
-    Assert.areEqual("pointerdown,pointermove,keydown,mousedown,pointerup,mouseup,click,auxclick,dblclick,contextmenu,keypress,keyup,touchstart,touchend", [...page.options.keys()].join(","));
+    Assert.areEqual("pointerdown,pointermove,keydown,touchstart,mousedown,pointerup,mouseup,click,auxclick,dblclick,contextmenu,keypress,keyup,touchend", [...page.options.keys()].join(","));
     Assert.isTrue([...page.options.values()].every(t => JSON.stringify(t) === "{\"capture\":true,\"passive\":true}"));
     Assert.areEqual(0, page.electron.sent.length);
     Assert.areEqual(0, page.electron.exposedNames.length);
@@ -46,6 +46,22 @@ export class PressWatchTests {
     page.endTask();
 
     Assert.areEqual("start 3|start 4|end", page.reports());
+  }
+
+  @TestMethod
+  public startsATouchsPressAtItsTouchStartWithItsTouchesIdsNotAtItsPointerDownAndGoesOnWithItAtItsTouchEnd(): void {
+    const page = FakePressPage.load();
+
+    page.dispatch(new FakePointerEvent("pointerdown", true, 0, 1, 7, "touch"));
+    const atPointerDown = page.reports();
+    page.dispatch(new FakeTouchEvent("touchstart", true, 7, [1000000000, 4]), new FakePointerEvent("pointerup", true, 0, 0, 8, "touch"));
+    page.endTask();
+    page.dispatch(new FakeTouchEvent("touchend", true, 9, [4]), FakePressPage.event("click"));
+    page.endTask();
+    page.dispatch(new FakeTouchEvent("touchstart", false, 10, [5]));
+
+    Assert.areEqual(String.empty, atPointerDown);
+    Assert.areEqual("start 7 1000000000,4|end|resume|end", page.reports());
   }
 
   @TestMethod

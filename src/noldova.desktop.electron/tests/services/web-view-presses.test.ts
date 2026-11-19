@@ -16,6 +16,29 @@ export class WebViewPressesTests {
   private static readonly ORIGIN: string = "https://example.com";
 
   @TestMethod
+  public givesARelayedTouchNullByItsIdAndThePersonsTouchItsNumberAtTouchStartAndTouchEndWhileAGesturesCountIsOutstanding(): void {
+    const presses = new WebViewPresses();
+    presses.addRelayedTouches([1000000000, 1000000001]);
+
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 1, false, [1000000001]);
+    const relayed = presses.read(WebViewPressesTests.ORIGIN);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "end", undefined, false);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 2, false, [3]);
+    const atTouchStart = presses.read(WebViewPressesTests.ORIGIN);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "end", undefined, false);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "resume", undefined, false);
+    const atTouchEnd = presses.read(WebViewPressesTests.ORIGIN);
+    presses.addRelayed(1);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 3, false, [1000000000]);
+    const relayedWhileCounted = presses.read(WebViewPressesTests.ORIGIN);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 4, false, [6]);
+    const counted = presses.read(WebViewPressesTests.ORIGIN);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 5, false, [1000000001]);
+
+    Assert.areEqual("null,1,1,null,null,2", [relayed, atTouchStart, atTouchEnd, relayedWhileCounted, counted, presses.read(WebViewPressesTests.ORIGIN)].map(t => String(t)).join(","));
+  }
+
+  @TestMethod
   public keepsThePressesOfItsLatest64FramesSoAnOlderFramesLaterEventStartsNoPress(): void {
     const presses = new WebViewPresses();
     for (let index = 0; index < 65; index++) {

@@ -228,6 +228,8 @@ export class Resources {
   public static readonly pressResumeKind: string = "resume";
   public static readonly pressEndKind: string = "end";
   public static readonly pressFrameLimit: number = 64;
+  public static readonly relayedTouchLimit: number = 64;
+  public static readonly relayedTouchIdBase: number = 1000000000;
   public static readonly altModifier: number = 1;
   public static readonly ctrlModifier: number = 2;
   public static readonly metaModifier: number = 4;

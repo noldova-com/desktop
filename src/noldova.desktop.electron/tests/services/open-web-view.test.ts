@@ -140,6 +140,7 @@ export class OpenWebViewTests {
       { name: "Input.dispatchMouseEvent", parameters: { type: { required: true }, x: {}, y: {} } },
       { name: "Input.dispatchKeyEvent", parameters: { type: { required: true }, key: {}, autoRepeat: {} } },
       { name: "Input.synthesizeTapGesture", parameters: { x: { required: true }, y: { required: true }, tapCount: {} } },
+      { name: "Input.dispatchTouchEvent", parameters: { type: { required: true }, touchPoints: {} } },
       { name: "Input.emulateTouchFromMouseEvent", parameters: { type: { required: true }, x: {}, y: {}, button: {} } },
       { name: "Input.synthesizeScrollGesture", parameters: { x: {}, y: {}, yDistance: {}, repeatCount: {}, gestureSourceType: {} } },
       { name: "Input.synthesizePinchGesture", parameters: { x: {}, y: {}, scaleFactor: {}, gestureSourceType: {} } },
@@ -825,6 +826,28 @@ export class OpenWebViewTests {
     }
 
     Assert.areEqual("null 1 2|null 1 2|null 1 2", results.join("|"));
+  }
+
+  @TestMethod
+  public async givesEachTouchPointItRelaysAnIdOfItsOwnForAsLongAsTheRelayListsItSoItsPressGetsNullWhileThePersonsTouchAndMouseGetTheirNumbers(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
+    const frame = { processId: 4, frameId: 1 };
+
+    await harness.open.sendAsync(1, "Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 1, y: 1, id: 5 }, { x: 2, y: 2 }] }, 1000);
+    await harness.open.sendAsync(2, "Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 3, y: 3, id: 5 }, 7] }, 1000);
+    await harness.open.sendAsync(3, "Input.dispatchTouchEvent", { type: "touchEnd" }, 1000);
+    await harness.open.sendAsync(4, "Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 4, y: 4, id: 5 }] }, 1000);
+    await OpenWebViewTests.drainAsync();
+    const relayed = [OpenWebViewTests.press(harness, frame, "start", 1, [1000000000]), OpenWebViewTests.request(harness)][1];
+    const mouse = [OpenWebViewTests.press(harness, frame, "start", 2), OpenWebViewTests.request(harness)][1];
+    const touch = [OpenWebViewTests.press(harness, frame, "start", 3, [9]), OpenWebViewTests.request(harness)][1];
+    OpenWebViewTests.press(harness, frame, "end");
+    const touchEnd = [OpenWebViewTests.press(harness, frame, "resume"), OpenWebViewTests.request(harness)][1];
+    const again = [OpenWebViewTests.press(harness, frame, "start", 4, [1000000002]), OpenWebViewTests.request(harness)][1];
+
+    Assert.areEqual(JSON.stringify([[{ x: 1, y: 1, id: 1000000000 }, { x: 2, y: 2, id: 1000000001 }], [{ x: 3, y: 3, id: 1000000000 }, { id: 1000000001 }], null, [{ x: 4, y: 4, id: 1000000002 }]]),
+      JSON.stringify(harness.contents.debugger.sent.filter(t => t[0] === "Input.dispatchTouchEvent").map(t => Reflect.get(t[1], "touchPoints") ?? null)));
+    Assert.areEqual("null,1,2,2,null", [relayed, mouse, touch, touchEnd, again].map(t => String(t)).join(","));
   }
 
   @TestMethod
@@ -1687,9 +1710,9 @@ export class OpenWebViewTests {
     return new Promise(resolve => setImmediate(resolve));
   }
 
-  private static press(harness: OpenWebViewHarness, frame: { readonly processId: number; readonly frameId: number; readonly origin?: string }, kind: unknown, stamp?: unknown): undefined {
+  private static press(harness: OpenWebViewHarness, frame: { readonly processId: number; readonly frameId: number; readonly origin?: string }, kind: unknown, stamp?: unknown, touches?: readonly number[]): undefined {
     const { origin, ...ids } = frame;
-    harness.contents.emit("ipc-message", { ...ids, senderFrame: { origin: origin ?? OpenWebViewTests.PAGE_ORIGIN } }, "desktop:web-view-press", kind, stamp);
+    harness.contents.emit("ipc-message", { ...ids, senderFrame: { origin: origin ?? OpenWebViewTests.PAGE_ORIGIN } }, "desktop:web-view-press", kind, stamp, touches);
     return undefined;
   }
 

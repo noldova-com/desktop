@@ -30,13 +30,29 @@ export class FakePointerEvent {
   public readonly button: number;
   public readonly buttons: number;
   public readonly timeStamp: number;
+  public readonly pointerType: string;
 
-  public constructor(type: string, isTrusted: boolean, button: number, buttons: number, timeStamp: number) {
+  public constructor(type: string, isTrusted: boolean, button: number, buttons: number, timeStamp: number, pointerType: string = "mouse") {
     this.type = type;
     this.isTrusted = isTrusted;
     this.button = button;
     this.buttons = buttons;
     this.timeStamp = timeStamp;
+    this.pointerType = pointerType;
+  }
+}
+
+export class FakeTouchEvent {
+  public readonly type: string;
+  public readonly isTrusted: boolean;
+  public readonly timeStamp: number;
+  public readonly changedTouches: readonly { readonly identifier: number }[];
+
+  public constructor(type: string, isTrusted: boolean, timeStamp: number, identifiers: readonly number[]) {
+    this.type = type;
+    this.isTrusted = isTrusted;
+    this.timeStamp = timeStamp;
+    this.changedTouches = identifiers.map(identifier => ({ identifier }));
   }
 }
 
@@ -74,7 +90,7 @@ export class FakePressPage {
   }
 
   public dispatch(...events: readonly object[]): void {
-    FakePressPage.withGlobals({ KeyboardEvent: FakeKeyboardEvent, PointerEvent: FakePointerEvent }, () => {
+    FakePressPage.withGlobals({ KeyboardEvent: FakeKeyboardEvent, PointerEvent: FakePointerEvent, TouchEvent: FakeTouchEvent }, () => {
       for (const event of events)
         this.listeners.get(String(Reflect.get(event, "type")))?.(event);
     });
