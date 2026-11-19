@@ -111,6 +111,7 @@ export class MainProcessFixture {
   private readonly killed: Set<number> = new Set();
   private readonly signalExits: ISignalExit[] = [];
   private readonly crashOutput: string[] = [];
+  private readonly mainProcessOutput: string[] = [];
   private isRuntimeEndAccepted: boolean = false;
   private isTraced: boolean = true;
 
@@ -612,7 +613,7 @@ export class MainProcessFixture {
     throw new Error([
       `The main process did not answer within ${limit / 1000} s when asked to ${action}.`,
       lastAnswerLine,
-      await MainProcessLogFixture.describeMainProcessFailuresAsync(new DataDirectory(this.dataDirectory).mainProcessLog),
+      MainProcessLogFixture.describeMainProcessFailures(this.mainProcessOutput),
       this.placement
     ].join("\n"));
   }
@@ -858,8 +859,10 @@ export class MainProcessFixture {
         this.testInfo.annotations.push({ type: MainProcessFixture.PLATFORM_LOG_ANNOTATION, description: line.text });
       else if (line.kind === "crash")
         this.crashOutput.push(line.text);
-      else
+      else {
+        this.mainProcessOutput.push(line.text);
         this.failures.push(`main: ${line.text}`);
+      }
   }
 
   private async recordEnvironmentAsync(): Promise<void> {

@@ -635,12 +635,11 @@ test.describe("the harness's teardown", () => {
       setImmediate(() => {
         throw new Error("A failure the test threw in the main process.");
       });
+      setImmediate(() => {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15_000);
+      });
     });
     await expect.poll(() => mainProcess.failures.some(t => t.includes("A failure the test threw in the main process."))).toBe(true);
-    const blocked = mainProcess.application.evaluate(() => {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15_000);
-    });
-    blocked.catch(() => undefined);
 
     const failure = await mainProcess.isVisibleAsync().then(() => null, (error: unknown) => ErrorCodeFixture.messageOf(error));
     await mainProcess.disposeAsync(false);
