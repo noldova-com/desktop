@@ -15,6 +15,7 @@ import { ForegroundGroupReadFailedException } from "../../exceptions/foreground-
 import { ForegroundGroupUnreadableException } from "../../exceptions/foreground-group-unreadable.exception.js";
 import { SystemCommandException } from "../../exceptions/system-command.exception.js";
 import { ForegroundProcess } from "../../models/foreground-process.js";
+import { SystemErrorCode } from "../../models/system-error-code.js";
 import { Resources } from "../../resources.js";
 import { SystemCommand } from "../commands/system-command.js";
 import { ProcessSignals } from "./process-signals.js";
@@ -55,31 +56,30 @@ export class ForegroundProcessGroupReader {
     const group = await this.readAsync(processId, started);
     if (Object.isNull(group))
       return null;
-    const programs = this.platform === Resources.linuxPlatform
+    const [own, leader] = this.platform === Resources.linuxPlatform
       ? await this.readLinuxProgramsAsync(processId, group)
       : await this.readMacProgramsAsync(processId, group);
-    const own = programs.get(processId);
-    if (Object.isUndefined(own))
-      return null;
-    const leader = programs.get(group);
-    return new ForegroundProcess(group, leader?.[0] ?? null, leader?.[1] ?? null, own[0], own[1]);
+    return Object.isNull(own) ? null : new ForegroundProcess(group, leader[0], leader[1], own[0], own[1]);
   }
 
-  private async readLinuxProgramsAsync(processId: number, group: number): Promise<ReadonlyMap<number, readonly [string, string]>> {
-    const programs = new Map<number, readonly [string, string]>();
-    for (const id of new Set([processId, group])) {
-      const program = await this.attemptAsync(processId, id, async () => {
-        const file = await this.readLink(this.fileOf(id, Resources.processExecutableFile));
-        const commandLine = await this.read(this.fileOf(id, Resources.processCommandLineFile));
-        return [file, commandLine.replace(Resources.processArgumentsEndPattern, String.empty).split(Resources.processArgumentSeparator).join(Resources.commandLineSeparator)] as const;
-      });
-      if (!Object.isNull(program))
-        programs.set(id, program);
-    }
-    return programs;
+  private async readLinuxProgramsAsync(processId: number, group: number): Promise<readonly [readonly [string, string] | null, readonly [string | null, string | null]]> {
+    const own = await this.attemptAsync(processId, processId, () => this.readLinuxProgramAsync(processId));
+    const leader = group === processId ? own : await this.attemptAsync(processId, group, () => this.readLinuxLeaderAsync(group));
+    return [own, leader ?? Resources.unreadProgram];
   }
 
-  private async readMacProgramsAsync(processId: number, group: number): Promise<ReadonlyMap<number, readonly [string, string]>> {
+  private async readLinuxLeaderAsync(group: number): Promise<readonly [string | null, string | null]> {
+    const file = await ForegroundProcessGroupReader.unlessDeniedAsync(() => this.readLink(this.fileOf(group, Resources.processExecutableFile)));
+    const commandLine = await ForegroundProcessGroupReader.unlessDeniedAsync(() => this.read(this.fileOf(group, Resources.processCommandLineFile)));
+    return [file, Object.isNull(commandLine) ? null : ForegroundProcessGroupReader.commandLineOf(commandLine)];
+  }
+
+  private async readLinuxProgramAsync(processId: number): Promise<readonly [string, string]> {
+    const file = await this.readLink(this.fileOf(processId, Resources.processExecutableFile));
+    return [file, ForegroundProcessGroupReader.commandLineOf(await this.read(this.fileOf(processId, Resources.processCommandLineFile)))];
+  }
+
+  private async readMacProgramsAsync(processId: number, group: number): Promise<readonly [readonly [string, string] | null, readonly [string | null, string | null]]> {
     const ids = [...new Set([processId, group])].join(Resources.processIdListSeparator);
     const names = await this.attemptAsync(processId, processId, () => this.runStatusAsync([...Resources.foregroundProgramArguments, ids]));
     const lines = await this.attemptAsync(processId, processId, () => this.runStatusAsync([...Resources.foregroundCommandLineArguments, ids]));
@@ -90,7 +90,7 @@ export class ForegroundProcessGroupReader {
       if (!Object.isUndefined(commandLine))
         programs.set(id, [name, commandLine]);
     }
-    return programs;
+    return [programs.get(processId) ?? null, programs.get(group) ?? Resources.unreadProgram];
   }
 
   private runStatusAsync(commandArguments: readonly string[]): Promise<string> {
@@ -108,6 +108,21 @@ export class ForegroundProcessGroupReader {
       throw error instanceof SystemCommandException
         ? error
         : new ForegroundGroupReadFailedException(processId, error);
+    }
+  }
+
+  private static commandLineOf(text: string): string {
+    return text.replace(Resources.processArgumentsEndPattern, String.empty).split(Resources.processArgumentSeparator).join(Resources.commandLineSeparator);
+  }
+
+  private static async unlessDeniedAsync(read: () => Promise<string>): Promise<string | null> {
+    try {
+      return await read();
+    }
+    catch (error) {
+      if (!SystemErrorCode.isAny(error, Resources.unreadableLeaderErrorCodes))
+        throw error;
+      return null;
     }
   }
 

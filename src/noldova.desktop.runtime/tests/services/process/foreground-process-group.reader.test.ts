@@ -281,15 +281,33 @@ export class ForegroundProcessGroupReaderTests {
       ? Promise.resolve(ForegroundProcessGroupReaderTests.status(group))
       : Promise.reject(new CommandFailedException("/bin/ps", new Error("timed out"))));
     const reader = platform === "linux"
-      ? ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat(group), { 4120: ["/usr/bin/bash", "/bin/bash -i"] }, [], group)
+      ? ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat(group), { 4120: ["/usr/bin/bash", "/bin/bash -i"] }, [], { [`${group}/exe`]: "EIO" })
       : new ForegroundProcessGroupReader(platform, command);
     const thrown: new (...arguments_: never[]) => SystemCommandException = platform === "linux" ? ForegroundGroupReadFailedException : CommandFailedException;
 
     const failure = await Assert.throwsAsync(() => reader.readProcessAsync(platform === "linux" ? 4_120 : process.pid, ForegroundProcessGroupReaderTests.STARTED), thrown);
 
     Assert.areEqual(platform === "linux"
-      ? "The foreground process group of process 4120's terminal could not be read from: Error: denied"
+      ? "The foreground process group of process 4120's terminal could not be read from: Error: EIO"
       : "/bin/ps failed: timed out", failure.message);
+  }
+
+  @TestMethod
+  @TestData("EACCES", "EACCES", "null|null")
+  @TestData("EACCES", "", "null|sudo apt upgrade")
+  @TestData("EPERM", "", "null|sudo apt upgrade")
+  @TestData("ENOENT", "ENOENT", "null|null")
+  public async readsALeaderWhoseProgramCannotBeReadWhileItRunsAsNotTheTerminalsProgramOnLinux(exeCode: string, commandLineCode: string, leader: string): Promise<void> {
+    const group = String(process.pid);
+    const failing: Record<string, string> = { [`${group}/exe`]: exeCode };
+    if (commandLineCode !== String.empty)
+      failing[`${group}/cmdline`] = commandLineCode;
+    const reader = ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat(group),
+      { 4120: ["/usr/bin/bash", "/bin/bash -i"], [process.pid]: ["/usr/bin/sudo", "sudo apt upgrade"] }, [], failing);
+
+    const foreground = await reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
+
+    Assert.areEqual(`${group} ${leader} /usr/bin/bash|/bin/bash -i false`, ForegroundProcessGroupReaderTests.describe(foreground));
   }
 
   @TestMethod
@@ -320,12 +338,15 @@ export class ForegroundProcessGroupReaderTests {
     return `${foreground?.group} ${foreground?.program}|${foreground?.commandLine} ${foreground?.terminalProgram}|${foreground?.terminalCommandLine} ${foreground?.isTerminalProgram}`;
   }
 
-  private static linuxWith(stat: string, programs: Readonly<Record<number, readonly [string, string]>>, read: string[], denied: string = String.empty): ForegroundProcessGroupReader {
+  private static linuxWith(
+    stat: string, programs: Readonly<Record<number, readonly [string, string]>>, read: string[], failing: Readonly<Record<string, string>> = {}
+  ): ForegroundProcessGroupReader {
     const answer = (file: string, part: 0 | 1): Promise<string> => {
       read.push(file);
       const [id = String.empty, name = String.empty] = path.relative(ForegroundProcessGroupReaderTests.FOLDER, file).split(path.sep);
-      if (id === denied)
-        return Promise.reject(Object.assign(new Error("denied"), { code: "EACCES" }));
+      const code = failing[`${id}/${name}`];
+      if (!Object.isUndefined(code))
+        return Promise.reject(Object.assign(new Error(code), { code }));
       if (name === "stat")
         return Promise.resolve(stat);
       const program = programs[Number(id)];

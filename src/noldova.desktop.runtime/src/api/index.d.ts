@@ -10097,8 +10097,12 @@ export declare class ForegroundProcess {
    * system resolves them, so `/bin/bash` and `/usr/bin/bash` through a link
    * are one program; on macOS as `ps` shows them. A command that runs the
    * terminal's own program, such as `bash x.sh` at a Bash prompt, has its
-   * own command line, so it doesn't count. False when the leader exited
-   * before it was read.
+   * own command line, so it doesn't count. A copy that never starts another
+   * program, such as a subshell `( … )` or a part of a pipeline that runs
+   * the shell's own code, like `while …; done | tee log`, counts for its whole
+   * run, and so does a command run with exactly the terminal's own command
+   * line. False when the leader exited before it was read, or, on Linux,
+   * when the system won't let the module read its program, as for `sudo`.
    */
   public get isTerminalProgram(): boolean;
 }
@@ -10210,23 +10214,33 @@ export declare class PseudoTerminal {
    * after it forks, before the command's program starts, so for a moment the
    * group's leader is a copy of the shell, with the shell's own handling of
    * Ctrl+C; a module can wait, before it sends one, until
-   * {@link ForegroundProcess.isTerminalProgram} is false.
+   * {@link ForegroundProcess.isTerminalProgram} is false, for a bounded time:
+   * a copy that never starts another program, such as a subshell or a part
+   * of a pipeline that runs shell code, reads true for its whole run, so once
+   * the bound passes the module sends Ctrl+C anyway.
    *
    * @returns The group with the programs; null on Windows, once the program
    * has exited, when the process id is no longer the program's, while no
    * group holds the terminal, and for a pseudo-terminal built without the
    * reader. The leader's program and command line are null when the leader
-   * exited between the reads.
-   * @throws {SystemCommandException} When the group or a program of a process
-   * that still runs cannot be read, as when `ps` doesn't answer within
-   * 1 second.
+   * exited between the reads; on Linux, each is also null when the system
+   * won't let the module read it, as for `sudo`, `su` or `ping`, or the
+   * leader has exited but isn't yet reaped.
+   * @throws {SystemCommandException} When the group or the terminal
+   * program's own program cannot be read while it runs, as when `ps` doesn't
+   * answer within 1 second, or the leader's cannot for another reason.
    * @example
    * ```ts
    * import type { PseudoTerminal } from "@noldova/desktop.runtime";
    *
-   * export async function hasStartedCommandAsync(terminal: PseudoTerminal): Promise<boolean> {
-   *   const foreground = await terminal.readForegroundProcessAsync();
-   *   return foreground !== null && foreground.group !== terminal.processId && !foreground.isTerminalProgram;
+   * export async function interruptAsync(terminal: PseudoTerminal, boundMilliseconds: number): Promise<void> {
+   *   const deadline = Date.now() + boundMilliseconds;
+   *   let foreground = await terminal.readForegroundProcessAsync();
+   *   while (foreground !== null && foreground.isTerminalProgram && foreground.group !== terminal.processId && Date.now() < deadline) {
+   *     await new Promise(resolve => setTimeout(resolve, 20));
+   *     foreground = await terminal.readForegroundProcessAsync();
+   *   }
+   *   terminal.write(String.fromCharCode(3));
    * }
    * ```
    */

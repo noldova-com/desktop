@@ -957,6 +957,8 @@ export class Resources {
   public static readonly processArgumentSeparator: string = String.fromCharCode(0);
   public static readonly processArgumentsEndPattern: RegExp = /\u0000$/u;
   public static readonly processIdListSeparator: string = ",";
+  public static readonly unreadableLeaderErrorCodes: readonly string[] = ["EACCES", "EPERM", "ENOENT"];
+  public static readonly unreadProgram: readonly [null, null] = [null, null];
   public static readonly processStatFieldSeparator: string = " ";
   public static readonly processNameEnd: string = ")";
   public static readonly processStatFields: readonly number[] = [1, 2, 4, 19];
