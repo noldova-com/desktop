@@ -30,6 +30,7 @@ export class MacFolderProtectorTests {
   private static readonly KEPT_VOLUME: string = "{ calls: [], readVolume(...values) { this.calls.push(values); return ['/System/Volumes/Data', false]; } }";
   private static readonly IGNORED: string = "the volume /Volumes/Shared is mounted with ownership ignored, so every account acts as the owner of its files";
   private static readonly DETACH_ATTEMPTS: number = 5;
+  private static readonly DETACH_PAUSE_MILLISECONDS: number = 1000;
   private static readonly WHOLE_DISK: RegExp = /^(\/dev\/disk\d+)\s/mu;
 
   private static volumes(fake: AddonModuleFixture, functions: readonly (keyof IPosixProcessAddon)[] = ["readVolume"]): NativeAddon<IPosixProcessAddon> {
@@ -39,6 +40,8 @@ export class MacFolderProtectorTests {
   private static detach(disk: string): void {
     const failures: string[] = [];
     for (let attempt = 1; attempt <= MacFolderProtectorTests.DETACH_ATTEMPTS; attempt++) {
+      if (attempt > 1)
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, MacFolderProtectorTests.DETACH_PAUSE_MILLISECONDS);
       const result = spawnSync("/usr/bin/hdiutil", ["detach", "-force", disk], { encoding: "utf8" });
       if (result.status === 0)
         return;
@@ -185,8 +188,10 @@ export class MacFolderProtectorTests {
     await mkdir(mountPoint);
     execFileSync("/usr/bin/hdiutil", ["create", "-quiet", "-size", "8m", "-fs", "HFS+", "-volname", "Shared", image]);
     const attached = execFileSync("/usr/bin/hdiutil", ["attach", "-nobrowse", "-owners", "off", "-mountpoint", mountPoint, image], { encoding: "utf8" });
-    const disk = MacFolderProtectorTests.WHOLE_DISK.exec(attached)?.[1] ?? mountPoint;
+    const disk = MacFolderProtectorTests.WHOLE_DISK.exec(attached)?.[1];
     try {
+      if (Object.isUndefined(disk))
+        throw new Error(`hdiutil attach printed no whole disk's device:\n${attached}`);
       const discovery = path.join(mountPoint, "discovery");
       await mkdir(discovery);
 
@@ -194,7 +199,7 @@ export class MacFolderProtectorTests {
 
       Assert.areEqual(`the volume ${await realpath(mountPoint)} is mounted with ownership ignored, so every account acts as the owner of its files`, exception.access);
     } finally {
-      MacFolderProtectorTests.detach(disk);
+      MacFolderProtectorTests.detach(disk ?? mountPoint);
     }
   }
 }
