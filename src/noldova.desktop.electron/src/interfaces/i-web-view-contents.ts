@@ -10,6 +10,7 @@ import type { RenderProcessGoneDetails, WindowOpenHandlerResponse } from "electr
 
 import type { IFrameNavigation } from "./i-frame-navigation.js";
 import type { IPreventableEvent } from "./i-preventable-event.js";
+import type { IWebViewFrame } from "./i-web-view-frame.js";
 import type { IWebViewDebugger } from "./i-web-view-debugger.js";
 import type { IWebViewInput } from "./i-web-view-input.js";
 import type { IWebViewInputEvent } from "./i-web-view-input-event.js";
@@ -21,7 +22,7 @@ import type { WebViewHistory } from "../models/web-view-history.js";
 export interface IWebViewContents {
   readonly id: number;
   readonly debugger: IWebViewDebugger;
-  readonly mainFrame: { readonly framesInSubtree: readonly { executeJavaScript(code: string): Promise<unknown> }[] };
+  readonly mainFrame: { readonly framesInSubtree: readonly IWebViewFrame[] };
 
   loadURL(url: string): Promise<void>;
   getURL(): string;

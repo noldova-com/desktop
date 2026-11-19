@@ -796,6 +796,38 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async givesThePersonsPressItsNumberAgainOnceAFrameThatNeverAnswersAfterARelayedPressIsDetachedOrTheViewBindsAnotherPage(): Promise<void> {
+    const results: string[] = [];
+    for (const step of ["detached", "rebound", "pending"]) {
+      const harness = await new OpenWebViewHarness(OpenWebViewTests.RELAYED_PRESSES).startAsync();
+      const frame = { processId: 4, frameId: 1 };
+      const late: (() => void)[] = [];
+      const unanswered = (): Promise<unknown> => new Promise(resolve => late.push(() => resolve({})));
+      harness.contents.frameCount = 2;
+      harness.contents.onFrame = index => index === 0 ? Promise.resolve(0) : unanswered();
+      if (step === "pending")
+        harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, unanswered);
+      void harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+      await OpenWebViewTests.drainAsync();
+      OpenWebViewTests.press(harness, frame, "start", 1);
+      const waiting = [OpenWebViewTests.press(harness, frame, "start", 2), OpenWebViewTests.request(harness)][1];
+      const page = step === "detached" ? harness.contents : new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+      if (page === harness.contents)
+        harness.contents.detachedFrames = [1];
+      else
+        await harness.open.bindAsync(page);
+      page.emit("ipc-message", { ...frame, senderFrame: { origin: OpenWebViewTests.PAGE_ORIGIN } }, "desktop:web-view-press", "start", 3);
+      const freed = OpenWebViewTests.requestIn(harness, page);
+      late.forEach(t => t());
+      await OpenWebViewTests.drainAsync();
+      page.emit("ipc-message", { ...frame, senderFrame: { origin: OpenWebViewTests.PAGE_ORIGIN } }, "desktop:web-view-press", "start", 4);
+      results.push(`${String(waiting)} ${String(freed)} ${String(OpenWebViewTests.requestIn(harness, page))}`);
+    }
+
+    Assert.areEqual("null 1 2|null 1 2|null 1 2", results.join("|"));
+  }
+
+  @TestMethod
   public async givesAPressOnlyToARequestFromTheOriginOfAFrameHandlingItSoAnOtherSitesFrameNeverTakesThePersonsTopFramePress(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
     const top = { processId: 4, frameId: 1 };

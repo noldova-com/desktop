@@ -1,6 +1,6 @@
 # Electron
 
-**Scope:** The `@noldova/desktop.electron` package, `src/noldova.desktop.electron`, which is Noldova Desktop's Electron main process and the window's preload, under the [window rules](../../documents/WINDOW.md#the-main-process).
+**Scope:** The `@noldova/desktop.electron` package, `src/noldova.desktop.electron`, which is Noldova Desktop's Electron main process, the window's preload and the web views' press script, under the [window rules](../../documents/WINDOW.md#the-main-process).
 
 ## 1. Purpose
 

@@ -25,6 +25,7 @@ import {
 import type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
+import type { IWebViewFrame } from "../interfaces/i-web-view-frame.js";
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
@@ -73,7 +74,7 @@ export class OpenWebView {
   private isAnswerAwaited: boolean = false;
   private touchPoints: readonly unknown[] = [];
   private uncountedInputs: number = 0;
-  private pressingInputs: number = 0;
+  private pressWaits: ReadonlyMap<symbol, readonly IWebViewFrame[] | null> = new Map();
   private openPageCalls: number = 0;
   private allowed: readonly string[] = [];
   private guest: IWebViewContents | null = null;
@@ -175,6 +176,7 @@ export class OpenWebView {
     this.isFocusHeld = false;
     this.isCrashed = false;
     this.presses.forget();
+    this.pressWaits = new Map();
     if (!Object.isNull(previous) && !previous.isDestroyed() && previous.debugger.isAttached())
       previous.debugger.detach();
     this.listen(guest);
@@ -410,17 +412,16 @@ export class OpenWebView {
     this.presses.addRelayed(presses + OpenWebView.countKeyPresses(method, params) + OpenWebView.countGesturePresses(method, params));
     if (isUncounted)
       this.uncountedInputs += 1;
+    const wait = Symbol(method);
     if (isPressing)
-      this.pressingInputs += 1;
+      this.pressWaits = new Map([...this.pressWaits, [wait, null]]);
     if (isPageCall)
       this.startPageCall();
     const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
     if (isInput)
       void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
     if (isPressing)
-      void OpenWebView.afterFramesAsync(guest, sent).then(() => {
-        this.pressingInputs -= 1;
-      });
+      void this.afterFramesAsync(guest, sent, wait);
     const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
     if (isPageCall)
       void handled.then(() => this.endPageCall(), () => this.endPageCall());
@@ -443,7 +444,7 @@ export class OpenWebView {
     });
     guest.on(Resources.ipcMessageEvent, (event, channel, kind, stamp) => {
       if (this.isBound(guest) && channel === Resources.webViewPressChannel)
-        this.presses.note(`${event.processId}:${event.frameId}`, event.senderFrame?.origin ?? null, kind, stamp, this.pressingInputs > 0);
+        this.presses.note(`${event.processId}:${event.frameId}`, event.senderFrame?.origin ?? null, kind, stamp, this.isPressRelayed());
     });
     guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
     guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
@@ -954,10 +955,24 @@ export class OpenWebView {
       this.report(new WebViewEvent(this.info.module, this.info.id, kind, details));
   }
 
-  private static async afterFramesAsync(guest: IWebViewContents, sent: Promise<unknown>): Promise<void> {
+  private async afterFramesAsync(guest: IWebViewContents, sent: Promise<unknown>, wait: symbol): Promise<void> {
     await sent.catch(() => undefined);
+    if (!this.pressWaits.has(wait))
+      return;
     const frames = guest.isDestroyed() ? [] : guest.mainFrame.framesInSubtree;
-    await Promise.allSettled(frames.map(t => t.executeJavaScript(Resources.frameBarrierScript)));
+    this.keepWait(wait, frames);
+    for (const frame of frames)
+      void frame.executeJavaScript(Resources.frameBarrierScript).catch(() => undefined).then(() => this.keepWait(wait, (this.pressWaits.get(wait) ?? []).filter(t => t !== frame)));
+  }
+
+  private keepWait(wait: symbol, frames: readonly IWebViewFrame[]): void {
+    if (this.pressWaits.has(wait))
+      this.pressWaits = new Map([...this.pressWaits].map(([key, value]) => [key, key === wait ? frames : value] as const).filter(([, value]) => value?.length !== 0));
+  }
+
+  private isPressRelayed(): boolean {
+    this.pressWaits = new Map([...this.pressWaits].map(([key, value]) => [key, value?.filter(t => !t.detached && !t.isDestroyed()) ?? null] as const).filter(([, value]) => value?.length !== 0));
+    return this.pressWaits.size > 0;
   }
 
   private static afterRendererAsync(guest: IWebViewContents, sent: Promise<unknown>): Promise<unknown> {

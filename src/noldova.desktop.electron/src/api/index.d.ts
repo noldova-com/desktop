@@ -3294,9 +3294,9 @@ export interface IWebViewContents {
   readonly debugger: IWebViewDebugger;
 
   /**
-   * The page's main frame, whose `framesInSubtree` lists it and every frame in it, each of which runs a script in its page's world.
+   * The page's main frame, whose `framesInSubtree` lists it and every frame in it.
    */
-  readonly mainFrame: { readonly framesInSubtree: readonly { executeJavaScript(code: string): Promise<unknown> }[] };
+  readonly mainFrame: { readonly framesInSubtree: readonly IWebViewFrame[] };
 
   /**
    * Starts loading an address.
@@ -3663,6 +3663,26 @@ export interface IWebViewContents {
    * @returns Electron's own return value, which the main process does not use.
    */
   on(event: "page-favicon-updated", listener: (event: unknown, favicons: string[]) => void): unknown;
+}
+
+/**
+ * A frame of a web view's page, as Electron's `WebFrameMain` provides it.
+ */
+export interface IWebViewFrame {
+  /**
+   * Whether the frame has left its page's frame tree, as a removed frame or one another document replaced does.
+   */
+  readonly detached: boolean;
+
+  /**
+   * Whether the frame is gone.
+   */
+  isDestroyed(): boolean;
+
+  /**
+   * Runs a script in the frame's page's world, answered once the frame has run it; a frame that goes away first never answers.
+   */
+  executeJavaScript(code: string): Promise<unknown>;
 }
 
 /**

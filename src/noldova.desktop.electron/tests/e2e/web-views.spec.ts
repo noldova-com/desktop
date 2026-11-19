@@ -25,6 +25,8 @@ import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 const host = "127.0.0.1";
 const hostReach = "[typeof require, typeof process, typeof ipcRenderer, typeof electron, Object.getOwnPropertyNames(globalThis).filter(t => /desktop|electron|ipc/iu.test(t)).length]";
 const noHostReach = ["undefined", "undefined", "undefined", "undefined", 0];
+const preloadReach = "(() => { try { require('fs'); return 'loaded'; } catch { return [typeof process, typeof Buffer, typeof module, typeof ipcRenderer].join(','); } })()";
+const noPreloadReach = "undefined,undefined,undefined,undefined";
 const titles = new Map([["/first", "First page"], ["/second", "Second page"], ["/a", "Page A"], ["/b", "Page B"]]);
 const iconRequests: string[] = [];
 const keysPage = "<!doctype html><title>Loading</title><p>Keys</p><script>const keys = []; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Keys\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"keydown\", event => { keys.push(event.key); document.title = [\"Keys\", ...keys].join(\" \"); });</script>";
@@ -36,6 +38,7 @@ const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
 const handlersPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:100px;height:40px\">D</div><a href=\"/a\" target=\"_blank\" style=\"display:block;width:100px;height:40px\">A</a><script>const d = document.getElementById(\"d\"); d.addEventListener(\"auxclick\", e => { if (e.button === 1) { window.open(\"/a\"); window.open(\"/b\"); } }); d.addEventListener(\"click\", e => { if (e.ctrlKey || e.metaKey) { window.open(\"/a\"); window.open(\"/b\"); } }); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Handlers\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"message\", e => { if (e.data === \"open\") window.open(\"/c\"); });</script></body>";
 const framedPage = (source: string): string => `<!doctype html><title>Loading</title><body style="margin:0"><iframe src="${source}/handlers" style="position:absolute;left:0;top:0;width:300px;height:120px;border:0" onload="document.title = 'Framed'"></iframe><script>addEventListener("pointerdown", e => { if (e.button !== 1) return; frames[0].postMessage("open", "*"); const end = performance.now() + 300; while (performance.now() < end); window.open("/d"); });</script></body>`;
+const busyFramedPage = (source: string): string => `<!doctype html><title>Loading</title><body style="margin:0"><iframe src="${source}/handlers" style="position:absolute;left:0;top:0;width:300px;height:120px;border:0" onload="document.title = 'Framed'"></iframe><script>addEventListener("pointerdown", e => { if (e.button === 1) window.open("/d"); });</script></body>`;
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
 function png(side: number): Buffer {
@@ -204,6 +207,43 @@ function shiftClockAsync(mainProcess: MainProcessFixture, milliseconds: number):
   }, milliseconds);
 }
 
+function readFirstViewPreloadWorldsAsync(mainProcess: MainProcessFixture): Promise<{ readonly preferences: readonly unknown[]; readonly main: unknown; readonly frames: readonly unknown[] } | null> {
+  return mainProcess.application.evaluate(async ({ webContents }, code) => {
+    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+    if (first === undefined)
+      return null;
+    const field = (value: unknown, name: string): unknown => typeof value === "object" && value !== null ? Object.getOwnPropertyDescriptor(value, name)?.value : undefined;
+    const sessions: string[] = [];
+    const contexts: (readonly [string, unknown])[] = [];
+    const listen = (_event: unknown, method: string, params: unknown, sessionId: string): void => {
+      const session = field(params, "sessionId");
+      if (method === "Target.attachedToTarget" && typeof session === "string")
+        sessions.push(session);
+      const context = field(params, "context");
+      if (method === "Runtime.executionContextCreated" && sessionId.length > 0 && field(field(context, "auxData"), "isDefault") === false)
+        contexts.push([sessionId, field(context, "id")]);
+    };
+    first.debugger.on("message", listen);
+    try {
+      await first.debugger.sendCommand("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
+      for (const session of [...sessions])
+        await first.debugger.sendCommand("Runtime.enable", {}, session);
+      const frames: unknown[] = [];
+      for (const [session, id] of contexts)
+        frames.push(field(field(await first.debugger.sendCommand("Runtime.evaluate", { expression: code, contextId: id, returnByValue: true }, session), "result"), "value"));
+      for (const session of sessions)
+        await first.debugger.sendCommand("Target.detachFromTarget", { sessionId: session });
+      const preferences = first.getLastWebPreferences();
+      const main: unknown = await first.executeJavaScriptInIsolatedWorld(999, [{ code }]);
+      return { preferences: [preferences?.sandbox, preferences?.contextIsolation, preferences?.nodeIntegration, preferences?.nodeIntegrationInSubFrames], main, frames };
+    }
+    finally {
+      first.debugger.removeListener("message", listen);
+      await first.debugger.sendCommand("Target.setAutoAttach", { autoAttach: false, waitForDebuggerOnStart: false }).catch(() => undefined);
+    }
+  }, preloadReach);
+}
+
 function readFirstViewFramesAsync(mainProcess: MainProcessFixture): Promise<readonly [number, number] | null> {
   return mainProcess.application.evaluate(({ webContents }) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
@@ -342,6 +382,10 @@ async function startServerAsync(): Promise<Server> {
     }
     if (request.url?.startsWith("/framed?") === true) {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(framedPage(decodeURIComponent(request.url.slice("/framed?".length))));
+      return;
+    }
+    if (request.url?.startsWith("/busy-framed?") === true) {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(busyFramedPage(decodeURIComponent(request.url.slice("/busy-framed?".length))));
       return;
     }
     if (request.url === "/opener") {
@@ -1310,6 +1354,11 @@ test.describe("web views", () => {
       expect(processes?.[0]).not.toBe(processes?.[1]);
       await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.title")).toBe("Handlers");
       expect(await readFirstViewFrameAsync(mainProcess, hostReach)).toEqual(noHostReach);
+      const worlds = await readFirstViewPreloadWorldsAsync(mainProcess);
+      expect(worlds?.preferences).toEqual([true, true, false, true]);
+      expect(worlds?.main).toBe(noPreloadReach);
+      expect(worlds?.frames.length).toBeGreaterThan(0);
+      expect(worlds?.frames).toEqual(worlds?.frames.map(() => noPreloadReach));
       const box = await readViewBoxAsync(window);
       if (Object.isNull(box))
         throw new Error("The view has no element in the window.");
@@ -1332,6 +1381,47 @@ test.describe("web views", () => {
       await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.readyState")).toBe("complete");
       expect(await readFirstViewFrameAsync(mainProcess, hostReach)).toEqual(noHostReach);
       expect(await readFirstViewAsync(mainProcess, "document.querySelector('iframe').contentDocument.getElementById('d').textContent")).toBe("D");
+    }
+    finally {
+      await holdClockAsync(mainProcess, false);
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a press of the person's after a relayed press gets its number again once a frame that can't answer the host's wait after the relayed press is removed", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      const other = `http://localhost:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin, other]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/busy-framed?${encodeURIComponent(other)}` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Framed");
+      await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.title")).toBe("Handlers");
+      const processes = await readFirstViewFramesAsync(mainProcess);
+      expect(processes?.[0]).not.toBe(processes?.[1]);
+
+      expect(await readFirstViewFrameAsync(mainProcess, "setTimeout(() => { for (;;); }, 0), true")).toBe(true);
+      await requestAsync(window, "pages.click", { view: 0, x: 350, y: 20 });
+      expect(await runInFirstViewAsync(mainProcess, "document.querySelector('iframe').remove()")).toBe(true);
+      await expect.poll(() => readFirstViewAsync(mainProcess, "document.querySelector('iframe') === null")).toBe(true);
+      await shiftClockAsync(mainProcess, 1100);
+      const box = await readViewBoxAsync(window);
+      if (Object.isNull(box))
+        throw new Error("The view has no element in the window.");
+      await expect.poll(async () => {
+        await window.mouse.move(box.x + 351, box.y + 20);
+        await window.mouse.move(box.x + 350, box.y + 20);
+        return readFirstViewAsync(mainProcess, "document.documentElement.matches(':hover')");
+      }).toBe(true);
+      await window.mouse.click(box.x + 350, box.y + 20, { button: "middle" });
+
+      await expect.poll(() => readRequestsWithoutInputAsync(window, 0)).toEqual([`${origin}/d ${origin} foreground-tab 1`, String.empty]);
     }
     finally {
       await holdClockAsync(mainProcess, false);
