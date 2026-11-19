@@ -4,6 +4,15 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.7
+
+- `build` installs the packages it builds from their archives together with the versions `package-lock.json` holds at the top of `node_modules` for each peer the lockfile names, each peer the built packages declare, and each installed optional package that names no peers of its own, so a newer release of Angular or of `@noldova/ui.components.angular` no longer stops the install with `ERESOLVE`.
+  After each such install it compares `node_modules/.package-lock.json` with `package-lock.json` and fails, naming the package, when the install put a package the lockfile doesn't list or at a version it doesn't hold, or, when the install left no `node_modules/.package-lock.json`, naming that file.
+- On macOS, Restart to update installs the update and restarts as it for a copy the person can't write, such as one a `.pkg` installed in `/Applications/<folder>`: the handoff finds ShipIt in the system launchd domain, where Squirrel.Mac starts it as root, through `launchctl print system/<bundle id>.ShipIt`, and the update's barrier holds while it runs.
+  A failure to read that job other than its absence fails the handoff as unreadable.
+  `@noldova/desktop.runtime`'s process table on macOS lists other users' processes, root's included, with their start times.
+- Every Debian and RPM package holds `resources/package-type` naming its type, so a copy installed from a `.deb` updates through the Debian updater rather than taking the AppImage's; `package:smoke --deb` checks the file.
+
 ## 0.0.6
 
 - `package`'s check that every built file is the target's architecture accepts, on a Windows target, a bundled program of any machine Windows 11 runs there: x64 and x86 on x64; arm64, x64 and x86 on arm64.
