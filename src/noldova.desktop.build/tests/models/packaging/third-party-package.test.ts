@@ -80,8 +80,7 @@ export class ThirdPartyPackageTests {
 
   @TestMethod
   public async downloadsATarballOnceAServerErrorADroppedConnectionAndACutDownloadGiveWay(): Promise<void> {
-    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License
-" });
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License\n" });
     await using server = await ThirdPartyPackageTests.serveInTurnAsync([
       (_request, response) => ThirdPartyPackageTests.answer(response, 503, Buffer.alloc(0)),
       request => request.socket.destroy(),
@@ -106,8 +105,7 @@ export class ThirdPartyPackageTests {
 
   @TestMethod
   public async givesUpOnATarballWhoseServerIsStillBusyAtTheLastAttempt(): Promise<void> {
-    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License
-" });
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License\n" });
     await using server = await ThirdPartyPackageTests.serveInTurnAsync([]);
     await using folder = await ThirdPartyPackageTests.createFolderAsync();
     const locked = ThirdPartyPackageTests.lock(tarball, `${server.url}/sample-1.0.0.tgz`);
