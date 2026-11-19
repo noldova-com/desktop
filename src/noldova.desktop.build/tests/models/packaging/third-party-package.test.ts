@@ -118,8 +118,7 @@ export class ThirdPartyPackageTests {
 
   @TestMethod
   public async givesUpOnATarballWhoseConnectionIsCutAtEveryAttemptWithTheCauseOfTheLast(): Promise<void> {
-    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License
-" });
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License\n" });
     const cut = (request: IncomingMessage): void => {
       request.socket.destroy();
     };
@@ -138,8 +137,7 @@ export class ThirdPartyPackageTests {
 
   @TestMethod
   public async failsAtOnceWhenItsLimitRunsOutBeforeTheAnswerOrDuringItsBody(): Promise<void> {
-    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License
-" });
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License\n" });
     await using silent = await ThirdPartyPackageTests.serveInTurnAsync([() => undefined]);
     await using stalled = await ThirdPartyPackageTests.serveInTurnAsync([(_request, response) => {
       response.writeHead(200, { "content-length": String(tarball.length) });
@@ -161,8 +159,7 @@ export class ThirdPartyPackageTests {
 
   @TestMethod
   public async cancelsTheBodyOfAnAnswerItTriesAgain(): Promise<void> {
-    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License
-" });
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License\n" });
     const busy = Promise.withResolvers<void>();
     await using server = await ThirdPartyPackageTests.serveInTurnAsync([
       (_request, response) => {
