@@ -69,6 +69,7 @@ export { LaunchLimitReachedException } from "../exceptions/launch-limit-reached.
 export { LaunchShellUnavailableException } from "../exceptions/launch-shell-unavailable.exception.js";
 export { LaunchStartFailedException } from "../exceptions/launch-start-failed.exception.js";
 export { LaunchTimedOutException } from "../exceptions/launch-timed-out.exception.js";
+export { LogFileClosedException } from "../exceptions/log-file-closed.exception.js";
 export { MainProcessRefusedAgainException } from "../exceptions/main-process-refused-again.exception.js";
 export { MethodFailureException } from "../exceptions/method-failure.exception.js";
 export { MethodRegisteredException } from "../exceptions/method-registered.exception.js";
