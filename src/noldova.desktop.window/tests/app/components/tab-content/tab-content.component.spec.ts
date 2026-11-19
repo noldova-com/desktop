@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { Component, ErrorHandler, type InputSignal, type Signal, type WritableSignal, inject, input, signal } from "@angular/core";
+import { Component, ErrorHandler, type InputSignal, type Signal, type Type, type WritableSignal, inject, input, signal } from "@angular/core";
 import { type ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 
@@ -389,6 +389,27 @@ describe("TabContentComponent", () => {
     expect(errors.map(t => t instanceof WindowPartFailureException ? [t.name, t.moduleId, t.message, t.cause instanceof Error ? t.cause.message : null] : t)).toEqual([
       ["PageNotLoadedException", "notes", "Its page could not be loaded.", "No notes.list chunk."]
     ]);
+  });
+
+  it("keeps the page a newer load shows when an older load it replaced fails later", async () => {
+    TestBed.overrideProvider(ErrorHandler, { useValue: { handleError: () => undefined } });
+    const tab = new ViewTab("notes.list");
+    let fail: (error: Error) => void = () => undefined;
+    const slow = new Promise<Type<unknown>>((_resolve, reject) => fail = reject);
+    host.contributions.set(tab.key, new ContributionMatch(() => slow, context, ContentPadding.Default));
+    const fixture = TestBed.createComponent(TabContentComponent);
+    fixture.componentRef.setInput("tab", tab);
+    fixture.detectChanges();
+
+    host.contributions.set(tab.key, new ContributionMatch(() => Promise.resolve(TestViewComponent), context, ContentPadding.Default));
+    host.revisions.set(new Map([[tab.key, 1]]));
+    await fixture.whenStable();
+    fail(new Error("No notes.list chunk."));
+    await slow.catch(() => undefined);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect([DomFixture.host(fixture).querySelector(".view")?.textContent, DomFixture.host(fixture).querySelector("nol-module-failure-card")]).toEqual(["notes", null]);
   });
 
   it("shows nothing for a shell page that fails to load and reports its failure once", async () => {

@@ -66,7 +66,7 @@ export class TabContentComponent {
   private readonly failedModule: WritableSignal<string | null> = signal(null);
   private readonly loaded: ResourceRef<TabContent | null | undefined> = resource({
     params: () => ({ tab: this.stableTab(), revision: this.revision() }),
-    loader: ({ params }) => this.loadAsync(params.tab)
+    loader: ({ params, abortSignal }) => this.loadAsync(params.tab, abortSignal)
   });
   private readonly pageFailure: Signal<TabContent | null> = computed(() => {
     const moduleId = this.failedModule();
@@ -155,7 +155,7 @@ export class TabContentComponent {
     return this.element.contains(this.element.ownerDocument.activeElement);
   }
 
-  private async loadAsync(tab: Tab): Promise<TabContent | null> {
+  private async loadAsync(tab: Tab, signal: AbortSignal): Promise<TabContent | null> {
     this.failedModule.set(null);
     const match = this.host.findContribution(tab);
     const pagePadding = new ContentPaddingRef();
@@ -169,7 +169,7 @@ export class TabContentComponent {
       component = await match.loadComponent();
     }
     catch (error) {
-      return this.failLoad(match.context, error);
+      return this.failLoad(match.context, error, signal);
     }
     const page = [{ provide: WindowPartTokens.contentPadding, useValue: pagePadding }, { provide: WindowPartTokens.shown, useValue: this.isShown },
       { provide: WindowPartTokens.activeDocument, useValue: this.isActiveDocument }];
@@ -180,9 +180,10 @@ export class TabContentComponent {
     return new TabContent(component, injector, inputs, match.padding, pagePadding);
   }
 
-  private failLoad(context: WindowPartContext | null, error: unknown): null {
+  private failLoad(context: WindowPartContext | null, error: unknown, signal: AbortSignal): null {
     this.errors.handleError(Object.isNull(context) ? error : new PageNotLoadedException(context.moduleId, error));
-    this.failedModule.set(context?.moduleId ?? null);
+    if (!signal.aborted)
+      this.failedModule.set(context?.moduleId ?? null);
     return null;
   }
 }
