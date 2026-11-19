@@ -29,7 +29,7 @@ export class DebianInstallTests {
     + "Inst sample-app (1.2.3 local-deb [amd64])\nConf libnotify4 (0.8.3-1build2 Ubuntu:24.04/noble [amd64])\n";
   private static readonly SIMULATE: string = `apt-get --simulate install --yes ${DebianInstallTests.FILE}`;
   private static readonly UPDATE: string = "sudo --non-interactive apt-get update";
-  private static readonly INSTALL: string = `sudo --non-interactive apt-get install --yes ${DebianInstallTests.FILE}`;
+  private static readonly INSTALL: string = `sudo --non-interactive apt-get -o DPkg::Lock::Timeout=60 install --yes ${DebianInstallTests.FILE}`;
   private static readonly LINK: string = "readlink --canonicalize-existing /usr/bin/sample-app";
   private static readonly PROBE: string = `sudo --non-interactive bash -c ${Resources.debianNamespaceProbe}`;
   private static readonly STAT: string = `stat --format=%u:%a ${DebianInstallTests.HELPER}`;
@@ -41,7 +41,7 @@ export class DebianInstallTests {
   private static readonly LOADED: string = "sudo --non-interactive grep --quiet --fixed-strings --line-regexp sample-app (unconfined) /sys/kernel/security/apparmor/profiles";
   private static readonly TYPE: string = "/opt/Sample App/resources/package-type";
   private static readonly TYPED: string = `grep --quiet --fixed-strings --line-regexp deb ${DebianInstallTests.TYPE}`;
-  private static readonly REMOVE: string = "sudo --non-interactive apt-get remove --yes sample-app";
+  private static readonly REMOVE: string = "sudo --non-interactive apt-get -o DPkg::Lock::Timeout=60 remove --yes sample-app";
   private static readonly FAILURE: ProcessResult = new ProcessResult(1, String.empty, "refused");
 
   @TestMethod

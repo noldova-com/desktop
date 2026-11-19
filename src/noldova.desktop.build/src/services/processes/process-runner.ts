@@ -14,6 +14,7 @@ import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 
 import { ProcessResult } from "../../models/processes/process-result.ts";
+import { ProcessTranscript } from "../../models/processes/process-transcript.ts";
 import { ProcessTimeoutException } from "../../exceptions/process-timeout.exception.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
@@ -27,22 +28,25 @@ export class ProcessRunner {
         env: environment ?? process.env, windowsVerbatimArguments: isVerbatim, argv0: isVerbatim ? `"${command}"` : command });
       const output: Buffer[] = [];
       const errorOutput: Buffer[] = [];
+      const transcript = new ProcessTranscript();
       let size = 0;
       let failure: BuildException | null = null;
       const stop = (t: BuildException): void => {
         failure ??= t;
         child.kill();
       };
-      const receive = (chunks: Buffer[], chunk: Buffer): void => {
+      const receive = (chunks: Buffer[], chunk: Buffer, isError: boolean): void => {
         size += chunk.length;
         if (size > Resources.processOutputLimit)
           stop(new BuildException(Resources.formatProcessOutputTooLarge(command)));
-        else
+        else {
           chunks.push(chunk);
+          transcript.add(chunk, isError);
+        }
       };
-      const timer = setTimeout(() => stop(new ProcessTimeoutException(command, timeout)), timeout);
-      child.stdout.on(Resources.dataEvent, (t: Buffer) => receive(output, t));
-      child.stderr.on(Resources.dataEvent, (t: Buffer) => receive(errorOutput, t));
+      const timer = setTimeout(() => stop(new ProcessTimeoutException(command, timeout, transcript.text)), timeout);
+      child.stdout.on(Resources.dataEvent, (t: Buffer) => receive(output, t, false));
+      child.stderr.on(Resources.dataEvent, (t: Buffer) => receive(errorOutput, t, true));
       child.on(Resources.errorEvent, t => stop(new BuildException(Resources.formatProcessNotStarted(command), new ExceptionOptions(t))));
       child.on(Resources.closeEvent, t => {
         clearTimeout(timer);
