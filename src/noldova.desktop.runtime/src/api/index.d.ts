@@ -15736,7 +15736,7 @@ export declare class ToolContent {
    * @param text The text; the registry refuses more than 256 KiB of UTF-8, or more than the tool's own limit.
    * @param origin Where untrusted text came from, at most 1,024 characters; `null` for the module's own text.
    * @returns The item.
-   * @throws {ArgumentException} When the text isn't a string, or the origin is blank or too long.
+   * @throws {ArgumentException} When the text isn't a string, or the origin isn't a string, is blank or is too long.
    * @example
    * ```ts
    * import { ToolContent } from "@noldova/desktop.runtime";
@@ -15756,8 +15756,8 @@ export declare class ToolContent {
    * @param mimeType `image/png` or `image/jpeg`, which the data must be.
    * @param origin Where an untrusted image came from, at most 1,024 characters; `null` for the module's own image.
    * @returns The item.
-   * @throws {ArgumentException} When the type isn't PNG or JPEG, the data isn't base64, or the origin is blank or
-   * too long.
+   * @throws {ArgumentException} When the type isn't PNG or JPEG, the data isn't base64, or the origin isn't a string,
+   * is blank or is too long.
    * @example
    * ```ts
    * import { ToolContent } from "@noldova/desktop.runtime";

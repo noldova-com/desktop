@@ -16,7 +16,7 @@ import type { JsonObject } from "@noldova/context.json";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 import {
   AgentControlException, type IPermissionRequest, type IToolDescriptor, type IToolHandler, type IToolSchemaValidator, PermissionCenter, PermissionDecision, PermissionOption, type PermissionOutcome,
-  type Registration, RememberedPermissionStore, ToolAbortReason, type ToolCall, ToolContent, ToolContentKind, ToolDescriptor, ToolFailure, ToolFailureCode, ToolFailureException, ToolRegisteredException, ToolRegistry,
+  type Registration, RememberedPermissionStore, ToolAbortReason, type ToolCall, ToolContent, ToolDescriptor, ToolFailure, ToolFailureCode, ToolFailureException, ToolRegisteredException, ToolRegistry,
   ToolResult, ToolRisk, ToolSchemaValidator, type ToolSession
 } from "@noldova/desktop.runtime";
 
@@ -1022,10 +1022,9 @@ export class ToolRegistryTests {
   }
 
   @TestMethod
-  public answersAFailureWhoseTextItemIsNotAStringAsMalformedBeforeAnAbortAndWithinTheGrace(): Promise<void> {
+  public answersAFailureWhoseModuleCodeIsNotAStringAsMalformedBeforeAnAbortAndWithinTheGrace(): Promise<void> {
     return ToolRegistryTests.withRegistryAsync(async (registry, session) => {
-      const item: ToolContent = Object.assign(Object.create(ToolContent.prototype), { kind: ToolContentKind.Text, value: JSON.parse("null"), mimeType: null, origin: null });
-      const failure = new ToolFailure(ToolFailureCode.Refused, "Refused.", null, [item]);
+      const failure = new ToolFailure(ToolFailureCode.Refused, "Refused.", JSON.parse("42"));
       ToolRegistryTests.register(registry, ToolRegistryTests.SEARCH, new ToolHandlerFixture(() => Promise.reject(new ToolFailureException(failure))));
       const find = new ToolHandlerFixture(call => new Promise((_resolve, reject) =>
         call.signal.addEventListener("abort", () => reject(new ToolFailureException(failure)), { once: true })));

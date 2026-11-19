@@ -233,7 +233,7 @@ A size "as JSON" is the number of UTF-8 bytes of the value written as JSON witho
 - Arguments over their limit or that don't fit the input schema, a deadline outside the tool's range, and a call beyond a session's calls in flight never reach the handler: `Refused`.
 - Every call has a deadline, and the registry enforces it.
 - A result that doesn't fit its shape or its schema becomes `Unavailable` with `<id>.malformedResult`, such as an origin that is neither a web origin nor `<id>:<label>`, an image whose size can't be read, or structured fields that the tool has no output schema for or that don't fit it.
-- So does a failure whose module code isn't `<id>.<name>`, whose `nextTool` isn't one of its module's tools, whose code is `OutcomeUncertain` from a tool that can't end uncertain, or whose items can't be checked, such as a text item whose value isn't a string; `ToolContent.fromText` refuses such a value.
+- So does a failure whose module code isn't `<id>.<name>`, whose `nextTool` isn't one of its module's tools, whose code is `OutcomeUncertain` from a tool that can't end uncertain, or whose fields can't be checked, such as a module code that isn't a string; `ToolContent` refuses text or an origin that isn't a string where the item is made.
 - A result over a limit becomes `TooLarge`.
 - A call of a tool that is switched off, unregistered or whose part isn't active fails as `Unavailable`.
 - An unknown abort reason counts as `Cancelled`.
