@@ -12,7 +12,6 @@ import { JsonReader, type JsonObject } from "@noldova/context.json";
 
 import { Resources } from "../resources.js";
 import { WireContract } from "../services/wire-contract.js";
-import { KeyText } from "./key-text.js";
 
 export class SettingOption {
   private static readonly FIELDS: readonly string[] = [Resources.valueField, Resources.titleField];
@@ -24,7 +23,6 @@ export class SettingOption {
     const isValueBlank = value.length > 0 && String.isNullOrWhitespace(value);
     if (isValueBlank || String.isNullOrWhitespace(title))
       throw new ArgumentException(Resources.settingOptionsInvalid, isValueBlank ? Resources.valueField : Resources.titleField);
-    KeyText.check(title, Resources.titleField);
 
     this.value = value;
     this.title = title;

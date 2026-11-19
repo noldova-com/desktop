@@ -5172,7 +5172,7 @@ export declare class SettingOption {
    * @param title The title people see; not blank, and it may name keys by
    * `{key:<chord>}` tokens, as `KeyText` reads them.
    * @throws ArgumentException synchronously when the value is only white
-   * space, the title is blank, or a key token in it names no key.
+   * space or the title is blank.
    *
    * @example
    * ```ts
@@ -5635,10 +5635,9 @@ export declare class SettingDefinition {
    * device setting.
    * @param page The Settings page; not blank.
    * @param group The group on the page; not blank.
-   * @throws ArgumentException synchronously when a text is blank, a key
-   * token in the title or description names no key, the type does not
-   * accept the default, or the scopes repeat or are given for a device
-   * setting.
+   * @throws ArgumentException synchronously when a text is blank, the type
+   * does not accept the default, or the scopes repeat or are given for a
+   * device setting.
    *
    * @example
    * ```ts
@@ -6506,39 +6505,17 @@ export declare class KeyChord {
  * chord in words: on Windows and Linux as `KeyChord.label` gives it, such as
  * `Send with Ctrl+Enter`, and on macOS with `Control`, `Option`, `Shift` and
  * `Cmd` in that order joined by `+` to the key, such as `Send with
- * Cmd+Enter`. Text without a token, and braces that don't form one, stay as
- * they are.
+ * Cmd+Enter`. Text without a token, braces that don't form one, and a token
+ * that names no key stay as they are.
  */
 export declare class KeyText {
-  /**
-   * Checks that every key token in a text names a key.
-   *
-   * @param text The text.
-   * @param parameterName The name of the field the text is in, which the
-   * exception names.
-   * @throws ArgumentException synchronously when a token names no key, or
-   * names both Mod and Ctrl.
-   *
-   * @example
-   * ```ts
-   * import { KeyText } from "@noldova/desktop.protocol";
-   *
-   * export function readTitle(title: string): string {
-   *   KeyText.check(title, "title");
-   *   return title;
-   * }
-   * ```
-   */
-  public static check(text: string, parameterName: string): void;
-
   /**
    * Returns a text with each key token replaced by its chord in words on a
    * platform.
    *
-   * @param text The text, whose tokens `check` accepts.
+   * @param text The text.
    * @param platform The platform, as in `process.platform`.
    * @returns The text people see there.
-   * @throws ArgumentException synchronously when a token names no key.
    *
    * @example
    * ```ts

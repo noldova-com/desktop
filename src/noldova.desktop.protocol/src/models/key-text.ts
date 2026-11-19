@@ -12,16 +12,11 @@ import { Resources } from "../resources.js";
 import { KeyChord } from "./key-chord.js";
 
 export class KeyText {
-  public static check(text: string, parameterName: string): void {
-    KeyText.replace(text, t => KeyChord.parse(t, parameterName).text);
-  }
-
   public static format(text: string, platform: string): string {
-    return KeyText.replace(text, t => KeyText.labelOf(KeyChord.parse(t), platform));
-  }
-
-  private static replace(text: string, replacement: (chord: string) => string): string {
-    return text.replace(Resources.keyTokenPattern, (_token: string, chord: string) => replacement(chord));
+    return text.replace(Resources.keyTokenPattern, (token: string, key: string) => {
+      const chord = KeyChord.find(key);
+      return Object.isNull(chord) ? token : KeyText.labelOf(chord, platform);
+    });
   }
 
   private static labelOf(chord: KeyChord, platform: string): string {

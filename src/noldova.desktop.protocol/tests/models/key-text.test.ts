@@ -7,7 +7,6 @@
  */
 
 import "@noldova/context.core";
-import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { KeyText } from "@noldova/desktop.protocol";
 
@@ -33,20 +32,18 @@ export class KeyTextTests {
   @TestMethod
   public leavesTextWithoutATokenAsItIs(): void {
     for (const text of ["Ctrl+Enter sends.", "{Mod+Enter}", "{key:Mod+Enter", "key:Mod+Enter}", "{Key:Mod+Enter}", String.empty]) {
-      Assert.areEqual(text, KeyText.format(text, "darwin"), text);
-      KeyText.check(text, "title");
+      for (const platform of ["darwin", "win32", "linux"])
+        Assert.areEqual(text, KeyText.format(text, platform), `${platform}: ${text}`);
     }
   }
 
   @TestMethod
-  public refusesATokenThatIsNotAKeyNamingTheField(): void {
-    for (const [text, chord] of [["Send with {key:Mod+Entr}", "Mod+Entr"], ["{key:}", String.empty], ["Fine {key:Mod+K}, wrong {key:Cmd+K}", "Cmd+K"]] as const) {
-      const exception = Assert.throws(() => KeyText.check(text, "description"), ArgumentException, text);
-      Assert.areEqual("description", exception.parameterName);
-      Assert.isTrue(exception.message.startsWith(`"${chord}" is not a key.`), exception.message);
+  public showsATokenThatNamesNoKeyAsWritten(): void {
+    for (const platform of ["darwin", "win32", "linux"]) {
+      Assert.areEqual("Send with {key:Mod+Entr}", KeyText.format("Send with {key:Mod+Entr}", platform), platform);
+      Assert.areEqual("{key:} and {key:Mod+Ctrl+K}", KeyText.format("{key:} and {key:Mod+Ctrl+K}", platform), platform);
     }
-    const ambiguous = Assert.throws(() => KeyText.check("{key:Mod+Ctrl+K}", "title"), ArgumentException);
-    Assert.areEqual("title", ambiguous.parameterName);
-    KeyText.check("{key:Mod+K} and {key:Shift+F2}", "title");
+    Assert.areEqual("Fine Cmd+K, wrong {key:Cmd+K}", KeyText.format("Fine {key:Mod+K}, wrong {key:Cmd+K}", "darwin"));
+    Assert.areEqual("Fine Ctrl+K, wrong {key:Cmd+K}", KeyText.format("Fine {key:Mod+K}, wrong {key:Cmd+K}", "win32"));
   }
 }
