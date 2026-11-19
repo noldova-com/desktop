@@ -34,7 +34,12 @@ export class MainProcessUpdates {
     const { electron, process, installation, log } = options;
     const setup = options.updater.setup;
     this.log = log;
-    this.gate = new UpdateBarrierGate(installation, RuntimeBuild.identity.productVersion, electron.dialog, t => log.write(t));
+    this.gate = new UpdateBarrierGate(installation, RuntimeBuild.identity.productVersion, {
+      showMessageBox: async (window, box) => {
+        await electron.app.whenReady();
+        return await electron.dialog.showMessageBox(window, box);
+      }
+    }, t => log.write(t));
     this.watch = new UpdateBarrierWatch(parts.host, installation.folder, () => !Object.isNull(parts.startup.connection), () => parts.startup.barrierChanged(), t => log.write(t));
     const updates = Object.isNull(setup) ? null : new UpdateController(setup.updater, options.createDeviceFile(installation.folder, Resources.updateReadyFile), options.updateLock,
       RuntimeBuild.identity.productVersion, process.platform === Resources.macPlatform && !electron.app.isInApplicationsFolder(), setup.handoff.refusal, t => this.bridge.publish(t), t => this.bridge.postReadyAsync(t),

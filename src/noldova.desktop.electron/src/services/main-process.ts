@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import "@noldova/context.core";
 import type { JsonValue } from "@noldova/context.json";
-import { type RuntimeHandover, ShellMethods, WindowClosed } from "@noldova/desktop.protocol";
+import { type Event, type RuntimeHandover, ShellMethods, WindowClosed } from "@noldova/desktop.protocol";
 import {
   AppImageSource,
   type DataDirectory,
@@ -117,6 +117,7 @@ export class MainProcess {
   private readonly controls: WindowControls;
   private readonly router: IpcRouter;
   private readonly events: RuntimeEvents;
+  private readonly earlyEvents: Event[] = [];
   private readonly policy: SenderPolicy;
 
   private constructor(options: IMainProcessOptions) {
@@ -139,7 +140,7 @@ export class MainProcess {
       passBarrierAsync: t => this.updates.askAsync(t),
       quit: () => this.exitNow()
     };
-    this.startup = new RuntimeStartup(options.launcher, t => this.publish(t), t => this.handOver(t), Resources.workWaitInterval, t => this.events.forward(t), t => log.write(t), Date.now, (t, signal) => delay(t, undefined, { signal }), updateHost);
+    this.startup = new RuntimeStartup(options.launcher, t => this.publish(t), t => this.handOver(t), Resources.workWaitInterval, t => this.forward(t), t => log.write(t), Date.now, (t, signal) => delay(t, undefined, { signal }), updateHost);
     this.runtime = new RuntimeCaller(() => this.startup.connection);
     this.placement = new WindowPlacement(new LocalWindowStateStore(options.createDeviceFile(options.deviceFolder, Resources.windowStateFile), t => log.write(t)), this.startup, this.device, t => log.write(t));
     this.quits = new QuitControl({
@@ -386,10 +387,18 @@ export class MainProcess {
       this.startup.close();
       this.options.log.flush();
     });
-    void app.whenReady().then(() => this.ready());
+    const barrier = this.passBarrierAsync();
+    void app.whenReady().then(() => this.ready(barrier));
   }
 
-  private ready(): void {
+  private async passBarrierAsync(): Promise<boolean> {
+    const [isClear] = await Promise.all([this.updates.passAsync(), this.recordSelfAsync()]);
+    if (isClear)
+      void this.startup.startAsync();
+    return isClear;
+  }
+
+  private ready(barrier: Promise<boolean>): void {
     const { electron, log } = this.options;
     this.options.spelling.start();
     const session = electron.session.defaultSession;
@@ -403,8 +412,10 @@ export class MainProcess {
       if (this.phase.hasPassedBarrier && this.windows.size === 0 && !this.quits.isQuitting)
         this.open();
     });
-    void Promise.all([this.updates.passAsync(), this.appearance.readAsync(), this.recordSelfAsync(), this.deviceState.readAsync(),
-      this.placement.readStateAsync()]).then(([isClear, , , state, saved]) => {
+    void Promise.all([barrier, this.appearance.readAsync(), this.deviceState.readAsync(),
+      this.placement.readStateAsync()]).then(([isClear, , state, saved]) => {
+      if (this.phase.isExiting)
+        return;
       if (!isClear) {
         this.exitNow();
         return;
@@ -413,7 +424,9 @@ export class MainProcess {
       this.trays.start(state);
       this.open(saved);
       this.updates.start(state);
-      void this.startup.startAsync();
+      this.enter(this.startup.current);
+      for (const event of this.earlyEvents.splice(0))
+        this.events.forward(event);
     });
   }
 
@@ -477,7 +490,25 @@ export class MainProcess {
     return open;
   }
 
+  private forward(event: Event): void {
+    if (this.phase.hasPassedBarrier)
+      this.events.forward(event);
+    else
+      this.earlyEvents.push(event);
+  }
+
   private publish(state: StartupState): void {
+    if (!this.phase.hasPassedBarrier)
+      return;
+    this.enter(state);
+    for (const open of this.windows.all)
+      if (!open.window.isDestroyed()) {
+        open.window.webContents.send(Resources.startupStateChannel, state.toJson());
+        void this.placement.prepareAsync(open);
+      }
+  }
+
+  private enter(state: StartupState): void {
     if (!MainProcess.UNOWNED_STATES.includes(state.kind))
       void this.options.log.openAsync();
     const isReady = state.kind === StartupStateKind.Ready;
@@ -502,11 +533,6 @@ export class MainProcess {
     this.phase.isReady = isReady;
     if (isReady)
       this.webViews.host.flush();
-    for (const open of this.windows.all)
-      if (!open.window.isDestroyed()) {
-        open.window.webContents.send(Resources.startupStateChannel, state.toJson());
-        void this.placement.prepareAsync(open);
-      }
   }
 
   private beforeQuit(event: IPreventableEvent): void {
