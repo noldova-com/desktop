@@ -377,6 +377,6 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A part whose save fails keeps the app open and is reported as `desktop.saveFailed`; a part whose save hasn't settled after 4 seconds doesn't block closing and is reported as `desktop.saveUnfinished`.
   The main process waits at most 5 seconds for each window's answer.
 - A failed save of the layout is logged and closing goes on.
-- Quitting asks the runtime to stop as [RUNTIME.md](RUNTIME.md#work-and-quitting) says, and asks the person first when work is in progress.
+- Quitting asks the runtime to stop as [RUNTIME.md](RUNTIME.md#work-and-quitting) says, and asks the person first when work is in progress; closing the window that asks answers Cancel, so the app stays open.
 - On Linux and macOS the main process quits this way on SIGTERM and SIGHUP.
 - An update never outweighs an unsaved change: a save that fails or doesn't settle stops the update, as [BUILD.md](BUILD.md#stopping-for-an-update) says.

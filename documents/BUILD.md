@@ -326,7 +326,7 @@ Before the handoff replaces its files, every process of the installation stops w
   A barrier whose holder has gone is settled by the next main process or command line; a `HandedOff` barrier for another version is removed only when the person confirms.
   A main process whose runtime stopped for an update that then ended without it reconnects: it checks each time the installation's folder changes, and every second, since the holder can end without changing the barrier and Node can't wait for the exit of a process it didn't start.
 - **Order:** the main process where the person chose Restart to update connects to the runtime of every data directory in the record, then:
-  1. asks the person about work in progress, if any, and while they wait reads it again each time a runtime announces a change of its work or disconnects;
+  1. asks the person about work in progress, if any, and while they wait reads it again each time a runtime announces a change of its work or disconnects; closing the window that asks answers Cancel, so the restart is cancelled and a Quit held meanwhile goes on;
   2. creates the barrier and asks each runtime to prepare with `desktop.update`, so no new client or program starts;
   3. waits up to 6 seconds for every client to save;
   4. asks each runtime to stop, stopping only the work the person agreed to stop;
