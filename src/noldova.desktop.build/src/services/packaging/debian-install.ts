@@ -51,12 +51,19 @@ export class DebianInstall implements ISystemInstall {
       Resources.installerTimeout);
     const command = path.posix.join(Resources.linuxCommandFolder, slug);
     const link = await runner.captureAsync(Resources.readlinkCommand, [Resources.readlinkCanonicalOption, command], folder, Resources.smokeCommandLimit);
-    const program = link.output.trim();
-    if (!link.isSuccessful || program.length === 0) {
+    const target = link.output.trim();
+    if (!link.isSuccessful || target.length === 0) {
       await runner.captureAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetRemoveArguments, packageName], folder,
         Resources.installerTimeout);
       throw new BuildException(Resources.formatDebianCommandUnresolved(command, link.exitCode, link.text));
     }
+    const resources = path.posix.dirname(path.posix.dirname(target));
+    if (!target.endsWith(`${path.posix.sep}${path.posix.join(Resources.packagedResourcesFolder, Resources.formatPackagedCommandPath(slug))}`)) {
+      await runner.captureAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetRemoveArguments, packageName], folder,
+        Resources.installerTimeout);
+      throw new BuildException(Resources.formatDebianCommandNotCommandLine(command, target));
+    }
+    const program = path.posix.join(path.posix.dirname(resources), slug);
     const expected = Object.isNull(installFolder) ? Resources.debianInstallPrefix : Resources.formatDebianInstallFolder(installFolder);
     if (!path.posix.dirname(path.posix.dirname(program)).endsWith(expected)) {
       await runner.captureAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetRemoveArguments, packageName], folder,
