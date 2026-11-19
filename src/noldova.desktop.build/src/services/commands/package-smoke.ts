@@ -182,6 +182,10 @@ export class PackageSmoke {
       }, product.name)));
       if (target.platform === Resources.linuxTarget)
         this.output.write(Resources.formatOutputLine(await new PackagedSandbox(this.processes, { now: () => Date.now(), pauseAsync: timers.setTimeout }).verifyAsync(mainProcess.id, isSandboxed)));
+      if (target.platform === Resources.linuxTarget)
+        await (Object.isNull(this.system)
+          ? this.checkWindowlessCommandAsync(installed.mainProcess, [Resources.commandLineOption], Resources.smokeMomentAppImageCommandLine, manifest.productVersion, data, folder)
+          : this.checkWindowlessCommandAsync(path.posix.join(Resources.linuxCommandFolder, product.slug), [], Resources.smokeMomentDebianCommand, manifest.productVersion, data, folder));
       if (!Object.isNull(installed.command))
         await this.checkPowerShellAsync(installed.command, manifest.productVersion, data, folder);
       const found = await PackageSmoke.readRuntimeIdAsync(data);
@@ -294,6 +298,15 @@ export class PackageSmoke {
     if (!status.isSuccessful)
       throw new BuildException(Resources.formatSmokeLinkFailed(this.slug, command, status.exitCode, status.text));
     this.checkStarted(status.output, version, data, Resources.smokeMomentLink);
+  }
+
+  private async checkWindowlessCommandAsync(command: string, commandArguments: readonly string[], moment: string, version: string, data: string, folder: string): Promise<void> {
+    const environment = Object.fromEntries(Object.entries(this.environment).filter(([name]) => !Resources.displayVariables.includes(name)));
+    const status = await this.runner.captureAsync(command, PackageSmoke.formatArguments([...commandArguments, ...Resources.smokeStatusArguments], data, folder), folder,
+      Resources.smokeCommandLimit, environment);
+    if (!status.isSuccessful)
+      throw new BuildException(Resources.formatSmokeWindowlessCommandFailed(this.slug, moment, status.exitCode, status.text));
+    this.checkStarted(status.output, version, data, moment);
   }
 
   private createCommandEnvironment(command: string): NodeJS.ProcessEnv {

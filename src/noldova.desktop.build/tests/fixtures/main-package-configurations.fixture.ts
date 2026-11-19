@@ -471,7 +471,10 @@ export class MainPackageConfigurationsFixture {
         "homepage": "https://github.com/example/sample-app"
       },
       "deb": {
-        "maintainer": "Sample"
+        "maintainer": "Sample",
+        "afterInstall": "<cwd>/sample-app/_build/package/debian-templates/after-install.tpl",
+        "afterRemove": "<cwd>/sample-app/_build/package/debian-templates/after-remove.tpl",
+        "appArmorProfile": "<cwd>/sample-app/_build/package/debian-templates/apparmor-profile.tpl"
       },
       "linux": {
         "target": [
@@ -490,6 +493,12 @@ export class MainPackageConfigurationsFixture {
         ],
         "icon": "<cwd>/sample-app/assets/icons/icon-dark-512.png",
         "executableName": "sample-app",
+        "extraResources": [
+          {
+            "from": "<cwd>/sample-app/_build/package/command/sample-app",
+            "to": "bin/sample-app"
+          }
+        ],
         "syncDesktopName": true,
         "category": "Development",
         "artifactName": "Sample App-1.2.3-linux-x64.${ext}",
@@ -567,7 +576,10 @@ export class MainPackageConfigurationsFixture {
         "homepage": "https://github.com/example/sample-app"
       },
       "deb": {
-        "maintainer": "Sample"
+        "maintainer": "Sample",
+        "afterInstall": "<cwd>/sample-app/_build/package/debian-templates/after-install.tpl",
+        "afterRemove": "<cwd>/sample-app/_build/package/debian-templates/after-remove.tpl",
+        "appArmorProfile": "<cwd>/sample-app/_build/package/debian-templates/apparmor-profile.tpl"
       },
       "linux": {
         "target": [
@@ -586,6 +598,12 @@ export class MainPackageConfigurationsFixture {
         ],
         "icon": "<cwd>/sample-app/assets/icons/icon-dark-512.png",
         "executableName": "sample-app",
+        "extraResources": [
+          {
+            "from": "<cwd>/sample-app/_build/package/command/sample-app",
+            "to": "bin/sample-app"
+          }
+        ],
         "syncDesktopName": true,
         "category": "Development",
         "artifactName": "Sample App-1.2.3-linux-arm64.${ext}",

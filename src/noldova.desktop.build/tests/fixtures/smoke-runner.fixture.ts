@@ -86,7 +86,7 @@ export class SmokeRunnerFixture extends ProcessRunner {
     if (name === "dpkg-deb")
       return SmokeRunnerFixture.succeed(`${SmokeRunnerFixture.SLUG}\n`);
     if (name === "readlink")
-      return SmokeRunnerFixture.succeed(`${path.posix.join(this.debianFolder, SmokeRunnerFixture.SLUG)}\n`);
+      return SmokeRunnerFixture.succeed(`${path.posix.join(this.debianFolder, "resources", "bin", SmokeRunnerFixture.SLUG)}\n`);
     if (name === "stat")
       return SmokeRunnerFixture.succeed("0:755\n");
     if (name === "sudo" && commandArguments.includes("apt-get") && commandArguments.includes("install")) {

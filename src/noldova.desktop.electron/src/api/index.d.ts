@@ -8,6 +8,7 @@
 
 /// <reference types="node" />
 
+import type { ChildProcess, SpawnOptions } from "node:child_process";
 import type { Stats } from "node:fs";
 import type { Writable } from "node:stream";
 
@@ -6227,6 +6228,64 @@ export declare class WindowState {
    * ```
    */
   public toJson(): JsonObject;
+}
+
+/**
+ * Runs the command line through the app's own program in Node mode, for a package that has no command of its own, such
+ * as the AppImage: `<App>.AppImage --command-line <args>` answers like the command, opening no window. The main process
+ * checks for the flag before anything else, takes only the arguments after it, and ends with the command line's exit code.
+ */
+export declare class CommandLineRelay {
+  /**
+   * Creates the relay.
+   *
+   * @param start Starts the command line's process, as `child_process.spawn` does.
+   * @param program The app's program, which runs the entry with `ELECTRON_RUN_AS_NODE=1`.
+   * @param entry The command line's entry script.
+   * @param environment The command line's environment, to which the relay adds `ELECTRON_RUN_AS_NODE=1`.
+   * @param error Where the relay writes that the command line could not start.
+   * @example
+   * ```ts
+   * import { spawn } from "node:child_process";
+   *
+   * import { CommandLineRelay } from "@noldova/desktop.electron";
+   *
+   * export const relay: CommandLineRelay = new CommandLineRelay((program, args, options) => spawn(program, [...args], options), process.execPath,
+   *   "/opt/Sample/resources/app.asar/node_modules/@noldova/desktop.cli/services/cli-entry.js", process.env, process.stderr);
+   * ```
+   */
+  public constructor(start: (program: string, programArguments: readonly string[], options: SpawnOptions) => ChildProcess, program: string, entry: string,
+    environment: NodeJS.ProcessEnv, error: Writable);
+
+  /**
+   * Reads the command line's arguments from the main process's arguments.
+   *
+   * @param argv The main process's arguments.
+   * @returns The arguments after the first `--command-line`, or `null` when there is none.
+   * @example
+   * ```ts
+   * import { CommandLineRelay } from "@noldova/desktop.electron";
+   *
+   * export const commandLine: readonly string[] | null = CommandLineRelay.readArguments(process.argv);
+   * ```
+   */
+  public static readArguments(argv: readonly string[]): readonly string[] | null;
+
+  /**
+   * Runs the command line with the arguments, sharing the main process's standard input, output and error.
+   *
+   * @param commandArguments The command line's arguments.
+   * @returns The command line's exit code; 128 plus the signal's number when a signal ended it, and 1 when it could not start.
+   * @example
+   * ```ts
+   * import type { CommandLineRelay } from "@noldova/desktop.electron";
+   *
+   * export function runStatusAsync(relay: CommandLineRelay): Promise<number> {
+   *   return relay.runAsync(["status", "--json"]);
+   * }
+   * ```
+   */
+  public runAsync(commandArguments: readonly string[]): Promise<number>;
 }
 
 /**

@@ -503,6 +503,7 @@ export class PackageSmokeTests {
       Resources.formatOutputLine(Resources.packagedModulesNone),
       Resources.formatOutputLine(Resources.formatWindowShown(SmokeRunnerFixture.PRODUCT_NAME)),
       Resources.formatOutputLine(Resources.formatSandboxOff("renderer 0")),
+      Resources.formatSmokeStatusReported(SmokeRunnerFixture.SLUG, Resources.smokeMomentDebianCommand, "1.2.3", result.data),
       Resources.smokeMainQuit,
       Resources.smokeRuntimeStopped,
       Resources.formatOutputLine(Resources.formatDebianRemoved(SmokeRunnerFixture.SLUG, runner.debianFolder, profile))
@@ -536,6 +537,35 @@ export class PackageSmokeTests {
       Assert.isFalse(runner.captured.some(t => t.startsWith("unshare")));
       Assert.isFalse(existsSync(runner.debianFolder));
     }
+  }
+
+  @TestMethod
+  public async refusesADebianCommandThatCannotAnswerWithNoDisplayAndRemovesThePackageAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new SmokeRunnerFixture();
+    runner.debianFolder = path.join(parent.path, "opt", "Sample App").replaceAll("\\", "/");
+    const refusal = new ProcessResult(5, String.empty, "Missing X server or $DISPLAY");
+    const environments: NodeJS.ProcessEnv[] = [];
+    runner.answer = (name, commandArguments, environment) => {
+      if (name !== SmokeRunnerFixture.SLUG || commandArguments[0] !== "status")
+        return null;
+      environments.push(environment ?? {});
+      return refusal;
+    };
+
+    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "linux", runner, ["--deb", "--no-sandbox"], { DISPLAY: ":0", WAYLAND_DISPLAY: "wayland-0", KEPT: "kept" },
+      new RecordingTemporaryFolderFixture(parent.path), processes);
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.includes(Resources.formatSmokeWindowlessCommandFailed(SmokeRunnerFixture.SLUG, Resources.smokeMomentDebianCommand, 5, refusal.text)), result.output);
+    Assert.areEqual(1, environments.length);
+    Assert.isUndefined(environments[0]?.["DISPLAY"]);
+    Assert.isUndefined(environments[0]?.["WAYLAND_DISPLAY"]);
+    Assert.areEqual("kept", environments[0]?.["KEPT"]);
+    Assert.isTrue(runner.environments.some(t => t["DISPLAY"] === ":0"), "the other commands keep the display");
+    Assert.isFalse(existsSync(runner.debianFolder));
   }
 
   @TestMethod
@@ -812,6 +842,7 @@ export class PackageSmokeTests {
       Resources.formatOutputLine(Resources.packagedModulesNone),
       Resources.formatOutputLine(Resources.formatWindowShown(SmokeRunnerFixture.PRODUCT_NAME)),
       Resources.formatOutputLine(Resources.formatSandboxOff("renderer 0")),
+      Resources.formatSmokeStatusReported(SmokeRunnerFixture.SLUG, Resources.smokeMomentAppImageCommandLine, "1.2.3", result.data),
       Resources.formatSmokeExtraction(path.join(result.folder, "extraction"), AppImageCopyRunnerFixture.EXTRACTED_BYTES),
       Resources.formatSmokeStatusReported(SmokeRunnerFixture.SLUG, Resources.smokeMomentReplaced, "1.2.3", result.data),
       Resources.smokeMainQuit,
@@ -820,6 +851,8 @@ export class PackageSmokeTests {
     ].join(String.empty), PackageSmokeTests.withoutTimes(result.output));
     Assert.areEqual("package", await readFile(path.join(app.path, PackageSmokeTests.APP_IMAGE), "utf8"));
     Assert.isFalse(existsSync(path.join(app.path, `${PackageSmokeTests.APP_IMAGE}.replacement`)));
+    Assert.isTrue(runner.captured.includes(`${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-linux-x64.AppImage --command-line status --json --device-dir ${path.join(result.folder, "device")} --data-dir ${result.data}`),
+      runner.captured.join("\n"));
     Assert.isFalse(existsSync(result.folder));
   }
 
@@ -835,7 +868,7 @@ export class PackageSmokeTests {
     failing.answer = (_, commandArguments) => {
       if (commandArguments.includes("status"))
         statuses += 1;
-      return commandArguments.includes("status") && statuses === 4 ? new ProcessResult(1, String.empty, "The runtime is gone.") : null;
+      return commandArguments.includes("status") && statuses === 5 ? new ProcessResult(1, String.empty, "The runtime is gone.") : null;
     };
 
     const unreadable = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, reading, script, true);

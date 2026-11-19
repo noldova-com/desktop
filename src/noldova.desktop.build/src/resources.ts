@@ -1402,6 +1402,10 @@ export class Resources {
   public static readonly smokeMomentKilled: string = "was killed";
   public static readonly smokeMomentPowerShell: string = "through PowerShell";
   public static readonly smokeMomentLink: string = "through a link to the app's command";
+  public static readonly smokeMomentDebianCommand: string = "through the Debian package's command, with no display";
+  public static readonly smokeMomentAppImageCommandLine: string = "through the AppImage's --command-line flag, with no display";
+  public static readonly displayVariables: readonly string[] = ["DISPLAY", "WAYLAND_DISPLAY"];
+  public static readonly commandLineOption: string = "--command-line";
   public static readonly smokeMomentReplaced: string = "after the AppImage was replaced";
   public static readonly smokeMainQuit: string = "The main process quit.\n";
   public static readonly smokeRuntimeStopped: string = "The runtime stopped once idle.\n";
@@ -3678,6 +3682,10 @@ export class Resources {
 
   public static formatSmokePowerShellFailed(slug: string, exitCode: number | null, text: string): string {
     return `${slug} status ${Resources.smokeMomentPowerShell} exited with ${exitCode}:\n${text}`;
+  }
+
+  public static formatSmokeWindowlessCommandFailed(slug: string, moment: string, exitCode: number | null, text: string): string {
+    return `${slug} status ${moment} exited with ${exitCode}:\n${text}`;
   }
 
   public static formatSmokeLinkFailed(slug: string, command: string, exitCode: number | null, text: string): string {
