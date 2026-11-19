@@ -16,7 +16,7 @@ export class KeyTextTests {
   public showsATokenInMacOsFormInWords(): void {
     Assert.areEqual("Send with Cmd+Enter", KeyText.format("Send with {key:Mod+Enter}", "darwin"));
     Assert.areEqual("Option+Enter adds a line; Cmd+Enter sends.", KeyText.format("{key:Alt+Enter} adds a line; {key:Mod+Enter} sends.", "darwin"));
-    Assert.areEqual("Control+Option+Shift+Cmd+K", KeyText.format("{key:Shift+Mod+Alt+Ctrl+K}", "darwin"));
+    Assert.areEqual("Option+Shift+Cmd+K|Control+Option+Shift+K", KeyText.format("{key:Shift+Mod+Alt+K}|{key:Shift+Alt+Ctrl+K}", "darwin"));
     Assert.areEqual("Control+F2|Shift+Esc|F2", KeyText.format("{key:Ctrl+F2}|{key:Shift+Escape}|{key:F2}", "darwin"));
   }
 
