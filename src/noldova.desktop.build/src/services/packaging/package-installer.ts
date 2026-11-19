@@ -280,6 +280,12 @@ export class PackageInstaller {
     const location = Resources.formatMacInstallLocation(installFolder);
     if (!information.includes(Resources.formatInstallLocationAttribute(location)))
       throw new BuildException(Resources.formatMacInstallerElsewhere(installer, location, information));
+    const domains = [...(await readFile(path.join(expanded, Resources.installerDistributionFile), Resources.textEncoding)).matchAll(Resources.installerDomainsPattern)]
+      .map(t => t[0]);
+    const [domain = String.empty] = domains;
+    const choices = new Map([...domain.matchAll(Resources.xmlAttributePattern)].map(([, name, value]) => [name, value]));
+    if (domains.length !== 1 || [...Resources.macInstallerDomains].some(([name, value]) => choices.get(name) !== value))
+      throw new BuildException(Resources.formatMacInstallerDomainsOpen(installer, location, domains));
     const program = path.join(application, ...Resources.macBundleProgramSegments, product.name);
     PackageInstaller.requireFiles([program]);
     return new InstalledPackage(program, program, path.join(application, ...Resources.macBundleResourcesSegments), null);

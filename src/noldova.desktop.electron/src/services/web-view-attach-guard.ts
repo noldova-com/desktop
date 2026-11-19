@@ -35,6 +35,9 @@ export class WebViewAttachGuard {
     params.src = this.claim(contentsId, partition) ? String.empty : Resources.blankPage;
     delete preferences.preload;
     delete preferences.preloadURL;
+    delete preferences.disableBlinkFeatures;
+    delete preferences.enableBlinkFeatures;
+    delete preferences.experimentalFeatures;
     preferences.nodeIntegration = false;
     preferences.nodeIntegrationInSubFrames = false;
     preferences.nodeIntegrationInWorker = false;

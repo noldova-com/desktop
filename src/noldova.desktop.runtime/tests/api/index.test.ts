@@ -75,6 +75,7 @@ export class RuntimeApiTests {
       "FileGrantTable",
       "FileIdentity",
       "FolderProtectorFactory",
+      "ForegroundProcess",
       "GrantedFile",
       "IdleMonitor",
       "LaunchException",

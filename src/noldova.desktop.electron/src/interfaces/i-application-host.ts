@@ -7,6 +7,7 @@
  */
 
 import type { ICommandLineHost } from "./i-command-line-host.js";
+import type { IDeviceChooserContents } from "./i-device-chooser-contents.js";
 import type { IDockHost } from "./i-dock-host.js";
 import type { IPreventableEvent } from "./i-preventable-event.js";
 
@@ -34,4 +35,5 @@ export interface IApplicationHost {
   on(event: "activate", listener: () => void): unknown;
   on(event: "will-quit", listener: () => void): unknown;
   on(event: "before-quit", listener: (event: IPreventableEvent) => void): unknown;
+  on(event: "web-contents-created", listener: (event: unknown, contents: IDeviceChooserContents) => void): unknown;
 }

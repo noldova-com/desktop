@@ -14,6 +14,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - The window listens to the preload's events once and converts each event's payload once, however many listen.
   It passes the event to the window's own services that take every event, and to the window parts' listeners of that event's name alone, so every listener of an event gets the same payload.
 - The renderer stays sandboxed and context-isolated, as the organization's Electron standard, `https://github.com/noldova-com/.github/blob/main/standards/stacks/ELECTRON.md`, says.
+- No page gets a web permission: the main process refuses every permission request and check, and turns Web Bluetooth off before ready, by adding `WebBluetooth` to any `--disable-blink-features` value already given, so a page has no `navigator.bluetooth` and the system is never asked for Bluetooth; every web contents also cancels a Bluetooth device choice, with `preventDefault()` and an empty device id.
 - The sandboxed preload loads no file of its own, so the main process hands it, in one `--desktop-preload=` argument, the bridge's name, the limit on pasted bytes, the window's last appearance and each IPC channel's name, all from the electron package's `Resources`; the preload refuses to start without them, and refuses an answer other than `true` or `false` to a question the window asks as yes or no.
 - External content is never rendered as markup that can reach the bridge.
 - The window never navigates away from its page and never opens another window.
@@ -109,6 +110,10 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - While agent control is stopped, every open view and document of a module that declares tools shows a bar above it, laid out so it covers nothing: "Agents are stopped" and Resume, which runs `desktop.resumeAgentControl`.
   The bar sits on a surface unlike the view's in both modes, the panel's in a dock and the raised one in the middle, with no line; when agent control resumes, from any bar, the tray or a command, every bar goes and each view has its whole height back.
 - Noldova Desktop pads every view and document the same way, by where it shows; a page that runs edge to edge, such as a terminal, turns the padding off for its module, its declaration or the page itself, the most specific choice winning.
+- A new layout, on a first start with no saved layout and after Reset the layout, opens each view shown by default on its side, in the group and at the place in its tab row that it names, and shows each group's first tab.
+  A side's groups go in number order, top to bottom on the left and right and left to right at the bottom, and share the side equally; a number no shown view uses leaves no gap.
+  Tabs go lowest order first, across modules; views without an order follow, in module order and then registration order, as views with the same order do, so views that name neither give one group per side, as before.
+  The layout is saved after any change, and a saved layout keeps its groups and tabs: a person who already has one keeps it until Reset the layout.
 - The saved layout restores the person's workspace, its toolbars and its docks, without opening unrelated content as a side effect, and keeps the place of a tab whose module is absent.
   A tab saved under a document's former name reopens as that document, as [MODULES.md](MODULES.md#former-names) says.
   It keeps each open document's title, so a restored or background tab shows its title before its module titles it again; a title the module gives wins.

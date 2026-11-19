@@ -175,7 +175,8 @@ export class PackageConfigurationTests {
     const json = PackageConfigurationTests.read(configuration);
 
     Assert.isFalse(json.hasField("dmg"));
-    Assert.areEqual(JSON.stringify({ installLocation: "/Applications/Sample Makers", isRelocatable: false, overwriteAction: "upgrade" }), JSON.stringify(json.readValue("pkg")));
+    Assert.areEqual(JSON.stringify({ installLocation: "/Applications/Sample Makers", isRelocatable: false, overwriteAction: "upgrade", allowAnywhere: false, allowCurrentUserHome: false,
+      allowRootDirectory: true }), JSON.stringify(json.readValue("pkg")));
     Assert.areEqual(JSON.stringify([{ target: "pkg", arch: ["arm64"] }, { target: "zip", arch: ["arm64"] }]), JSON.stringify(json.readObject("mac").readValue("target")));
     Assert.isTrue(json.readObject("mac").readBoolean("notarize"));
     Assert.areEqual("Sample App-1.2.3-macos-arm64.pkg,Sample App-1.2.3-macos-arm64.zip", configuration.fileNames.join(","));

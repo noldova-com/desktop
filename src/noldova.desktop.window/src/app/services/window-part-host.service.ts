@@ -496,14 +496,14 @@ export class WindowPartHostService implements IWindowPartHost {
     const failures = this.findFailures();
     const notStarted = new Set(failures.map(t => t.moduleId));
     this.menus.setActiveModules(this.moduleOrder.filter(t => !notStarted.has(t)));
-    const views = this.activations.flatMap(t => t.context.views);
+    const views = ordered.flatMap(t => t.context.views);
     for (const view of views)
       this.labels.register(view.name, new TabLabel(view.title, view.icon));
     const failed = failures.flatMap(t => t.viewNames.map(u => ({ name: u, failure: t })));
     for (const view of failed)
       this.labels.register(view.name, new TabLabel(view.failure.displayName, view.failure.glyph));
     this.layout.setRegistry(new ViewRegistry(
-      [...views.map(t => new ViewType(t.name, t.defaultSide, t.isShownByDefault, t.hasInstances, t.tabRowPlace, t.isRenamable)), ...failed.map(t => new ViewType(t.name, DockSide.Left, false))],
+      [...views.map(t => new ViewType(t.name, t.defaultSide, t.isShownByDefault, t.hasInstances, t.tabRowPlace, t.isRenamable, t.defaultGroup, t.defaultOrder)), ...failed.map(t => new ViewType(t.name, DockSide.Left, false))],
       [...ShellDocuments.all.map(t => t.name), ...this.activations.flatMap(t => t.context.documents.map(u => u.name))],
       new Map(this.activations.flatMap(t => t.context.documents.flatMap((u): [string, string][] => Object.isNull(u.tabRowPlace) ? [] : [[u.name, u.tabRowPlace]]))),
       new Set(this.activations.flatMap(t => t.context.documents.filter(u => u.isRenamable).map(u => u.name)))));

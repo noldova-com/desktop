@@ -13,6 +13,7 @@ import "@noldova/context.core";
 import type { IPseudoTerminalExit } from "../interfaces/i-pseudo-terminal-exit.js";
 import type { IPseudoTerminalHandle } from "../interfaces/i-pseudo-terminal-handle.js";
 import { ProcessSignals } from "../services/process/process-signals.js";
+import type { ForegroundProcess } from "./foreground-process.js";
 import { PseudoTerminalExit } from "./pseudo-terminal-exit.js";
 import { Registration } from "./registration.js";
 import { TerminalSize } from "./terminal-size.js";
@@ -21,6 +22,7 @@ export class PseudoTerminal {
   private readonly handle: IPseudoTerminalHandle;
   private readonly stop: (terminal: PseudoTerminal) => Promise<boolean>;
   private readonly readForegroundGroupAsync: (processId: number, started: Date) => Promise<number | null>;
+  private readonly readForegroundAsync: (processId: number, started: Date) => Promise<ForegroundProcess | null>;
   private readonly listeners: Set<(text: string) => void> = new Set();
   private readonly early: string[] = [];
   private hasListened: boolean = false;
@@ -32,10 +34,12 @@ export class PseudoTerminal {
   public readonly exited: Promise<PseudoTerminalExit>;
 
   public constructor(handle: IPseudoTerminalHandle, program: string, started: Date, stop: (terminal: PseudoTerminal) => Promise<boolean>,
-    readForegroundGroupAsync: (processId: number, started: Date) => Promise<number | null> = async () => null) {
+    readForegroundGroupAsync: (processId: number, started: Date) => Promise<number | null> = async () => null,
+    readForegroundAsync: (processId: number, started: Date) => Promise<ForegroundProcess | null> = async () => null) {
     this.handle = handle;
     this.stop = stop;
     this.readForegroundGroupAsync = readForegroundGroupAsync;
+    this.readForegroundAsync = readForegroundAsync;
     this.program = program;
     this.started = started;
     handle.onData(t => this.receive(t));
@@ -86,6 +90,11 @@ export class PseudoTerminal {
   public async readForegroundProcessGroupAsync(): Promise<number | null> {
     const group = this.hasExitedValue ? null : await this.readForegroundGroupAsync(this.handle.pid, this.started);
     return this.hasExitedValue ? null : group;
+  }
+
+  public async readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
+    const foreground = this.hasExitedValue ? null : await this.readForegroundAsync(this.handle.pid, this.started);
+    return this.hasExitedValue ? null : foreground;
   }
 
   public stopAsync(): Promise<boolean> {

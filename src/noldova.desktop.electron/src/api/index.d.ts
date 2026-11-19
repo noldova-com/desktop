@@ -853,7 +853,8 @@ export interface IShipItProcess {
   findAsync(): Promise<number | null>;
 
   /**
-   * Removes the job, so quitting installs nothing.
+   * Removes the job from the person's launchd domain, so quitting installs nothing; a job in the system domain stays
+   * and still installs the update at the next quit.
    *
    * @returns A promise that resolves once the job is removed.
    * @example
@@ -1038,7 +1039,8 @@ export declare class AppImageHandoff implements IUpdateHandoff {
 
 /**
  * The one-time move of a macOS app that names an install folder, from `/Applications/<Product>.app`, where an earlier
- * release installed it, into `/Applications/<Folder>/<Product>.app`. The data folder stays where it is.
+ * release installed it, into `/Applications/<Folder>/<Product>.app`, and the removal of a second copy a person installed in
+ * the home folder's Applications. The data folder stays where it is.
  */
 export declare class InstallFolderMove {
   /**
@@ -1066,10 +1068,13 @@ export declare class InstallFolderMove {
    * `ditto` beside the target under a name unique to this process and renames it into place, which fails rather than
    * nesting when the target appeared meanwhile, moves the old copy to the Trash, starts the copy in the folder with the
    * same arguments and exits. When the folder already holds the app, with the same bundle id and a version as new or
-   * newer, it moves the old copy to the Trash and starts that one; any other bundle there is left alone, and so is this
+   * newer than this copy's release version, it moves the old copy to the Trash and starts that one; any other bundle there is left alone, and so is this
    * copy. Where it can't write the folder, it removes its unfinished copy, logs why and keeps running where it is.
    * Before it copies, it removes the unfinished copies, `.<process id>-<Product>.app`, that processes which are gone left
-   * in the folder, and logs any it can't remove.
+   * in the folder, and logs any it can't remove. When the app runs from `/Applications/<Folder>/<Product>.app` itself, it
+   * moves a copy in `$HOME/Applications/<Folder>/<Product>.app` to the Trash when that copy has the same bundle id and a
+   * release version as old or older, logs and leaves any other or one whose path resolves anywhere but itself, and keeps
+   * running.
    *
    * @param isPackaged Whether this is a packaged build; a development build never moves.
    * @param productName The product's name, that of its `.app` bundle.
@@ -1397,9 +1402,11 @@ export declare class InstallerStart {
 
 /**
  * The process that installs a macOS update: Squirrel.Mac's ShipIt, which runs as the launchd job
- * `<bundle identifier>.ShipIt` in the person's session from the moment Squirrel has staged the update, keeps its
- * process id until it has installed it, and installs it once the main process has quit. Read from `launchctl list`. A
- * staged update installs at any quit, so a handoff that fails after staging removes the job.
+ * `<bundle identifier>.ShipIt` from the moment Squirrel has staged the update, keeps its process id until it has
+ * installed it, and installs it once the main process has quit. It runs in the person's launchd domain, read from
+ * `launchctl list`, or, for a copy the person cannot write, such as one a `.pkg` installed, as root in the system
+ * domain, read from `launchctl print system/<bundle identifier>.ShipIt`. A staged update installs at any quit, so a
+ * handoff that fails after staging removes the person's job; a system-domain job stays and installs at the next quit.
  */
 export declare class ShipItProcess implements IShipItProcess {
   /**
@@ -1420,8 +1427,10 @@ export declare class ShipItProcess implements IShipItProcess {
   /**
    * Finds the ShipIt process, once Squirrel has staged the update.
    *
-   * @returns The process id of the running ShipIt job, or `null` when the job is not listed or not running.
-   * @throws {UpdateHandoffException} Rejected with the reason when the jobs cannot be listed.
+   * @returns The process id of the running ShipIt job, from the person's launchd domain or else the system domain, or
+   * `null` when neither domain runs it.
+   * @throws {UpdateHandoffException} Rejected with the reason when the person's jobs cannot be listed or the system
+   * domain's job cannot be read for any reason but its absence.
    * @example
    * ```ts
    * import type { ShipItProcess } from "@noldova/desktop.electron";
@@ -1434,8 +1443,9 @@ export declare class ShipItProcess implements IShipItProcess {
   public findAsync(): Promise<number | null>;
 
   /**
-   * Removes the ShipIt job, which ends a ShipIt that is still waiting, so the staged update does not install when
-   * the main process quits. It does nothing when the job is not listed.
+   * Removes the ShipIt job from the person's launchd domain, which ends a ShipIt that is still waiting there, so the
+   * staged update does not install when the main process quits. It does nothing when the job is not listed, and a
+   * job in the system domain stays and still installs the update at the next quit.
    *
    * @returns A promise that resolves once the job is removed.
    * @throws {UpdateHandoffException} Rejected with the reason when the jobs cannot be listed or the job cannot be
@@ -2550,6 +2560,46 @@ export interface IApplicationHost {
    * @returns Electron's own return value, which the main process does not use.
    */
   on(event: "before-quit", listener: (event: IPreventableEvent) => void): unknown;
+
+  /**
+   * Listens for each web contents the application creates, its windows', its
+   * web views' and any other, before it loads anything.
+   *
+   * @param event The event's name.
+   * @param listener Called with Electron's event and the new web contents.
+   * @returns Electron's own return value, which the main process does not use.
+   */
+  on(event: "web-contents-created", listener: (event: unknown, contents: IDeviceChooserContents) => void): unknown;
+}
+
+/**
+ * The part of a web contents that asks the main process to choose a device
+ * for a page, as Electron's `WebContents` provides it.
+ */
+export interface IDeviceChooserContents {
+  /**
+   * Listens for a page's request for a Bluetooth device. A listener that
+   * prevents the event chooses the device itself through `choose`, and an
+   * empty id cancels the request.
+   *
+   * @param event The event's name.
+   * @param listener Called with the event, the devices found so far and the
+   * function that answers the request.
+   * @returns Electron's own return value, which the main process does not use.
+   *
+   * @example
+   * ```ts
+   * import type { IDeviceChooserContents } from "@noldova/desktop.electron";
+   *
+   * export function refuse(contents: IDeviceChooserContents): void {
+   *   contents.on("select-bluetooth-device", (event, _devices, choose) => {
+   *     event.preventDefault();
+   *     choose("");
+   *   });
+   * }
+   * ```
+   */
+  on(event: "select-bluetooth-device", listener: (event: IPreventableEvent, devices: readonly unknown[], choose: (deviceId: string) => void) => void): unknown;
 }
 
 /**

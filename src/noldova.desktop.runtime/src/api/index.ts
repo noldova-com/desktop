@@ -197,6 +197,7 @@ export { ConnectedClient } from "../models/connected-client.js";
 export { DataDirectoryInspection } from "../models/data-directory-inspection.js";
 export { Endpoint } from "../models/endpoint.js";
 export { EventChannel } from "../models/event-channel.js";
+export { ForegroundProcess } from "../models/foreground-process.js";
 export { GrantedFile } from "../models/granted-file.js";
 export { NotificationHandle } from "../models/notification-handle.js";
 export { OwnedProcess } from "../models/owned-process.js";
