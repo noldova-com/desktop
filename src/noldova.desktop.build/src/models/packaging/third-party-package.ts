@@ -121,9 +121,9 @@ export class ThirdPartyPackage {
       return await fetch(locked.resolved, { signal: AbortSignal.timeout(Resources.thirdPartyDownloadTimeout) });
     }
     catch (error) {
-      if (error instanceof Error && error.cause instanceof Error && "code" in error.cause && error.cause.code === Resources.connectionRefusedCode)
-        throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
-      return String(error);
+      if (error instanceof Error && error.cause instanceof Error && "code" in error.cause)
+        return String(error);
+      throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
     }
   }
 }

@@ -1729,7 +1729,6 @@ export class Resources {
   public static readonly tarHeaderEncoding: BufferEncoding = "latin1";
   public static readonly thirdPartyDownloadTimeout: number = 120_000;
   public static readonly downloadRetriedStatuses: readonly number[] = [408, 429];
-  public static readonly connectionRefusedCode: string = "ECONNREFUSED";
   public static readonly licenseFilePattern: RegExp = /^(?:(?:licen[cs]e|copying|unlicense)(?:[-_][a-z0-9+-]+(?:\.\d+)*)?|[a-z0-9+-]+(?:\.\d+)*[-_]licen[cs]e)(?:\.(?:md|txt|markdown))?$/i;
   public static readonly scriptFilePattern: RegExp = /\.[cm]?js$/;
   public static readonly regexSpecialCharacters: RegExp = /[.*+?^${}()|[\]\\]/g;
