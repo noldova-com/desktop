@@ -4,6 +4,16 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.8
+
+- Web Bluetooth is off in every window: the main process adds `WebBluetooth` to `--disable-blink-features` before ready, so a page has no `navigator.bluetooth`, and every web contents cancels a Bluetooth device choice with an empty device id.
+  A `<webview>` loses its own Blink and experimental feature settings when it attaches, so a view keeps the window's.
+  `@noldova/desktop.electron` exports `IDeviceChooserContents`, and the application host's `on` takes `"web-contents-created"`.
+- A release can set its version itself: `release-app.yml` takes `set-version`, false by default; when it is true, each build runs the app's own `npm run set-version -- <version>` before `npm ci` and fails unless the app's `package.json` then holds the version, and `release-check` compares the version only with the earlier releases.
+  An app uses it once it locks a `@noldova/desktop.build` that holds this version.
+- On macOS and Linux, `build` compiles the POSIX addon against the headers of the Node.js running it, with `--nodedir`, when that Node's folder holds `include/node/common.gypi`, so node-gyp downloads nothing; Windows, and a Node without headers, still download them into `_build/node-gyp`.
+- The window actions test answers the window's close request, so a run of it alone leaves no timer open; the packages are unchanged.
+
 ## 0.0.7
 
 - `build` installs the packages it builds from their archives together with the versions `package-lock.json` holds at the top of `node_modules` for each peer the lockfile names, each peer the built packages declare, and each installed optional package that names no peers of its own, so a newer release of Angular or of `@noldova/ui.components.angular` no longer stops the install with `ERESOLVE`.
