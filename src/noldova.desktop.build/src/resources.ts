@@ -162,6 +162,10 @@ export class Resources {
   public static readonly pkgutilExpandFullOption: string = "--expand-full";
   public static readonly installerPayloadFolder: string = "Payload";
   public static readonly installerExpandedFolder: string = "expanded";
+  public static readonly installerDistributionFile: string = "Distribution";
+  public static readonly installerDomainsPattern: RegExp = /<domains\b[^>]*>/gu;
+  public static readonly xmlAttributePattern: RegExp = /([\w:-]+)\s*=\s*"([^"]*)"/gu;
+  public static readonly macInstallerDomains: ReadonlyMap<string, string> = new Map([["enable_anywhere", "false"], ["enable_currentUserHome", "false"], ["enable_localSystem", "true"]]);
   public static readonly appleDeveloperIdInstallerPattern: RegExp = /^\s*1\. Developer ID Installer: /m;
   public static readonly appleDeveloperIdInstallerRequirement: string = "a Developer ID Installer signature";
   public static readonly spctlDiskImageAssessment: readonly string[] = [Resources.spctlTypeOption, "open", "--context", "context:primary-signature"];
@@ -1155,6 +1159,9 @@ export class Resources {
   public static readonly gitHubPrivateField: string = "private";
   public static readonly sourceRepositoryLabel: string = "the source repository";
   public static readonly releaseTagPrefixVariable: string = "RELEASE_TAG_PREFIX";
+  public static readonly releaseSetsVersionVariable: string = "RELEASE_SETS_VERSION";
+  public static readonly releaseSetsVersionValue: string = "true";
+  public static readonly releaseSetsVersionValues: readonly string[] = [String.empty, "false", Resources.releaseSetsVersionValue];
   public static readonly feedWaitVariable: string = "FEED_WAIT_SECONDS";
   public static readonly feedSkipValue: string = "true";
   public static readonly feedSkipValues: readonly string[] = [String.empty, "false", Resources.feedSkipValue];
@@ -1221,6 +1228,9 @@ export class Resources {
   public static readonly debianInstallPrefix: string = "/opt";
   public static readonly debianAppMappingPattern: RegExp = /^(.+\/=)\/opt\/([^/]+)$/;
   public static readonly debianExecPattern: RegExp = /^(Exec="?)\/opt\//m;
+  public static readonly fpmPackageOption: string = "--package";
+  public static readonly fpmAppMappingSeparator: string = "/=";
+  public static readonly packageTypeFile: string = "package-type";
   public static readonly builderModule: string = "electron-builder";
   public static readonly builderLibraryManifest: string = "app-builder-lib/package.json";
   public static readonly builderLinuxTemplatesSegments: readonly string[] = ["templates", "linux"];
@@ -1268,8 +1278,9 @@ export class Resources {
   public static readonly installerPackageInfoFromApp: readonly string[] = ["..", "..", "PackageInfo"];
   public static readonly sudoNonInteractiveOption: string = "--non-interactive";
   public static readonly aptGetCommand: string = "apt-get";
-  public static readonly aptGetInstallArguments: readonly string[] = ["install", "--yes"];
-  public static readonly aptGetRemoveArguments: readonly string[] = ["remove", "--yes"];
+  public static readonly aptGetLockWaitSeconds: number = 60;
+  public static readonly aptGetInstallArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "install", "--yes"];
+  public static readonly aptGetRemoveArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "remove", "--yes"];
   public static readonly aptGetSimulateArguments: readonly string[] = ["--simulate", "install", "--yes"];
   public static readonly aptGetUpdateArguments: readonly string[] = ["update"];
   public static readonly aptGetInstalledPrefix: string = "Inst ";
@@ -1304,6 +1315,8 @@ export class Resources {
   public static readonly smokeNothingLeft: string = "Nothing an earlier run installed was left.";
   public static readonly smokeNoRuntimeExitCode: number = 3;
   public static readonly smokeCommandLimit: number = 30_000;
+  public static readonly timedOutOutputLines: number = 20;
+  public static readonly trailingCarriageReturn: RegExp = /\r$/u;
   public static readonly smokeStartLimit: number = 60_000;
   public static readonly smokeQuitLimit: number = 30_000;
   public static readonly smokeStopLimit: number = 90_000;
@@ -1504,7 +1517,10 @@ export class Resources {
   public static readonly addonBuiltSegments: readonly string[] = ["build", "Release"];
   public static readonly addonNodeApiVersion: number = 8;
   public static readonly addonNodeApiDefine: string = `NAPI_VERSION=${Resources.addonNodeApiVersion}`;
-  public static readonly addonRebuildArguments: readonly string[] = ["rebuild", "--loglevel=error", "--enable-lto=false", "--enable-thin-lto=false", "--devdir"];
+  public static readonly addonRebuildArguments: readonly string[] = ["rebuild", "--loglevel=error", "--enable-lto=false", "--enable-thin-lto=false"];
+  public static readonly addonHeadersDownloadOption: string = "--devdir";
+  public static readonly addonLocalHeadersOption: string = "--nodedir";
+  public static readonly addonLocalHeadersSegments: readonly string[] = ["include", "node", "common.gypi"];
   public static readonly addonNoToolchainText: string = "Could not find any Visual Studio installation to use";
   public static readonly addonKindWindows: string = "Windows";
   public static readonly addonKindPosix: string = "POSIX";
@@ -3499,7 +3515,7 @@ export class Resources {
 
   public static formatReleaseCheckUsage(command: string): string {
     return `Usage: ${Resources.releaseRepositoryVariable}=<owner/name> ${Resources.releaseVersionVariable}=<N.N.N> ${Resources.releaseRevisionVariable}=<commit> `
-      + `${Resources.formatReleaseSourceOptions()} ${command} ${Resources.releaseCheckCommand}\n`;
+      + `${Resources.formatReleaseSourceOptions()} [${Resources.releaseSetsVersionVariable}=true] ${command} ${Resources.releaseCheckCommand}\n`;
   }
 
   public static formatReleaseSourceOptions(): string {
@@ -3507,7 +3523,11 @@ export class Resources {
   }
 
   public static formatRootVersionMismatch(rootVersion: string, version: string): string {
-    return `The root manifest's version is ${rootVersion}, not ${version}; raise it on ${Resources.mainBranch} first.`;
+    return `The root manifest's version is ${rootVersion}, not ${version}; raise it on ${Resources.mainBranch} first, or let the release set it.`;
+  }
+
+  public static formatReleaseSetsVersionInvalid(value: string): string {
+    return `${Resources.releaseSetsVersionVariable} must be true or false, not "${value}".`;
   }
 
   public static formatReleaseLabel(index: number): string {
@@ -3713,6 +3733,12 @@ export class Resources {
     return `The installer package ${installer} installs elsewhere than ${location}:\n${information}`;
   }
 
+  public static formatMacInstallerDomainsOpen(installer: string, location: string, domains: readonly string[]): string {
+    const found = domains.length === 0 ? "it has no <domains> element" : `it has ${domains.join(" and ")}`;
+    return `The installer package ${installer} must install only into ${location} on the startup disk, with one `
+      + `<domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/> in its Distribution, but ${found}.`;
+  }
+
   public static formatMacNeighbourTouched(neighbour: string): string {
     return `Installing the installer package removed or replaced ${neighbour}, which it must leave beside the app.`;
   }
@@ -3909,6 +3935,14 @@ export class Resources {
     return `${Resources.debianInstallPrefix}/${installFolder}`;
   }
 
+  public static formatPackageTypeSource(desktopFile: string): string {
+    return `${desktopFile}.${Resources.packageTypeFile}`;
+  }
+
+  public static formatPackageTypeMapping(source: string, app: string): string {
+    return `${source}=${app}/${Resources.packagedResourcesFolder}/${Resources.packageTypeFile}`;
+  }
+
   public static formatDebianInstallFolderUnplaced(installFolder: string, desktopFile: string): string {
     return `electron-builder's Debian package arguments map no app folder into ${Resources.debianInstallPrefix}, or its desktop entry ${desktopFile} runs no program there, `
       + `so the package can't move them into ${Resources.formatDebianInstallFolder(installFolder)}.`;
@@ -3985,6 +4019,14 @@ export class Resources {
     return `${profile} is the package's AppArmor profile, which allows the program user namespaces, and it is loaded.`;
   }
 
+  public static formatDebianPackageTypeChecked(file: string): string {
+    return `${file} holds ${Resources.debianPackageTarget}, so the installed copy updates as a Debian package.`;
+  }
+
+  public static formatDebianPackageTypeMissing(file: string): string {
+    return `${file} doesn't hold ${Resources.debianPackageTarget}, so the installed copy can't tell it came from the Debian package and would update as an AppImage.`;
+  }
+
   public static formatDebianRemoved(packageName: string, folder: string, profile: string): string {
     return `Removing the Debian package ${packageName} left neither ${folder} nor ${profile}.`;
   }
@@ -4041,6 +4083,21 @@ export class Resources {
 
   public static formatRootPackagesInstalled(count: number): string {
     return `Packages built on Angular packages and installed: ${count}.\n`;
+  }
+
+  public static formatLockedSpec(name: string, version: string): string {
+    return `${name}@${version}`;
+  }
+
+  public static formatUnlockedInstall(location: string, version: string, held: string | null): string {
+    return `Installing the built packages put ${location} at ${version}, `
+      + (Object.isNull(held) ? "which package-lock.json doesn't hold" : `where package-lock.json holds ${held}`)
+      + "; the install takes only the lockfile's versions, so lock it there with npm install and commit the lockfile.";
+  }
+
+  public static formatInstalledLockfileMissing(file: string): string {
+    return `Installing the built packages left no ${file} beside package-lock.json, so the installed versions can't be checked against the lockfile; `
+      + "install with an npm that writes it and build again.";
   }
 
   public static formatSecondCopy(name: string, location: string): string {
@@ -4348,9 +4405,8 @@ export class Resources {
     return `${name} ${version} for ${targets}. ${signing}`;
   }
 
-  public static formatReleaseSupported(supported: string, ciOnly: string | null): string {
-    return `Supported after their native acceptance: ${supported}.`
-      + (Object.isNull(ciOnly) ? String.empty : ` Accepted by a CI run only: ${ciOnly}.`);
+  public static formatReleaseCiOnly(ciOnly: string): string {
+    return `Accepted by a CI run only: ${ciOnly}.`;
   }
 
   public static formatReleaseRunCheck(runUrl: string): string {
@@ -4596,8 +4652,14 @@ export class Resources {
     return `"${command}" wrote more than ${Resources.processOutputLimit} bytes.`;
   }
 
-  public static formatProcessTimedOut(command: string, timeout: number): string {
-    return `"${command}" did not finish within ${timeout} ms.`;
+  public static formatProcessTimedOut(command: string, timeout: number, output: string | null): string {
+    const message = `"${command}" did not finish within ${timeout} ms.`;
+    if (Object.isNull(output))
+      return message;
+    const lines = output.split(Resources.lineSeparator).map(t => t.replace(Resources.trailingCarriageReturn, String.empty)).filter(t => t.trim().length > 0)
+      .slice(-Resources.timedOutOutputLines);
+    return lines.length === 0 ? `${message} It wrote nothing before it was stopped.`
+      : `${message} Its last output before it was stopped:${Resources.lineSeparator}${lines.join(Resources.lineSeparator)}`;
   }
 
   public static formatProcessNotStarted(command: string): string {

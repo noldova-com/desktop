@@ -143,6 +143,7 @@ export class Resources {
   public static readonly isVisibleField: string = "isVisible";
   public static readonly isPaintedField: string = "isPainted";
   public static readonly keyParameterName: string = "key";
+  public static readonly keyTokenPattern: RegExp = /\{key:([^{}]*)\}/gu;
   public static readonly commandTitleInvalid: string = "A command's title must not be blank.";
   public static readonly commandIconInvalid: string = "A command's icon, when it has one, must not be blank.";
   public static readonly notificationKeyInvalid: string = "A notification's key, when it has one, must not be blank.";
@@ -183,6 +184,9 @@ export class Resources {
   public static readonly controlLabel: string = "Ctrl";
   public static readonly altLabel: string = "Alt";
   public static readonly shiftLabel: string = "Shift";
+  public static readonly macControlName: string = "Control";
+  public static readonly macOptionName: string = "Option";
+  public static readonly macCommandName: string = "Cmd";
   public static readonly ariaControlKey: string = "Control";
   public static readonly ariaAltKey: string = "Alt";
   public static readonly ariaShiftKey: string = "Shift";

@@ -31,6 +31,7 @@ import { UnusableFolderException } from "../exceptions/unusable-folder.exception
 import type { IMainProcessEnvironment } from "../interfaces/i-main-process-environment.js";
 import type { IMainProcessOptions } from "../interfaces/i-main-process-options.js";
 import type { IDeviceFileStore } from "../interfaces/i-device-file-store.js";
+import type { IApplicationHost } from "../interfaces/i-application-host.js";
 import type { IElectron } from "../interfaces/i-electron.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IQuitPrompt } from "../interfaces/i-quit-prompt.js";
@@ -335,6 +336,7 @@ export class MainProcess {
       app.commandLine.appendSwitch(Resources.enableFeaturesSwitch,
         features.length === 0 ? Resources.globalShortcutsPortalFeature : Resources.formatFeatureList(features, Resources.globalShortcutsPortalFeature));
     }
+    MainProcess.refuseBluetooth(app);
     if (!app.requestSingleInstanceLock()) {
       log.writeShared(Resources.formatSingleInstanceLockRefused(process.processId));
       app.quit();
@@ -357,8 +359,9 @@ export class MainProcess {
       return;
     }
     app.releaseSingleInstanceLock();
-    void relaunch.startAsync(() => app.whenReady()).then(() => {
+    void relaunch.startAsync(() => app.whenReady()).then(async () => {
       this.options.log.flush();
+      await this.options.log.closeAsync();
       app.exit(Resources.quitExitCode);
     }, (error: unknown) => this.stayInTerminal(error));
   }
@@ -576,7 +579,7 @@ export class MainProcess {
     this.startup.close();
     this.release();
     this.options.log.flush();
-    this.options.electron.app.exit(Resources.quitExitCode);
+    void this.options.log.closeAsync().then(() => this.options.electron.app.exit(Resources.quitExitCode));
   }
 
   private release(): void {
@@ -630,6 +633,16 @@ export class MainProcess {
       log.write(Resources.formatUpdaterNotCreated(String(error)));
       return { setup: null, status: new UpdateStatus(UpdateStateKind.Failed, null, null, null, Resources.updaterNotCreated, false) };
     }
+  }
+
+  private static refuseBluetooth(app: IApplicationHost): void {
+    const disabled = app.commandLine.getSwitchValue(Resources.disableBlinkFeaturesSwitch);
+    app.commandLine.appendSwitch(Resources.disableBlinkFeaturesSwitch,
+      disabled.length === 0 ? Resources.webBluetoothFeature : Resources.formatFeatureList(disabled, Resources.webBluetoothFeature));
+    app.on(Resources.webContentsCreatedEvent, (_event, contents) => contents.on(Resources.selectBluetoothDeviceEvent, (event, _devices, choose) => {
+      event.preventDefault();
+      choose(String.empty);
+    }));
   }
 
   private static isPackagedBuild(electron: IElectron, process: IMainProcessEnvironment): boolean {

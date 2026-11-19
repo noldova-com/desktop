@@ -1345,6 +1345,112 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async endsACallToThePageWhoseGuestAMoveDestroysWhileItsCommandOrRoundTripIsPendingSoThePersonsLaterPressesAreNotTakenForTheCallsWhicheverGuestTheMoveBindsFirst(): Promise<void> {
+    const results: string[] = [];
+    for (const [isCommandPending, isBoundFirst] of [[false, false], [false, true], [true, false], [true, true]] as const) {
+      const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+      const reached = new Promise<void>(started => {
+        const pending = (): Promise<unknown> => {
+          started();
+          return new Promise(() => undefined);
+        };
+        if (isCommandPending)
+          harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, pending);
+        else
+          harness.contents.onIsolated = pending;
+      });
+      const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+      await reached;
+      const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+      await harness.open.keepAsync();
+      if (isBoundFirst)
+        await harness.open.bindAsync(fresh, true);
+      OpenWebViewTests.destroy(harness);
+      if (!isBoundFirst)
+        await harness.open.bindAsync(fresh, true);
+      await OpenWebViewTests.drainAsync();
+      fresh.emit("input-event", {}, { type: "mouseDown" });
+      results.push(`${OpenWebViewTests.describe(await answering)} ${harness.inputs.join(",")}`);
+    }
+
+    Assert.areEqual(Array.from({ length: 4 }, () => "1 null Unavailable Start,End").join("|"), results.join("|"));
+  }
+
+  @TestMethod
+  public async endsEachCallToThePageOnceSoAGuestDestroyedWhileOneOfFourCallsIsOpenEndsOnlyThatOne(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    for (const call of [1, 2, 3])
+      await harness.open.sendAsync(call, OpenWebViewTests.MOUSE, { type: "mouseMoved", x: 1, y: 1 }, 1000);
+    const reached = new Promise<void>(started => {
+      harness.contents.onIsolated = () => {
+        started();
+        return new Promise(() => undefined);
+      };
+    });
+    const answering = harness.open.sendAsync(4, OpenWebViewTests.MOUSE, { type: "mouseMoved", x: 1, y: 1 }, 1000);
+    await reached;
+
+    OpenWebViewTests.destroy(harness);
+    await answering;
+    await OpenWebViewTests.drainAsync();
+
+    Assert.areEqual("Start,End,Start,End,Start,End,Start,End", harness.inputs.join(","));
+  }
+
+  @TestMethod
+  public async settlesTheInputOfACallWhoseCommandItsDestroyedGuestNeverAnswersSoThePersonsPressInACallOnTheNewGuestComesAsPress(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, () => new Promise(() => undefined));
+    void harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+    await OpenWebViewTests.drainAsync();
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    await harness.open.keepAsync();
+    OpenWebViewTests.destroy(harness);
+    await harness.open.bindAsync(fresh, true);
+    await OpenWebViewTests.drainAsync();
+    let roundTrip: (value: unknown) => void = () => undefined;
+    const reached = new Promise<void>(started => {
+      fresh.onIsolated = () => {
+        started();
+        return new Promise(resolve => {
+          roundTrip = resolve;
+        });
+      };
+    });
+
+    const answering = harness.open.sendAsync(2, OpenWebViewTests.MOUSE, { type: "mouseMoved", x: 1, y: 1 }, 1000);
+    await reached;
+    fresh.emit("input-event", {}, { type: "mouseDown" });
+    roundTrip(0);
+    await answering;
+
+    Assert.areEqual("Start,End,Start,Press,End", harness.inputs.join(","));
+  }
+
+  @TestMethod
+  public async endsTheOldGuestsCallToThePageWhenAMoveBindsTheNewGuestFirstSoAPressOnTheNewGuestBeforeTheOldIsDestroyedComesAsNoPress(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+    const reached = new Promise<void>(started => {
+      harness.contents.onIsolated = () => {
+        started();
+        return new Promise(() => undefined);
+      };
+    });
+    void harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+    await reached;
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+
+    await harness.open.bindAsync(fresh, true);
+    await OpenWebViewTests.drainAsync();
+    fresh.emit("input-event", {}, { type: "mouseDown" });
+    const between = harness.inputs.join(",");
+    OpenWebViewTests.destroy(harness);
+    await OpenWebViewTests.drainAsync();
+
+    Assert.areEqual("Start,End|Start,End", [between, harness.inputs.join(",")].join("|"));
+  }
+
+  @TestMethod
   public async tellsTheWindowOfThePersonsPressInThePageWhileACallToThePageIsOpenButNotOfTheRelaysOwnPressOrOutsideACall(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
     let roundTrip: (value: unknown) => void = () => undefined;

@@ -580,6 +580,9 @@ export class Resources {
   public static readonly launchControl: string = "/bin/launchctl";
   public static readonly launchControlList: string = "list";
   public static readonly launchControlRemove: string = "remove";
+  public static readonly launchControlPrint: string = "print";
+  public static readonly launchControlMissingServiceCode: number = 113;
+  public static readonly launchPrintProcessPattern: RegExp = /^\s*pid = (\d+)\s*$/m;
   public static readonly launchListSeparator: string = "\t";
   public static readonly launchListProcessColumn: number = 0;
   public static readonly launchListLabelColumn: number = 2;
@@ -589,6 +592,8 @@ export class Resources {
   public static readonly ozonePlatformSwitch: string = "ozone-platform";
   public static readonly waylandPlatform: string = "wayland";
   public static readonly globalShortcutsPortalFeature: string = "GlobalShortcutsPortalPreferredTrigger";
+  public static readonly disableBlinkFeaturesSwitch: string = "disable-blink-features";
+  public static readonly webBluetoothFeature: string = "WebBluetooth";
   public static readonly windowsIcon: string = "icon-dark.ico";
   public static readonly windowIcon: string = "icon-dark-512.png";
   public static readonly lightWindowsIcon: string = "icon-light.ico";
@@ -697,6 +702,7 @@ export class Resources {
   public static readonly willAttachWebviewEvent: "will-attach-webview" = "will-attach-webview";
   public static readonly didAttachWebviewEvent: "did-attach-webview" = "did-attach-webview";
   public static readonly webContentsCreatedEvent: "web-contents-created" = "web-contents-created";
+  public static readonly selectBluetoothDeviceEvent: "select-bluetooth-device" = "select-bluetooth-device";
   public static readonly webViewContentsType: "webview" = "webview";
   public static readonly destroyedEvent: "destroyed" = "destroyed";
   public static readonly closeEvent: "close" = "close";
@@ -772,6 +778,8 @@ export class Resources {
   public static readonly appBundleExtension: string = ".app";
   public static readonly bundleFromProgramSegments: readonly string[] = ["..", "..", ".."];
   public static readonly macApplicationsFolder: string = "/Applications";
+  public static readonly macHomeApplicationsFolder: string = "Applications";
+  public static readonly homeVariable: string = "HOME";
   public static readonly installFolderStagingPrefix: string = ".";
   public static readonly dittoProgram: string = "/usr/bin/ditto";
   public static readonly installFolderStagingSeparator: string = "-";
@@ -1041,6 +1049,18 @@ export class Resources {
     return `${bundle} stays where it is, since ${target} already exists and could not be read: ${reason}`;
   }
 
+  public static formatInstallFolderHomeCopyTrashed(copy: string, target: string): string {
+    return `${target} holds the app, as new as ${copy} or newer, so the copy in the home folder's Applications was moved to the Trash.`;
+  }
+
+  public static formatInstallFolderHomeCopyLinked(copy: string, target: string, resolved: string): string {
+    return `${copy} stays where it is, since it is not a copy of its own beside ${target}: it resolves to ${resolved}.`;
+  }
+
+  public static formatInstallFolderHomeCopyKept(copy: string, target: string, reason: string): string {
+    return `${target} holds the app, but the copy in the home folder's Applications, ${copy}, could not be moved to the Trash: ${reason}`;
+  }
+
   public static formatInstallFolderStagingLeft(staging: string, reason: string): string {
     return `The unfinished copy ${staging} could not be removed: ${reason}`;
   }
@@ -1267,6 +1287,10 @@ export class Resources {
 
   public static formatShipItLabel(bundleIdentifier: string): string {
     return `${bundleIdentifier}.ShipIt`;
+  }
+
+  public static formatSystemLaunchJob(label: string): string {
+    return `system/${label}`;
   }
 
   public static formatShipItUnreadable(reason: string): string {

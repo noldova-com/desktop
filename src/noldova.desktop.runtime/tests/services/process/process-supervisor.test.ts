@@ -6,8 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { execFile } from "node:child_process";
-import { readFileSync, readlinkSync } from "node:fs";
+import { execFile, execFileSync } from "node:child_process";
+import { readFileSync, readlinkSync, realpathSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { mock } from "node:test";
@@ -616,6 +616,60 @@ export class NodePtyTerminalsTests {
   }
 
   @TestMethod
+  @PlatformFixture.posixOnly()
+  public async readsTheShellsOwnProgramAtItsPromptAndInItsCopyButNotInAScriptOfItsProgramNorACommandOnceItStarts(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync();
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const processes = ProcessSupervisorFixture.create(settings);
+    const shell = await processes.startPseudoTerminalAsync(
+      ProcessSupervisorFixture.MODULE, new PseudoTerminalRequest(pty, NodePtyTerminalsTests.SHELL, ["--norc", "--noprofile", "-i"], folder.path, 80, 24, NodePtyTerminalsTests.ENVIRONMENT));
+    const output = NodePtyTerminalsTests.collect(shell);
+    const copyPattern = /copy=(\d+)/u;
+    const runPattern = /run=(\d+)/u;
+    const scriptPattern = /script=(\d+)/u;
+    const own = process.platform === "linux" ? realpathSync(NodePtyTerminalsTests.SHELL) : NodePtyTerminalsTests.SHELL;
+    const sleep = process.platform === "linux" ? realpathSync(execFileSync("/bin/sh", ["-c", "command -v sleep"], { encoding: "utf8" }).trim()) : "sleep";
+    const reads: string[] = [];
+    const holds = async (group: number, program: string, isTerminalProgram: boolean): Promise<boolean> => {
+      const foreground = await shell.readForegroundProcessAsync();
+      reads.push(`${foreground?.group} ${foreground?.program} ${foreground?.commandLine} ${foreground?.isTerminalProgram}`);
+      return foreground?.group === group && foreground.program === program && foreground.isTerminalProgram === isTerminalProgram && foreground.terminalProgram === own;
+    };
+    const printed = (): string => `The shell printed: ${JSON.stringify(output())}; the reads were ${reads.join(",")}; ${NodePtyTerminalsTests.describe(shell.processId)}`;
+    await ProcessSupervisorFixture.waitForAsync(() => NodePtyTerminalsTests.PROMPT_PATTERN.test(output()), printed, ProgramFixture.LAUNCH_MILLISECONDS);
+    let copy = 0;
+    let script = 0;
+    let run = 0;
+    try {
+      const atPrompt = await WaitFixture.untilAsync(() => holds(shell.processId, own, true), ProgramFixture.LAUNCH_MILLISECONDS);
+      shell.write("( /bin/sh -c 'echo copy=$PPID'; read -r _ )\r");
+      await ProcessSupervisorFixture.waitForAsync(() => copyPattern.test(output()), printed, ProgramFixture.LAUNCH_MILLISECONDS);
+      copy = Number(copyPattern.exec(output())?.[1]);
+      const inCopy = await WaitFixture.untilAsync(() => holds(copy, own, true), ProgramFixture.LAUNCH_MILLISECONDS);
+      shell.write("\u0003");
+      const copyEnded = await ProgramFixture.waitForEndAsync(copy, ProgramFixture.LAUNCH_MILLISECONDS);
+      shell.write(`${NodePtyTerminalsTests.SHELL} --norc -c 'echo script=$$; read -r _'\r`);
+      await ProcessSupervisorFixture.waitForAsync(() => scriptPattern.test(output()), printed, ProgramFixture.LAUNCH_MILLISECONDS);
+      script = Number(scriptPattern.exec(output())?.[1]);
+      const inScript = await WaitFixture.untilAsync(() => holds(script, own, false), ProgramFixture.LAUNCH_MILLISECONDS);
+      shell.write("\u0003");
+      const scriptEnded = await ProgramFixture.waitForEndAsync(script, ProgramFixture.LAUNCH_MILLISECONDS);
+      shell.write("/bin/sh -c 'echo run=$$; exec sleep 600'\r");
+      await ProcessSupervisorFixture.waitForAsync(() => runPattern.test(output()), printed, ProgramFixture.LAUNCH_MILLISECONDS);
+      run = Number(runPattern.exec(output())?.[1]);
+      const inProgram = await WaitFixture.untilAsync(() => holds(run, sleep, false), ProgramFixture.LAUNCH_MILLISECONDS);
+
+      Assert.isTrue(atPrompt && inCopy && copyEnded && inScript && scriptEnded && inProgram, printed());
+    }
+    finally {
+      await shell.stopAsync();
+      for (const job of [copy, script, run])
+        if (job > 0 && ProgramFixture.isRunning(job))
+          process.kill(job, "SIGKILL");
+    }
+  }
+
+  @TestMethod
   @PlatformFixture.windowsOnly()
   public async readsNoForegroundGroupOnWindows(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
@@ -627,6 +681,7 @@ export class NodePtyTerminalsTests {
       await ProcessSupervisorFixture.waitForAsync(() => output().includes(ProgramFixture.READY), () => `The terminal printed: ${JSON.stringify(output())}`, ProgramFixture.LAUNCH_MILLISECONDS);
 
       Assert.isNull(await terminal.readForegroundProcessGroupAsync());
+      Assert.isNull(await terminal.readForegroundProcessAsync());
     }
     finally {
       await terminal.stopAsync();

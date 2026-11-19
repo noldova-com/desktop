@@ -25,6 +25,10 @@ on:
         description: The full commit SHA to package; empty takes the commit that started the run.
         type: string
         default: ''
+      set-version:
+        description: The version the app takes before its install, from its repository's npm run set-version -- <version> at the repository's root; empty keeps the revision's own.
+        type: string
+        default: ''
       targets:
         description: The targets as a JSON array of objects with target, runner, architecture, platform and signed, as release-app.yml lists them.
         type: string
@@ -97,7 +101,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@55fa60e7fc524fa07e0a1e4f374f3cd14550a0ba # v2.39.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@fd77a920a674e4c9369f34d799329ac93793c8a2 # v2.39.1
     permissions: {}
 
   package:
@@ -199,6 +203,21 @@ jobs:
           fi
           test "$(node --print process.arch)" = "$EXPECTED_ARCHITECTURE"
 
+      - name: Set the version
+        if: inputs.set-version != ''
+        timeout-minutes: 2
+        env:
+          VERSION: ${{ inputs.set-version }}
+          APP_FOLDER: ${{ inputs.app-folder }}
+          npm_config_ignore_scripts: 'true'
+        run: |
+          npm run set-version -- "$VERSION"
+          found="$(node --print 'require(require("node:path").resolve(process.env.APP_FOLDER, "package.json")).version')"
+          if [ "$found" != "$VERSION" ]; then
+            echo "::error::npm run set-version left $APP_FOLDER/package.json at $found, not $VERSION."
+            exit 1
+          fi
+
       - name: Install the dependencies
         timeout-minutes: 15
         env:
@@ -296,7 +315,7 @@ jobs:
                 echo "::error::$name is installed on this self-hosted runner, which has no root to remove it; remove it from the runner's image."
                 exit 1
               fi
-              sudo apt-get remove -y "$name"
+              sudo apt-get -o DPkg::Lock::Timeout=60 remove -y "$name"
             fi
           done
           if ldconfig -p | grep 'libfuse\.so\.2' > /dev/null; then
