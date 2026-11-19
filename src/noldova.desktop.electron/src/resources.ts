@@ -1053,6 +1053,10 @@ export class Resources {
     return `${target} holds the app, as new as ${copy} or newer, so the copy in the home folder's Applications was moved to the Trash.`;
   }
 
+  public static formatInstallFolderHomeCopyLinked(copy: string, target: string, resolved: string): string {
+    return `${copy} stays where it is, since it is not a copy of its own beside ${target}: it resolves to ${resolved}.`;
+  }
+
   public static formatInstallFolderHomeCopyKept(copy: string, target: string, reason: string): string {
     return `${target} holds the app, but the copy in the home folder's Applications, ${copy}, could not be moved to the Trash: ${reason}`;
   }

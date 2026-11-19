@@ -46,6 +46,7 @@ class ExistingFiles implements IMainProcessFiles {
 
   public readonly renames: string[] = [];
   public readonly folders: Map<string, string[]> = new Map();
+  public readonly links: Map<string, string> = new Map();
   public renameFailure: Error | null;
   public readdirFailure: Error | null;
 
@@ -80,7 +81,8 @@ class ExistingFiles implements IMainProcessFiles {
   }
 
   public realpath(file: string): Promise<string> {
-    return Promise.resolve(file);
+    const resolved = this.links.get(file) ?? file;
+    return this.existing.has(resolved) ? Promise.resolve(resolved) : Promise.reject(ExistingFiles.systemError("ENOENT", `ENOENT: no such file or directory, realpath '${file}'`));
   }
 }
 
@@ -145,6 +147,17 @@ export class InstallFolderMoveTests {
       Assert.areEqual(`/Applications/Sample.app stays where it is, since ${InstallFolderMoveTests.TARGET} already exists and is not the same app as new or newer: ${read}.`,
         move.log.lines.join("\n"), name);
     }
+  }
+
+  @TestMethod
+  public async leavesBothCopiesWhenTheOldCopyIsAPreRelease(): Promise<void> {
+    const move = InstallFolderMoveTests.create({ existing: [InstallFolderMoveTests.TARGET],
+      bundles: new Map([[InstallFolderMoveTests.OLD, ["com.example.sample", "1.2.2-beta.1"]], [InstallFolderMoveTests.TARGET, ["com.example.sample", "1.2.3"]]]) });
+
+    Assert.isFalse(await move.runAsync());
+    Assert.areEqual(0, move.files.renames.length + move.app.calls.length + move.shell.trashed.length);
+    Assert.areEqual(`/Applications/Sample.app stays where it is, since ${InstallFolderMoveTests.TARGET} already exists and is not the same app as new or newer: `
+      + "com.example.sample and com.example.sample, versions 1.2.2-beta.1 and 1.2.3.", move.log.lines.join("\n"));
   }
 
   @TestMethod
@@ -249,7 +262,7 @@ export class InstallFolderMoveTests {
   @TestMethod
   public async trashesTheHomeFoldersCopyWhenTheFoldersCopyStartsAsTheSameAppAsNewOrNewer(): Promise<void> {
     for (const version of ["1.2.3", "1.3.0"]) {
-      const move = InstallFolderMoveTests.create({ program: InstallFolderMoveTests.FOLDER_PROGRAM, home: "/Users/sample", existing: [InstallFolderMoveTests.HOME_COPY],
+      const move = InstallFolderMoveTests.create({ program: InstallFolderMoveTests.FOLDER_PROGRAM, home: "/Users/sample", existing: [InstallFolderMoveTests.HOME_COPY, InstallFolderMoveTests.TARGET],
         bundles: new Map([[InstallFolderMoveTests.HOME_COPY, ["com.example.sample", "1.2.3"]], [InstallFolderMoveTests.TARGET, ["com.example.sample", version]]]) });
 
       Assert.isFalse(await move.runAsync(), version);
@@ -265,16 +278,39 @@ export class InstallFolderMoveTests {
     const cases: readonly (readonly [string, ReadonlyMap<string, Error>, readonly [string, string]])[] = [
       ["newer", new Map(), ["com.example.sample", "1.3.0"]],
       ["another app", new Map(), ["com.example.other", "1.2.3"]],
+      ["a pre-release", new Map(), ["com.example.sample", "1.2.4-beta.1"]],
       ["unreadable", new Map([["/usr/bin/plutil", new Error("plutil failed")]]), ["com.example.sample", "1.2.3"]]
     ];
 
     for (const [name, failures, copy] of cases) {
-      const move = InstallFolderMoveTests.create({ program: InstallFolderMoveTests.FOLDER_PROGRAM, home: "/Users/sample", existing: [InstallFolderMoveTests.HOME_COPY], failures,
+      const move = InstallFolderMoveTests.create({ program: InstallFolderMoveTests.FOLDER_PROGRAM, home: "/Users/sample", existing: [InstallFolderMoveTests.HOME_COPY, InstallFolderMoveTests.TARGET], failures,
         bundles: new Map([[InstallFolderMoveTests.HOME_COPY, copy], [InstallFolderMoveTests.TARGET, ["com.example.sample", "1.2.3"]]]) });
 
       Assert.isFalse(await move.runAsync(), name);
       Assert.areEqual(0, move.shell.trashed.length + move.app.calls.length, name);
       Assert.isTrue(move.log.lines.join().startsWith(`${InstallFolderMoveTests.HOME_COPY} stays where it is, since ${InstallFolderMoveTests.TARGET} already exists and `), name);
+    }
+  }
+
+  @TestMethod
+  public async keepsAHomeFoldersCopyThatIsTheRunningAppOrReachedThroughALink(): Promise<void> {
+    const elsewhere = "/Volumes/Apps/Sample Makers/Sample.app";
+    const cases: readonly (readonly [string, string, string, string | null])[] = [
+      ["a linked Applications or install folder", "/Users/sample", InstallFolderMoveTests.HOME_COPY, InstallFolderMoveTests.TARGET],
+      ["a link to another copy", "/Users/sample", InstallFolderMoveTests.HOME_COPY, elsewhere],
+      ["a home folder at the root", "/", InstallFolderMoveTests.TARGET, null]
+    ];
+
+    for (const [name, home, copy, linked] of cases) {
+      const move = InstallFolderMoveTests.create({ program: InstallFolderMoveTests.FOLDER_PROGRAM, home, existing: [InstallFolderMoveTests.TARGET, elsewhere],
+        bundles: new Map([[copy, ["com.example.sample", "1.2.3"]], [InstallFolderMoveTests.TARGET, ["com.example.sample", "1.2.3"]]]) });
+      if (!Object.isNull(linked))
+        move.files.links.set(copy, linked);
+
+      Assert.isFalse(await move.runAsync(), name);
+      Assert.areEqual(0, move.programs.runs.length + move.shell.trashed.length + move.app.calls.length, name);
+      Assert.areEqual(`${copy} stays where it is, since it is not a copy of its own beside ${InstallFolderMoveTests.TARGET}: it resolves to ${linked ?? copy}.`,
+        move.log.lines.join(), name);
     }
   }
 
@@ -288,7 +324,7 @@ export class InstallFolderMoveTests {
 
   @TestMethod
   public async logsTheHomeFoldersCopyWhenItCantGoToTheTrash(): Promise<void> {
-    const move = InstallFolderMoveTests.create({ program: InstallFolderMoveTests.FOLDER_PROGRAM, home: "/Users/sample", existing: [InstallFolderMoveTests.HOME_COPY],
+    const move = InstallFolderMoveTests.create({ program: InstallFolderMoveTests.FOLDER_PROGRAM, home: "/Users/sample", existing: [InstallFolderMoveTests.HOME_COPY, InstallFolderMoveTests.TARGET],
       bundles: new Map([[InstallFolderMoveTests.HOME_COPY, ["com.example.sample", "1.2.3"]], [InstallFolderMoveTests.TARGET, ["com.example.sample", "1.2.3"]]]) });
     move.shell.trashFailure = new Error("The Trash is unavailable");
 

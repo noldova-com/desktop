@@ -62,7 +62,22 @@ export class InstallFolderMove {
   }
 
   private async trashHomeCopyAsync(copy: string, target: string): Promise<void> {
-    if (!posix.isAbsolute(copy) || !await this.existsAsync(copy) || !await this.isReplacedAsync(copy, target))
+    if (!posix.isAbsolute(copy))
+      return;
+    let resolved: string;
+    let running: string;
+    try {
+      resolved = await this.process.files.realpath(copy);
+      running = await this.process.files.realpath(target);
+    }
+    catch {
+      return;
+    }
+    if (resolved !== copy || resolved === running) {
+      this.log.write(Resources.formatInstallFolderHomeCopyLinked(copy, target, resolved));
+      return;
+    }
+    if (!await this.isReplacedAsync(copy, target))
       return;
     await this.trashAsync(copy, Resources.formatInstallFolderHomeCopyTrashed(copy, target), t => Resources.formatInstallFolderHomeCopyKept(copy, target, t));
   }
@@ -84,7 +99,7 @@ export class InstallFolderMove {
       const targetIdentifier = await this.readBundleAsync(target, Resources.bundleIdentifierKey);
       const version = await this.readBundleAsync(bundle, Resources.bundleVersionKey);
       const targetVersion = await this.readBundleAsync(target, Resources.bundleVersionKey);
-      const isReplaced = identifier === targetIdentifier && UpdateVersion.isOffered(targetVersion) && !UpdateVersion.isNewer(version, targetVersion);
+      const isReplaced = identifier === targetIdentifier && UpdateVersion.isOffered(version) && UpdateVersion.isOffered(targetVersion) && !UpdateVersion.isNewer(version, targetVersion);
       if (!isReplaced)
         this.log.write(Resources.formatInstallFolderTargetExists(bundle, target, [identifier, targetIdentifier], [version, targetVersion]));
       return isReplaced;

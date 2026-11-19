@@ -1068,12 +1068,13 @@ export declare class InstallFolderMove {
    * `ditto` beside the target under a name unique to this process and renames it into place, which fails rather than
    * nesting when the target appeared meanwhile, moves the old copy to the Trash, starts the copy in the folder with the
    * same arguments and exits. When the folder already holds the app, with the same bundle id and a version as new or
-   * newer, it moves the old copy to the Trash and starts that one; any other bundle there is left alone, and so is this
+   * newer than this copy's release version, it moves the old copy to the Trash and starts that one; any other bundle there is left alone, and so is this
    * copy. Where it can't write the folder, it removes its unfinished copy, logs why and keeps running where it is.
    * Before it copies, it removes the unfinished copies, `.<process id>-<Product>.app`, that processes which are gone left
    * in the folder, and logs any it can't remove. When the app runs from `/Applications/<Folder>/<Product>.app` itself, it
    * moves a copy in `$HOME/Applications/<Folder>/<Product>.app` to the Trash when that copy has the same bundle id and a
-   * version as old or older, logs and leaves any other, and keeps running.
+   * release version as old or older, logs and leaves any other or one whose path resolves anywhere but itself, and keeps
+   * running.
    *
    * @param isPackaged Whether this is a packaged build; a development build never moves.
    * @param productName The product's name, that of its `.app` bundle.
