@@ -40,7 +40,7 @@ export class ProcessRunner {
         else
           chunks.push(chunk);
       };
-      const timer = setTimeout(() => stop(new ProcessTimeoutException(command, timeout)), timeout);
+      const timer = setTimeout(() => stop(new ProcessTimeoutException(command, timeout, Buffer.concat([...output, ...errorOutput]).toString(Resources.textEncoding))), timeout);
       child.stdout.on(Resources.dataEvent, (t: Buffer) => receive(output, t));
       child.stderr.on(Resources.dataEvent, (t: Buffer) => receive(errorOutput, t));
       child.on(Resources.errorEvent, t => stop(new BuildException(Resources.formatProcessNotStarted(command), new ExceptionOptions(t))));

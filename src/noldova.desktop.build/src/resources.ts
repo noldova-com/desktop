@@ -1274,10 +1274,11 @@ export class Resources {
   public static readonly installerPackageInfoFromApp: readonly string[] = ["..", "..", "PackageInfo"];
   public static readonly sudoNonInteractiveOption: string = "--non-interactive";
   public static readonly aptGetCommand: string = "apt-get";
-  public static readonly aptGetInstallArguments: readonly string[] = ["install", "--yes"];
-  public static readonly aptGetRemoveArguments: readonly string[] = ["remove", "--yes"];
+  public static readonly aptGetLockWaitSeconds: number = 60;
+  public static readonly aptGetInstallArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "install", "--yes"];
+  public static readonly aptGetRemoveArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "remove", "--yes"];
   public static readonly aptGetSimulateArguments: readonly string[] = ["--simulate", "install", "--yes"];
-  public static readonly aptGetUpdateArguments: readonly string[] = ["update"];
+  public static readonly aptGetUpdateArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "update"];
   public static readonly aptGetInstalledPrefix: string = "Inst ";
   public static readonly aptGetInstalledDetails: RegExp = /\s.*$/;
   public static readonly dpkgDebCommand: string = "dpkg-deb";
@@ -1310,6 +1311,7 @@ export class Resources {
   public static readonly smokeNothingLeft: string = "Nothing an earlier run installed was left.";
   public static readonly smokeNoRuntimeExitCode: number = 3;
   public static readonly smokeCommandLimit: number = 30_000;
+  public static readonly timedOutOutputLines: number = 20;
   public static readonly smokeStartLimit: number = 60_000;
   public static readonly smokeQuitLimit: number = 30_000;
   public static readonly smokeStopLimit: number = 90_000;
@@ -4640,8 +4642,13 @@ export class Resources {
     return `"${command}" wrote more than ${Resources.processOutputLimit} bytes.`;
   }
 
-  public static formatProcessTimedOut(command: string, timeout: number): string {
-    return `"${command}" did not finish within ${timeout} ms.`;
+  public static formatProcessTimedOut(command: string, timeout: number, output: string | null): string {
+    const message = `"${command}" did not finish within ${timeout} ms.`;
+    if (Object.isNull(output))
+      return message;
+    const lines = output.trim().split(Resources.lineSeparator).filter(t => t.trim().length > 0).slice(-Resources.timedOutOutputLines);
+    return lines.length === 0 ? `${message} It wrote nothing before it was stopped.`
+      : `${message} Its last output before it was stopped:${Resources.lineSeparator}${lines.join(Resources.lineSeparator)}`;
   }
 
   public static formatProcessNotStarted(command: string): string {
