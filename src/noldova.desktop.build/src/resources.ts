@@ -1278,7 +1278,7 @@ export class Resources {
   public static readonly aptGetInstallArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "install", "--yes"];
   public static readonly aptGetRemoveArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "remove", "--yes"];
   public static readonly aptGetSimulateArguments: readonly string[] = ["--simulate", "install", "--yes"];
-  public static readonly aptGetUpdateArguments: readonly string[] = ["-o", `DPkg::Lock::Timeout=${Resources.aptGetLockWaitSeconds}`, "update"];
+  public static readonly aptGetUpdateArguments: readonly string[] = ["update"];
   public static readonly aptGetInstalledPrefix: string = "Inst ";
   public static readonly aptGetInstalledDetails: RegExp = /\s.*$/;
   public static readonly dpkgDebCommand: string = "dpkg-deb";
@@ -1312,6 +1312,7 @@ export class Resources {
   public static readonly smokeNoRuntimeExitCode: number = 3;
   public static readonly smokeCommandLimit: number = 30_000;
   public static readonly timedOutOutputLines: number = 20;
+  public static readonly trailingCarriageReturn: RegExp = /\r$/u;
   public static readonly smokeStartLimit: number = 60_000;
   public static readonly smokeQuitLimit: number = 30_000;
   public static readonly smokeStopLimit: number = 90_000;
@@ -4646,7 +4647,8 @@ export class Resources {
     const message = `"${command}" did not finish within ${timeout} ms.`;
     if (Object.isNull(output))
       return message;
-    const lines = output.trim().split(Resources.lineSeparator).filter(t => t.trim().length > 0).slice(-Resources.timedOutOutputLines);
+    const lines = output.split(Resources.lineSeparator).map(t => t.replace(Resources.trailingCarriageReturn, String.empty)).filter(t => t.trim().length > 0)
+      .slice(-Resources.timedOutOutputLines);
     return lines.length === 0 ? `${message} It wrote nothing before it was stopped.`
       : `${message} Its last output before it was stopped:${Resources.lineSeparator}${lines.join(Resources.lineSeparator)}`;
   }

@@ -315,7 +315,7 @@ jobs:
                 echo "::error::$name is installed on this self-hosted runner, which has no root to remove it; remove it from the runner's image."
                 exit 1
               fi
-              sudo apt-get remove -y "$name"
+              sudo apt-get -o DPkg::Lock::Timeout=60 remove -y "$name"
             fi
           done
           if ldconfig -p | grep 'libfuse\.so\.2' > /dev/null; then

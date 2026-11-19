@@ -28,7 +28,7 @@ export class DebianInstallTests {
   private static readonly SIMULATED: string = "NOTE: This is only a simulation!\nInst libnotify4 (0.8.3-1build2 Ubuntu:24.04/noble [amd64])\nInst libxss1 (1:1.2.3-1build3 Ubuntu:24.04/noble [amd64])\n"
     + "Inst sample-app (1.2.3 local-deb [amd64])\nConf libnotify4 (0.8.3-1build2 Ubuntu:24.04/noble [amd64])\n";
   private static readonly SIMULATE: string = `apt-get --simulate install --yes ${DebianInstallTests.FILE}`;
-  private static readonly UPDATE: string = "sudo --non-interactive apt-get -o DPkg::Lock::Timeout=60 update";
+  private static readonly UPDATE: string = "sudo --non-interactive apt-get update";
   private static readonly INSTALL: string = `sudo --non-interactive apt-get -o DPkg::Lock::Timeout=60 install --yes ${DebianInstallTests.FILE}`;
   private static readonly LINK: string = "readlink --canonicalize-existing /usr/bin/sample-app";
   private static readonly PROBE: string = `sudo --non-interactive bash -c ${Resources.debianNamespaceProbe}`;

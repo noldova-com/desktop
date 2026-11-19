@@ -34,6 +34,8 @@ export class ProcessTimeoutExceptionTests {
       new ProcessTimeoutException("sudo", 120000, `Reading package lists...\n\n${waiting}\n`).message);
     Assert.areEqual(`"sudo" did not finish within 120000 ms. Its last output before it was stopped:\n${lines.slice(-20).join("\n")}`,
       new ProcessTimeoutException("sudo", 120000, lines.join("\n")).message);
-    Assert.areEqual("\"sudo\" did not finish within 120000 ms. It wrote nothing before it was stopped.", new ProcessTimeoutException("sudo", 120000, " \n").message);
+    Assert.areEqual("\"sudo\" did not finish within 120000 ms. Its last output before it was stopped:\nerror: locked\nReading package lists...",
+      new ProcessTimeoutException("sudo", 120000, "error: locked\r\n\r\nReading package lists...\r\n").message);
+    Assert.areEqual("\"sudo\" did not finish within 120000 ms. It wrote nothing before it was stopped.", new ProcessTimeoutException("sudo", 120000, " \r\n").message);
   }
 }

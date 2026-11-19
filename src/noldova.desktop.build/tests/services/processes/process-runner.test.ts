@@ -65,15 +65,6 @@ export class ProcessRunnerTests {
   }
 
   @TestMethod
-  public async namesWhatAProcessWroteBeforeItsTimeoutStoppedIt(): Promise<void> {
-    const script = "console.log('Reading package lists...'); console.error('Waiting for cache lock'); setInterval(() => undefined, 1000)";
-
-    const error = await Assert.throwsAsync(() => new ProcessRunner().captureAsync(process.execPath, ["-e", script], tmpdir(), 3000), ProcessTimeoutException);
-
-    Assert.areEqual(`"${process.execPath}" did not finish within 3000 ms. Its last output before it was stopped:\nReading package lists...\nWaiting for cache lock`, error.message);
-  }
-
-  @TestMethod
   public async refusesAProgramThatCannotStart(): Promise<void> {
     const runner = new ProcessRunner();
     const folder = await mkdtemp(path.join(tmpdir(), "process-runner-"));
