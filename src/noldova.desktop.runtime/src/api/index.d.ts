@@ -10033,6 +10033,61 @@ export declare class PseudoTerminalExit {
 }
 
 /**
+ * The process group that holds a pseudo-terminal, with its leader's program
+ * and the terminal program's own, read in one step, so a module can tell
+ * whether a command's process has started its program or is still the copy
+ * of the shell that forked it.
+ */
+export declare class ForegroundProcess {
+  /**
+   * The id of the process group that holds the terminal, which is also its
+   * leader's process id.
+   */
+  public readonly group: number;
+
+  /**
+   * The group leader's program, or `null` when the leader exited before it
+   * was read: on Linux the path its `/proc/<pid>/exe` link resolves to, and
+   * on macOS its `comm`, as `ps` shows it.
+   */
+  public readonly program: string | null;
+
+  /**
+   * The terminal program's own, read the same way and in the same step.
+   */
+  public readonly terminalProgram: string;
+
+  /**
+   * Creates the foreground process.
+   *
+   * @param group The id of the process group that holds the terminal.
+   * @param program The group leader's program, or `null`.
+   * @param terminalProgram The terminal program's own.
+   * @example
+   * ```ts
+   * import { ForegroundProcess } from "@noldova/desktop.runtime";
+   *
+   * export function atPrompt(processId: number): ForegroundProcess {
+   *   return new ForegroundProcess(processId, "/usr/bin/bash", "/usr/bin/bash");
+   * }
+   * ```
+   */
+  public constructor(group: number, program: string | null, terminalProgram: string);
+
+  /**
+   * Whether the group leader runs the terminal's own program: the program
+   * itself at its prompt, or a copy of it that hasn't yet started a
+   * command's program. On Linux the paths are compared as the system
+   * resolves them, so `/bin/bash` and `/usr/bin/bash` through a link are
+   * one program; on macOS the two `comm` values are compared as `ps` shows
+   * them, the same for the program and a copy of it. A command that starts
+   * the terminal's own program also counts, such as `bash` typed at a Bash
+   * prompt on Linux. False when the leader exited before it was read.
+   */
+  public get isTerminalProgram(): boolean;
+}
+
+/**
  * A program the runtime started for a module in a pseudo-terminal.
  */
 export declare class PseudoTerminal {
@@ -10066,6 +10121,9 @@ export declare class PseudoTerminal {
    * @param readForegroundGroupAsync Reads the foreground process group of the
    * terminal of the process with the given id and start, or null when that
    * process is no longer the program; by default it answers null.
+   * @param readForegroundAsync Reads the same group with its leader's program
+   * and the terminal program's own, or null when there's no group; by
+   * default it answers null.
    * @example
    * ```ts
    * import { type IPseudoTerminalHandle, PseudoTerminal } from "@noldova/desktop.runtime";
@@ -10079,7 +10137,8 @@ export declare class PseudoTerminal {
    * ```
    */
   public constructor(handle: IPseudoTerminalHandle, program: string, started: Date, stop: (terminal: PseudoTerminal) => Promise<boolean>,
-    readForegroundGroupAsync?: (processId: number, started: Date) => Promise<number | null>);
+    readForegroundGroupAsync?: (processId: number, started: Date) => Promise<number | null>,
+    readForegroundAsync?: (processId: number, started: Date) => Promise<ForegroundProcess | null>);
 
   /**
    * The program's process id, which on Windows node-pty knows only once the
@@ -10101,7 +10160,7 @@ export declare class PseudoTerminal {
    * checks that the process is still the program, since an id can be reused
    * before the exit is reported: from `/proc/<pid>/stat` on Linux, a file
    * read, whose session must be the program's own, and from
-   * `ps -o lstart=,tpgid= -p <pid>` on macOS, a process started for each
+   * `ps -o lstart=,tpgid=,comm= -p <pid>` on macOS, a process started for each
    * read, whose start must match the program's within a second and the
    * start margin.
    *
@@ -10121,6 +10180,39 @@ export declare class PseudoTerminal {
    * ```
    */
   public readForegroundProcessGroupAsync(): Promise<number | null>;
+
+  /**
+   * Reads the terminal's foreground process group as
+   * {@link readForegroundProcessGroupAsync} does, with its leader's program
+   * and the terminal program's own in the same read: on Linux the links
+   * `/proc/<group>/exe` and `/proc/<pid>/exe`, and on macOS the `comm` that
+   * `ps` shows for each, the program's in the same `ps` as its group and the
+   * leader's in one more `ps -o comm= -p <group>` while a command holds the
+   * terminal. A shell gives a command's new process group the terminal right
+   * after it forks, before the command's program starts, so for a moment the
+   * group's leader is a copy of the shell, with the shell's own handling of
+   * Ctrl+C; a module can wait, before it sends one, until
+   * {@link ForegroundProcess.isTerminalProgram} is false.
+   *
+   * @returns The group with the programs; null on Windows, once the program
+   * has exited, when the process id is no longer the program's, while no
+   * group holds the terminal, and for a pseudo-terminal built without the
+   * reader. The leader's program is null when the leader exited between the
+   * two reads.
+   * @throws {SystemCommandException} When the group or a program of a process
+   * that still runs cannot be read, as when `ps` doesn't answer within
+   * 1 second.
+   * @example
+   * ```ts
+   * import type { PseudoTerminal } from "@noldova/desktop.runtime";
+   *
+   * export async function hasStartedCommandAsync(terminal: PseudoTerminal): Promise<boolean> {
+   *   const foreground = await terminal.readForegroundProcessAsync();
+   *   return foreground !== null && foreground.group !== terminal.processId && !foreground.isTerminalProgram;
+   * }
+   * ```
+   */
+  public readForegroundProcessAsync(): Promise<ForegroundProcess | null>;
 
   /**
    * Calls the listener with each piece of the program's output. The first

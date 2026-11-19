@@ -952,6 +952,7 @@ export class Resources {
   public static readonly shimOneLinePattern: RegExp = /^@"%~dp0\\([^"%]+)" %\*$/;
   public static readonly shimProgramLinePattern: RegExp = /^"%dp0%\\([^"%]+)" %\*$/;
   public static readonly processStatFile: string = "stat";
+  public static readonly processExecutableFile: string = "exe";
   public static readonly processStatFieldSeparator: string = " ";
   public static readonly processNameEnd: string = ")";
   public static readonly processStatFields: readonly number[] = [1, 2, 4, 19];
@@ -959,10 +960,11 @@ export class Resources {
   public static readonly processSessionField: number = 3;
   public static readonly foregroundGroupField: number = 5;
   public static readonly processStatusCommand: string = "/bin/ps";
-  public static readonly foregroundGroupArguments: readonly string[] = ["-o", "lstart=,tpgid=", "-p"];
+  public static readonly foregroundGroupArguments: readonly string[] = ["-o", "lstart=,tpgid=,comm=", "-p"];
   public static readonly foregroundGroupEnvironment: Readonly<Record<string, string>> = { LC_ALL: "C" };
   public static readonly foregroundGroupTimeoutMilliseconds: number = 1_000;
-  public static readonly foregroundGroupStatusPattern: RegExp = /^([A-Z][a-z]{2} [A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4}) +(-?\d+)$/;
+  public static readonly foregroundGroupStatusPattern: RegExp = /^([A-Z][a-z]{2} [A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4}) +(-?\d+) +(.+)$/;
+  public static readonly foregroundProgramArguments: readonly string[] = ["-o", "comm=", "-p"];
   public static readonly secondMilliseconds: number = 1_000;
   public static readonly processReadBatch: number = 64;
   public static readonly processSkippedCodes: readonly string[] = ["ENOENT", "ESRCH", "EACCES", "EPERM"];
