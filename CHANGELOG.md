@@ -24,7 +24,8 @@ Each version's section is written by the pull request that changes the version, 
 - A dropped tab has the keyboard focus, as after a move with the keyboard or a menu.
 - `release-publish`'s release text no longer names the supported targets; it names only the targets a CI run alone accepted.
 - `@noldova/ui.components.angular` is pinned at 0.0.17, and the workflows at `.github`'s v2.39.1.
-- Tests and the CI smoke: a timed-out command's record names what it last wrote, and the Linux smoke waits for apt's lock; the build tests keep npm's compile cache out of their temporary folders; and the main-process log, silence-report, teardown and ownership-ignored volume tests wait on what they check. The packages are unchanged by these.
+- Tests and the CI smoke: a timed-out command's record names what it last wrote, and the Linux smoke waits for apt's lock; the build tests keep npm's compile cache out of their temporary folders; and the main-process log, silence-report, teardown and ownership-ignored volume tests wait on what they check.
+  The packages are unchanged by these.
 
 ## 0.0.8
 
