@@ -32,6 +32,10 @@ export class ElectronWebViewContents implements IWebViewContents {
     this.debugger = page.debugger;
   }
 
+  public get mainFrame(): IWebViewContents["mainFrame"] {
+    return this.page.mainFrame;
+  }
+
   public loadURL(url: string): Promise<void> {
     return this.page.loadURL(url);
   }
