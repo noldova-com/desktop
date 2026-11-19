@@ -30,4 +30,14 @@ export class PackageLayoutTests {
       layout.archiveCheck, layout.configuration, layout.report, layout.thirdParty, layout.company, layout.thirdPartyLicenses
     ]));
   }
+
+  @TestMethod
+  public placesTheSigningFolderInTheRunnersTemporaryFolderWhenTheRunnerGivesOne(): void {
+    const temporary = path.resolve("runner-temp");
+
+    const layouts = [new PackageLayout(PackageLayoutTests.ROOT, { RUNNER_TEMP: temporary }), new PackageLayout(PackageLayoutTests.ROOT, { RUNNER_TEMP: "" })];
+
+    Assert.areEqual(JSON.stringify([path.join(temporary, "noldova-package-signing"), path.join(PackageLayoutTests.FOLDER, "signing")]), JSON.stringify(layouts.map(t => t.signing)));
+    Assert.areEqual(path.join(PackageLayoutTests.FOLDER, "out"), layouts[0]?.output);
+  }
 }
