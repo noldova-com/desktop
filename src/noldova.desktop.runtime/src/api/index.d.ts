@@ -10445,7 +10445,8 @@ export declare class RuntimeClient {
    * @param listener Receives events and the disconnection.
    * @param settings The time limits. Defaults to {@link ClientSettings}' defaults.
    * @returns A promise of the connected client; its {@link handover} is set when the runtime belongs to another build, and its {@link preShellData} when the runtime refuses until old data is moved aside.
-   * @throws {ArgumentException} Synchronously rejected when the client name is empty or whitespace.
+   * @throws {ArgumentException} Synchronously rejected when the client name is empty or whitespace, or longer than 239
+   * characters, so each of its request ids fits the protocol's 256.
    * @throws {ConnectionException} Rejected when the runtime cannot be reached, closes, refuses the token or does not answer in time.
    * @example
    * ```ts

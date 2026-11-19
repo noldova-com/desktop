@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ArgumentException } from "@noldova/context.exceptions";
+import { ArgumentException, ArgumentOutOfRangeException } from "@noldova/context.exceptions";
 import { JsonReader, type JsonObject } from "@noldova/context.json";
 
 import { WireMessageKind } from "../enums/wire-message-kind.js";
@@ -27,6 +27,8 @@ export class Handshake extends WireMessage {
   public constructor(id: string, identity: BuildIdentity, token: string, client: string) {
     super();
     ArgumentException.throwIfNullOrWhitespace(id, Resources.idField);
+    if (id.length > Resources.maximumIdLength)
+      throw new ArgumentOutOfRangeException(Resources.idField, id.length, Resources.idTooLong);
     ArgumentException.throwIfNullOrWhitespace(token, Resources.tokenField);
     ArgumentException.throwIfNullOrWhitespace(client, Resources.clientField);
 

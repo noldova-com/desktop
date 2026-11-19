@@ -9,6 +9,7 @@
 export class Resources {
   public static readonly protocolVersion: string = "__PROTOCOL_VERSION__";
   public static readonly defaultMaximumFrameLength: number = 16 * 1024 * 1024;
+  public static readonly maximumIdLength: number = 256;
   public static readonly linkLimit: number = 32768;
   public static readonly linkProtocols: readonly string[] = ["http:", "https:", "mailto:"];
   public static readonly frameDelimiter: string = "\n";
@@ -411,6 +412,7 @@ export class Resources {
   public static readonly protocolVersionInvalid: string = "The protocol version must be a positive integer.";
   public static readonly processStartInvalid: string = "A process's earliest start must be a finite number no later than its latest start.";
   public static readonly stampedProtocolVersionInvalid: string = "The package's protocol version was not stamped by the build.";
+  public static readonly idTooLong: string = "An id is at most 256 characters.";
   public static readonly timeoutInvalid: string = "The time limit must be a positive integer of milliseconds.";
   public static readonly windowInvalid: string = "A window must be a positive integer, the id its main process gives it.";
   public static readonly pageInvalid: string = "A page must be a positive integer, the number its main process gives the page its window loaded.";

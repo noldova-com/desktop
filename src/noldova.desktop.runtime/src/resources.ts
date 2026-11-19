@@ -525,6 +525,8 @@ export class Resources {
   public static readonly abortEvent: string = "abort";
   public static readonly ignoredOutput: "ignore" = "ignore";
   public static readonly requestIdSeparator: string = ":";
+  public static readonly maximumClientNameLength: number = 256 - Resources.requestIdSeparator.length - String(Number.MAX_SAFE_INTEGER).length;
+  public static readonly clientNameTooLong: string = `A client name is at most ${Resources.maximumClientNameLength} characters, so each of its request ids fits the protocol's 256.`;
   public static readonly maximumFrameLength: number = 16 * 1024 * 1024;
   public static readonly handshakeTimeout: number = 5_000;
   public static readonly defaultRequestTimeout: number = 600_000;

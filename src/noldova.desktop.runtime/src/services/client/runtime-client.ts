@@ -107,6 +107,8 @@ export class RuntimeClient {
     listener: IRuntimeClientListener,
     settings: ClientSettings = new ClientSettings()): Promise<RuntimeClient> {
     ArgumentException.throwIfNullOrWhitespace(clientName, Resources.clientNameParameterName);
+    if (clientName.length > Resources.maximumClientNameLength)
+      throw new ArgumentException(Resources.clientNameTooLong, Resources.clientNameParameterName);
 
     const socket = await RuntimeClient.openAsync(endpoint);
     const client = new RuntimeClient(socket, identity, clientName, listener, settings);
