@@ -4072,6 +4072,11 @@ export class Resources {
       + "; the install takes only the lockfile's versions, so lock it there with npm install and commit the lockfile.";
   }
 
+  public static formatInstalledLockfileMissing(file: string): string {
+    return `Installing the built packages left no ${file} beside package-lock.json, so the installed versions can't be checked against the lockfile; `
+      + "install with an npm that writes it and build again.";
+  }
+
   public static formatSecondCopy(name: string, location: string): string {
     return `The app's install holds a second copy of ${name}, at ${location}; the app holds one copy of each Angular, Noldova Desktop, context and kit package, at the top of its node_modules, so a package takes them only as peer dependencies.`;
   }
