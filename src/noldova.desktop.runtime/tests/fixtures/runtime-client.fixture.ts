@@ -15,7 +15,8 @@ import { RawServerFixture } from "./raw-server.fixture.js";
 import { RuntimeServerFixture } from "./runtime-server.fixture.js";
 
 export class RuntimeClientFixture {
-  public static readonly SETTINGS: ClientSettings = new ClientSettings(300, 1_000, 50);
+  public static readonly SETTINGS: ClientSettings = new ClientSettings(new ClientSettings().handshakeTimeout, 1_000, 50);
+  public static readonly SHORT_HANDSHAKE: ClientSettings = new ClientSettings(300, 1_000, 50);
   public static readonly AUTHENTICATED: string = Response.success("main:0", RuntimeServerFixture.IDENTITY.toJson()).toText();
 
   public static connectAsync(fixture: RuntimeServerFixture, listener: ClientListenerFixture): Promise<RuntimeClient> {
