@@ -36,6 +36,7 @@ export class PosixAddonVariantFixture {
   private static readonly SOURCE_SEGMENTS: readonly string[] = ["src", "noldova.desktop.runtime", "src", "native", "posix-process.c"];
   private static readonly NODE_GYP_SEGMENTS: readonly string[] = ["..", "node_modules", "node-gyp", "bin", "node-gyp.js"];
   private static readonly HEADERS_SEGMENTS: readonly string[] = ["_build", "node-gyp"];
+  private static readonly LOCAL_HEADERS_SEGMENTS: readonly string[] = ["include", "node", "common.gypi"];
   private static readonly TARGET: string = "posix_process";
   private static readonly NO_NPM: string = "npm_execpath is not set; run the tests through npm test.";
   private static readonly ELF_MAGIC: number = 0x7f454c46;
@@ -74,7 +75,7 @@ export class PosixAddonVariantFixture {
     }));
     await promisify(execFile)(process.execPath, [
       path.join(path.dirname(String(npm)), ...PosixAddonVariantFixture.NODE_GYP_SEGMENTS), "rebuild", "--loglevel=error", "--enable-lto=false", "--enable-thin-lto=false",
-      "--devdir", path.join(root, ...PosixAddonVariantFixture.HEADERS_SEGMENTS)
+      ...PosixAddonVariantFixture.locateHeaders(root)
     ], { cwd: folder });
     return path.join(folder, "build", "Release", `${PosixAddonVariantFixture.TARGET}.node`);
   }
@@ -97,6 +98,13 @@ export class PosixAddonVariantFixture {
       .filter(t => file.readUInt16LE(t + PosixAddonVariantFixture.SYMBOL_SECTION) === PosixAddonVariantFixture.UNDEFINED_SECTION && file.readUInt32LE(t) > 0)
       .map(t => names + file.readUInt32LE(t))
       .map(t => file.toString("latin1", t, file.indexOf(0, t)));
+  }
+
+  private static locateHeaders(root: string): readonly string[] {
+    const node = path.dirname(path.dirname(process.execPath));
+    return existsSync(path.join(node, ...PosixAddonVariantFixture.LOCAL_HEADERS_SEGMENTS))
+      ? ["--nodedir", node]
+      : ["--devdir", path.join(root, ...PosixAddonVariantFixture.HEADERS_SEGMENTS)];
   }
 
   private static findRoot(): string {
