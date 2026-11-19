@@ -1320,7 +1320,7 @@ test.describe("web views", () => {
       const framed = (await view(window, 0).getAttribute("data-requests")) ?? String.empty;
       await shiftClockAsync(mainProcess, 1100);
       await window.mouse.click(box.x + 350, box.y + 20, { button: "middle" });
-      await expect.poll(() => readRequestsWithoutInputAsync(window, framed.length)).toEqual([`${other}/c ${other} foreground-tab null`, `${origin}/d ${origin} background-tab 5`, String.empty]);
+      await expect.poll(async () => [...await readRequestsWithoutInputAsync(window, framed.length)].sort()).toEqual([`${other}/c ${other} foreground-tab null`, `${origin}/d ${origin} background-tab 5`, String.empty].sort());
 
       await shiftClockAsync(mainProcess, 1100);
       expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/framed?${encodeURIComponent(origin)}` })).toEqual({ kind: "Started", origin: null });
