@@ -592,6 +592,8 @@ export class Resources {
   public static readonly ozonePlatformSwitch: string = "ozone-platform";
   public static readonly waylandPlatform: string = "wayland";
   public static readonly globalShortcutsPortalFeature: string = "GlobalShortcutsPortalPreferredTrigger";
+  public static readonly disableBlinkFeaturesSwitch: string = "disable-blink-features";
+  public static readonly webBluetoothFeature: string = "WebBluetooth";
   public static readonly windowsIcon: string = "icon-dark.ico";
   public static readonly windowIcon: string = "icon-dark-512.png";
   public static readonly lightWindowsIcon: string = "icon-light.ico";
@@ -700,6 +702,7 @@ export class Resources {
   public static readonly willAttachWebviewEvent: "will-attach-webview" = "will-attach-webview";
   public static readonly didAttachWebviewEvent: "did-attach-webview" = "did-attach-webview";
   public static readonly webContentsCreatedEvent: "web-contents-created" = "web-contents-created";
+  public static readonly selectBluetoothDeviceEvent: "select-bluetooth-device" = "select-bluetooth-device";
   public static readonly webViewContentsType: "webview" = "webview";
   public static readonly destroyedEvent: "destroyed" = "destroyed";
   public static readonly closeEvent: "close" = "close";

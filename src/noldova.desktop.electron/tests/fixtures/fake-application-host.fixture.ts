@@ -105,7 +105,7 @@ export class FakeApplicationHost implements IApplicationHost {
     return this.readiness.promise;
   }
 
-  public on(event: string, listener: (event: FakePreventableEvent) => void): this {
+  public on(event: string, listener: (...values: never[]) => unknown): this {
     this.listeners.add(event, listener);
     return this;
   }
@@ -117,8 +117,8 @@ export class FakeApplicationHost implements IApplicationHost {
     await Promise.resolve();
   }
 
-  public emit(event: string): void {
-    this.listeners.emit(event);
+  public emit(event: string, ...values: unknown[]): void {
+    this.listeners.emit(event, ...values);
   }
 
   public count(event: string): number {

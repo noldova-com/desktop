@@ -2556,6 +2556,46 @@ export interface IApplicationHost {
    * @returns Electron's own return value, which the main process does not use.
    */
   on(event: "before-quit", listener: (event: IPreventableEvent) => void): unknown;
+
+  /**
+   * Listens for each web contents the application creates, its windows', its
+   * web views' and any other, before it loads anything.
+   *
+   * @param event The event's name.
+   * @param listener Called with Electron's event and the new web contents.
+   * @returns Electron's own return value, which the main process does not use.
+   */
+  on(event: "web-contents-created", listener: (event: unknown, contents: IDeviceChooserContents) => void): unknown;
+}
+
+/**
+ * The part of a web contents that asks the main process to choose a device
+ * for a page, as Electron's `WebContents` provides it.
+ */
+export interface IDeviceChooserContents {
+  /**
+   * Listens for a page's request for a Bluetooth device. A listener that
+   * prevents the event chooses the device itself through `choose`, and an
+   * empty id cancels the request.
+   *
+   * @param event The event's name.
+   * @param listener Called with the event, the devices found so far and the
+   * function that answers the request.
+   * @returns Electron's own return value, which the main process does not use.
+   *
+   * @example
+   * ```ts
+   * import type { IDeviceChooserContents } from "@noldova/desktop.electron";
+   *
+   * export function refuse(contents: IDeviceChooserContents): void {
+   *   contents.on("select-bluetooth-device", (event, _devices, choose) => {
+   *     event.preventDefault();
+   *     choose("");
+   *   });
+   * }
+   * ```
+   */
+  on(event: "select-bluetooth-device", listener: (event: IPreventableEvent, devices: readonly unknown[], choose: (deviceId: string) => void) => void): unknown;
 }
 
 /**
