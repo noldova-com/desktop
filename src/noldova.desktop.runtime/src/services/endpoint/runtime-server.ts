@@ -197,12 +197,7 @@ export class RuntimeServer implements IEventSink {
     const closed = new Promise<void>(resolve => server.close(() => resolve()));
     for (const session of this.sessions)
       session.end();
-    const deadline = setTimeout(() => {
-      for (const session of this.sessions)
-        session.close();
-    }, Resources.closeGrace);
     await closed;
-    clearTimeout(deadline);
     if (!Object.isNull(this.socketPath))
       await rm(this.socketPath, { force: true });
   }
