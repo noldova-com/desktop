@@ -46,6 +46,15 @@ export class ToolResultValidator {
   }
 
   private findFailureProblem(tool: RegisteredTool, failure: ToolFailure): ToolFailure | null {
+    try {
+      return this.checkFailureFields(tool, failure);
+    }
+    catch {
+      return ToolResultValidator.malformed(tool);
+    }
+  }
+
+  private checkFailureFields(tool: RegisteredTool, failure: ToolFailure): ToolFailure | null {
     const id = tool.moduleId;
     const code = failure.moduleCode;
     const isModuleCode = Object.isNull(code) || (code.startsWith(Resources.formatModuleCode(id, String.empty)) && Resources.moduleCodeNamePattern.test(code.slice(id.length + 1)));
