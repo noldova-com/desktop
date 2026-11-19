@@ -40,11 +40,11 @@ export class ThirdPartyPackage {
   }
 
   public static async prepareAsync(locked: LockedPackage, folder: string, reviewedLicenses: readonly string[], accepted: AcceptedLicenses, typeOnly: TypeOnlyPeers,
-    output: Writable):
+    output: Writable, limit: number = Resources.thirdPartyDownloadTimeout, pause: number = Resources.downloadRetryPause):
     Promise<ThirdPartyPackage> {
     const file = path.join(folder, locked.fileName);
     const kept = existsSync(file) ? await readFile(file) : null;
-    const data = !Object.isNull(kept) && locked.matches(kept) ? kept : await ThirdPartyPackage.downloadAsync(locked, output);
+    const data = !Object.isNull(kept) && locked.matches(kept) ? kept : await ThirdPartyPackage.downloadAsync(locked, output, limit, pause);
     await mkdir(folder, { recursive: true });
     await writeFile(file, data);
 
@@ -93,37 +93,51 @@ export class ThirdPartyPackage {
     return (await readFile(file, Resources.textEncoding)).trim();
   }
 
-  private static async downloadAsync(locked: LockedPackage, output: Writable): Promise<Buffer> {
+  private static async downloadAsync(locked: LockedPackage, output: Writable, limit: number, pause: number): Promise<Buffer> {
     let data = Buffer.alloc(0);
     await RetriedDownload.runAsync(Resources.formatDownloadSubject(locked.id, locked.resolved), output, async () => {
-      const response = await ThirdPartyPackage.fetchAsync(locked);
+      const signal = AbortSignal.timeout(limit);
+      const response = await ThirdPartyPackage.fetchAsync(locked, signal);
       if (Object.isString(response))
         return response;
-      if (!response.ok && (response.status >= Resources.httpServerErrorStatus || Resources.downloadRetriedStatuses.includes(response.status)))
+      if (!response.ok && (response.status >= Resources.httpServerErrorStatus || Resources.downloadRetriedStatuses.includes(response.status))) {
+        await response.body?.cancel();
         return Resources.formatHttpStatus(response.status);
+      }
       if (!response.ok)
         throw new BuildException(Resources.formatDownloadStatus(locked.id, locked.resolved, response.status));
       try {
         data = Buffer.from(await response.arrayBuffer());
       }
       catch (error) {
-        return String(error);
+        if (signal.aborted)
+          throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
+        return ThirdPartyPackage.describe(error);
       }
       return null;
-    });
+    }, pause);
     if (!locked.matches(data))
       throw new BuildException(Resources.formatTarballIntegrityMismatch(locked.id, locked.resolved));
     return data;
   }
 
-  private static async fetchAsync(locked: LockedPackage): Promise<Response | string> {
+  private static async fetchAsync(locked: LockedPackage, signal: AbortSignal): Promise<Response | string> {
     try {
-      return await fetch(locked.resolved, { signal: AbortSignal.timeout(Resources.thirdPartyDownloadTimeout) });
+      return await fetch(locked.resolved, { signal });
     }
     catch (error) {
-      if (error instanceof Error && error.cause instanceof Error && "code" in error.cause)
-        return String(error);
-      throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
+      if (!Object.isNull(ThirdPartyPackage.codeOf(error)))
+        return ThirdPartyPackage.describe(error);
+      throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, ThirdPartyPackage.describe(error)), new ExceptionOptions(error));
     }
+  }
+
+  private static describe(error: unknown): string {
+    const code = ThirdPartyPackage.codeOf(error);
+    return Object.isNull(code) ? String(error) : Resources.formatNetworkFailure(String(error), code);
+  }
+
+  private static codeOf(error: unknown): string | null {
+    return error instanceof Error && error.cause instanceof Error && "code" in error.cause ? String(error.cause.code) : null;
   }
 }

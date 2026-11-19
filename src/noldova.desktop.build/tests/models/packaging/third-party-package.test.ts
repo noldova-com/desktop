@@ -23,7 +23,6 @@ import { LockedPackage } from "../../../src/models/packaging/locked-package.js";
 import { ThirdPartyPackage } from "../../../src/models/packaging/third-party-package.js";
 import { TypeOnlyPeers } from "../../../src/models/packaging/type-only-peers.js";
 import { Resources } from "../../../src/resources.js";
-import { PausedTimersFixture } from "../../fixtures/paused-timers.fixture.js";
 import { TarballFixture } from "../../fixtures/tarball.fixture.js";
 
 @TestClass
@@ -31,6 +30,7 @@ export class ThirdPartyPackageTests {
   private static readonly ID: string = "sample@1.0.0";
   private static readonly MANIFEST: string = JSON.stringify({ name: "sample", version: "1.0.0", license: "MIT" });
   private static readonly UNREACHABLE: string = "http://127.0.0.1:9/sample-1.0.0.tgz";
+  private static readonly LIMIT: number = 200;
 
   @TestMethod
   public async preparesAKeptTarballWithItsLicenseFilesInOrder(): Promise<void> {
@@ -94,8 +94,7 @@ export class ThirdPartyPackageTests {
     const locked = ThirdPartyPackageTests.lock(tarball, `${server.url}/sample-1.0.0.tgz`);
     const output = new PassThrough();
 
-    const prepared = await PausedTimersFixture.withoutPausesAsync(() => ThirdPartyPackage.prepareAsync(locked, folder.path, [], new AcceptedLicenses(), new TypeOnlyPeers(),
-      output), Resources.downloadRetryPause);
+    const prepared = await ThirdPartyPackage.prepareAsync(locked, folder.path, [], new AcceptedLicenses(), new TypeOnlyPeers(), output, Resources.thirdPartyDownloadTimeout, 0);
 
     const subject = `sample@1.0.0 from ${server.url}/sample-1.0.0.tgz`;
     Assert.isTrue(locked.matches(await readFile(prepared.file)));
@@ -110,11 +109,76 @@ export class ThirdPartyPackageTests {
     await using folder = await ThirdPartyPackageTests.createFolderAsync();
     const locked = ThirdPartyPackageTests.lock(tarball, `${server.url}/sample-1.0.0.tgz`);
 
-    const error = await Assert.throwsAsync(() => PausedTimersFixture.withoutPausesAsync(() => ThirdPartyPackage.prepareAsync(locked, folder.path, [], new AcceptedLicenses(),
-      new TypeOnlyPeers(), new PassThrough()), Resources.downloadRetryPause), BuildException);
+    const error = await Assert.throwsAsync(() => ThirdPartyPackage.prepareAsync(locked, folder.path, [], new AcceptedLicenses(), new TypeOnlyPeers(), new PassThrough(),
+      Resources.thirdPartyDownloadTimeout, 0), BuildException);
 
     Assert.areEqual(`sample@1.0.0 from ${server.url}/sample-1.0.0.tgz could not be installed in 4 attempts; the last failed with HTTP 429.`, error.message);
     Assert.areEqual(Resources.downloadAttempts, server.requests());
+  }
+
+  @TestMethod
+  public async givesUpOnATarballWhoseConnectionIsCutAtEveryAttemptWithTheCauseOfTheLast(): Promise<void> {
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License
+" });
+    const cut = (request: IncomingMessage): void => {
+      request.socket.destroy();
+    };
+    await using server = await ThirdPartyPackageTests.serveInTurnAsync([cut, cut, cut, cut]);
+    await using folder = await ThirdPartyPackageTests.createFolderAsync();
+    const locked = ThirdPartyPackageTests.lock(tarball, `${server.url}/sample-1.0.0.tgz`);
+
+    const error = await Assert.throwsAsync(() => ThirdPartyPackage.prepareAsync(locked, folder.path, [], new AcceptedLicenses(), new TypeOnlyPeers(), new PassThrough(),
+      Resources.thirdPartyDownloadTimeout, 0), BuildException);
+
+    Assert.isTrue(error.message.startsWith(`sample@1.0.0 from ${server.url}/sample-1.0.0.tgz could not be installed in 4 attempts; the last failed with TypeError: fetch failed (`),
+      error.message);
+    Assert.isTrue(/ \([A-Z_]+\)\.$/.test(error.message), error.message);
+    Assert.areEqual(Resources.downloadAttempts, server.requests());
+  }
+
+  @TestMethod
+  public async failsAtOnceWhenItsLimitRunsOutBeforeTheAnswerOrDuringItsBody(): Promise<void> {
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License
+" });
+    await using silent = await ThirdPartyPackageTests.serveInTurnAsync([() => undefined]);
+    await using stalled = await ThirdPartyPackageTests.serveInTurnAsync([(_request, response) => {
+      response.writeHead(200, { "content-length": String(tarball.length) });
+      response.write(tarball.subarray(0, 1));
+    }]);
+    await using folder = await ThirdPartyPackageTests.createFolderAsync();
+    const output = new PassThrough();
+    const prepare = (resolved: string): Promise<ThirdPartyPackage> => ThirdPartyPackage.prepareAsync(ThirdPartyPackageTests.lock(tarball, resolved), folder.path, [],
+      new AcceptedLicenses(), new TypeOnlyPeers(), output, ThirdPartyPackageTests.LIMIT, 0);
+
+    const headers = await Assert.throwsAsync(() => prepare(`${silent.url}/sample-1.0.0.tgz`), BuildException);
+    const body = await Assert.throwsAsync(() => prepare(`${stalled.url}/sample-1.0.0.tgz`), BuildException);
+
+    Assert.isTrue(headers.message.startsWith(`sample@1.0.0 could not be downloaded from ${silent.url}/sample-1.0.0.tgz: TimeoutError`), headers.message);
+    Assert.isTrue(body.message.startsWith(`sample@1.0.0 could not be downloaded from ${stalled.url}/sample-1.0.0.tgz: TimeoutError`), body.message);
+    Assert.areEqual([1, 1], [silent.requests(), stalled.requests()]);
+    Assert.areEqual(0, output.readableLength);
+  }
+
+  @TestMethod
+  public async cancelsTheBodyOfAnAnswerItTriesAgain(): Promise<void> {
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License
+" });
+    const busy = Promise.withResolvers<void>();
+    await using server = await ThirdPartyPackageTests.serveInTurnAsync([
+      (_request, response) => {
+        response.once("close", () => busy.resolve());
+        response.writeHead(503, { "content-length": "1024" });
+        response.write(Buffer.alloc(1));
+      },
+      (_request, response) => ThirdPartyPackageTests.answer(response, 200, tarball)
+    ]);
+    await using folder = await ThirdPartyPackageTests.createFolderAsync();
+    const locked = ThirdPartyPackageTests.lock(tarball, `${server.url}/sample-1.0.0.tgz`);
+
+    await ThirdPartyPackage.prepareAsync(locked, folder.path, [], new AcceptedLicenses(), new TypeOnlyPeers(), new PassThrough(), Resources.thirdPartyDownloadTimeout, 0);
+
+    await busy.promise;
+    Assert.areEqual(2, server.requests());
   }
 
   @TestMethod

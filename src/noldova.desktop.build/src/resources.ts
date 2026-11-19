@@ -4370,6 +4370,10 @@ export class Resources {
     return `HTTP ${status}`;
   }
 
+  public static formatNetworkFailure(error: string, code: string): string {
+    return `${error} (${code})`;
+  }
+
   public static formatDownloadStatus(id: string, resolved: string, status: number): string {
     return `${id} could not be downloaded from ${resolved}: HTTP ${status}.`;
   }
