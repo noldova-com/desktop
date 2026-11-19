@@ -21,6 +21,7 @@ export class DebianInstallTests {
   private static readonly FOLDER: string = "/work";
   private static readonly SLUG: string = "sample-app";
   private static readonly PROGRAM: string = "/opt/Sample App/sample-app";
+  private static readonly COMMAND: string = "/opt/Sample App/resources/bin/sample-app";
   private static readonly HELPER: string = "/opt/Sample App/chrome-sandbox";
   private static readonly SOURCE: string = "/opt/Sample App/resources/apparmor-profile";
   private static readonly PROFILE: string = "/etc/apparmor.d/sample-app";
@@ -62,7 +63,7 @@ export class DebianInstallTests {
   @TestMethod
   public async findsTheProgramInAFolderOfItsOwnInTheInstallFolderAsync(): Promise<void> {
     const program = "/opt/Sample Makers/Sample App/sample-app";
-    const runner = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, new ProcessResult(0, `${program}\n`, String.empty)]]));
+    const runner = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, new ProcessResult(0, "/opt/Sample Makers/Sample App/resources/bin/sample-app\n", String.empty)]]));
 
     const install = await DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, "Sample Makers", DebianInstallTests.FOLDER);
 
@@ -72,7 +73,7 @@ export class DebianInstallTests {
   @TestMethod
   public async removesAndRefusesAPackageThatInstalledOutsideItsFolderAsync(): Promise<void> {
     const runner = DebianInstallTests.createRunner(new Map());
-    const nested = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, new ProcessResult(0, "/opt/Sample Makers/Sample App/sample-app\n", String.empty)]]));
+    const nested = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, new ProcessResult(0, "/opt/Sample Makers/Sample App/resources/bin/sample-app\n", String.empty)]]));
 
     const outside = await Assert.throwsAsync(() => DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, "Sample Makers", DebianInstallTests.FOLDER),
       BuildException);
@@ -82,6 +83,22 @@ export class DebianInstallTests {
     Assert.areEqual(`The Debian package installed its program at ${DebianInstallTests.PROGRAM}, outside a folder of its own in /opt/Sample Makers.`, outside.message);
     Assert.areEqual("The Debian package installed its program at /opt/Sample Makers/Sample App/sample-app, outside a folder of its own in /opt.", unexpected.message);
     Assert.areEqual(DebianInstallTests.REMOVE, runner.captured.at(-1));
+  }
+
+  @TestMethod
+  public async removesAndRefusesAPackageWhoseCommandIsTheAppsProgramAsync(): Promise<void> {
+    const program = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, new ProcessResult(0, `${DebianInstallTests.PROGRAM}\n`, String.empty)]]));
+    const lookalike = DebianInstallTests.createRunner(new Map([[DebianInstallTests.LINK, new ProcessResult(0, "/opt/Sample App/myresources/bin/sample-app\n", String.empty)]]));
+
+    const refusal = await Assert.throwsAsync(() => DebianInstall.installAsync(program, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER), BuildException);
+    const misplaced = await Assert.throwsAsync(() => DebianInstall.installAsync(lookalike, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER),
+      BuildException);
+
+    Assert.areEqual("The Debian package's command /usr/bin/sample-app leads to /opt/Sample App/sample-app, not to the command line in its resources' bin folder, so it would start the app.",
+      refusal.message);
+    Assert.areEqual(Resources.formatDebianCommandNotCommandLine("/usr/bin/sample-app", "/opt/Sample App/myresources/bin/sample-app"), misplaced.message);
+    Assert.areEqual([DebianInstallTests.FIELD, DebianInstallTests.SIMULATE, DebianInstallTests.INSTALL, DebianInstallTests.LINK, DebianInstallTests.REMOVE].join("\n"),
+      program.captured.join("\n"));
   }
 
   @TestMethod
@@ -304,7 +321,7 @@ export class DebianInstallTests {
       if (line === DebianInstallTests.FIELD)
         return new ProcessResult(0, "sample-app\n", String.empty);
       if (line === DebianInstallTests.LINK)
-        return new ProcessResult(0, `${DebianInstallTests.PROGRAM}\n`, String.empty);
+        return new ProcessResult(0, `${DebianInstallTests.COMMAND}\n`, String.empty);
       if (line === DebianInstallTests.STAT)
         return new ProcessResult(0, "0:755\n", String.empty);
       return ScriptedRunnerFixture.SUCCESS;
