@@ -72,7 +72,7 @@ export class OpenWebView {
   private touchPoints: readonly unknown[] = [];
   private uncountedInputs: number = 0;
   private openPageCalls: number = 0;
-  private guestGone: Promise<void> = new Promise(() => undefined);
+  private releases: Set<() => void> = new Set();
   private allowed: readonly string[] = [];
   private guest: IWebViewContents | null = null;
   private pendingUrl: string | undefined;
@@ -166,6 +166,7 @@ export class OpenWebView {
     if (!Object.isNull(previous)) {
       this.endFind();
       this.end(WebViewFailureKind.Unavailable);
+      this.releaseCalls();
     }
     this.guest = guest;
     this.isAttached = false;
@@ -408,11 +409,15 @@ export class OpenWebView {
     if (isPageCall)
       this.startPageCall();
     const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
-    if (isInput)
-      void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
+    if (isInput) {
+      const settle = this.untilReleased(() => this.settleInput(press, isUncounted));
+      void sent.then(settle, settle);
+    }
     const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
-    if (isPageCall)
-      void Promise.race([handled, this.guestGone]).then(() => this.endPageCall(), () => this.endPageCall());
+    if (isPageCall) {
+      const end = this.untilReleased(() => this.endPageCall());
+      void handled.then(end, end);
+    }
     handled.then(
       reply => finish(OpenWebView.answer(call, reply)),
       (error: unknown) => finish(new WebViewAnswered(call, null,
@@ -490,12 +495,8 @@ export class OpenWebView {
       if (this.isBound(guest))
         this.stepZoom(direction === Resources.zoomInDirection ? 1 : -1);
     });
-    const gone = Promise.withResolvers<void>();
-    this.guestGone = gone.promise;
-    guest.on(Resources.destroyedEvent, () => {
-      gone.resolve();
-      this.unbind(guest);
-    });
+    this.releases = new Set();
+    guest.on(Resources.destroyedEvent, () => this.unbind(guest));
     guest.debugger.on(Resources.messageEvent, (_event, method, params, sessionId) => {
       if (this.isBound(guest))
         this.receive(method, params, sessionId);
@@ -519,6 +520,22 @@ export class OpenWebView {
     this.isFocusHeld = false;
     this.endFind();
     this.end(WebViewFailureKind.Unavailable);
+    this.releaseCalls();
+  }
+
+  private untilReleased(release: () => void): () => void {
+    const releases = this.releases;
+    const run = (): void => {
+      if (releases.delete(run))
+        release();
+    };
+    releases.add(run);
+    return run;
+  }
+
+  private releaseCalls(): void {
+    for (const release of [...this.releases])
+      release();
   }
 
   private noteCommitted(guest: IWebViewContents): void {
