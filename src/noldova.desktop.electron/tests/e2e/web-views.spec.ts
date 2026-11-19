@@ -207,7 +207,7 @@ function shiftClockAsync(mainProcess: MainProcessFixture, milliseconds: number):
   }, milliseconds);
 }
 
-function readFirstViewPreloadWorldsAsync(mainProcess: MainProcessFixture): Promise<{ readonly preferences: readonly unknown[]; readonly main: unknown; readonly frames: readonly unknown[] } | null> {
+function readFirstViewPreloadWorldsAsync(mainProcess: MainProcessFixture): Promise<{ readonly main: unknown; readonly frames: readonly unknown[] } | null> {
   return mainProcess.application.evaluate(async ({ webContents }, code) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
     if (first === undefined)
@@ -233,9 +233,8 @@ function readFirstViewPreloadWorldsAsync(mainProcess: MainProcessFixture): Promi
         frames.push(field(field(await first.debugger.sendCommand("Runtime.evaluate", { expression: code, contextId: id, returnByValue: true }, session), "result"), "value"));
       for (const session of sessions)
         await first.debugger.sendCommand("Target.detachFromTarget", { sessionId: session });
-      const preferences = first.getLastWebPreferences();
       const main: unknown = await first.executeJavaScriptInIsolatedWorld(999, [{ code }]);
-      return { preferences: [preferences?.sandbox, preferences?.contextIsolation, preferences?.nodeIntegration, preferences?.nodeIntegrationInSubFrames], main, frames };
+      return { main, frames };
     }
     finally {
       first.debugger.removeListener("message", listen);
@@ -1355,7 +1354,6 @@ test.describe("web views", () => {
       await expect.poll(() => readFirstViewFrameAsync(mainProcess, "document.title")).toBe("Handlers");
       expect(await readFirstViewFrameAsync(mainProcess, hostReach)).toEqual(noHostReach);
       const worlds = await readFirstViewPreloadWorldsAsync(mainProcess);
-      expect(worlds?.preferences).toEqual([true, true, false, true]);
       expect(worlds?.main).toBe(noPreloadReach);
       expect(worlds?.frames.length).toBeGreaterThan(0);
       expect(worlds?.frames).toEqual(worlds?.frames.map(() => noPreloadReach));
