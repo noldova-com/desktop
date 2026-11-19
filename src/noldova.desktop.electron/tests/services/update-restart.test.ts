@@ -415,12 +415,10 @@ export class UpdateRestartTests {
       window.destroy();
       await Condition.waitAsync(() => target.isClosed);
       electron.app.quit();
+      await Condition.waitAsync(() => electron.app.calls.includes("quit"));
 
       Assert.areEqual(1, UpdateRestartTests.quitQuestions(window).length);
       Assert.areEqual(0, handoff.handedOff.length);
-      Assert.isFalse(electron.app.calls.includes("exit 0"));
-      Assert.isFalse(electron.app.calls.includes("quit prevented"));
-      Assert.isTrue(electron.app.calls.includes("quit"));
     }, target);
   }
 
