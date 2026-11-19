@@ -5898,7 +5898,8 @@ export interface IPosixProcessApi {
  */
 export interface IPosixProcessTableApi {
   /**
-   * Lists every process the system shows this one.
+   * Lists every process the system shows this one, those of other users, such
+   * as root, included.
    *
    * @returns One row a process: its id, its parent's id, its process group's
    * id, its controlling terminal's device number or 0 for none, its start in

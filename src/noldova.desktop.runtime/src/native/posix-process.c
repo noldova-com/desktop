@@ -549,8 +549,31 @@ static bool set_row(napi_env env, napi_value rows, uint32_t index, const double 
   return napi_set_element(env, rows, index, row) == napi_ok;
 }
 
-static napi_value list_processes(napi_env env, napi_callback_info info) {
+static bool read_process(pid_t process_id, double *values) {
   struct proc_bsdinfo process;
+  struct kinfo_proc other;
+  int name[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, process_id };
+  size_t size = sizeof(other);
+  values[5] = 0;
+  if (proc_pidinfo(process_id, PROC_PIDTBSDINFO, 0, &process, PROC_PIDTBSDINFO_SIZE) == PROC_PIDTBSDINFO_SIZE) {
+    values[0] = process.pbi_pid;
+    values[1] = process.pbi_ppid;
+    values[2] = process.pbi_pgid;
+    values[3] = process.e_tdev == NO_TERMINAL_DEVICE ? 0 : process.e_tdev;
+    values[4] = (double)process.pbi_start_tvsec * 1000.0 + (double)process.pbi_start_tvusec / 1000.0;
+    return true;
+  }
+  if (sysctl(name, 4, &other, &size, NULL, 0) != 0 || size != sizeof(other) || other.kp_proc.p_pid != process_id || other.kp_proc.p_stat == SZOMB)
+    return false;
+  values[0] = other.kp_proc.p_pid;
+  values[1] = other.kp_eproc.e_ppid;
+  values[2] = other.kp_eproc.e_pgid;
+  values[3] = other.kp_eproc.e_tdev == NODEV ? 0 : (uint32_t)other.kp_eproc.e_tdev;
+  values[4] = (double)other.kp_proc.p_starttime.tv_sec * 1000.0 + (double)other.kp_proc.p_starttime.tv_usec / 1000.0;
+  return true;
+}
+
+static napi_value list_processes(napi_env env, napi_callback_info info) {
   double values[PROCESS_ROW_LENGTH];
   napi_value rows;
   pid_t *processes;
@@ -580,14 +603,8 @@ static napi_value list_processes(napi_env env, napi_callback_info info) {
     return fail(env);
   }
   for (index = 0; index < count && index < capacity; index++) {
-    if (proc_pidinfo(processes[index], PROC_PIDTBSDINFO, 0, &process, PROC_PIDTBSDINFO_SIZE) != PROC_PIDTBSDINFO_SIZE)
+    if (!read_process(processes[index], values))
       continue;
-    values[0] = process.pbi_pid;
-    values[1] = process.pbi_ppid;
-    values[2] = process.pbi_pgid;
-    values[3] = process.e_tdev == NO_TERMINAL_DEVICE ? 0 : process.e_tdev;
-    values[4] = (double)process.pbi_start_tvsec * 1000.0 + (double)process.pbi_start_tvusec / 1000.0;
-    values[5] = 0;
     if (!set_row(env, rows, listed++, values)) {
       free(processes);
       return fail(env);

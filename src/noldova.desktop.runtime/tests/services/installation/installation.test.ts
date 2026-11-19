@@ -15,7 +15,7 @@ import "@noldova/context.core";
 import { JsonException, JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { UpdateProcess } from "@noldova/desktop.protocol";
-import { Installation, UpdateBarrier, UpdateBarrierState, UpdateBarrierStatus } from "@noldova/desktop.runtime";
+import { Installation, ProcessPresence, UpdateBarrier, UpdateBarrierState, UpdateBarrierStatus } from "@noldova/desktop.runtime";
 
 import { SystemErrorCode } from "../../../src/models/system-error-code.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
@@ -358,6 +358,20 @@ export class InstallationTests {
 
     Assert.areEqual(UpdateBarrierStatus.Held, await installation.checkAsync("0.2.0"));
     Assert.isFalse(await installation.hasEndedAsync());
+    Assert.isTrue(existsSync(installation.barrierFile));
+  }
+
+  @TestMethod
+  @PlatformFixture.macOnly()
+  public async isHeldWhileAHandoffProcessAnotherUserRunsStillRunsOnMacOS(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const presence = ProcessPresence.create(process.platform);
+    const [handoff] = await presence.stampAsync([[1, "handoff"]]);
+    Assert.isDefined(handoff);
+    const installation = new Installation(path.join(folder.path, "installation"), t => presence.isRunningAsync(t));
+    await InstallationTests.writeAsync(installation, new UpdateBarrier(InstallationTests.GONE, "0.3.0", UpdateBarrierState.HandedOff, handoff));
+
+    Assert.areEqual(UpdateBarrierStatus.Held, await installation.checkAsync("0.2.0"));
     Assert.isTrue(existsSync(installation.barrierFile));
   }
 
