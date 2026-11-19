@@ -235,6 +235,18 @@ export class InstallFolderMoveTests {
   }
 
   @TestMethod
+  public async startsTheFoldersCopyEvenWhenTheOldOneCantGoToTheTrash(): Promise<void> {
+    const move = InstallFolderMoveTests.create({ existing: [InstallFolderMoveTests.TARGET],
+      bundles: new Map([[InstallFolderMoveTests.OLD, ["com.example.sample", "1.2.3"]], [InstallFolderMoveTests.TARGET, ["com.example.sample", "1.2.3"]]]) });
+    move.shell.trashFailure = new Error("The Trash is unavailable");
+
+    Assert.isTrue(await move.runAsync());
+    Assert.areEqual(`Copied /Applications/Sample.app into its install folder, as ${InstallFolderMoveTests.TARGET}, but the old copy could not be moved to the Trash: `
+      + "Error: The Trash is unavailable", move.log.lines.join());
+    Assert.areEqual(`relaunch ${InstallFolderMoveTests.TARGET}/Contents/MacOS/Sample ["--hidden"]`, move.app.calls.find(t => t.startsWith("relaunch")));
+  }
+
+  @TestMethod
   public async trashesTheHomeFoldersCopyWhenTheFoldersCopyStartsAsTheSameAppAsNewOrNewer(): Promise<void> {
     for (const version of ["1.2.3", "1.3.0"]) {
       const move = InstallFolderMoveTests.create({ program: InstallFolderMoveTests.FOLDER_PROGRAM, home: "/Users/sample", existing: [InstallFolderMoveTests.HOME_COPY],
