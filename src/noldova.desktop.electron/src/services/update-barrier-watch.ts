@@ -55,6 +55,7 @@ export class UpdateBarrierWatch {
   }
 
   public async checkAsync(): Promise<boolean> {
+    process.stderr.write(`PROBE319 ${Date.now()} check checking=${this.isChecking}\n`);
     if (this.isChecking) {
       this.isStale = true;
       return false;
@@ -82,10 +83,20 @@ export class UpdateBarrierWatch {
   }
 
   private async isClosingAsync(): Promise<boolean> {
-    if (this.isConnected())
+    const t0 = Date.now();
+    if (this.isConnected()) {
+      process.stderr.write(`PROBE319 ${t0} closing? connected\n`);
       return false;
-    const barrier = await this.updates.readBarrierAsync().catch(() => null);
-    return barrier?.state === UpdateBarrierState.Closing && barrier.holder.processId !== this.updates.processId && !await this.updates.hasUpdateEndedAsync().catch(() => true);
+    }
+    const barrier = await this.updates.readBarrierAsync().catch((e: unknown) => { process.stderr.write(`PROBE319 read failed ${String(e)}\n`); return null; });
+    const t1 = Date.now();
+    if (!(barrier?.state === UpdateBarrierState.Closing && barrier.holder.processId !== this.updates.processId)) {
+      process.stderr.write(`PROBE319 ${t0} closing? barrier ${barrier?.state} holder ${barrier?.holder.processId} self ${this.updates.processId} read ${t1 - t0}ms\n`);
+      return false;
+    }
+    const ended = await this.updates.hasUpdateEndedAsync().catch((e: unknown) => { process.stderr.write(`PROBE319 ended failed ${String(e)}\n`); return true; });
+    process.stderr.write(`PROBE319 ${t0} closing? ended ${ended} read ${t1 - t0}ms ended ${Date.now() - t1}ms\n`);
+    return !ended;
   }
 
   private fail(error: Error): void {

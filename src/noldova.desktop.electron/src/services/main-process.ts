@@ -553,7 +553,10 @@ export class MainProcess {
     this.startup.close();
     this.release();
     this.options.log.flush();
-    void this.options.log.closeAsync().then(() => this.options.electron.app.exit(Resources.quitExitCode));
+    const t0 = Date.now();
+    process.stderr.write(`PROBE319 ${t0} exitNow\n`);
+    void this.options.log.closeAsync().then(() => { process.stderr.write(`PROBE319 log closed ${Date.now() - t0}ms\n`); this.options.electron.app.exit(Resources.quitExitCode); },
+      (e: unknown) => process.stderr.write(`PROBE319 log close failed ${String(e)}\n`));
   }
 
   private release(): void {
