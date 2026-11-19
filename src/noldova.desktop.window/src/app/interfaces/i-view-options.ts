@@ -10,4 +10,6 @@ export interface IViewOptions {
   readonly hasInstances?: boolean;
   readonly tabRowPlace?: string;
   readonly isRenamable?: boolean;
+  readonly defaultGroup?: number;
+  readonly defaultOrder?: number;
 }

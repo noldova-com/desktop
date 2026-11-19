@@ -18,9 +18,11 @@ export class ViewType {
   public readonly hasInstances: boolean;
   public readonly tabRowPlace: string | null;
   public readonly isRenamable: boolean;
+  public readonly defaultGroup: number;
+  public readonly defaultOrder: number | null;
 
   public constructor(name: string, defaultSide: DockSide, isShownByDefault: boolean, hasInstances: boolean = false, tabRowPlace: string | null = null,
-    isRenamable: boolean = false) {
+    isRenamable: boolean = false, defaultGroup: number = 0, defaultOrder: number | null = null) {
     if (!Resources.contributionNamePattern.test(name))
       throw new ArgumentException(Resources.invalidContributionName, Resources.nameParameterName);
 
@@ -30,5 +32,7 @@ export class ViewType {
     this.hasInstances = hasInstances;
     this.tabRowPlace = tabRowPlace;
     this.isRenamable = isRenamable && hasInstances;
+    this.defaultGroup = defaultGroup;
+    this.defaultOrder = defaultOrder;
   }
 }
