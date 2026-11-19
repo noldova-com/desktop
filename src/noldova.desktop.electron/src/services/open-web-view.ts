@@ -72,6 +72,7 @@ export class OpenWebView {
   private touchPoints: readonly unknown[] = [];
   private uncountedInputs: number = 0;
   private openPageCalls: number = 0;
+  private guestGone: Promise<void> = new Promise(() => undefined);
   private allowed: readonly string[] = [];
   private guest: IWebViewContents | null = null;
   private pendingUrl: string | undefined;
@@ -409,7 +410,7 @@ export class OpenWebView {
     const sent = isPageCall ? this.holdFocusAsync(guest).then(() => OpenWebView.relayAsync(guest, method, params)) : OpenWebView.relayAsync(guest, method, params);
     if (isInput)
       void sent.then(() => this.settleInput(press, isUncounted), () => this.settleInput(press, isUncounted));
-    const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
+    const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent, this.guestGone) : sent;
     if (isPageCall)
       void handled.then(() => this.endPageCall(), () => this.endPageCall());
     handled.then(
@@ -489,7 +490,12 @@ export class OpenWebView {
       if (this.isBound(guest))
         this.stepZoom(direction === Resources.zoomInDirection ? 1 : -1);
     });
-    guest.on(Resources.destroyedEvent, () => this.unbind(guest));
+    const gone = Promise.withResolvers<void>();
+    this.guestGone = gone.promise;
+    guest.on(Resources.destroyedEvent, () => {
+      gone.resolve();
+      this.unbind(guest);
+    });
     guest.debugger.on(Resources.messageEvent, (_event, method, params, sessionId) => {
       if (this.isBound(guest))
         this.receive(method, params, sessionId);
@@ -937,8 +943,8 @@ export class OpenWebView {
       this.report(new WebViewEvent(this.info.module, this.info.id, kind, details));
   }
 
-  private static afterRendererAsync(guest: IWebViewContents, sent: Promise<unknown>): Promise<unknown> {
-    return sent.finally(() => guest.executeJavaScriptInIsolatedWorld(Resources.focusBarrierWorld, [{ code: Resources.focusBarrierScript }]).catch(() => undefined));
+  private static afterRendererAsync(guest: IWebViewContents, sent: Promise<unknown>, gone: Promise<void>): Promise<unknown> {
+    return sent.finally(() => Promise.race([guest.executeJavaScriptInIsolatedWorld(Resources.focusBarrierWorld, [{ code: Resources.focusBarrierScript }]).catch(() => undefined), gone]));
   }
 
   private static async relayAsync(guest: IWebViewContents, method: string, params: JsonObject): Promise<unknown> {

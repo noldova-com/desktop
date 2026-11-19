@@ -1345,6 +1345,34 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async endsACallToThePageWhoseGuestAMoveDestroysDuringTheRoundTripSoThePersonsLaterPressesAreNotTakenForTheCallsWhicheverGuestTheMoveBindsFirst(): Promise<void> {
+    const results: string[] = [];
+    for (const isBoundFirst of [false, true]) {
+      const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
+      const reached = new Promise<void>(started => {
+        harness.contents.onIsolated = () => {
+          started();
+          return new Promise(() => undefined);
+        };
+      });
+      const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
+      await reached;
+      const fresh = OpenWebViewTests.rendererless();
+      await harness.open.keepAsync();
+      if (isBoundFirst)
+        await harness.open.bindAsync(fresh, true);
+      OpenWebViewTests.destroy(harness);
+      if (!isBoundFirst)
+        await harness.open.bindAsync(fresh, true);
+      await OpenWebViewTests.drainAsync();
+      fresh.emit("input-event", {}, { type: "mouseDown" });
+      results.push(`${OpenWebViewTests.describe(await answering)} ${harness.inputs.join(",")}`);
+    }
+
+    Assert.areEqual("1 null Unavailable Start,End|1 null Unavailable Start,End", results.join("|"));
+  }
+
+  @TestMethod
   public async tellsTheWindowOfThePersonsPressInThePageWhileACallToThePageIsOpenButNotOfTheRelaysOwnPressOrOutsideACall(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
     let roundTrip: (value: unknown) => void = () => undefined;
