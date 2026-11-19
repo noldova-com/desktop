@@ -35,18 +35,18 @@ export class ProcessRunner {
         failure ??= t;
         child.kill();
       };
-      const receive = (chunks: Buffer[], chunk: Buffer): void => {
+      const receive = (chunks: Buffer[], chunk: Buffer, isError: boolean): void => {
         size += chunk.length;
         if (size > Resources.processOutputLimit)
           stop(new BuildException(Resources.formatProcessOutputTooLarge(command)));
         else {
           chunks.push(chunk);
-          transcript.add(chunk);
+          transcript.add(chunk, isError);
         }
       };
       const timer = setTimeout(() => stop(new ProcessTimeoutException(command, timeout, transcript.text)), timeout);
-      child.stdout.on(Resources.dataEvent, (t: Buffer) => receive(output, t));
-      child.stderr.on(Resources.dataEvent, (t: Buffer) => receive(errorOutput, t));
+      child.stdout.on(Resources.dataEvent, (t: Buffer) => receive(output, t, false));
+      child.stderr.on(Resources.dataEvent, (t: Buffer) => receive(errorOutput, t, true));
       child.on(Resources.errorEvent, t => stop(new BuildException(Resources.formatProcessNotStarted(command), new ExceptionOptions(t))));
       child.on(Resources.closeEvent, t => {
         clearTimeout(timer);
