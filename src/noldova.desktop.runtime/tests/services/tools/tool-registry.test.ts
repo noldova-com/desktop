@@ -16,7 +16,7 @@ import type { JsonObject } from "@noldova/context.json";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 import {
   AgentControlException, type IPermissionRequest, type IToolDescriptor, type IToolHandler, type IToolSchemaValidator, PermissionCenter, PermissionDecision, PermissionOption, type PermissionOutcome,
-  type Registration, RememberedPermissionStore, ToolAbortReason, type ToolCall, ToolContent, ToolDescriptor, ToolFailure, ToolFailureCode, ToolFailureException, ToolRegisteredException, ToolRegistry,
+  type Registration, RememberedPermissionStore, ToolAbortReason, type ToolCall, ToolContent, ToolContentKind, ToolDescriptor, ToolFailure, ToolFailureCode, ToolFailureException, ToolRegisteredException, ToolRegistry,
   ToolResult, ToolRisk, ToolSchemaValidator, type ToolSession
 } from "@noldova/desktop.runtime";
 
@@ -1018,6 +1018,30 @@ export class ToolRegistryTests {
       ToolRegistryTests.assertFailure(ToolFailureCode.OutcomeUncertain, unsent, "The note may have changed.");
       Assert.areEqual("notes.saving", ToolRegistryTests.failure(unsent).moduleCode);
       Assert.areEqual("notes_status", ToolRegistryTests.failure(unsent).nextTool);
+    });
+  }
+
+  @TestMethod
+  public answersAFailureWhoseTextItemIsNotAStringAsMalformedBeforeAnAbortAndWithinTheGrace(): Promise<void> {
+    return ToolRegistryTests.withRegistryAsync(async (registry, session) => {
+      const item: ToolContent = Object.assign(Object.create(ToolContent.prototype), { kind: ToolContentKind.Text, value: JSON.parse("null"), mimeType: null, origin: null });
+      const failure = new ToolFailure(ToolFailureCode.Refused, "Refused.", null, [item]);
+      ToolRegistryTests.register(registry, ToolRegistryTests.SEARCH, new ToolHandlerFixture(() => Promise.reject(new ToolFailureException(failure))));
+      const find = new ToolHandlerFixture(call => new Promise((_resolve, reject) =>
+        call.signal.addEventListener("abort", () => reject(new ToolFailureException(failure)), { once: true })));
+      ToolRegistryTests.register(registry, { ...ToolRegistryTests.SEARCH, name: "notes_find" }, find);
+
+      const rejected = await session.callAsync("notes_search", {});
+      const controller = new AbortController();
+      const cancelled = session.callAsync("notes_find", {}, { signal: controller.signal });
+      await find.waitForCallAsync(1);
+      controller.abort();
+
+      ToolRegistryTests.assertFailure(ToolFailureCode.Unavailable, rejected, "The tool's result does not fit its shape or its schema.");
+      Assert.areEqual("notes.malformedResult", ToolRegistryTests.failure(rejected).moduleCode);
+      const ended = await cancelled;
+      ToolRegistryTests.assertFailure(ToolFailureCode.Cancelled, ended, "The call was cancelled.");
+      Assert.isNull(ToolRegistryTests.failure(ended).moduleCode);
     });
   }
 

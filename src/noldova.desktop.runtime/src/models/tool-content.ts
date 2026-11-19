@@ -34,6 +34,8 @@ export class ToolContent {
   }
 
   public static fromText(text: string, origin: string | null): ToolContent {
+    if (!Object.isString(text))
+      throw new ArgumentException(Resources.toolTextInvalid, Resources.textParameterName);
     return new ToolContent(ToolContentKind.Text, text, null, origin);
   }
 
