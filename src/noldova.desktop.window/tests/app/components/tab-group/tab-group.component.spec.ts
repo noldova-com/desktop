@@ -21,6 +21,7 @@ import { DocumentLook } from "../../../../src/app/models/document-look";
 import { DocumentTab } from "../../../../src/app/models/layout/document-tab";
 import type { GroupFrame } from "../../../../src/app/models/layout/group-frame";
 import { Layout } from "../../../../src/app/models/layout/layout";
+import type { Tab } from "../../../../src/app/models/layout/tab";
 import { TabDropTarget } from "../../../../src/app/models/layout/tab-drop-target";
 import { ViewRegistry } from "../../../../src/app/models/layout/view-registry";
 import { ViewType } from "../../../../src/app/models/layout/view-type";
@@ -922,6 +923,29 @@ describe("TabGroupComponent", () => {
     expect(drag.hoveredGroup()).toBeNull();
     document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
     expect(layout.layout().group(corner)?.tabs).toEqual([LayoutFixture.files, LayoutFixture.search]);
+  });
+
+  it("gives the keyboard focus to a tab dropped in another group and to a tab reordered in its own", async () => {
+    await renderAsync();
+    const drag = TestBed.inject(TabDragService);
+    const dropAsync = async (dragged: Tab, under: HTMLElement): Promise<string | null> => {
+      const bounds = under.getBoundingClientRect();
+      vi.spyOn(document, "elementFromPoint").mockReturnValue(under);
+      drag.begin(dragged, new PointerEvent("pointerdown", { pointerId: 1, button: 0, clientX: 0, clientY: 0 }));
+      document.dispatchEvent(new PointerEvent("pointermove", { pointerId: 1, buttons: 1, clientX: bounds.right - 1, clientY: bounds.top + 1 }));
+      update();
+      document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
+      update();
+      await fixture.whenStable();
+      return document.activeElement?.getAttribute("data-tab-key") ?? null;
+    };
+
+    const reordered = await dropAsync(LayoutFixture.plan, tab(0, 1));
+    const reorderedTabs = layout.layout().documents.tabs;
+    const moved = await dropAsync(LayoutFixture.search, tab(0, 0));
+
+    expect([reordered, reorderedTabs]).toEqual([LayoutFixture.plan.key, [LayoutFixture.todo, LayoutFixture.plan]]);
+    expect([moved, layout.layout().groupOf(LayoutFixture.search)?.isDocuments]).toEqual([LayoutFixture.search.key, true]);
   });
 
   it("opens the active tab's menu from the panel actions and a tab's menu from the keyboard", async () => {

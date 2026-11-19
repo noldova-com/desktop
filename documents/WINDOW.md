@@ -95,6 +95,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - Choosing a document's or a view's tab with the pointer moves the focus into its content, to the element it last held there, else its first focusable element; until the content shows one, such as while its part activates, the focus stays on the tab and moves in once it does, for up to 10 seconds, unless first the focus moves elsewhere, the person clicks or presses a key outside the tab and its content, or another tab of that group is chosen.
   A module's web view is a page of its own, whose focus and presses the window doesn't see, so they don't end the wait.
   Choosing a tab with the keyboard keeps the focus on the tab.
+  A tab the person drops, or moves with the keyboard or a menu, keeps the focus on the tab, in its new place.
   Pressing a view's button in a dock's strip with the pointer, when the press shows the view, with instances or without, moves the focus into the view the same way, waiting the same way for a view that shows its focusable element later; a keyboard press on the button, or a press that hides the dock, leaves the focus where it is.
 - While no document is open, the document group shows the placeholder one window part registers, such as a start page with ways to begin, padded like a document; without a placeholder, it shows the product's name and "No modules" when no view is registered either, and nothing otherwise.
   The placeholder goes when a document opens and comes back when the last one closes.
