@@ -30,20 +30,21 @@ export class MacFolderProtectorTests {
   private static readonly KEPT_VOLUME: string = "{ calls: [], readVolume(...values) { this.calls.push(values); return ['/System/Volumes/Data', false]; } }";
   private static readonly IGNORED: string = "the volume /Volumes/Shared is mounted with ownership ignored, so every account acts as the owner of its files";
   private static readonly DETACH_ATTEMPTS: number = 5;
+  private static readonly WHOLE_DISK: RegExp = /^(\/dev\/disk\d+)\s/mu;
 
   private static volumes(fake: AddonModuleFixture, functions: readonly (keyof IPosixProcessAddon)[] = ["readVolume"]): NativeAddon<IPosixProcessAddon> {
     return new NativeAddon<IPosixProcessAddon>(fake.file, functions);
   }
 
-  private static detach(mountPoint: string): void {
+  private static detach(disk: string): void {
     const failures: string[] = [];
     for (let attempt = 1; attempt <= MacFolderProtectorTests.DETACH_ATTEMPTS; attempt++) {
-      const result = spawnSync("/usr/bin/hdiutil", ["detach", "-force", mountPoint], { encoding: "utf8" });
+      const result = spawnSync("/usr/bin/hdiutil", ["detach", "-force", disk], { encoding: "utf8" });
       if (result.status === 0)
         return;
       failures.push(`attempt ${attempt}: exit ${String(result.status)}, signal ${String(result.signal)}${result.error === undefined ? "" : `, ${result.error.message}`}\n${result.stdout}${result.stderr}`);
     }
-    throw new Error(`hdiutil could not detach ${mountPoint} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}`);
+    throw new Error(`hdiutil could not detach ${disk} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}`);
   }
 
   @TestMethod
@@ -183,7 +184,8 @@ export class MacFolderProtectorTests {
     const mountPoint = path.join(folder.path, "shared");
     await mkdir(mountPoint);
     execFileSync("/usr/bin/hdiutil", ["create", "-quiet", "-size", "8m", "-fs", "HFS+", "-volname", "Shared", image]);
-    execFileSync("/usr/bin/hdiutil", ["attach", "-quiet", "-nobrowse", "-owners", "off", "-mountpoint", mountPoint, image]);
+    const attached = execFileSync("/usr/bin/hdiutil", ["attach", "-nobrowse", "-owners", "off", "-mountpoint", mountPoint, image], { encoding: "utf8" });
+    const disk = MacFolderProtectorTests.WHOLE_DISK.exec(attached)?.[1] ?? mountPoint;
     try {
       const discovery = path.join(mountPoint, "discovery");
       await mkdir(discovery);
@@ -192,7 +194,7 @@ export class MacFolderProtectorTests {
 
       Assert.areEqual(`the volume ${await realpath(mountPoint)} is mounted with ownership ignored, so every account acts as the owner of its files`, exception.access);
     } finally {
-      MacFolderProtectorTests.detach(mountPoint);
+      MacFolderProtectorTests.detach(disk);
     }
   }
 }
