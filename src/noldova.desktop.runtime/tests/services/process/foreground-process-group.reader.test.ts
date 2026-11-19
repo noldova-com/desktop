@@ -225,7 +225,7 @@ export class ForegroundProcessGroupReaderTests {
     const foreground = await reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
 
     Assert.areEqual(4_120, foreground?.group);
-    Assert.isTrue(foreground?.isTerminalProgram);
+    Assert.areEqual(true, foreground?.isTerminalProgram);
     Assert.areEqual(1, command.calls.length + linked.length);
   }
 
@@ -245,7 +245,7 @@ export class ForegroundProcessGroupReaderTests {
 
     Assert.areEqual(ForegroundProcessGroupReaderTests.ENDED_PROCESS_ID, foreground?.group);
     Assert.isNull(foreground?.program);
-    Assert.isFalse(foreground?.isTerminalProgram);
+    Assert.areEqual(false, foreground?.isTerminalProgram);
   }
 
   @TestMethod
