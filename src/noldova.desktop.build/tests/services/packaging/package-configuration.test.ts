@@ -203,17 +203,28 @@ export class PackageConfigurationTests {
     for (const file of ["after-install.tpl", "after-remove.tpl", "apparmor-profile.tpl"]) {
       const original = await readFile(path.join(PackageConfiguration.locateBuilderTemplates(), file), "utf8");
       const written = await readFile(path.join(root.path, "_build", "package", "debian-templates", file), "utf8");
-      Assert.areEqual(original.replaceAll("/opt/${sanitizedProductName}/", "/opt/Sample Makers/${sanitizedProductName}/"), written, file);
+      const linked = file === "apparmor-profile.tpl" ? original
+        : original.replaceAll("'/opt/${sanitizedProductName}/${executable}'", "'/opt/${sanitizedProductName}/resources/bin/${executable}'");
+      Assert.areEqual(linked.replaceAll("/opt/${sanitizedProductName}/", "/opt/Sample Makers/${sanitizedProductName}/"), written, file);
       Assert.isTrue(written.includes("/opt/Sample Makers/${sanitizedProductName}/"), file);
     }
   }
 
   @TestMethod
   public refusesATemplateThatPlacesNothingUnderOpt(): void {
-    const refusal = Assert.throws(() => PackageConfiguration.placeDebianTemplate("ln -sf '/usr/lib/${executable}'", "after-install.tpl", "Sample Makers"), BuildException);
+    const refusal = Assert.throws(() => PackageConfiguration.placeDebianTemplate("profile \"/usr/lib/${executable}\"", "apparmor-profile.tpl", "Sample Makers"), BuildException);
 
-    Assert.areEqual("electron-builder's Debian template after-install.tpl names no /opt/${sanitizedProductName}/, so the package can't move its paths into /opt/Sample Makers.",
+    Assert.areEqual("electron-builder's Debian template apparmor-profile.tpl names no /opt/${sanitizedProductName}/, so the package can't move its paths into /opt/Sample Makers.",
       refusal.message);
+  }
+
+  @TestMethod
+  public refusesAScriptTemplateThatLinksNoProgram(): void {
+    const refusal = Assert.throws(() => PackageConfiguration.placeDebianTemplate("ln -sf '/usr/lib/${executable}' '/usr/bin/${executable}'", "/templates/after-remove.tpl", null),
+      BuildException);
+
+    Assert.areEqual("electron-builder's Debian template /templates/after-remove.tpl links no '/opt/${sanitizedProductName}/${executable}', so the package can't link /usr/bin to its "
+      + "command line in its place.", refusal.message);
   }
 
   @TestMethod
@@ -266,7 +277,12 @@ export class PackageConfigurationTests {
     const json = PackageConfigurationTests.read(PackageConfigurationTests.create(new PackageTarget("linux", "x64"), false, null, false));
 
     Assert.areEqual(JSON.stringify([{ target: "AppImage", arch: ["x64"] }, { target: "deb", arch: ["x64"] }]), JSON.stringify(json.readObject("linux").readValue("target")));
-    Assert.areEqual(JSON.stringify({ maintainer: "Sample" }), JSON.stringify(json.readValue("deb")));
+    const templates = path.join(PackageConfigurationTests.ROOT, "_build", "package", "debian-templates");
+
+    Assert.areEqual(JSON.stringify({ maintainer: "Sample", afterInstall: path.join(templates, "after-install.tpl"), afterRemove: path.join(templates, "after-remove.tpl"),
+      appArmorProfile: path.join(templates, "apparmor-profile.tpl") }), JSON.stringify(json.readValue("deb")));
+    Assert.areEqual(JSON.stringify([{ from: path.join(PackageConfigurationTests.ROOT, "_build", "package", "command", "sample-app"), to: "bin/sample-app" }]),
+      JSON.stringify(json.readObject("linux").readValue("extraResources")));
     Assert.areEqual(JSON.stringify({ homepage: "https://github.com/example/sample-app" }), JSON.stringify(json.readValue("extraMetadata")));
   }
 
@@ -343,16 +359,26 @@ export class PackageConfigurationTests {
   }
 
   @TestMethod
-  public async writesOnlyTheConfigurationForLinux(): Promise<void> {
+  public async writesTheConfigurationALinuxCommandAndTheDebianTemplatesLinkingTheCommandLine(): Promise<void> {
     await using root = await PackageConfigurationTests.createRootAsync();
     const configuration = PackageConfigurationTests.create(new PackageTarget("linux", "x64"), false, null, false, root.path);
     const file = path.join(root.path, "_build", "package", "electron-builder.json");
 
     await configuration.writeAsync(file);
 
+    const command = await readFile(path.join(root.path, "_build", "package", "command", "sample-app"), "utf8");
     Assert.isTrue(existsSync(file));
-    Assert.isFalse(existsSync(path.join(root.path, "_build", "package", "command")));
-    Assert.isFalse(existsSync(path.join(root.path, "_build", "package", "debian-templates")));
+    Assert.isTrue(command.startsWith("#!/bin/sh\n"), command);
+    Assert.isTrue(command.endsWith("exec \"$resources/../sample-app\" \"$resources/app.asar/node_modules/@noldova/desktop.cli/services/cli-entry.js\" \"$@\"\n"), command);
+    Assert.isTrue(command.includes("export ELECTRON_RUN_AS_NODE=1\n"), command);
+    for (const name of ["after-install.tpl", "after-remove.tpl", "apparmor-profile.tpl"]) {
+      const original = await readFile(path.join(PackageConfiguration.locateBuilderTemplates(), name), "utf8");
+      const written = await readFile(path.join(root.path, "_build", "package", "debian-templates", name), "utf8");
+      Assert.areEqual(name === "apparmor-profile.tpl" ? original
+        : original.replaceAll("'/opt/${sanitizedProductName}/${executable}'", "'/opt/${sanitizedProductName}/resources/bin/${executable}'"), written, name);
+      Assert.areEqual(name !== "apparmor-profile.tpl", written.includes("'/opt/${sanitizedProductName}/resources/bin/${executable}'"), name);
+      Assert.isFalse(written.includes("'/opt/${sanitizedProductName}/${executable}'"), name);
+    }
   }
 
   private static create(target: PackageTarget, isSigned: boolean, publisher: string | null, hasWebViews: boolean, root: string = PackageConfigurationTests.ROOT,

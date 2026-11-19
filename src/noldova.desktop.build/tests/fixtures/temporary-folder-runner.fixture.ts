@@ -23,6 +23,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   private static readonly REPORT_TIME: number = 17_000;
   private static readonly TEMPORARY_VARIABLES: readonly string[] = ["TMPDIR", "TEMP", "TMP"];
   private static readonly CONFIGURATION_FILES: readonly (readonly [string, string])[] = [["npm_config_userconfig", "user.npmrc"], ["npm_config_globalconfig", "global.npmrc"]];
+  private static readonly COMPILE_CACHE_OFF: readonly [string, string] = ["NODE_DISABLE_COMPILE_CACHE", "1"];
   private static readonly LOG_LINES: number = 60;
   private static readonly SAMPLE_LINES: number = 120;
   private static readonly TIMING_LENGTH: number = 6000;
@@ -63,7 +64,8 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   public override async captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv): Promise<ProcessResult> {
     const variables = Object.fromEntries([
       ...TemporaryFolderRunnerFixture.TEMPORARY_VARIABLES.map(t => [t, this.folder]),
-      ...TemporaryFolderRunnerFixture.CONFIGURATION_FILES.map(([variable, file]) => [variable, path.join(this.folder, file)])
+      ...TemporaryFolderRunnerFixture.CONFIGURATION_FILES.map(([variable, file]) => [variable, path.join(this.folder, file)]),
+      TemporaryFolderRunnerFixture.COMPILE_CACHE_OFF
     ]);
     if (Object.isNull(this.end))
       return await super.captureAsync(command, commandArguments, directory, timeout, { ...environment ?? process.env, ...variables });

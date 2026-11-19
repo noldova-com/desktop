@@ -98,11 +98,11 @@ export class PackageConfiguration {
       await mkdir(path.dirname(this.windowsCommand), { recursive: true });
       await writeFile(this.windowsCommand, this.describeWindowsCommand());
     }
-    if (this.target.platform === Resources.macosTarget) {
-      await mkdir(path.dirname(this.macCommand), { recursive: true });
-      await writeFile(this.macCommand, this.describeMacCommand(), { mode: Resources.executableMode });
+    if (this.target.platform === Resources.macosTarget || this.target.platform === Resources.linuxTarget) {
+      await mkdir(path.dirname(this.posixCommand), { recursive: true });
+      await writeFile(this.posixCommand, this.describePosixCommand(), { mode: Resources.executableMode });
     }
-    if (this.target.platform === Resources.linuxTarget && !Object.isNull(this.product.installFolder))
+    if (this.target.platform === Resources.linuxTarget)
       await this.writeDebianTemplatesAsync(this.product.installFolder);
   }
 
@@ -111,14 +111,23 @@ export class PackageConfiguration {
     return path.join(path.dirname(builder.resolve(Resources.builderLibraryManifest)), ...Resources.builderLinuxTemplatesSegments);
   }
 
-  public static placeDebianTemplate(text: string, template: string, installFolder: string): string {
-    if (!text.includes(Resources.debianTemplateProductPath))
+  public static placeDebianTemplate(text: string, template: string, installFolder: string | null): string {
+    const linked = Resources.debianCommandTemplates.has(path.basename(template)) ? PackageConfiguration.linkDebianCommand(text, template) : text;
+    if (Object.isNull(installFolder))
+      return linked;
+    if (!linked.includes(Resources.debianTemplateProductPath))
       throw new BuildException(Resources.formatDebianTemplateUnplaced(template, installFolder));
     const placed = `${Resources.formatDebianInstallFolder(installFolder)}${Resources.debianTemplateProductPath.slice(Resources.debianInstallPrefix.length)}`;
-    return text.replaceAll(Resources.debianTemplateProductPath, () => placed);
+    return linked.replaceAll(Resources.debianTemplateProductPath, () => placed);
   }
 
-  private async writeDebianTemplatesAsync(installFolder: string): Promise<void> {
+  private static linkDebianCommand(text: string, template: string): string {
+    if (!text.includes(Resources.debianTemplateProgram))
+      throw new BuildException(Resources.formatDebianTemplateProgramUnlinked(template));
+    return text.replaceAll(Resources.debianTemplateProgram, () => Resources.debianTemplateCommand);
+  }
+
+  private async writeDebianTemplatesAsync(installFolder: string | null): Promise<void> {
     const folder = new PackageLayout(this.root).debianTemplates;
     await mkdir(folder, { recursive: true });
     for (const file of Resources.debianTemplates.values()) {
@@ -141,7 +150,7 @@ export class PackageConfiguration {
     return `${this.product.slug}${Resources.windowsCommandExtension}`;
   }
 
-  private get macCommand(): string {
+  private get posixCommand(): string {
     return path.join(new PackageLayout(this.root).command, this.product.slug);
   }
 
@@ -190,7 +199,7 @@ export class PackageConfiguration {
             icon: path.join(icons, Resources.macIconFile),
             category: product.macCategory,
             artifactName,
-            extraResources: [{ from: this.macCommand, to: Resources.formatPackagedCommandPath(product.slug) }],
+            extraResources: [{ from: this.posixCommand, to: Resources.formatPackagedCommandPath(product.slug) }],
             ...(this.isSigned ? {
               hardenedRuntime: true,
               entitlements: this.assets.locate(Resources.entitlementsSegments),
@@ -209,13 +218,13 @@ export class PackageConfiguration {
           extraMetadata: { homepage: product.about.website ?? Resources.formatRepositoryPage(product.releaseRepository) },
           deb: {
             maintainer: product.publisher,
-            ...Object.isNull(product.installFolder) ? {} : Object.fromEntries([...Resources.debianTemplates]
-              .map(([option, file]) => [option, path.join(new PackageLayout(this.root).debianTemplates, file)]))
+            ...Object.fromEntries([...Resources.debianTemplates].map(([option, file]) => [option, path.join(new PackageLayout(this.root).debianTemplates, file)]))
           },
           linux: {
             target,
             icon: path.join(icons, Resources.linuxIconFile),
             executableName: product.slug,
+            extraResources: [{ from: this.posixCommand, to: Resources.formatPackagedCommandPath(product.slug) }],
             syncDesktopName: true,
             category: product.linuxCategory,
             artifactName,
@@ -232,11 +241,13 @@ export class PackageConfiguration {
     return Resources.formatWindowsCommandScript(program, entry);
   }
 
-  private describeMacCommand(): string {
-    const resources = Resources.macResourcesVariable;
-    const program = [resources, ...Resources.macProgramSegments, this.product.name].join(path.posix.sep);
+  private describePosixCommand(): string {
+    const resources = Resources.posixResourcesVariable;
+    const program = this.target.platform === Resources.macosTarget
+      ? [resources, ...Resources.macProgramSegments, this.product.name].join(path.posix.sep)
+      : [resources, Resources.parentFolderSegment, this.product.slug].join(path.posix.sep);
     const entry = path.posix.join(resources, Resources.packagedArchiveFile, ...Resources.desktopToolsEntrySegments);
-    return Resources.formatMacCommandScript(program, entry);
+    return Resources.formatPosixCommandScript(program, entry);
   }
 
   private listLicenses(): readonly Record<string, unknown>[] {

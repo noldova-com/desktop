@@ -389,7 +389,7 @@ export class Resources {
   public static readonly packagedUnpackedFolder: string = `${Resources.packagedArchiveFile}.unpacked`;
   public static readonly packagedThirdPartySegments: readonly string[] = [Resources.packagedResourcesFolder, Resources.packagedUnpackedFolder, Resources.nodeModulesFolder];
   public static readonly windowsLineSeparator: string = "\r\n";
-  public static readonly macResourcesVariable: string = "$resources";
+  public static readonly posixResourcesVariable: string = "$resources";
   public static readonly parentFolderSegment: string = "..";
   public static readonly macProgramSegments: readonly string[] = [Resources.parentFolderSegment, "MacOS"];
   public static readonly executableMode: number = 0o755;
@@ -1238,6 +1238,9 @@ export class Resources {
   public static readonly debianTemplates: ReadonlyMap<string, string> = new Map([["afterInstall", "after-install.tpl"], ["afterRemove", "after-remove.tpl"],
     ["appArmorProfile", "apparmor-profile.tpl"]]);
   public static readonly debianTemplateProductPath: string = "/opt/${sanitizedProductName}/";
+  public static readonly debianCommandTemplates: ReadonlySet<string> = new Set(["after-install.tpl", "after-remove.tpl"]);
+  public static readonly debianTemplateProgram: string = "'/opt/${sanitizedProductName}/${executable}'";
+  public static readonly debianTemplateCommand: string = "'/opt/${sanitizedProductName}/resources/bin/${executable}'";
   public static readonly diskImageDetachFailure: string = "Unable to detach device cleanly";
   public static readonly builderDetachRetry: string = "electron-builder could not detach the disk image it was making while macOS still held its volume; building the packages again, once.\n";
   public static readonly builderVariables: ReadonlySet<string> = new Set([
@@ -1399,6 +1402,10 @@ export class Resources {
   public static readonly smokeMomentKilled: string = "was killed";
   public static readonly smokeMomentPowerShell: string = "through PowerShell";
   public static readonly smokeMomentLink: string = "through a link to the app's command";
+  public static readonly smokeMomentDebianCommand: string = "through the Debian package's command, with no display";
+  public static readonly smokeMomentAppImageCommandLine: string = "through the AppImage's --command-line flag, with no display";
+  public static readonly displayVariables: readonly string[] = ["DISPLAY", "WAYLAND_DISPLAY"];
+  public static readonly commandLineOption: string = "--command-line";
   public static readonly smokeMomentReplaced: string = "after the AppImage was replaced";
   public static readonly smokeMainQuit: string = "The main process quit.\n";
   public static readonly smokeRuntimeStopped: string = "The runtime stopped once idle.\n";
@@ -2417,7 +2424,7 @@ export class Resources {
     ].map(t => `${t}${Resources.windowsLineSeparator}`).join(String.empty);
   }
 
-  public static formatMacCommandScript(program: string, entry: string): string {
+  public static formatPosixCommandScript(program: string, entry: string): string {
     return [
       "#!/bin/sh",
       "link=\"$0\"",
@@ -3677,6 +3684,10 @@ export class Resources {
     return `${slug} status ${Resources.smokeMomentPowerShell} exited with ${exitCode}:\n${text}`;
   }
 
+  public static formatSmokeWindowlessCommandFailed(slug: string, moment: string, exitCode: number | null, text: string): string {
+    return `${slug} status ${moment} exited with ${exitCode}:\n${text}`;
+  }
+
   public static formatSmokeLinkFailed(slug: string, command: string, exitCode: number | null, text: string): string {
     return `${slug} status through a link to ${command} exited with ${exitCode}:\n${text}`;
   }
@@ -3948,6 +3959,10 @@ export class Resources {
       + `so the package can't move them into ${Resources.formatDebianInstallFolder(installFolder)}.`;
   }
 
+  public static formatDebianTemplateProgramUnlinked(template: string): string {
+    return `electron-builder's Debian template ${template} links no ${Resources.debianTemplateProgram}, so the package can't link /usr/bin to its command line in its place.`;
+  }
+
   public static formatDebianTemplateUnplaced(template: string, installFolder: string): string {
     return `electron-builder's Debian template ${template} names no ${Resources.debianTemplateProductPath}, so the package can't move its paths into `
       + `${Resources.formatDebianInstallFolder(installFolder)}.`;
@@ -3977,6 +3992,10 @@ export class Resources {
     const lacking = missing.length > 0 ? `needs ${missing.join(Resources.listSeparator)}, which this runner lacks` : `has dependencies apt-get could not resolve here: ${simulation.trim()}`;
     return `${file} ${lacking}, and sudo --non-interactive apt-get update could not run to find them, ${Resources.formatExitCodeProblem(exitCode, text)}. `
       + "The Debian package's smoke needs the runner's user to run apt-get as root without a password, as it installs and removes the package with sudo.";
+  }
+
+  public static formatDebianCommandNotCommandLine(command: string, target: string): string {
+    return `The Debian package's command ${command} leads to ${target}, not to the command line in its resources' ${Resources.commandFolder} folder, so it would start the app.`;
   }
 
   public static formatDebianCommandUnresolved(command: string, exitCode: number | null, text: string): string {

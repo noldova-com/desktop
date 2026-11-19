@@ -473,6 +473,10 @@ export class Resources {
   public static readonly downloadsPath: "downloads" = "downloads";
   public static readonly runAsNodeVariable: string = "ELECTRON_RUN_AS_NODE";
   public static readonly runAsNodeValue: string = "1";
+  public static readonly commandLineArgument: string = "--command-line";
+  public static readonly desktopToolsEntrySegments: readonly string[] = ["node_modules", "@noldova", "desktop.cli", "services", "cli-entry.js"];
+  public static readonly inheritedStdio: "inherit" = "inherit";
+  public static readonly signalExitBase: number = 128;
   public static readonly workWaitInterval: number = 2000;
   public static readonly stableConnectionPeriod: number = 30000;
   public static readonly reconnectionDelays: readonly number[] = [0, 1000, 2000, 4000, 8000];
@@ -1019,6 +1023,10 @@ export class Resources {
 
   public static get installFolder(): string | null {
     return ProductInfo.current.installFolder;
+  }
+
+  public static formatCommandLineNotStarted(program: string, reason: string): string {
+    return `The command line could not start through ${program}: ${reason}\n`;
   }
 
   public static formatInstallFolderMoved(bundle: string, target: string): string {
