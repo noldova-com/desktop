@@ -1145,6 +1145,7 @@ export class Resources {
   public static readonly toolSchemaInvalid: string = "A tool's schema must be a JSON Schema object whose type is object.";
   public static readonly toolRiskInvalid: string = "A tool's risks must each be Low, Medium or High, and its default risk must not be above its maximum risk.";
   public static readonly toolResourceInvalid: string = "A tool's resource must be a JSON Pointer into its arguments, such as /item_id, or binding:<name>.";
+  public static readonly toolTextInvalid: string = "A text item's value must be a string.";
   public static readonly toolOriginInvalid: string = "A content item's origin must not be blank and must have at most 1,024 characters.";
   public static readonly toolImageDataInvalid: string = "An image item's data must be base64.";
   public static readonly toolSessionEnded: string = "The agent session has ended.";
