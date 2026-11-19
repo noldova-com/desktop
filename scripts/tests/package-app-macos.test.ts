@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, it } from "node:test";
 
@@ -27,6 +27,41 @@ async function runAsync(hosted: boolean, isPackageBuilt: boolean): Promise<{ sta
   const result = await WorkflowStepFixture.runAsync(SMOKE, fakes.folder, fakes.bin, { RUNNER_OS: "macOS", HOSTED: String(hosted) });
   return { status: result.status, calls: await fakes.readCallsAsync(), output: result.output };
 }
+
+const MINUTE = 60_000;
+const BUILDER_BUDGET = 30 * MINUTE;
+const OTHER_STEPS_BUDGET = 15 * MINUTE;
+
+async function readResourceNumberAsync(name: string): Promise<number> {
+  const text = await readFile(path.resolve(import.meta.dirname, "..", "..", "src", "noldova.desktop.build", "src", "resources.ts"), "utf8");
+  const value = new RegExp(`static readonly ${name}: number = ([0-9_]+);`).exec(text)?.[1];
+  assert.ok(value !== undefined, name);
+  return Number(value.replaceAll("_", ""));
+}
+
+async function readStepMinutesAsync(step: string): Promise<number> {
+  const text = await readFile(path.resolve(import.meta.dirname, "..", "..", ".github", "workflows", "package-app.yml"), "utf8");
+  const value = new RegExp(`- name: ${step}\\r?\\n\\s+timeout-minutes: ([0-9]+)`).exec(text)?.[1];
+  assert.ok(value !== undefined, step);
+  return Number(value);
+}
+
+async function readJobMinutesAsync(): Promise<readonly number[]> {
+  const text = await readFile(path.resolve(import.meta.dirname, "..", "..", ".github", "workflows", "package-app.yml"), "utf8");
+  const minutes = [...text.matchAll(/^ {4}timeout-minutes: ([0-9]+)\r?$/gm)].map(t => Number(t[1]));
+  assert.equal(minutes.length, 2);
+  return minutes;
+}
+
+describe("package-app.yml's macOS packaging limit", () => {
+  it("leaves the builder 30 minutes after the disk image's notarization and stapling, and the job's other steps 15", async () => {
+    const [notarization, staple, step, job] = [await readResourceNumberAsync("macNotarizationTimeout"), await readResourceNumberAsync("macStapleTimeout"),
+      (await readStepMinutesAsync("Make the package")) * MINUTE, Math.min(...await readJobMinutesAsync()) * MINUTE];
+
+    assert.ok(step - notarization - staple >= BUILDER_BUDGET, `${step}, ${notarization}, ${staple}`);
+    assert.ok(job - step >= OTHER_STEPS_BUDGET, `${job}, ${step}`);
+  });
+});
 
 describe("package-app.yml's macOS smoke", () => {
   it("installs the installer package and then smokes the app on a GitHub-hosted runner", async () => {

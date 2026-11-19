@@ -379,7 +379,7 @@ jobs:
           exit 1
 
       - name: Make the package
-        timeout-minutes: 40
+        timeout-minutes: 85
         working-directory: ${{ inputs.app-folder }}
         env:
           NOLDOVA_DESKTOP_COMPANY_ARCHIVES: ${{ runner.temp }}/company-archives

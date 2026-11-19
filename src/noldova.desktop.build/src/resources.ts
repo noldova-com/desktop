@@ -340,8 +340,8 @@ export class Resources {
   public static readonly builderAppleKeyVariable: string = "APPLE_API_KEY";
   public static readonly macNotarizationKeyFile: string = "notarization-key.p8";
   public static readonly macSigningCheckFolder: string = "check";
-  public static readonly macNotarizationTimeout: number = 3_900_000;
-  public static readonly macNotarizationWait: string = "1h";
+  public static readonly macNotarizationTimeout: number = 2_820_000;
+  public static readonly macNotarizationWait: string = "45m";
   public static readonly macStapleTimeout: number = 300_000;
   public static readonly macNotarizationAcceptedPattern: RegExp = /"status"\s*:\s*"Accepted"/;
   public static readonly macNotarizationSubmissionPattern: RegExp = /"id"\s*:\s*"([^"]+)"/;
