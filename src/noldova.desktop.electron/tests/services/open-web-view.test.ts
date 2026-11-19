@@ -1357,8 +1357,7 @@ export class OpenWebViewTests {
       });
       const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
       await reached;
-      harness.contents.onIsolated = () => Promise.resolve(0);
-      const fresh = OpenWebViewTests.rendererless();
+      const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
       await harness.open.keepAsync();
       if (isBoundFirst)
         await harness.open.bindAsync(fresh, true);
