@@ -100,6 +100,63 @@ export class RuntimeServerTests {
   }
 
   @TestMethod
+  public closesAConnectionItEndedWhosePeerKeepsItsSideOpen(): Promise<void> {
+    return RuntimeServerFixture.runAsync(undefined, async fixture => {
+      const connection = await fixture.connectAsync(true);
+      connection.sendMessages(new Handshake("main:0", RuntimeServerFixture.IDENTITY, "guess", ShellClients.mainProcess));
+
+      RuntimeServerFixture.assertFailure(await connection.readResponseAsync(), FailureCode.Unauthorized, "The capability token is not valid for this runtime.", "main:0");
+      await fixture.waitUntilAsync(() => fixture.server.sessionCount === 0);
+    });
+  }
+
+  @TestMethod
+  public endsAConnectionOnceAndReadsNothingMoreHoweverMuchItsPeerSends(): Promise<void> {
+    return RuntimeServerFixture.runAsync(new ServerSettings(200, 1_000, 1_000, 1_000), async fixture => {
+      const connection = await fixture.connectAsync(true);
+      await fixture.waitUntilAsync(() => fixture.acceptedSockets.length === 1);
+      const socket = fixture.acceptedSockets.at(0);
+      if (Object.isUndefined(socket))
+        throw new Error("The server accepted no connection.");
+
+      connection.send("x".repeat(201));
+      RuntimeServerFixture.assertFailure(await connection.readResponseAsync(), FailureCode.FrameTooLarge, "A frame exceeds the maximum length of 200 characters.", null);
+      const listeners = socket.listenerCount("close");
+      for (let index = 0; index < 12; index++)
+        socket.emit("data", "x".repeat(201));
+
+      Assert.areEqual(listeners, socket.listenerCount("close"));
+      await fixture.waitUntilAsync(() => fixture.server.sessionCount === 0);
+    });
+  }
+
+  @TestMethod
+  public abortsTheRequestsOfAMainProcessItEndsAndReportsItsClosureWhileItsPeerKeepsItsSideOpen(): Promise<void> {
+    return RuntimeServerFixture.runAsync(undefined, async fixture => {
+      const signals: AbortSignal[] = [];
+      const started = Promise.withResolvers<void>();
+      fixture.methods.register(RuntimeServerFixture.WAIT, RuntimeServerFixture.createWaitHandler(signals, started));
+      const closed: number[] = [];
+      fixture.server.closures.listen(t => {
+        closed.push(t.connection);
+      });
+      const connection = await fixture.connectAsync(true);
+      connection.sendMessages(new Handshake("main:0", RuntimeServerFixture.IDENTITY, RuntimeServerFixture.TOKEN, ShellClients.mainProcess));
+      Assert.isFalse((await connection.readResponseAsync()).hasFailed);
+      connection.sendMessages(new Request("main:1", RuntimeServerFixture.WAIT, null));
+      await started.promise;
+
+      fixture.isSameSender = () => false;
+      connection.sendMessages(new Request("main:2", RuntimeServerFixture.WAIT, null));
+
+      RuntimeServerFixture.assertFailure(await connection.readResponseAsync(), FailureCode.Unauthorized, "Only the app's main process may connect as the main process.", null);
+      Assert.isTrue(signals.every(t => t.aborted));
+      await fixture.waitUntilAsync(() => closed.length === 1);
+      Assert.areEqual(0, fixture.server.sessionCount);
+    });
+  }
+
+  @TestMethod
   public requiresTheHandshakeFirstAndIgnoresWhatFollows(): Promise<void> {
     return RuntimeServerFixture.runAsync(undefined, async fixture => {
       fixture.methods.register(RuntimeServerFixture.ECHO, RuntimeServerFixture.ECHO_HANDLER);
