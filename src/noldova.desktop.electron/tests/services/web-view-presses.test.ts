@@ -39,6 +39,18 @@ export class WebViewPressesTests {
   }
 
   @TestMethod
+  public readsAStartWhoseTouchesAreNoListAsNamingNoTouchSoItTakesNoRelayedTouchsId(): void {
+    const presses = new WebViewPresses();
+    presses.addRelayedTouches([1000000000]);
+
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 1, false, 1000000000);
+    const unlisted = presses.read(WebViewPressesTests.ORIGIN);
+    presses.note("1:1", WebViewPressesTests.ORIGIN, "start", 2, false, [1000000000]);
+
+    Assert.areEqual("1,null", [unlisted, presses.read(WebViewPressesTests.ORIGIN)].map(t => String(t)).join(","));
+  }
+
+  @TestMethod
   public keepsThePressesOfItsLatest64FramesSoAnOlderFramesLaterEventStartsNoPress(): void {
     const presses = new WebViewPresses();
     for (let index = 0; index < 65; index++) {
