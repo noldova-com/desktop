@@ -611,7 +611,7 @@ test.describe("the harness's teardown", () => {
     const main = await mainProcess.application.evaluate(() => process.pid);
     const outliving = await OutlivingProcess.startAsync(mainProcess, testInfo);
     const blocked = mainProcess.application.evaluate(() => {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 120_000);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15_000);
     });
     blocked.catch(() => undefined);
 
