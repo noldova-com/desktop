@@ -611,7 +611,7 @@ test.describe("the harness's teardown", () => {
     const main = await mainProcess.application.evaluate(() => process.pid);
     const outliving = await OutlivingProcess.startAsync(mainProcess, testInfo);
     const blocked = mainProcess.application.evaluate(() => {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15_000);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 120_000);
     });
     blocked.catch(() => undefined);
 
@@ -636,7 +636,7 @@ test.describe("the harness's teardown", () => {
         throw new Error("A failure the test threw in the main process.");
       });
       setImmediate(() => {
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15_000);
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 120_000);
       });
     });
     await expect.poll(() => mainProcess.failures.some(t => t.includes("A failure the test threw in the main process."))).toBe(true);
@@ -646,6 +646,26 @@ test.describe("the harness's teardown", () => {
 
     expect(failure).toMatch(/\nThe main process log shows this main-process failure:\n\S+ The main process's main process failed with an uncaught exception: Error: A failure the test threw in the main process\.\n {4}at [^\n]+\n(?: {4}[^\n]*\n)*Before the move, /);
     expect(mainProcess.acceptFailures(/^main: (?:\S+ The main process's main process failed|at )/).length).toBeGreaterThanOrEqual(2);
+    expect(mainProcess.acceptFailures(/^The main process \d+ did not answer for \d+ s after it was asked to say whether a window is visible, so the test killed it\.$/)).toHaveLength(1);
+    expect(mainProcess.failures).toEqual([]);
+  });
+
+  test("a restarted main process that stops answering is reported without the main-process failures the earlier launch wrote", async ({ mainProcess }) => {
+    await mainProcess.application.evaluate(() => {
+      process.stderr.write(`${new Date().toISOString()} The main process's main process failed with an uncaught exception: Error: A failure the earlier launch wrote.\n`);
+    });
+    await expect.poll(() => mainProcess.failures.some(t => t.includes("A failure the earlier launch wrote."))).toBe(true);
+    await mainProcess.restartAsync();
+    const blocked = mainProcess.application.evaluate(() => {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 120_000);
+    });
+    blocked.catch(() => undefined);
+
+    const failure = await mainProcess.isVisibleAsync().then(() => null, (error: unknown) => ErrorCodeFixture.messageOf(error));
+    await mainProcess.disposeAsync(false);
+
+    expect(failure).toMatch(/\nThe main process log shows no main-process failure\.\nBefore the move, /);
+    expect(mainProcess.acceptFailures(/^main: \S+ The main process's main process failed with an uncaught exception: Error: A failure the earlier launch wrote\.$/)).toHaveLength(1);
     expect(mainProcess.acceptFailures(/^The main process \d+ did not answer for \d+ s after it was asked to say whether a window is visible, so the test killed it\.$/)).toHaveLength(1);
     expect(mainProcess.failures).toEqual([]);
   });

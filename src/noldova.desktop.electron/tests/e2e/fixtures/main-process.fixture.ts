@@ -613,7 +613,7 @@ export class MainProcessFixture {
     throw new Error([
       `The main process did not answer within ${limit / 1000} s when asked to ${action}.`,
       lastAnswerLine,
-      MainProcessLogFixture.describeMainProcessFailures(this.mainProcessOutput),
+      await MainProcessLogFixture.describeMainProcessFailuresAsync(new DataDirectory(this.dataDirectory).mainProcessLog, this.mainProcessOutput),
       this.placement
     ].join("\n"));
   }
@@ -656,6 +656,7 @@ export class MainProcessFixture {
     await this.recordAsync(Object.isUndefined(launched) ? [] : [launched]);
     this.mainProcessId = null;
     this.lastAnswer = null;
+    this.mainProcessOutput.splice(0);
     application.process().stderr?.on("data", (data: Buffer) => this.readOutput(this.output.classify(data.toString())));
     application.process().stderr?.on("end", () => this.readOutput(this.output.flush()));
     application.on("console", t => {
