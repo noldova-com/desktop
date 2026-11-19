@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readlink, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -85,6 +85,21 @@ export class ForegroundProcessGroupReaderTests {
     const group = await new ForegroundProcessGroupReader("linux", new AnsweringCommand(async () => String.empty), folder.path).readAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
 
     Assert.areEqual(4_188, group);
+  }
+
+  @TestMethod
+  public async readsTheProgramsLinkAndCommandLineFromTheProcessFolderOnLinux(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const location = path.join(folder.path, "4120");
+    await mkdir(location);
+    await writeFile(path.join(location, "stat"), ForegroundProcessGroupReaderTests.stat("4120"));
+    await writeFile(path.join(location, "cmdline"), ["/bin/bash", "-i", String.empty].join(String.fromCharCode(0)));
+    await symlink(folder.path, path.join(location, "exe"), "junction");
+
+    const foreground = await new ForegroundProcessGroupReader("linux", new AnsweringCommand(async () => String.empty), folder.path).readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
+
+    Assert.areEqual(`4120 ${await readlink(path.join(location, "exe"))}|/bin/bash -i true`,
+      `${foreground?.group} ${foreground?.program}|${foreground?.commandLine} ${foreground?.isTerminalProgram}`);
   }
 
   @TestMethod
