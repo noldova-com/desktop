@@ -93,8 +93,6 @@ export class ThirdPartyPackage {
     return (await readFile(file, Resources.textEncoding)).trim();
   }
 
-  // Downloads the tarball, trying again after a dropped or timed-out connection and after a server's error, 408 or 429, as the
-  // Electron binary's download does; a refused connection, another status and a tarball that doesn't match fail at once.
   private static async downloadAsync(locked: LockedPackage, output: Writable): Promise<Buffer> {
     let data = Buffer.alloc(0);
     await RetriedDownload.runAsync(Resources.formatDownloadSubject(locked.id, locked.resolved), output, async () => {

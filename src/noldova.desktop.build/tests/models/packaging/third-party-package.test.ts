@@ -246,7 +246,6 @@ export class ThirdPartyPackageTests {
     };
   }
 
-  // Serves each request with the next of the answers, and a 429 once they run out, and counts the requests.
   private static async serveInTurnAsync(answers: readonly ((request: IncomingMessage, response: ServerResponse) => void)[]):
     Promise<{ url: string; requests: () => number } & AsyncDisposable> {
     let requests = 0;
