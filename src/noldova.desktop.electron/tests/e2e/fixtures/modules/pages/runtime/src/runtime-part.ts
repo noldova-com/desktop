@@ -91,6 +91,16 @@ export class RuntimePart implements IRuntimePart {
         return null;
       }
     });
+    context.registerMethod(Resources.touchMethod, {
+      handleAsync: async request => {
+        const view = RuntimePart.find(views, Number(RuntimePart.field(request.payload, Resources.viewField)));
+        const x = Number(RuntimePart.field(request.payload, Resources.xField));
+        const y = Number(RuntimePart.field(request.payload, Resources.yField));
+        await views.relay.sendAsync(view, Resources.dispatchTouchEventMethod, { type: Resources.touchStartType, touchPoints: [{ x, y, id: Resources.touchPointId }] }, Resources.captureTimeout);
+        await views.relay.sendAsync(view, Resources.dispatchTouchEventMethod, { type: Resources.touchEndType, touchPoints: [] }, Resources.captureTimeout);
+        return null;
+      }
+    });
     context.registerMethod(Resources.focusMethod, {
       handleAsync: async request => {
         const view = RuntimePart.find(views, Number(RuntimePart.field(request.payload, Resources.viewField)));

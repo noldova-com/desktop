@@ -15,10 +15,15 @@ export class Resources {
   public static readonly pressMethod: string = "pages.press";
   public static readonly typeMethod: string = "pages.type";
   public static readonly clickMethod: string = "pages.click";
+  public static readonly touchMethod: string = "pages.touch";
   public static readonly focusMethod: string = "pages.focus";
   public static readonly controlMethod: string = "pages.control";
   public static readonly dispatchMouseEventMethod: string = "Input.dispatchMouseEvent";
   public static readonly mouseTypes: readonly string[] = ["mousePressed", "mouseReleased"];
+  public static readonly dispatchTouchEventMethod: string = "Input.dispatchTouchEvent";
+  public static readonly touchStartType: string = "touchStart";
+  public static readonly touchEndType: string = "touchEnd";
+  public static readonly touchPointId: number = 7;
   public static readonly evaluateMethod: string = "Runtime.evaluate";
   public static readonly focusNodeMethod: string = "DOM.focus";
   public static readonly dispatchKeyEventMethod: string = "Input.dispatchKeyEvent";
