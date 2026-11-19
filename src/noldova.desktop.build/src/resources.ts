@@ -4405,9 +4405,8 @@ export class Resources {
     return `${name} ${version} for ${targets}. ${signing}`;
   }
 
-  public static formatReleaseSupported(supported: string, ciOnly: string | null): string {
-    return `Supported after their native acceptance: ${supported}.`
-      + (Object.isNull(ciOnly) ? String.empty : ` Accepted by a CI run only: ${ciOnly}.`);
+  public static formatReleaseCiOnly(ciOnly: string): string {
+    return `Accepted by a CI run only: ${ciOnly}.`;
   }
 
   public static formatReleaseRunCheck(runUrl: string): string {

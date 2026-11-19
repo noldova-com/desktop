@@ -45,18 +45,29 @@ export class ReleaseNotesTests {
   }
 
   @TestMethod
-  public splitsTheBuiltTargetsIntoSupportedAndCiOnly(): void {
+  public namesOnlyTheCiOnlyTargetsWhenSomeBuiltTargetsAreSupported(): void {
     const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX, ReleaseNotesTests.MACOS_ARM64], [ReleaseNotesTests.LINUX]);
 
-    Assert.isTrue(notes.includes("Supported after their native acceptance: Linux x64. Accepted by a CI run only: macOS ARM64."), notes);
+    Assert.areEqual(
+      [
+        "Sample App 0.0.2 for Linux x64 and macOS ARM64. Its packages are unsigned.",
+        "Accepted by a CI run only: macOS ARM64.",
+        `Each target's package passed its install check on that target's own runner in the run that built it: ${ReleaseNotesTests.RUN}`
+      ].join("\n\n"),
+      notes);
   }
 
   @TestMethod
-  public leavesOutTheCiOnlySentenceWhenEveryBuiltTargetIsSupported(): void {
+  public writesNoAcceptanceParagraphWhenEveryBuiltTargetIsSupported(): void {
     const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [ReleaseNotesTests.LINUX]);
 
-    Assert.isTrue(notes.includes("Supported after their native acceptance: Linux x64.\n\n"), notes);
-    Assert.isFalse(notes.includes("Accepted by a CI run only"), notes);
+    Assert.areEqual(
+      [
+        "Sample App 0.0.2 for Linux x64. Its packages are unsigned.",
+        `Each target's package passed its install check on that target's own runner in the run that built it: ${ReleaseNotesTests.RUN}`
+      ].join("\n\n"),
+      notes);
+    Assert.isFalse(notes.includes("Supported after their native acceptance"), notes);
   }
 
   @TestMethod
