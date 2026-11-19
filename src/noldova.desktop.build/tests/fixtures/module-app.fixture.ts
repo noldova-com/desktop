@@ -50,7 +50,7 @@ export class ModuleAppFixture implements AsyncDisposable {
   private static readonly NPM_LOG_FILE: string = "npm.log";
   private static readonly NPM_PACK_LOG_FILE: string = "npm-pack.log";
   private static readonly NPM_SCRIPT: readonly string[] = [
-    "import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';",
+    "import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';",
     "import path from 'node:path';",
     "const [command, ...rest] = process.argv.slice(2);",
     "if (process.argv[2] === 'ls') {",
@@ -71,6 +71,12 @@ export class ModuleAppFixture implements AsyncDisposable {
     "    const folder = path.join('node_modules', ...JSON.parse(manifest).name.split('/'));",
     "    mkdirSync(folder, { recursive: true });",
     "    writeFileSync(path.join(folder, 'package.json'), manifest);",
+    "  }",
+    "  const installedLockfile = path.join('node_modules', '.package-lock.json');",
+    "  if (existsSync('package-lock.json') && !existsSync(installedLockfile)) {",
+    "    const { '': root, ...packages } = JSON.parse(readFileSync('package-lock.json', 'utf8')).packages ?? {};",
+    "    mkdirSync('node_modules', { recursive: true });",
+    "    writeFileSync(installedLockfile, JSON.stringify({ name: 'app', lockfileVersion: 3, packages }));",
     "  }",
     `  appendFileSync(path.join(path.dirname(process.argv[1]), '${ModuleAppFixture.NPM_LOG_FILE}'), JSON.stringify({ archives: archives.map(t => path.basename(t)) }) + '\\n');`,
     "}"

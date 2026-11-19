@@ -853,7 +853,8 @@ export interface IShipItProcess {
   findAsync(): Promise<number | null>;
 
   /**
-   * Removes the job, so quitting installs nothing.
+   * Removes the job from the person's launchd domain, so quitting installs nothing; a job in the system domain stays
+   * and still installs the update at the next quit.
    *
    * @returns A promise that resolves once the job is removed.
    * @example
@@ -1397,9 +1398,11 @@ export declare class InstallerStart {
 
 /**
  * The process that installs a macOS update: Squirrel.Mac's ShipIt, which runs as the launchd job
- * `<bundle identifier>.ShipIt` in the person's session from the moment Squirrel has staged the update, keeps its
- * process id until it has installed it, and installs it once the main process has quit. Read from `launchctl list`. A
- * staged update installs at any quit, so a handoff that fails after staging removes the job.
+ * `<bundle identifier>.ShipIt` from the moment Squirrel has staged the update, keeps its process id until it has
+ * installed it, and installs it once the main process has quit. It runs in the person's launchd domain, read from
+ * `launchctl list`, or, for a copy the person cannot write, such as one a `.pkg` installed, as root in the system
+ * domain, read from `launchctl print system/<bundle identifier>.ShipIt`. A staged update installs at any quit, so a
+ * handoff that fails after staging removes the person's job; a system-domain job stays and installs at the next quit.
  */
 export declare class ShipItProcess implements IShipItProcess {
   /**
@@ -1420,8 +1423,10 @@ export declare class ShipItProcess implements IShipItProcess {
   /**
    * Finds the ShipIt process, once Squirrel has staged the update.
    *
-   * @returns The process id of the running ShipIt job, or `null` when the job is not listed or not running.
-   * @throws {UpdateHandoffException} Rejected with the reason when the jobs cannot be listed.
+   * @returns The process id of the running ShipIt job, from the person's launchd domain or else the system domain, or
+   * `null` when neither domain runs it.
+   * @throws {UpdateHandoffException} Rejected with the reason when the person's jobs cannot be listed or the system
+   * domain's job cannot be read for any reason but its absence.
    * @example
    * ```ts
    * import type { ShipItProcess } from "@noldova/desktop.electron";
@@ -1434,8 +1439,9 @@ export declare class ShipItProcess implements IShipItProcess {
   public findAsync(): Promise<number | null>;
 
   /**
-   * Removes the ShipIt job, which ends a ShipIt that is still waiting, so the staged update does not install when
-   * the main process quits. It does nothing when the job is not listed.
+   * Removes the ShipIt job from the person's launchd domain, which ends a ShipIt that is still waiting there, so the
+   * staged update does not install when the main process quits. It does nothing when the job is not listed, and a
+   * job in the system domain stays and still installs the update at the next quit.
    *
    * @returns A promise that resolves once the job is removed.
    * @throws {UpdateHandoffException} Rejected with the reason when the jobs cannot be listed or the job cannot be

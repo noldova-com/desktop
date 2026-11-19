@@ -561,6 +561,25 @@ export interface IViewOptions {
    * {@link IWindowPartContext.updateView}.
    */
   readonly isRenamable?: boolean;
+
+  /**
+   * The group the view opens in on its default side in a new layout, a
+   * whole number from 0, the default: groups go in number order, top to
+   * bottom on the left and right sides and left to right at the bottom,
+   * and share the side equally; a number no shown view uses leaves no
+   * gap. A layout the person has, which is saved after any change, keeps
+   * its groups until Reset the layout, which lays them out again.
+   */
+  readonly defaultGroup?: number;
+
+  /**
+   * The tab's place in its group's tab row in a new layout, a whole number
+   * from 0, lowest first, compared across modules, so modules space their
+   * numbers, such as 10, 20 and 30; each group shows its first tab. Views
+   * without an order follow the ordered ones, in module order and then the
+   * order they were registered in, as views with the same order do.
+   */
+  readonly defaultOrder?: number;
 }
 
 /**
@@ -4494,6 +4513,18 @@ export declare class ViewContribution {
   public readonly isRenamable: boolean;
 
   /**
+   * The group it opens in on its default side in a new layout, as
+   * {@link IViewOptions.defaultGroup} describes it; 0 when left out.
+   */
+  public readonly defaultGroup: number;
+
+  /**
+   * Its tab's place in its group's tab row in a new layout, as
+   * {@link IViewOptions.defaultOrder} describes it, or null for none.
+   */
+  public readonly defaultOrder: number | null;
+
+  /**
    * Creates the view's contribution.
    *
    * @param name The view's name, `<module id>.<name>`.
@@ -4504,10 +4535,12 @@ export declare class ViewContribution {
    * @param loadComponent Loads the component the view shows, which a part
    * loads lazily so activation stays light.
    * @param padding The padding of its page; left out, its module decides.
-   * @param options Whether it has instances and the place of its tab-row
-   * buttons, as {@link IViewOptions} describes them; neither when left out.
+   * @param options Whether it has instances, the place of its tab-row
+   * buttons and its group and order in a new layout, as
+   * {@link IViewOptions} describes them; none when left out.
    * @throws ArgumentException synchronously when the name or the tab-row
-   * place is not `<module id>.<name>` or the title or icon is blank.
+   * place is not `<module id>.<name>`, the title or icon is blank, or the
+   * default group or order is not a whole number of 0 or more.
    * @example
    * ```ts
    * import { Component } from "@angular/core";
@@ -4522,6 +4555,9 @@ export declare class ViewContribution {
    *
    * export const sessions: ViewContribution = new ViewContribution("terminal.session", "Terminal", "terminal", DockSide.Bottom, false,
    *   () => Promise.resolve(TerminalPanelComponent), ContentPadding.None, { hasInstances: true, tabRowPlace: "terminal.tabRow" });
+   *
+   * export const changes: ViewContribution = new ViewContribution("terminal.history", "History", "history", DockSide.Right, true,
+   *   () => Promise.resolve(TerminalPanelComponent), undefined, { defaultGroup: 1, defaultOrder: 20 });
    * ```
    */
   public constructor(name: string, title: string, icon: string, defaultSide: DockSide, isShownByDefault: boolean, loadComponent: () => Promise<Type<unknown>>,

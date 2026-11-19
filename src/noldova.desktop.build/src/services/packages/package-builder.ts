@@ -19,6 +19,7 @@ import { TypeScriptCompiler } from "../toolchain/typescript-compiler.ts";
 import type { AddonBuilder } from "./addon-builder.ts";
 import { ArchiveReader } from "./archive.reader.ts";
 import type { BuildLayout } from "./build-layout.ts";
+import { LockedInstallCheck } from "./locked-install-check.ts";
 import type { PackageManifest } from "../../models/packages/package-manifest.ts";
 import type { PackageVersions } from "../../models/packages/package-versions.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
@@ -42,9 +43,9 @@ export class PackageBuilder {
     this.protocolVersion = protocolVersion;
   }
 
-  public async buildSourceAsync(manifest: PackageManifest, archives: readonly string[]): Promise<void> {
+  public async buildSourceAsync(manifest: PackageManifest, packages: readonly PackageManifest[]): Promise<void> {
     await this.packSourceAsync(manifest);
-    await this.installAsync(manifest.name, this.layout.root, archives);
+    await this.installAsync(manifest.name, this.layout.root, packages);
   }
 
   public async packSourceAsync(manifest: PackageManifest): Promise<void> {
@@ -122,9 +123,13 @@ export class PackageBuilder {
     return differences;
   }
 
-  public async installAsync(subject: string, folder: string, archives: readonly string[]): Promise<void> {
-    const installed = archives.filter(t => existsSync(t));
-    PackageBuilder.require(await this.npm.runAsync([...Resources.npmInstallArguments, ...installed], folder), Resources.formatInstallingOperation(subject));
+  public async installAsync(subject: string, folder: string, manifests: readonly PackageManifest[]): Promise<void> {
+    const built = manifests.filter(t => existsSync(this.layout.locateArchive(t, this.versions.of(t.name))));
+    const installed = built.map(t => this.layout.locateArchive(t, this.versions.of(t.name)));
+    const own = new Set(built.map(t => t.name));
+    const peers = installed.length === 0 ? [] : await LockedInstallCheck.listLockedSpecsAsync(folder, built.flatMap(t => t.peerDependencies).filter(t => !own.has(t)));
+    PackageBuilder.require(await this.npm.runAsync([...Resources.npmInstallArguments, ...installed, ...peers], folder), Resources.formatInstallingOperation(subject));
+    await LockedInstallCheck.checkAsync(folder);
   }
 
   public async compileTestsAsync(manifest: PackageManifest): Promise<void> {

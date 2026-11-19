@@ -1221,6 +1221,9 @@ export class Resources {
   public static readonly debianInstallPrefix: string = "/opt";
   public static readonly debianAppMappingPattern: RegExp = /^(.+\/=)\/opt\/([^/]+)$/;
   public static readonly debianExecPattern: RegExp = /^(Exec="?)\/opt\//m;
+  public static readonly fpmPackageOption: string = "--package";
+  public static readonly fpmAppMappingSeparator: string = "/=";
+  public static readonly packageTypeFile: string = "package-type";
   public static readonly builderModule: string = "electron-builder";
   public static readonly builderLibraryManifest: string = "app-builder-lib/package.json";
   public static readonly builderLinuxTemplatesSegments: readonly string[] = ["templates", "linux"];
@@ -3909,6 +3912,14 @@ export class Resources {
     return `${Resources.debianInstallPrefix}/${installFolder}`;
   }
 
+  public static formatPackageTypeSource(desktopFile: string): string {
+    return `${desktopFile}.${Resources.packageTypeFile}`;
+  }
+
+  public static formatPackageTypeMapping(source: string, app: string): string {
+    return `${source}=${app}/${Resources.packagedResourcesFolder}/${Resources.packageTypeFile}`;
+  }
+
   public static formatDebianInstallFolderUnplaced(installFolder: string, desktopFile: string): string {
     return `electron-builder's Debian package arguments map no app folder into ${Resources.debianInstallPrefix}, or its desktop entry ${desktopFile} runs no program there, `
       + `so the package can't move them into ${Resources.formatDebianInstallFolder(installFolder)}.`;
@@ -3985,6 +3996,14 @@ export class Resources {
     return `${profile} is the package's AppArmor profile, which allows the program user namespaces, and it is loaded.`;
   }
 
+  public static formatDebianPackageTypeChecked(file: string): string {
+    return `${file} holds ${Resources.debianPackageTarget}, so the installed copy updates as a Debian package.`;
+  }
+
+  public static formatDebianPackageTypeMissing(file: string): string {
+    return `${file} doesn't hold ${Resources.debianPackageTarget}, so the installed copy can't tell it came from the Debian package and would update as an AppImage.`;
+  }
+
   public static formatDebianRemoved(packageName: string, folder: string, profile: string): string {
     return `Removing the Debian package ${packageName} left neither ${folder} nor ${profile}.`;
   }
@@ -4041,6 +4060,21 @@ export class Resources {
 
   public static formatRootPackagesInstalled(count: number): string {
     return `Packages built on Angular packages and installed: ${count}.\n`;
+  }
+
+  public static formatLockedSpec(name: string, version: string): string {
+    return `${name}@${version}`;
+  }
+
+  public static formatUnlockedInstall(location: string, version: string, held: string | null): string {
+    return `Installing the built packages put ${location} at ${version}, `
+      + (Object.isNull(held) ? "which package-lock.json doesn't hold" : `where package-lock.json holds ${held}`)
+      + "; the install takes only the lockfile's versions, so lock it there with npm install and commit the lockfile.";
+  }
+
+  public static formatInstalledLockfileMissing(file: string): string {
+    return `Installing the built packages left no ${file} beside package-lock.json, so the installed versions can't be checked against the lockfile; `
+      + "install with an npm that writes it and build again.";
   }
 
   public static formatSecondCopy(name: string, location: string): string {

@@ -14,15 +14,18 @@ import { Resources } from "../../../resources.js";
 import { BottomDockSpan } from "../../enums/bottom-dock-span.js";
 import { DockSide } from "../../enums/dock-side.js";
 import type { PanelEdge } from "../../enums/panel-edge.js";
+import { SplitAxis } from "../../enums/split-axis.js";
 import { Dock } from "./dock.js";
 import { DocumentGroup } from "./document-group.js";
 import type { DocumentTab } from "./document-tab.js";
 import type { LayoutNode } from "./layout.node.js";
+import { SplitPart } from "./split-part.js";
 import { SplitNode } from "./split.node.js";
 import type { Tab } from "./tab.js";
 import { TabGroup } from "./tab-group.js";
 import { ToolbarLayout } from "./toolbar-layout.js";
 import type { ViewRegistry } from "./view-registry.js";
+import type { ViewType } from "./view-type.js";
 import { ViewTab } from "./view-tab.js";
 
 export class Layout {
@@ -71,9 +74,12 @@ export class Layout {
   public static createDefault(registry: ViewRegistry): Layout {
     let id = Resources.documentsGroupId;
     const docks = Object.values(DockSide).map(side => {
-      const tabs = registry.views.filter(t => t.isShownByDefault && t.defaultSide === side).map(t => new ViewTab(t.name));
-      const [first] = tabs;
-      return new Dock(side, Object.isUndefined(first) ? null : new TabGroup(++id, tabs, first), null, false);
+      const views = Layout.inDefaultOrder(registry.views.filter(t => t.isShownByDefault && t.defaultSide === side));
+      const heads = views.filter((t, index) => views.findIndex(u => u.defaultGroup === t.defaultGroup) === index).sort((a, b) => a.defaultGroup - b.defaultGroup);
+      const groups = heads.map(head => new TabGroup(++id, views.filter(t => t.defaultGroup === head.defaultGroup).map(t => new ViewTab(t.name)), new ViewTab(head.name)));
+      const [first] = groups;
+      const root = groups.length > 1 ? new SplitNode(++id, side === DockSide.Bottom ? SplitAxis.Horizontal : SplitAxis.Vertical, groups.map(t => new SplitPart(t, 1))) : first ?? null;
+      return new Dock(side, root, null, false);
     });
     return new Layout(docks, DocumentGroup.createEmpty());
   }
@@ -250,6 +256,10 @@ export class Layout {
 
   private get nextId(): number {
     return Math.max(...this.docks.flatMap(t => t.root?.nodeIds ?? []), ...this.middle.nodeIds) + 1;
+  }
+
+  private static inDefaultOrder(views: readonly ViewType[]): readonly ViewType[] {
+    return [...views].sort((a, b) => (a.defaultOrder ?? Number.MAX_SAFE_INTEGER) - (b.defaultOrder ?? Number.MAX_SAFE_INTEGER));
   }
 
   private static dockOn(side: DockSide, docks: readonly Dock[]): Dock {

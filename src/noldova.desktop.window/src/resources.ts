@@ -873,6 +873,7 @@ export class Resources {
   public static readonly coveringTabContentClass: string = "nol-tab-content-covering";
   public static readonly invalidContributionName: string = "A contribution name has the form <module id>.<name>.";
   public static readonly renamableViewWithoutInstances: string = "Only a view with instances can be renamable.";
+  public static readonly invalidDefaultPlace: string = "A view's default group and default order are whole numbers of 0 or more.";
   public static readonly invalidModuleId: string = "A module id is lowercase kebab-case.";
   public static readonly windowPartLoadFailed: string = "Its window part could not be loaded.";
   public static readonly windowPartActivationFailed: string = "Its window part failed to activate.";
