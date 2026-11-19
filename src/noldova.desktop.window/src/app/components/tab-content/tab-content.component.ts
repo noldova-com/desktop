@@ -9,8 +9,8 @@
 import { FocusTrapFactory } from "@angular/cdk/a11y";
 import { NgComponentOutlet } from "@angular/common";
 import {
-  Component, DestroyRef, ElementRef, ErrorHandler, Injector, type InputSignal, type ResourceRef, type Signal, type Type, afterRenderEffect, computed, inject, input,
-  resource, untracked
+  Component, DestroyRef, ElementRef, ErrorHandler, Injector, type InputSignal, type ResourceRef, type Signal, type Type, type WritableSignal, afterRenderEffect, computed,
+  inject, input, resource, signal, untracked
 } from "@angular/core";
 
 import "@noldova/context.core";
@@ -63,13 +63,23 @@ export class TabContentComponent {
   private focused: HTMLElement | null = null;
   private isRetrying: boolean = false;
   private readonly changes: MutationObserver = new MutationObserver(() => this.retry());
-
-  protected readonly content: ResourceRef<TabContent | null | undefined> = resource({
+  private readonly failedModule: WritableSignal<string | null> = signal(null);
+  private readonly loaded: ResourceRef<TabContent | null | undefined> = resource({
     params: () => ({ tab: this.stableTab(), revision: this.revision() }),
     loader: ({ params }) => this.loadAsync(params.tab)
   });
+  private readonly pageFailure: Signal<TabContent | null> = computed(() => {
+    const moduleId = this.failedModule();
+    if (Object.isNull(moduleId))
+      return null;
+    const displayName = this.statuses.modules().find(t => t.id === moduleId)?.displayName ?? moduleId;
+    const failure = new ModuleFailure(moduleId, displayName, ModuleState.Failed, Resources.pageLoadFailed, []);
+    return new TabContent(ModuleFailureCardComponent, this.injector, { failure }, ContentPadding.Default, new ContentPaddingRef());
+  });
+
+  protected readonly content: Signal<TabContent | null | undefined> = computed(() => this.pageFailure() ?? this.loaded.value());
   protected readonly isPadded: Signal<boolean> = computed(() => {
-    const value = this.content.value();
+    const value = this.content();
     return !Object.isNullOrUndefined(value) && (value.pagePadding.value() ?? value.padding) === ContentPadding.Default;
   });
 
@@ -77,7 +87,7 @@ export class TabContentComponent {
   public readonly tab: InputSignal<Tab> = input.required<Tab>();
   public readonly isDocked: InputSignal<boolean> = input<boolean>(false);
   public readonly isShown: InputSignal<boolean> = input<boolean>(true);
-  public readonly isLoaded: Signal<boolean> = computed(() => this.content.hasValue());
+  public readonly isLoaded: Signal<boolean> = computed(() => this.loaded.hasValue());
 
   public constructor() {
     afterRenderEffect({
@@ -146,6 +156,7 @@ export class TabContentComponent {
   }
 
   private async loadAsync(tab: Tab): Promise<TabContent | null> {
+    this.failedModule.set(null);
     const match = this.host.findContribution(tab);
     const pagePadding = new ContentPaddingRef();
     if (Object.isNull(match)) {
@@ -158,7 +169,7 @@ export class TabContentComponent {
       component = await match.loadComponent();
     }
     catch (error) {
-      return this.failLoad(match.context, error, pagePadding);
+      return this.failLoad(match.context, error);
     }
     const page = [{ provide: WindowPartTokens.contentPadding, useValue: pagePadding }, { provide: WindowPartTokens.shown, useValue: this.isShown },
       { provide: WindowPartTokens.activeDocument, useValue: this.isActiveDocument }];
@@ -169,14 +180,9 @@ export class TabContentComponent {
     return new TabContent(component, injector, inputs, match.padding, pagePadding);
   }
 
-  private failLoad(context: WindowPartContext | null, error: unknown, pagePadding: ContentPaddingRef): TabContent | null {
-    if (Object.isNull(context)) {
-      this.errors.handleError(error);
-      return null;
-    }
-    this.errors.handleError(new PageNotLoadedException(context.moduleId, error));
-    const displayName = this.statuses.modules().find(t => t.id === context.moduleId)?.displayName ?? context.moduleId;
-    const failure = new ModuleFailure(context.moduleId, displayName, ModuleState.Failed, Resources.pageLoadFailed, []);
-    return new TabContent(ModuleFailureCardComponent, this.injector, { failure }, ContentPadding.Default, pagePadding);
+  private failLoad(context: WindowPartContext | null, error: unknown): null {
+    this.errors.handleError(Object.isNull(context) ? error : new PageNotLoadedException(context.moduleId, error));
+    this.failedModule.set(context?.moduleId ?? null);
+    return null;
   }
 }

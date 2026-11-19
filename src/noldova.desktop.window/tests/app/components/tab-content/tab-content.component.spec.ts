@@ -369,33 +369,25 @@ describe("TabContentComponent", () => {
     expect(element.querySelector("nol-module-failure-card")?.textContent).toMatch(/Clock didn't start\s*Its runtime part failed to activate\./);
   });
 
-  it("shows a card naming its module for a page that fails to load, by the runtime's name when it reports one and by its id when not, and reports each failure once", async () => {
+  it("shows a card naming its module for a page that fails to load, by its id until the runtime reports the module's name and by that name from then on, and reports the failure once", async () => {
     const errors: unknown[] = [];
     TestBed.overrideProvider(ErrorHandler, { useValue: { handleError: (error: unknown) => errors.push(error) } });
-    const failing = (name: string): ViewTab => {
-      const tab = new ViewTab(name);
-      host.contributions.set(tab.key, new ContributionMatch(() => Promise.reject(new Error(`No ${name} chunk.`)), context, ContentPadding.Default));
-      return tab;
-    };
-    const renderFixtureAsync = async (tab: Tab): Promise<ComponentFixture<TabContentComponent>> => {
-      const fixture = TestBed.createComponent(TabContentComponent);
-      fixture.componentRef.setInput("tab", tab);
-      await fixture.whenStable();
-      return fixture;
-    };
+    const tab = new ViewTab("notes.list");
+    host.contributions.set(tab.key, new ContributionMatch(() => Promise.reject(new Error("No notes.list chunk.")), context, ContentPadding.Default));
+    const fixture = TestBed.createComponent(TabContentComponent);
+    fixture.componentRef.setInput("tab", tab);
+    await fixture.whenStable();
+    const card = (): string | null | undefined => DomFixture.host(fixture).querySelector("nol-module-failure-card")?.textContent;
 
-    const unnamed = await renderFixtureAsync(failing("notes.list"));
+    const unnamed = card();
     ModuleStatusFixture.report(ModuleStatusFixture.create("notes", "Notes"));
-    const named = await renderFixtureAsync(failing("notes.editor"));
-    unnamed.detectChanges();
-    named.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
 
-    expect([unnamed, named].map(t => DomFixture.host(t).querySelector("nol-module-failure-card")?.textContent))
-      .toEqual([expect.stringMatching(/notes didn't start\s*Its page could not be loaded\./), expect.stringMatching(/Notes didn't start\s*Its page could not be loaded\./)]);
-    expect([unnamed, named].map(t => DomFixture.host(t).classList.contains("nol-tab-content-padded"))).toEqual([true, true]);
+    expect([unnamed, card()]).toEqual([expect.stringMatching(/notes didn't start\s*Its page could not be loaded\./), expect.stringMatching(/Notes didn't start\s*Its page could not be loaded\./)]);
+    expect(DomFixture.host(fixture).classList.contains("nol-tab-content-padded")).toBe(true);
     expect(errors.map(t => t instanceof WindowPartFailureException ? [t.name, t.moduleId, t.message, t.cause instanceof Error ? t.cause.message : null] : t)).toEqual([
-      ["PageNotLoadedException", "notes", "Its page could not be loaded.", "No notes.list chunk."],
-      ["PageNotLoadedException", "notes", "Its page could not be loaded.", "No notes.editor chunk."]
+      ["PageNotLoadedException", "notes", "Its page could not be loaded.", "No notes.list chunk."]
     ]);
   });
 
