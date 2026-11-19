@@ -189,6 +189,7 @@ class MovingRunner extends ProcessRunner {
 @TestClass
 export class PackageInstallerTests {
   private static readonly WINDOWS: PackageTarget = new PackageTarget("windows", "x64");
+  private static readonly SYSTEM_ONLY: string = "    <domains enable_anywhere=\"false\" enable_currentUserHome=\"false\" enable_localSystem=\"true\" />\n";
   private static readonly PRODUCT: ProductIdentity = new ProductIdentity("Sample App", "Sample", "sample-app", "com.example.sample", "com.example.sample.development",
     ".sample/app", ["Sample/App", "Sample/App", "sample/app"], "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app");
 
@@ -634,6 +635,37 @@ export class PackageInstallerTests {
   }
 
   @TestMethod
+  public async refusesAnInstallerPackageThatOffersAnyDestinationButTheStartupDisk(): Promise<void> {
+    const cases: readonly (readonly [string, string, string])[] = [
+      ["home folder", "    <domains enable_anywhere=\"false\" enable_currentUserHome=\"true\" enable_localSystem=\"true\" />\n",
+        "it has <domains enable_anywhere=\"false\" enable_currentUserHome=\"true\" enable_localSystem=\"true\" />"],
+      ["any volume", "    <domains enable_anywhere=\"true\" enable_currentUserHome=\"false\" enable_localSystem=\"true\" />\n",
+        "it has <domains enable_anywhere=\"true\" enable_currentUserHome=\"false\" enable_localSystem=\"true\" />"],
+      ["no startup disk", "    <domains enable_anywhere=\"false\" enable_currentUserHome=\"false\" enable_localSystem=\"false\" />\n",
+        "it has <domains enable_anywhere=\"false\" enable_currentUserHome=\"false\" enable_localSystem=\"false\" />"],
+      ["a choice left out", "    <domains enable_anywhere=\"false\" enable_localSystem=\"true\" />\n",
+        "it has <domains enable_anywhere=\"false\" enable_localSystem=\"true\" />"],
+      ["no domains", String.empty, "it has no <domains> element"],
+      ["two domains", `${PackageInstallerTests.SYSTEM_ONLY}${PackageInstallerTests.SYSTEM_ONLY}`,
+        "it has <domains enable_anywhere=\"false\" enable_currentUserHome=\"false\" enable_localSystem=\"true\" /> and "
+        + "<domains enable_anywhere=\"false\" enable_currentUserHome=\"false\" enable_localSystem=\"true\" />"]
+    ];
+
+    for (const [name, domains, found] of cases)
+      await PackageInstallerTests.withFolderAsync(async folder => {
+        const information = "<pkg-info format-version=\"2\" install-location=\"/Applications/Sample Makers\" auth=\"root\"/>";
+        const runner = PackageInstallerTests.createExpandingRunner(path.join(folder, "expanded", "Sample App.pkg"), information, domains);
+
+        const error = await Assert.throwsAsync(() => new PackageInstaller(folder, runner, {}).installAsync(new PackageTarget("macos", "arm64", true),
+          PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder), BuildException);
+
+        Assert.areEqual(`The installer package ${path.join(folder, "_build", "package", "out", "Sample App-1.2.3-macos-arm64.pkg")} must install only into `
+          + "/Applications/Sample Makers on the startup disk, with one <domains enable_anywhere=\"false\" enable_currentUserHome=\"false\" enable_localSystem=\"true\"/> "
+          + `in its Distribution, but ${found}.`, error.message, name);
+      });
+  }
+
+  @TestMethod
   public async detachesTheDiskImageAndPassesOnAFailedCopy(): Promise<void> {
     await PackageInstallerTests.withFolderAsync(async folder => {
       const runner = new ScriptedRunner(command => Promise.resolve(new ProcessResult(command === "ditto" ? 1 : 0, String.empty, "ditto: No space left on device")));
@@ -723,11 +755,13 @@ export class PackageInstallerTests {
       "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app", undefined, null, null, undefined, null, installFolder);
   }
 
-  private static createExpandingRunner(component: string, information: string): ScriptedRunner {
+  private static createExpandingRunner(component: string, information: string, domains: string = PackageInstallerTests.SYSTEM_ONLY): ScriptedRunner {
     return new ScriptedRunner(async command => {
       if (command === "pkgutil") {
         await PackageInstallerTests.writeAsync(path.join(component, "Payload", "Sample App.app", "Contents", "MacOS", "Sample App"), "app");
         await PackageInstallerTests.writeAsync(path.join(component, "PackageInfo"), information);
+        await PackageInstallerTests.writeAsync(path.join(path.dirname(component), "Distribution"),
+          `<?xml version="1.0" encoding="utf-8"?>\n<installer-gui-script minSpecVersion="2">\n    <pkg-ref id="com.example.sample"/>\n${domains}</installer-gui-script>\n`);
       }
       return new ProcessResult(0, String.empty, String.empty);
     });
