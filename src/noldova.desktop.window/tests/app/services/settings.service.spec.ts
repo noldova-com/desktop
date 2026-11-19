@@ -15,7 +15,9 @@ import {
   SettingDefinition,
   SettingEntry,
   SettingKey,
+  SettingKind,
   SettingLocality,
+  SettingOption,
   SettingScope,
   SettingType,
   SettingChange,
@@ -61,6 +63,30 @@ describe("SettingsService", () => {
     expect([value(), service.read("desktop.panelSize"), service.read("desktop.other")]).toEqual(["Dark", 13, undefined]);
     expect(["desktop.mode", "desktop.panelSize", "desktop.other"].map(t => service.isSet(t)())).toEqual([true, false, false]);
     expect(bridge.requests).toEqual([["desktop.settings", {}]]);
+  });
+
+  it("shows the keys that a setting's title, description and option titles name by a token in the platform's own form, and a token that names no key as written", async () => {
+    const send = QualifiedName.parse("desktop.send");
+    const options = [new SettingOption("mod", "{key:Mod+Enter}"), new SettingOption("plain", "Enter"), new SettingOption("odd", "{key:Mod+Entr}")];
+    const keyed = new SettingDefinition(send, "Send with {key:Mod+Enter}", "{key:Alt+Enter} adds a line.", SettingType.choice(options), "mod", SettingLocality.Shared, [], "Chat", "Composer");
+    const texts = (definition: SettingDefinition): readonly string[] => [definition.title, definition.description, ...definition.type.options.map(t => `${t.value}=${t.title}`)];
+    bridge.responses.set("desktop.settings", { payload: new SettingsSnapshot([keyed, ...definitions], []).toJson() });
+
+    await service.loadAsync();
+    const windows = service.definitions().map(texts);
+    bridge.platform = "linux";
+    await service.loadAsync();
+    const linux = service.definitions().map(texts);
+    bridge.platform = "darwin";
+    await service.loadAsync();
+
+    const others = [["Mode", "Light or dark."], ["Size", "Text size."]];
+    expect(windows).toEqual([["Send with Ctrl+Enter", "Alt+Enter adds a line.", "mod=Ctrl+Enter", "plain=Enter", "odd={key:Mod+Entr}"], ...others]);
+    expect(linux).toEqual(windows);
+    expect(service.definitions().map(texts)).toEqual([["Send with Cmd+Enter", "Option+Enter adds a line.", "mod=Cmd+Enter", "plain=Enter", "odd={key:Mod+Entr}"], ...others]);
+    const [shown, mode, size] = service.definitions();
+    expect([shown?.name, shown?.type.kind, shown?.defaultValue, shown?.locality, shown?.page, shown?.group]).toEqual([send, SettingKind.Choice, "mod", SettingLocality.Shared, "Chat", "Composer"]);
+    expect([mode?.type, size?.type]).toEqual([definitions[0]?.type, definitions[1]?.type]);
   });
 
   it("asks the runtime to set and reset a value, for the application or a scope", async () => {
