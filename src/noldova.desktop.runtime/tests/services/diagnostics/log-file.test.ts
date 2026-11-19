@@ -9,10 +9,11 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { setImmediate } from "node:timers/promises";
 
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { DiagnosticRedactor, LogFile } from "@noldova/desktop.runtime";
+import { DiagnosticRedactor, LogFile, LogFileClosedException } from "@noldova/desktop.runtime";
 
 import { ClosePatchFixture } from "../../fixtures/close-patch.fixture.js";
 import { ShortWriteFixture } from "../../fixtures/short-write.fixture.js";
@@ -385,6 +386,51 @@ export class LogFileTests {
       await Promise.all(written.slice(0, 4));
       Assert.areEqual(2, slow.calls);
       Assert.areEqual(lines.slice(0, 4).join(String.empty), await readFile(file, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public closesOnlyOnceTheLineBeingWrittenNoLongerHoldsTheFileOpen(): Promise<void> {
+    return LogFileTests.runAsync(0, async (log, file) => {
+      const line = log.format("record 1");
+      log.open();
+      using held = new SlowWriteFixture(true);
+      using closes = new ClosePatchFixture(null);
+
+      const written = log.appendAsync(line);
+      await held.calledAsync(1);
+      let isClosed = false;
+      const closing = log.closeAsync().then(() => {
+        isClosed = true;
+      });
+      await setImmediate();
+      const wasClosedWhileHeld = isClosed;
+      held.release();
+      await closing;
+      const closedAtResolve = closes.closed;
+      await written;
+
+      Assert.isFalse(wasClosedWhileHeld);
+      Assert.areEqual(1, closedAtResolve);
+      Assert.areEqual(line, await readFile(file, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public refusesEveryLineOnceClosedAndKeepsWhatTheFileHolds(): Promise<void> {
+    return LogFileTests.runAsync(LogFileTests.WRITE_WAIT, async (log, file) => {
+      const lines = Array.from({ length: 2 }, (_, i) => log.format(`record ${i + 1}`));
+      log.open();
+      await log.appendAsync(lines[0] ?? String.empty);
+      await log.closeAsync();
+
+      const refusedLater = await Assert.throwsAsync(() => log.appendAsync(lines[1] ?? String.empty), LogFileClosedException);
+      const refusedAtOnce = Assert.throws(() => log.append(lines[1] ?? String.empty), LogFileClosedException);
+      Assert.throws(() => log.open(), LogFileClosedException);
+
+      Assert.areEqual(file, refusedLater.file);
+      Assert.areEqual(`The log ${file} is closed, so the line was not written.`, refusedAtOnce.message);
+      Assert.areEqual(lines[0], await readFile(file, "utf8"));
     });
   }
 

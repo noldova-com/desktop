@@ -121,6 +121,32 @@ export declare class DataDirectoryOwnedException extends RuntimeException {
 }
 
 /**
+ * The exception thrown when a line is given to a log after it was closed, so the line is refused rather than lost
+ * without a trace.
+ */
+export declare class LogFileClosedException extends RuntimeException {
+  /**
+   * The absolute path of the closed log.
+   */
+  public readonly file: string;
+
+  /**
+   * Creates the exception.
+   *
+   * @param file The absolute path of the closed log.
+   * @example
+   * ```ts
+   * import { LogFileClosedException } from "@noldova/desktop.runtime";
+   *
+   * export function fail(): never {
+   *   throw new LogFileClosedException("/data/logs/app.log");
+   * }
+   * ```
+   */
+  public constructor(file: string);
+}
+
+/**
  * The category of the exceptions thrown when discovery metadata is malformed or has an
  * unsupported format version: {@link DiscoveryUnreadableException},
  * {@link DiscoveryVersionUnsupportedException}, {@link DiscoveryNotObjectException} and
@@ -1846,6 +1872,7 @@ export declare class LogFile {
   /**
    * Starts an empty file. The existing file, if there is one, becomes the previous file, replacing it. When it cannot, the failure is thrown and the existing file keeps what it holds.
    *
+   * @throws {LogFileClosedException} Thrown once the log is closed.
    * @throws {Error} Thrown when the existing file cannot become the previous file or the file cannot be written.
    * @example
    * ```ts
@@ -1863,6 +1890,7 @@ export declare class LogFile {
    * writes them, then this one. When it would take the file over its size limit, the file first becomes the previous file.
    *
    * @param line The line from {@link LogFile.format}.
+   * @throws {LogFileClosedException} Thrown once the log is closed.
    * @throws {Error} Thrown when the file cannot become the previous file, in which case it keeps what it holds, or cannot be written.
    * @example
    * ```ts
@@ -1882,6 +1910,7 @@ export declare class LogFile {
    *
    * @param line The line from {@link LogFile.format}.
    * @returns A promise that settles once the line is written; the caller handles its rejection.
+   * @throws {LogFileClosedException} Rejected once the log is closed.
    * @throws {Error} Rejected when the file cannot become the previous file, in which case it keeps what it holds, or cannot be written; later lines are still tried.
    * @example
    * ```ts
@@ -1925,6 +1954,23 @@ export declare class LogFile {
    * ```
    */
   public flushAsync(): Promise<void>;
+
+  /**
+   * Closes the log: writes the lines still waiting at once, as {@link LogFile.flush} does, then waits until the file is
+   * no longer open, a write already under way included, so the folder that holds it can be removed. Once closed, the
+   * log refuses every line with a {@link LogFileClosedException}.
+   *
+   * @returns A promise that resolves once the file is closed; it never rejects.
+   * @example
+   * ```ts
+   * import type { LogFile } from "@noldova/desktop.runtime";
+   *
+   * export async function endAsync(log: LogFile): Promise<void> {
+   *   await log.closeAsync();
+   * }
+   * ```
+   */
+  public closeAsync(): Promise<void>;
 }
 
 /**

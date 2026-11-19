@@ -52,12 +52,12 @@ export class MainProcessRecovery {
     if (this.hasFailed)
       return;
     this.hasFailed = true;
-    this.askAsync(error).catch((failure: unknown) => {
+    this.askAsync(error).catch(async (failure: unknown) => {
       try {
         this.record(Resources.formatMainProcessBoxFailed(MainProcessRecovery.describe(failure)));
       }
       finally {
-        this.exit(Resources.failureExitCode);
+        await this.exitAsync(Resources.failureExitCode);
       }
     });
   }
@@ -87,12 +87,12 @@ export class MainProcessRecovery {
       }
       if (choice === Resources.restartButton)
         this.app.relaunch();
-      this.exit(Resources.quitExitCode);
+      await this.exitAsync(Resources.quitExitCode);
       return;
     }
   }
 
-  private exit(code: number): void {
+  private async exitAsync(code: number): Promise<void> {
     try {
       this.release?.();
     }
@@ -100,6 +100,7 @@ export class MainProcessRecovery {
       this.record(Resources.formatMainProcessNotReleased(MainProcessRecovery.describe(failure)));
     }
     this.log?.flush();
+    await this.log?.closeAsync?.();
     this.app.exit(code);
   }
 

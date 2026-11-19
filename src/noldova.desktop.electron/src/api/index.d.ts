@@ -4700,6 +4700,24 @@ export interface IMainProcessLog {
    * ```
    */
   flush(): void;
+
+  /**
+   * Closes the log's file, when the log has one, before the main process exits: it resolves only once no write still
+   * holds the file open. A line written afterwards still reaches standard error but no longer the file.
+   *
+   * @returns A promise that resolves once the file is closed; it never rejects.
+   * @example
+   * ```ts
+   * import type { IMainProcessLog } from "@noldova/desktop.electron";
+   *
+   * export async function closeAndExitAsync(log: IMainProcessLog, exit: () => void): Promise<void> {
+   *   log.flush();
+   *   await log.closeAsync?.();
+   *   exit();
+   * }
+   * ```
+   */
+  closeAsync?(): Promise<void>;
 }
 
 /**
@@ -10927,6 +10945,22 @@ export declare class MainProcessLog implements IMainProcessLog {
    * ```
    */
   public flush(): void;
+
+  /**
+   * Closes the file once the lines still waiting are written and no write still holds it open, as when the main process
+   * exits. A line written afterwards still reaches standard error but no longer the file.
+   *
+   * @returns A promise that resolves once the file is closed; it never rejects.
+   * @example
+   * ```ts
+   * import type { MainProcessLog } from "@noldova/desktop.electron";
+   *
+   * export async function finishAsync(log: MainProcessLog): Promise<void> {
+   *   await log.closeAsync();
+   * }
+   * ```
+   */
+  public closeAsync(): Promise<void>;
 }
 
 /**

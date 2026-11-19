@@ -1342,6 +1342,10 @@ export class Resources {
     return `The discovery file ${file} is not valid: ${reason}`;
   }
 
+  public static formatLogFileClosed(file: string): string {
+    return `The log ${file} is closed, so the line was not written.`;
+  }
+
   public static formatOwned(productName: string, root: string): string {
     return `Another ${productName} runtime owns the data directory ${root}.`;
   }
