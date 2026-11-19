@@ -6289,6 +6289,10 @@ export declare class CommandLineRelay {
   public relay(commandArguments: readonly string[]): number;
 }
 
+/**
+ * Asks one window to save before it closes, and decides whether it may close: a window that reports a failed save
+ * stays open, while a window that is gone or does not answer in time does not block closing.
+ */
 export declare class CloseCoordinator {
   /**
    * Creates the coordinator.
