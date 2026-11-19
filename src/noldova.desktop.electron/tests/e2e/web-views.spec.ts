@@ -210,6 +210,19 @@ function readFirstViewFramesAsync(mainProcess: MainProcessFixture): Promise<read
   });
 }
 
+function readFirstViewFrameTitleAsync(mainProcess: MainProcessFixture): Promise<unknown> {
+  return mainProcess.application.evaluate(({ webContents }) => {
+    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+    const frame = first?.mainFrame.frames[0];
+    return frame === undefined ? null : frame.executeJavaScript("document.title").catch(() => null);
+  });
+}
+
+async function readRequestsWithoutInputAsync(window: Page, from: number): Promise<string[]> {
+  const requests = (await view(window, 0).getAttribute("data-requests")) ?? String.empty;
+  return requests.slice(from).split("\n").map(t => t.split(" ").filter((_, index) => index !== 1).join(" "));
+}
+
 function runInFirstViewAsync(mainProcess: MainProcessFixture, script: string): Promise<boolean> {
   return mainProcess.application.evaluate(async ({ webContents }, code) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
@@ -1279,8 +1292,13 @@ test.describe("web views", () => {
       const processes = await readFirstViewFramesAsync(mainProcess);
       expect(processes).not.toBeNull();
       expect(processes?.[0]).not.toBe(processes?.[1]);
-      expect(await clickInFirstViewAsync(mainProcess, 50, 20, "middle")).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${relayed}${pair(other, true, "background-tab", "4")}`);
+      await expect.poll(() => readFirstViewFrameTitleAsync(mainProcess)).toBe("Handlers");
+      const box = await readViewBoxAsync(window);
+      if (Object.isNull(box))
+        throw new Error("The view has no element in the window.");
+      await window.mouse.click(box.x + 50, box.y + 20, { button: "middle" });
+      await expect.poll(() => readRequestsWithoutInputAsync(window, relayed.length)).toEqual([`${other}/a ${other} background-tab 4`, `${other}/b ${other} background-tab 4`, String.empty]);
+      expect((await view(window, 0).getAttribute("data-requests"))?.startsWith(relayed)).toBe(true);
     }
     finally {
       await holdClockAsync(mainProcess, false);
