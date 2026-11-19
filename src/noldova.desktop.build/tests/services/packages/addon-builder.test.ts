@@ -43,15 +43,50 @@ export class AddonBuilderTests {
       const runner = AddonBuilderTests.createBuildingRunner(new ProcessResult(0, "done", String.empty));
       const output = path.join(root, "out");
 
-      await new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, runner), "linux", "x64", String.empty, "x64").buildAsync(AddonBuilderTests.MANIFEST, output);
+      await new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, runner), "linux", "x64", String.empty, "x64", path.join(root, "node")).buildAsync(AddonBuilderTests.MANIFEST, output);
 
       const work = layout.locateAddonWork(AddonBuilderTests.MANIFEST, "pty-unix");
       Assert.areEqual("built", await readFile(path.join(output, "native", "linux-x64", "pty-unix.node"), "utf8"));
       Assert.areEqual("unix source", await readFile(path.join(work, "pty-unix.c"), "utf8"));
       Assert.areEqual(Resources.formatJsonFile({ targets: [{ target_name: "pty_unix", sources: ["pty-unix.c"], defines: ["NAPI_VERSION=8"] }] }), await readFile(path.join(work, "binding.gyp"), "utf8"));
       Assert.areEqual(
-        [process.execPath, path.join(root, "npm", "..", "node_modules", "node-gyp", "bin", "node-gyp.js"), ...Resources.addonRebuildArguments, layout.nodeGypFolder, work, "600000"].join("\n"),
+        [process.execPath, path.join(root, "npm", "..", "node_modules", "node-gyp", "bin", "node-gyp.js"), ...Resources.addonRebuildArguments, "--devdir", layout.nodeGypFolder, work, "600000"].join("\n"),
         runner.calls.map(t => t.join("\n")).join("\n\n"));
+    }
+    finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  public async buildsThePosixAddonsAgainstTheRunningNodesOwnHeadersWhenItHasThemAsync(): Promise<void> {
+    const root = await AddonBuilderTests.createRootAsync();
+    try {
+      const node = path.join(root, "node");
+      await AddonBuilderTests.writeAsync(path.join(node, "include", "node", "common.gypi"), "{}");
+      const runner = AddonBuilderTests.createBuildingRunner(new ProcessResult(0, "done", String.empty));
+
+      await new AddonBuilder(new BuildLayout(root), AddonBuilderTests.createNodeGyp(root, runner), "darwin", "x64", String.empty, "x64", node).buildAsync(AddonBuilderTests.MANIFEST, path.join(root, "out"));
+
+      Assert.areEqual(["--nodedir", node].join(" "), runner.calls.map(t => t.slice(-4, -2).join(" ")).join("\n"));
+    }
+    finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  public async downloadsTheHeadersForTheWindowsAddonsEvenWhenTheRunningNodeHasItsOwnAsync(): Promise<void> {
+    const root = await AddonBuilderTests.createRootAsync();
+    try {
+      const node = path.join(root, "node");
+      await AddonBuilderTests.writeAsync(path.join(node, "include", "node", "common.gypi"), "{}");
+      const layout = new BuildLayout(root);
+      const runner = AddonBuilderTests.createBuildingRunner(new ProcessResult(0, "done", String.empty));
+
+      await new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, runner), "win32", "x64", String.empty, "x64", node).buildAsync(AddonBuilderTests.MANIFEST, path.join(root, "out"));
+
+      Assert.areEqual(["--devdir", layout.nodeGypFolder].join(" "), runner.calls.map(t => t.slice(-4, -2).join(" ")).join("\n"));
     }
     finally {
       await rm(root, { recursive: true, force: true });

@@ -25,14 +25,17 @@ export class AddonBuilder {
   private readonly architecture: string;
   private readonly releaseAddons: string;
   private readonly machineArchitecture: string;
+  private readonly nodeFolder: string;
 
-  public constructor(layout: BuildLayout, nodeGyp: NodeGyp, platform: string, architecture: string, releaseAddons: string = String.empty, machineArchitecture: string = process.arch) {
+  public constructor(layout: BuildLayout, nodeGyp: NodeGyp, platform: string, architecture: string, releaseAddons: string = String.empty, machineArchitecture: string = process.arch,
+    nodeFolder: string = path.dirname(path.dirname(process.execPath))) {
     this.layout = layout;
     this.nodeGyp = nodeGyp;
     this.platform = platform;
     this.architecture = architecture;
     this.releaseAddons = releaseAddons;
     this.machineArchitecture = machineArchitecture;
+    this.nodeFolder = nodeFolder;
   }
 
   public static listReleaseBuilds(manifest: PackageManifest): readonly string[] {
@@ -56,6 +59,12 @@ export class AddonBuilder {
     return this.platform === Resources.windowsPlatform;
   }
 
+  private locateHeaders(): readonly string[] {
+    return !this.isWindows && existsSync(path.join(this.nodeFolder, ...Resources.addonLocalHeadersSegments))
+      ? [Resources.addonLocalHeadersOption, this.nodeFolder]
+      : [Resources.addonHeadersDownloadOption, this.layout.nodeGypFolder];
+  }
+
   private async buildAddonAsync(manifest: PackageManifest, addon: string, output: string): Promise<void> {
     const work = this.layout.locateAddonWork(manifest, addon);
     const source = `${addon}${Resources.addonSourceExtension}`;
@@ -68,7 +77,7 @@ export class AddonBuilder {
     }));
 
     const kind = this.isWindows ? Resources.addonKindWindows : Resources.addonKindPosix;
-    const result = await this.nodeGyp.runAsync([...Resources.addonRebuildArguments, this.layout.nodeGypFolder], work);
+    const result = await this.nodeGyp.runAsync([...Resources.addonRebuildArguments, ...this.locateHeaders()], work);
     if (!result.isSuccessful)
       throw new BuildException(this.isWindows && result.text.includes(Resources.addonNoToolchainText)
         ? Resources.formatAddonToolchainMissing(manifest.name, addon, this.describeToolchain())
