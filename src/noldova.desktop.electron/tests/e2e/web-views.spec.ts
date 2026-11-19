@@ -1325,7 +1325,7 @@ test.describe("web views", () => {
         return readFirstViewAsync(mainProcess, "document.documentElement.matches(':hover') && document.querySelector('iframe:hover') === null");
       }).toBe(true);
       await window.mouse.click(box.x + 350, box.y + 20, { button: "middle" });
-      await expect.poll(async () => [...await readRequestsWithoutInputAsync(window, framed.length)].sort()).toEqual([`${other}/c ${other} foreground-tab null`, `${origin}/d ${origin} background-tab 5`, String.empty].sort());
+      await expect.poll(async () => [...await readRequestsWithoutInputAsync(window, framed.length)].sort()).toEqual([`${other}/c ${other} foreground-tab null`, `${origin}/d ${origin} foreground-tab 5`, String.empty].sort());
 
       await shiftClockAsync(mainProcess, 1100);
       expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/framed?${encodeURIComponent(origin)}` })).toEqual({ kind: "Started", origin: null });
