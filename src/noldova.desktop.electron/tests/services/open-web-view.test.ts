@@ -684,6 +684,7 @@ export class OpenWebViewTests {
     await harness.open.sendAsync(3, "Input.dispatchKeyEvent", { type: "keyDown", key: "a", autoRepeat: false }, 1000);
     await harness.open.sendAsync(4, "Input.dispatchKeyEvent", { type: "rawKeyDown", key: "a", autoRepeat: true }, 1000);
     await harness.open.sendAsync(5, "Input.dispatchKeyEvent", { type: "keyUp", key: "a" }, 1000);
+    await OpenWebViewTests.drainAsync();
     const ids = [1, 2, 3, 4].map(t => {
       OpenWebViewTests.press(harness, frame, "start", t);
       return OpenWebViewTests.request(harness);
