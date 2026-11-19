@@ -210,12 +210,18 @@ function readFirstViewFramesAsync(mainProcess: MainProcessFixture): Promise<read
   });
 }
 
-function readFirstViewFrameTitleAsync(mainProcess: MainProcessFixture): Promise<unknown> {
+function isFirstViewFrameHoveredAsync(mainProcess: MainProcessFixture): Promise<boolean> {
   return mainProcess.application.evaluate(({ webContents }) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
     const frame = first?.mainFrame.frames[0];
-    return frame === undefined ? null : frame.executeJavaScript("document.title").catch(() => null);
+    return frame === undefined ? false : frame.executeJavaScript("document.querySelector(':hover') !== null").then(t => t === true, () => false);
   });
+}
+
+async function hoverFirstViewFrameAsync(window: Page, mainProcess: MainProcessFixture, x: number, y: number): Promise<boolean> {
+  await window.mouse.move(x + 1, y);
+  await window.mouse.move(x, y);
+  return isFirstViewFrameHoveredAsync(mainProcess);
 }
 
 async function readRequestsWithoutInputAsync(window: Page, from: number): Promise<string[]> {
@@ -1292,10 +1298,10 @@ test.describe("web views", () => {
       const processes = await readFirstViewFramesAsync(mainProcess);
       expect(processes).not.toBeNull();
       expect(processes?.[0]).not.toBe(processes?.[1]);
-      await expect.poll(() => readFirstViewFrameTitleAsync(mainProcess)).toBe("Handlers");
       const box = await readViewBoxAsync(window);
       if (Object.isNull(box))
         throw new Error("The view has no element in the window.");
+      await expect.poll(() => hoverFirstViewFrameAsync(window, mainProcess, box.x + 50, box.y + 20)).toBe(true);
       await window.mouse.click(box.x + 50, box.y + 20, { button: "middle" });
       await expect.poll(() => readRequestsWithoutInputAsync(window, relayed.length)).toEqual([`${other}/a ${other} background-tab 4`, `${other}/b ${other} background-tab 4`, String.empty]);
       expect((await view(window, 0).getAttribute("data-requests"))?.startsWith(relayed)).toBe(true);
