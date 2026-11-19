@@ -74,6 +74,29 @@ export class UpdateBarrierWatchTests {
   }
 
   @TestMethod
+  public async quitsForACheckAskedWithoutAConnectionDuringAnotherOneEvenWhenTheRuntimeIsBackBeforeItRuns(): Promise<void> {
+    const watch = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    let read: (barrier: null) => void = () => undefined;
+    this.updates.reading = new Promise(resolve => {
+      read = resolve;
+    });
+    const first = watch.checkAsync();
+    this.isConnected = true;
+    const whileConnected = await watch.checkAsync();
+    this.isConnected = false;
+    const lost = await watch.checkAsync();
+    this.isConnected = true;
+    this.updates.reading = null;
+    this.updates.barriers.push(FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+    read(null);
+
+    Assert.isTrue(await first);
+    Assert.isFalse(whileConnected);
+    Assert.isFalse(lost);
+    Assert.areEqual(1, this.updates.quitCount);
+  }
+
+  @TestMethod
   public async checksOnceStartedAndReportsAndChecksEachChangeInTheFolderUntilItQuits(): Promise<void> {
     const folder = await mkdtemp(join(tmpdir(), "nol-barrier-watch-"));
     try {
