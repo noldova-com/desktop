@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { execFile, spawn } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { lstat, readdir, readlink, realpath, rename } from "node:fs/promises";
 import { devNull, homedir, tmpdir, userInfo } from "node:os";
@@ -79,8 +79,8 @@ function createHandoff(installation: Installation, updater: IUpdater, verifyAsyn
 
 const commandLine = CommandLineRelay.readArguments(process.argv);
 if (!Object.isNull(commandLine))
-  app.exit(await new CommandLineRelay((program, args, options) => spawn(program, [...args], options), process.execPath,
-    join(dirname(fileURLToPath(import.meta.url)), ...Resources.repositoryRootSegments, ...Resources.desktopToolsEntrySegments), process.env, process.stderr).runAsync(commandLine));
+  process.exit(new CommandLineRelay((program, args, options) => spawnSync(program, [...args], options), process.execPath,
+    join(dirname(fileURLToPath(import.meta.url)), ...Resources.repositoryRootSegments, ...Resources.desktopToolsEntrySegments), process.env, process.stderr).relay(commandLine));
 else
   await MainProcess.startAsync(
     {

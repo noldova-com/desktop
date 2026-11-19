@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { type ChildProcess, spawn, type SpawnOptions } from "node:child_process";
+import { spawnSync, type SpawnSyncOptions, type SpawnSyncReturns } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -18,12 +18,10 @@ import { CommandLineRelay } from "@noldova/desktop.electron";
 
 const MISSING = path.join(path.dirname(process.execPath), "noldova-desktop-missing-program");
 const ENTRY = "process.stdout.write(JSON.stringify([process.argv.slice(2), process.env.ELECTRON_RUN_AS_NODE, process.env.RELAY_ANSWER])); process.stderr.write('warned'); process.exit(7);";
-const WAITING_ENTRY = "process.stdout.write('started'); setInterval(() => undefined, 1000);";
 
 class RelayedRun {
-  public options: SpawnOptions | null = null;
+  public options: SpawnSyncOptions | null = null;
   public programArguments: readonly string[] = [];
-  public child: ChildProcess | null = null;
   public output: string = String.empty;
   public errorOutput: string = String.empty;
   public written: string = String.empty;
@@ -35,25 +33,17 @@ class RelayedRun {
     }
   });
 
-  private readonly onOutput: (text: string) => void;
-
-  public constructor(onOutput: (text: string) => void = () => undefined) {
-    this.onOutput = onOutput;
+  public static end(status: number | null, signal: NodeJS.Signals | null): SpawnSyncReturns<string | Buffer> {
+    return { pid: 0, output: [], stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), status, signal };
   }
 
-  public start(program: string, programArguments: readonly string[], options: SpawnOptions): ChildProcess {
+  public run(program: string, programArguments: readonly string[], options: SpawnSyncOptions): SpawnSyncReturns<string | Buffer> {
     this.options = options;
     this.programArguments = programArguments;
-    const child = spawn(program, [...programArguments], { ...options, stdio: "pipe" });
-    child.stdout.on("data", (t: Buffer) => {
-      this.output += t.toString();
-      this.onOutput(this.output);
-    });
-    child.stderr.on("data", (t: Buffer) => {
-      this.errorOutput += t.toString();
-    });
-    this.child = child;
-    return child;
+    const result = spawnSync(program, [...programArguments], { ...options, stdio: "pipe" });
+    this.output = result.stdout.toString();
+    this.errorOutput = result.stderr.toString();
+    return result;
   }
 }
 
@@ -74,10 +64,10 @@ export class CommandLineRelayTests {
       const entry = path.join(folder, "cli-entry.cjs");
       await writeFile(entry, ENTRY);
       const run = new RelayedRun();
-      const relay = new CommandLineRelay((program, args, options) => run.start(program, args, options), process.execPath, entry,
+      const relay = new CommandLineRelay((program, args, options) => run.run(program, args, options), process.execPath, entry,
         { ...process.env, RELAY_ANSWER: "kept", ELECTRON_RUN_AS_NODE: undefined }, run.error);
 
-      const code = await relay.runAsync(["status", "--json"]);
+      const code = relay.relay(["status", "--json"]);
 
       Assert.areEqual(7, code);
       Assert.isTrue(run.options?.stdio === "inherit", String(run.options?.stdio));
@@ -93,33 +83,22 @@ export class CommandLineRelayTests {
   }
 
   @TestMethod
-  public async returnsTheSignalsCodeWhenASignalEndsTheCommandLineAsync(): Promise<void> {
-    const folder = await mkdtemp(path.join(tmpdir(), "desktop-command-line-relay-"));
-    try {
-      const entry = path.join(folder, "cli-entry.cjs");
-      await writeFile(entry, WAITING_ENTRY);
-      const run = new RelayedRun(t => {
-        if (t === "started")
-          run.child?.kill("SIGKILL");
-      });
-      const relay = new CommandLineRelay((program, args, options) => run.start(program, args, options), process.execPath, entry, process.env, run.error);
+  public returnsTheSignalsCodeWhenASignalEndsTheCommandLineAndOneWhenNothingSaysHowItEnded(): void {
+    const run = new RelayedRun();
+    const killed = new CommandLineRelay(() => RelayedRun.end(null, "SIGKILL"), process.execPath, "cli-entry.js", process.env, run.error);
+    const unknown = new CommandLineRelay(() => RelayedRun.end(null, null), process.execPath, "cli-entry.js", process.env, run.error);
 
-      const code = await relay.runAsync([]);
-
-      Assert.areEqual(137, code);
-      Assert.areEqual(String.empty, run.written);
-    }
-    finally {
-      await rm(folder, { recursive: true, force: true });
-    }
+    Assert.areEqual(137, killed.relay([]));
+    Assert.areEqual(1, unknown.relay([]));
+    Assert.areEqual(String.empty, run.written);
   }
 
   @TestMethod
-  public async returnsOneAndSaysSoWhenTheProgramCannotStartAsync(): Promise<void> {
+  public returnsOneAndSaysSoWhenTheProgramCannotStart(): void {
     const run = new RelayedRun();
-    const relay = new CommandLineRelay((program, args, options) => run.start(program, args, options), MISSING, "cli-entry.js", process.env, run.error);
+    const relay = new CommandLineRelay((program, args, options) => spawnSync(program, [...args], { ...options, stdio: "ignore" }), MISSING, "cli-entry.js", process.env, run.error);
 
-    const code = await relay.runAsync(["status"]);
+    const code = relay.relay(["status"]);
 
     Assert.areEqual(1, code);
     Assert.isTrue(run.written.startsWith(`The command line could not start through ${MISSING}: `), run.written);
