@@ -263,6 +263,66 @@ export class RuntimeServerTests {
   }
 
   @TestMethod
+  public answersARefusalThatRunsOverTheLimitRefusesALongIdAndServesTheNextConnection(): Promise<void> {
+    return RuntimeServerFixture.runAsync(new ServerSettings(1_024, 1_000, 1_000, 1_000), async fixture => {
+      fixture.methods.register(RuntimeServerFixture.WAIT, RuntimeServerFixture.createWaitHandler([]));
+      const connection = await fixture.authenticateAsync();
+      const id = "i".repeat(256);
+      const fill = 1_000 - new Request(id, new QualifiedName("notes", "m"), null).toText().length;
+      const unknown = new Request(id, new QualifiedName("notes", "m".repeat(1 + fill)), null);
+
+      Assert.areEqual(1_000, unknown.toText().length);
+      connection.sendMessages(unknown, new Request(id, RuntimeServerFixture.WAIT, null), new Request(id, RuntimeServerFixture.WAIT, null));
+      RuntimeServerFixture.assertFailure(await connection.readResponseAsync(), FailureCode.FrameTooLarge, "A frame exceeds the maximum length of 1024 characters.", id);
+      RuntimeServerFixture.assertFailure(await connection.readResponseAsync(), FailureCode.InvalidMessage, `A request with the id ${id} is already running on this connection.`, id);
+      connection.send(`${JSON.stringify({ kind: "Request", id: "i".repeat(257), method: "notes.wait", payload: null })}\n`);
+      RuntimeServerFixture.assertFailure(await connection.readResponseAsync(), FailureCode.InvalidMessage, "The frame is not a valid message.", null);
+      Assert.isFalse(connection.isClosed);
+
+      const next = await fixture.authenticateAsync("next");
+      next.sendMessages(new Request("next:1", RuntimeServerFixture.WAIT, null, 50));
+      Assert.areEqual(FailureCode.DeadlineExceeded, (await next.readResponseAsync()).failure?.code);
+    });
+  }
+
+  @TestMethod
+  public answersAFailureWhoseIdRunsOverTheLimitWithANullIdAndKeepsServingTheConnection(): Promise<void> {
+    return RuntimeServerFixture.runAsync(new ServerSettings(340, 1_000, 1_000, 1_000), async fixture => {
+      fixture.methods.register(RuntimeServerFixture.WAIT, RuntimeServerFixture.createWaitHandler([]));
+      const connection = await fixture.authenticateAsync();
+      const id = "i".repeat(256);
+      const request = new Request(id, RuntimeServerFixture.WAIT, null);
+      const message = "A frame exceeds the maximum length of 340 characters.";
+
+      Assert.isTrue(request.toText().length <= 340, request.toText());
+      Assert.isTrue(Response.failure(id, new Failure(FailureCode.FrameTooLarge, message)).toText().length > 340);
+      connection.sendMessages(request, request);
+      RuntimeServerFixture.assertFailure(await connection.readResponseAsync(), FailureCode.FrameTooLarge, message, null);
+      connection.sendMessages(new Request("tester:2", RuntimeServerFixture.WAIT, null, 50));
+      const next = await connection.readResponseAsync();
+
+      Assert.areEqual("tester:2", next.id);
+      Assert.areEqual(FailureCode.DeadlineExceeded, next.failure?.code);
+      Assert.isFalse(connection.isClosed);
+    });
+  }
+
+  @TestMethod
+  public closesAConnectionNoAnswerFitsAndHandlesTheNextOneAlike(): Promise<void> {
+    return RuntimeServerFixture.runAsync(new ServerSettings(60, 1_000, 1_000, 1_000), async fixture => {
+      const first = await fixture.connectAsync();
+      first.sendMessages(new Handshake("tester:0", RuntimeServerFixture.IDENTITY, RuntimeServerFixture.TOKEN, "tester"));
+      await first.waitForCloseAsync();
+      const second = await fixture.connectAsync();
+      second.sendMessages(new Handshake("tester:0", RuntimeServerFixture.IDENTITY, RuntimeServerFixture.TOKEN, "tester"));
+      await second.waitForCloseAsync();
+
+      await fixture.waitUntilAsync(() => fixture.server.sessionCount === 0);
+      Assert.isTrue(first.isClosed && second.isClosed);
+    });
+  }
+
+  @TestMethod
   public logsAnEventItCannotSendAndSendsItToNoClient(): Promise<void> {
     return RuntimeServerFixture.runAsync(new ServerSettings(1_024, 1_000, 1_000, 1_000), async fixture => {
       const first = await fixture.authenticateAsync("first");

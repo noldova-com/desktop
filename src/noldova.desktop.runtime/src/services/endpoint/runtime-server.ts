@@ -222,23 +222,36 @@ export class RuntimeServer implements IEventSink {
     }
   }
 
-  private answer(session: ClientSession, method: QualifiedName, response: Response): void {
+  private answer(session: ClientSession, response: Response, method: QualifiedName | null = null): void {
+    let failure: Failure;
     try {
       session.send(response);
+      return;
     }
     catch (error) {
-      session.send(Response.failure(response.id, this.describeFailure(method, error)));
+      failure = this.describeFailure(method, error);
     }
+    for (const id of new Set([response.id, null])) {
+      try {
+        session.send(Response.failure(id, failure));
+        return;
+      }
+      catch (error) {
+        failure = this.describeFailure(method, error);
+      }
+    }
+    session.close();
   }
 
-  private describeFailure(method: QualifiedName, error: unknown): Failure {
+  private describeFailure(method: QualifiedName | null, error: unknown): Failure {
     if (error instanceof MethodFailureException)
       return error.failure;
     if (error instanceof ProtocolException)
       return new Failure(error.code, error.message);
     if (error instanceof JsonException)
       return new Failure(FailureCode.InvalidParams, error.message);
-    this.diagnostics.write(Resources.formatRequestFailed(method.text, RuntimeServer.describeError(error)));
+    if (!Object.isNull(method))
+      this.diagnostics.write(Resources.formatRequestFailed(method.text, RuntimeServer.describeError(error)));
     return new Failure(FailureCode.Internal, Resources.internalFailure);
   }
 
@@ -246,12 +259,12 @@ export class RuntimeServer implements IEventSink {
     if (session.state === SessionState.AwaitingHandshake)
       this.handleHandshake(session, message);
     else if (session.state === SessionState.Verifying) {
-      session.send(Response.failure(null, new Failure(FailureCode.InvalidMessage, Resources.handshakeUnanswered)));
+      this.answer(session, Response.failure(null, new Failure(FailureCode.InvalidMessage, Resources.handshakeUnanswered)));
       session.end();
     }
     else if (this.verified.has(session) && !this.mainProcessCheck.isSameSender(session.socket)) {
       this.diagnostics.write(Resources.formatMainProcessSenderChanged(session.connection));
-      session.send(Response.failure(null, new Failure(FailureCode.Unauthorized, Resources.mainProcessRefused)));
+      this.answer(session, Response.failure(null, new Failure(FailureCode.Unauthorized, Resources.mainProcessRefused)));
       session.end();
     }
     else if (message instanceof Request)
@@ -259,12 +272,12 @@ export class RuntimeServer implements IEventSink {
     else if (message instanceof Cancel)
       session.cancelRequest(message.id, FailureCode.Cancelled);
     else
-      session.send(Response.failure(null, new Failure(FailureCode.InvalidMessage, Resources.unexpectedMessage)));
+      this.answer(session, Response.failure(null, new Failure(FailureCode.InvalidMessage, Resources.unexpectedMessage)));
   }
 
   private handleInvalidFrame(session: ClientSession, error: unknown): void {
     const failure = error instanceof ProtocolException ? new Failure(error.code, error.message) : new Failure(FailureCode.InvalidMessage, Resources.invalidFrame);
-    session.send(Response.failure(null, failure));
+    this.answer(session, Response.failure(null, failure));
     if (failure.code === FailureCode.FrameTooLarge || session.state === SessionState.AwaitingHandshake || session.state === SessionState.Verifying)
       session.end();
   }
@@ -307,18 +320,18 @@ export class RuntimeServer implements IEventSink {
 
   private handleHandshake(session: ClientSession, message: WireMessage): void {
     if (!(message instanceof Handshake)) {
-      session.send(Response.failure(null, new Failure(FailureCode.InvalidMessage, Resources.handshakeRequired)));
+      this.answer(session, Response.failure(null, new Failure(FailureCode.InvalidMessage, Resources.handshakeRequired)));
       session.end();
       return;
     }
     if (!this.token.matches(message.token)) {
-      session.send(Response.failure(message.id, new Failure(FailureCode.Unauthorized, Resources.unauthorized)));
+      this.answer(session, Response.failure(message.id, new Failure(FailureCode.Unauthorized, Resources.unauthorized)));
       session.end();
       return;
     }
     if (!Object.isNull(this.identity.findMismatch(message.identity))) {
       session.enter(SessionState.OtherBuild, message.client);
-      session.send(Response.failure(message.id, new Failure(FailureCode.BuildMismatch, Resources.formatBuildMismatchFailure(ProductInfo.current.name), this.handover.toJson())));
+      this.answer(session, Response.failure(message.id, new Failure(FailureCode.BuildMismatch, Resources.formatBuildMismatchFailure(ProductInfo.current.name), this.handover.toJson())));
       return;
     }
     if (message.client === ShellClients.mainProcess) {
@@ -345,55 +358,55 @@ export class RuntimeServer implements IEventSink {
       this.diagnostics.write(Resources.formatMainProcessRefused(session.connection));
     this.refusedMainProcesses.add(session);
     session.enter(SessionState.OtherBuild, handshake.client);
-    session.send(Response.failure(handshake.id, new Failure(FailureCode.Unauthorized, Resources.mainProcessRefused, this.handover.toJson())));
+    this.answer(session, Response.failure(handshake.id, new Failure(FailureCode.Unauthorized, Resources.mainProcessRefused, this.handover.toJson())));
   }
 
   private answerHandshake(session: ClientSession, message: Handshake): void {
     if (!Object.isNull(this.updating)) {
-      session.send(Response.failure(message.id, this.updating));
+      this.answer(session, Response.failure(message.id, this.updating));
       session.end();
       return;
     }
     if (!Object.isNull(this.refusal)) {
       this.refusals.set(session, this.refusal);
       session.enter(SessionState.Refused, message.client);
-      session.send(Response.failure(message.id, this.refusal.failure));
+      this.answer(session, Response.failure(message.id, this.refusal.failure));
       return;
     }
 
     session.enter(SessionState.Authenticated, message.client);
     this.admitted.add(session);
-    session.send(Response.success(message.id, this.identity.toJson()));
+    this.answer(session, Response.success(message.id, this.identity.toJson()));
     this.changed();
   }
 
   private handleRequest(session: ClientSession, request: Request): void {
     if (session.state === SessionState.OtherBuild && !request.method.equals(ShellMethods.stop)) {
-      session.send(Response.failure(request.id, this.refusedMainProcesses.has(session)
+      this.answer(session, Response.failure(request.id, this.refusedMainProcesses.has(session)
         ? new Failure(FailureCode.Unauthorized, Resources.mainProcessRefused)
         : new Failure(FailureCode.BuildMismatch, Resources.otherBuildMayOnlyStop)));
       return;
     }
     const refusal = this.refusals.get(session);
     if (!Object.isUndefined(refusal) && !request.method.equals(refusal.method) && !request.method.equals(ShellMethods.stop)) {
-      session.send(Response.failure(request.id, refusal.failure));
+      this.answer(session, Response.failure(request.id, refusal.failure));
       return;
     }
     if (!Object.isNull(this.updating) && this.saved.has(session.connection) && !RuntimeServer.UPDATE_METHODS.some(t => t.equals(request.method))) {
-      session.send(Response.failure(request.id, this.updating));
+      this.answer(session, Response.failure(request.id, this.updating));
       return;
     }
     const handler = this.methods.find(request.method);
     if (Object.isUndefined(handler)) {
-      session.send(Response.failure(request.id, new Failure(FailureCode.UnknownMethod, Resources.formatUnknownMethod(request.method.text))));
+      this.answer(session, Response.failure(request.id, new Failure(FailureCode.UnknownMethod, Resources.formatUnknownMethod(request.method.text))));
       return;
     }
     if (!Object.isUndefined(request.window) && session.hasClosedWindow(request.window)) {
-      session.send(Response.failure(request.id, new Failure(FailureCode.NotFound, Resources.formatWindowClosed(request.window))));
+      this.answer(session, Response.failure(request.id, new Failure(FailureCode.NotFound, Resources.formatWindowClosed(request.window))));
       return;
     }
     if (session.hasRequest(request.id)) {
-      session.send(Response.failure(request.id, new Failure(FailureCode.InvalidMessage, Resources.formatDuplicateRequest(request.id))));
+      this.answer(session, Response.failure(request.id, new Failure(FailureCode.InvalidMessage, Resources.formatDuplicateRequest(request.id))));
       return;
     }
 
@@ -407,7 +420,7 @@ export class RuntimeServer implements IEventSink {
       isSettled = true;
       clearTimeout(timer);
       session.releaseRequest(request.id);
-      this.answer(session, request.method, response);
+      this.answer(session, response, request.method);
     };
     controller.signal.addEventListener(Resources.abortEvent, () => {
       const code = controller.signal.reason === FailureCode.DeadlineExceeded ? FailureCode.DeadlineExceeded : FailureCode.Cancelled;

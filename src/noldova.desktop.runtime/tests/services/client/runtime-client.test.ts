@@ -206,6 +206,26 @@ export class RuntimeClientTests {
   }
 
   @TestMethod
+  public takesAClientNameWhoseIdsFitTheProtocolAndRefusesALongerOneBeforeItConnects(): Promise<void> {
+    return RuntimeClientFixture.runAsync(async (fixture, listener) => {
+      const endpoint = RuntimeClientFixture.endpointOf(fixture);
+      const exception = await Assert.throwsAsync(
+        () => RuntimeClient.connectAsync(endpoint, RuntimeServerFixture.TOKEN, RuntimeServerFixture.IDENTITY, "n".repeat(240), listener), ArgumentException);
+      const connections = fixture.server.sessionCount;
+      const client = await RuntimeClient.connectAsync(endpoint, RuntimeServerFixture.TOKEN, RuntimeServerFixture.IDENTITY, "n".repeat(239), listener);
+
+      Assert.areEqual("clientName", exception.parameterName);
+      Assert.areEqual("A client name is at most 239 characters, so each of its request ids fits the protocol's 256. (Parameter 'clientName')",
+        exception.message);
+      Assert.areEqual(0, connections);
+      Assert.isTrue(client.isConnected);
+      Assert.areEqual(256, new Request(`${"n".repeat(239)}:${Number.MAX_SAFE_INTEGER}`, RuntimeServerFixture.ECHO, null).id.length);
+      client.close();
+      await listener.disconnectedAsync;
+    });
+  }
+
+  @TestMethod
   public rejectsAHandshakeThatIsNotAnsweredInTime(): Promise<void> {
     return RuntimeClientTests.assertRefusedAsync(() => [], HandshakeTimedOutException, "The runtime did not answer the handshake in time.", null);
   }
