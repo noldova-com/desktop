@@ -55,6 +55,17 @@ export class ToolContentTests {
   }
 
   @TestMethod
+  public refusesTextThatIsNotAString(): void {
+    Assert.areEqual("text", Assert.throws(() => ToolContent.fromText(JSON.parse("null"), null), ArgumentException).parameterName);
+  }
+
+  @TestMethod
+  public refusesAnOriginThatIsNotAString(): void {
+    Assert.areEqual("origin", Assert.throws(() => ToolContent.fromText("A page.", JSON.parse("42")), ArgumentException).parameterName);
+    Assert.areEqual("origin", Assert.throws(() => ToolContent.fromImage("aGk=", "image/png", JSON.parse("42")), ArgumentException).parameterName);
+  }
+
+  @TestMethod
   public acceptsAnOriginOfTheLongestLength(): void {
     Assert.isTrue(ToolContent.fromText("A page.", "x".repeat(1024)).isUntrusted);
   }

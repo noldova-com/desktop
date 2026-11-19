@@ -36,6 +36,7 @@ export class RuntimeServerFixture implements AsyncDisposable {
   public readonly diagnostics: TextOutputFixture = new TextOutputFixture();
   public readonly server: RuntimeServer;
   public readonly checkedSockets: Socket[] = [];
+  public readonly acceptedSockets: Socket[] = [];
   public checkMainProcessAsync: () => Promise<boolean> = () => Promise.resolve(true);
   public isSameSender: () => boolean = () => true;
   public changes: number = 0;
@@ -57,6 +58,9 @@ export class RuntimeServerFixture implements AsyncDisposable {
       },
       this.diagnostics,
       checksProcesses ? undefined : {
+        accept: (socket: Socket) => {
+          this.acceptedSockets.push(socket);
+        },
         isMainProcessAsync: (socket: Socket) => {
           this.checkedSockets.push(socket);
           return this.checkMainProcessAsync();

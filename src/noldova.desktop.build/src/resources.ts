@@ -453,6 +453,8 @@ export class Resources {
   public static readonly packageSmokeFolder: string = "smoke";
   public static readonly packageCommandFolder: string = "command";
   public static readonly packageSigningFolder: string = "signing";
+  public static readonly runnerTemporaryVariable: string = "RUNNER_TEMP";
+  public static readonly runnerSigningFolder: string = "noldova-package-signing";
   public static readonly packageArchiveCheckFolder: string = "archive-check";
   public static readonly packageConfigurationFile: string = "electron-builder.json";
   public static readonly packageReportFile: string = "package-report.json";

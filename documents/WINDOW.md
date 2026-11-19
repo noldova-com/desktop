@@ -95,6 +95,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - Choosing a document's or a view's tab with the pointer moves the focus into its content, to the element it last held there, else its first focusable element; until the content shows one, such as while its part activates, the focus stays on the tab and moves in once it does, for up to 10 seconds, unless first the focus moves elsewhere, the person clicks or presses a key outside the tab and its content, or another tab of that group is chosen.
   A module's web view is a page of its own, whose focus and presses the window doesn't see, so they don't end the wait.
   Choosing a tab with the keyboard keeps the focus on the tab.
+  A tab the person drops, or moves with the keyboard or a menu, keeps the focus on the tab, in its new place.
   Pressing a view's button in a dock's strip with the pointer, when the press shows the view, with instances or without, moves the focus into the view the same way, waiting the same way for a view that shows its focusable element later; a keyboard press on the button, or a press that hides the dock, leaves the focus where it is.
 - While no document is open, the document group shows the placeholder one window part registers, such as a start page with ways to begin, padded like a document; without a placeholder, it shows the product's name and "No modules" when no view is registered either, and nothing otherwise.
   The placeholder goes when a document opens and comes back when the last one closes.
@@ -277,6 +278,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - The Modules document shows every module the runtime reports, with what it declares and its state.
   A module's row in its list gives its description on one line, whole in a tooltip while cut; its details give each running program one line, its name, then how long it has run at the row's end before Copy path, with its path, process and start in the row's tooltip and in Copy path's after its action, Copy path or Copied, and each kind of contribution closed with its count until opened, its twistie on the section's left edge and its open list indented to its title by the theme's icon size.
   While a module is failed or blocked, a status bar item opens it; a failed module's views keep their places and say why it didn't start, and nothing retries.
+  A view or document whose component fails to load shows its module's failure card in its place, saying its page could not be loaded, and the window reports the failure once; a shell page that fails to load stays empty, and the window reports it once.
   An off module, as [MODULES.md](MODULES.md#lifecycle) says, shows as off, its views and documents keep their places, their tabs marked off rather than failed, and say it is off, with its setting's checkbox to turn it on where a failed view gives its cause, and no status bar item calls for it.
   A module that depends on it, directly or through other blocked modules, is blocked by it and says so, but its tabs are marked off too, and no status bar item calls for it, since the person turned it off.
   The window writes one change to a switch at a time, in the order they were made, so a change still saving its modules before it turns them off never writes over a later one.
@@ -315,6 +317,10 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 ## The main process
 
 - The main process opens the window; the runtime never does.
+- The main process checks its installation's launch barrier as soon as it starts, and once the barrier passes it starts the runtime at once, without waiting for Electron to be ready, the window or its saved state.
+  A dialog the barrier needs waits for Electron to be ready, and a start the barrier refuses exits without starting the runtime.
+  On Windows the runtime starts through an Electron utility process, which Electron creates only once it is ready, so there the start's own work runs at once and the runtime process waits for Electron to be ready.
+  Until the window is open, the main process holds the start's state and the runtime's events; the window then reads the current state as it loads, as any window does, and gets the held events in order, so it works the same whether the runtime is ready before it or after, and its saved bounds are restored once.
 - A new window is 1280 by 800 pixels, at most nine tenths of the primary display's work area on each side, and centred; saved bounds keep their size where they fit, and the window is never smaller than 640 by 480 pixels.
   Under Wayland the compositor places each window it shows, so the window opens at its saved size wherever the compositor puts it.
   There its saves keep the saved position, with the window's size and maximized state, since the window's position is the compositor's: a later X11 session still opens it where the person left it.

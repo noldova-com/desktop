@@ -525,6 +525,8 @@ export class Resources {
   public static readonly abortEvent: string = "abort";
   public static readonly ignoredOutput: "ignore" = "ignore";
   public static readonly requestIdSeparator: string = ":";
+  public static readonly maximumClientNameLength: number = 256 - Resources.requestIdSeparator.length - String(Number.MAX_SAFE_INTEGER).length;
+  public static readonly clientNameTooLong: string = `A client name is at most ${Resources.maximumClientNameLength} characters, so each of its request ids fits the protocol's 256.`;
   public static readonly maximumFrameLength: number = 16 * 1024 * 1024;
   public static readonly handshakeTimeout: number = 5_000;
   public static readonly defaultRequestTimeout: number = 600_000;
@@ -1145,6 +1147,7 @@ export class Resources {
   public static readonly toolSchemaInvalid: string = "A tool's schema must be a JSON Schema object whose type is object.";
   public static readonly toolRiskInvalid: string = "A tool's risks must each be Low, Medium or High, and its default risk must not be above its maximum risk.";
   public static readonly toolResourceInvalid: string = "A tool's resource must be a JSON Pointer into its arguments, such as /item_id, or binding:<name>.";
+  public static readonly toolTextInvalid: string = "A text item's value must be a string.";
   public static readonly toolOriginInvalid: string = "A content item's origin must not be blank and must have at most 1,024 characters.";
   public static readonly toolImageDataInvalid: string = "An image item's data must be base64.";
   public static readonly toolSessionEnded: string = "The agent session has ended.";
