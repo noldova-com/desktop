@@ -149,7 +149,7 @@ export class ProcessSupervisorFixture {
   }
 
   public static createSeeing(settings: SettingsFixture): ProcessSupervisor {
-    return ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(300, 500, 20));
+    return ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(undefined, undefined, 20));
   }
 
   public static create(
@@ -159,7 +159,7 @@ export class ProcessSupervisorFixture {
     posix: IPosixProcessTableApi = PosixProcessApi.create(platform),
     clock: ProcessClock = ProcessClock.create(process.platform),
     windows: IWindowsProcessApi = WindowsProcessApi.create(),
-    processSettings: ProcessSettings = new ProcessSettings(300, 500)): ProcessSupervisor {
+    processSettings: ProcessSettings = new ProcessSettings()): ProcessSupervisor {
     return new ProcessSupervisor(settings.database, platform, environment, posix, settings.diagnostics, windows, processSettings, clock);
   }
 

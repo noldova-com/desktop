@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { mock } from "node:test";
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
@@ -19,6 +20,8 @@ import { WindowsProcessApiFixture } from "../../fixtures/windows-process-api.fix
 
 @TestClass
 export class WindowsProcessKillerTests {
+  private static readonly LISTING_MILLISECONDS: number = 600;
+
   @TestMethod
   public async closesAProgramsInputThenKillsWhatItStartedBeforeItExitedFromTheTopDownOnWindows(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
@@ -101,5 +104,34 @@ export class WindowsProcessKillerTests {
       "The module notes's program tool (process 900861): An earlier runtime left processes 900864 running, so they were ended.\n" +
       "The module notes's program tool (process 900861): Processes 900862, 900863 were still running after they were ended forcefully.\n",
       settings.diagnostics.text);
+  }
+
+  @TestMethod
+  public async givesWhatItKilledTheWholeEndTimeAfterItListsTheProcessesOnWindows(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync();
+    using simulated = new SimulatedProcessesFixture();
+    const clock = ProcessSupervisorFixture.WINDOWS;
+    const now = clock.now();
+    settings.database.run(ProcessSupervisorFixture.INSERT, "notes", 900_871, "tool", "C:\\Tools\\tool.exe", clock.boot, now - 10_000, now - 10_000, now - 1_000, clock.offset());
+    simulated.add(900_872, 0);
+    const row = `900872\t900871\t${now - 5_000}\tC:\\Tools\\child.exe`;
+    const windows = new WindowsProcessApiFixture([row, () => {
+      mock.timers.tick(WindowsProcessKillerTests.LISTING_MILLISECONDS);
+      return row;
+    }]);
+    windows.unseenExits.set(900_872, 2);
+    const processes = ProcessSupervisorFixture.createWindows(settings, windows);
+
+    mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    try {
+      await processes.cleanUpAsync();
+    }
+    finally {
+      mock.timers.reset();
+    }
+
+    Assert.areEqual(2, windows.listings);
+    Assert.areEqual(0, windows.unseenExits.get(900_872));
+    Assert.areEqual("The module notes's program tool (process 900871): An earlier runtime left processes 900872 running, so they were ended.\n", settings.diagnostics.text);
   }
 }
