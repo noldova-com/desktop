@@ -27,7 +27,6 @@ export class WindowsProcessKiller {
   }
 
   public async killAsync(targets: readonly ProcessTableEntry[], milliseconds: number, lists: boolean): Promise<ProcessKilling> {
-    const deadline = Date.now() + milliseconds;
     const opened: bigint[] = [];
     const held: (readonly [number, bigint])[] = [];
     const killed: number[] = [];
@@ -54,7 +53,7 @@ export class WindowsProcessKiller {
         }
       }
       const table = lists ? await this.reader.readAsync() : new ProcessTable([]);
-      await ProcessSignals.waitAsync(() => held.every(([, t]) => this.api.hasExited(t)), Math.max(0, deadline - Date.now()));
+      await ProcessSignals.waitAsync(() => held.every(([, t]) => this.api.hasExited(t)), milliseconds);
       return new ProcessKilling(killed, replaced, [...denied, ...held.filter(([, t]) => !this.api.hasExited(t)).map(([t]) => t)], table);
     }
     finally {

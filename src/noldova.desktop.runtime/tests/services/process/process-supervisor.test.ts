@@ -408,7 +408,7 @@ export class NodePtyTerminalsTests {
     await left.exited;
     await earlier.stopOwnedByAsync(ProcessSupervisorFixture.MODULE);
 
-    Assert.isTrue(ended);
+    Assert.isTrue(ended, settings.diagnostics.text);
     if (process.platform !== "win32")
       Assert.areEqual("SIGHUP", exit.signal);
     Assert.isTrue(
@@ -434,7 +434,7 @@ export class NodePtyTerminalsTests {
       await end.endedAsync();
 
       Assert.isTrue(ProgramFixture.isRunning(app), `The app the terminal's program launched ended with the terminal. ${settings.diagnostics.text}`);
-      Assert.isTrue(ended);
+      Assert.isTrue(ended, settings.diagnostics.text);
       Assert.areEqual(0, settings.database.readAll(ProcessSupervisorFixture.RECORDS).length);
     }
     finally {
@@ -458,7 +458,7 @@ export class NodePtyTerminalsTests {
     await ProcessSupervisorFixture.exitedAsync(flood, () => `The diagnostics said ${JSON.stringify(settings.diagnostics.text)}.`);
     await ProcessSupervisorFixture.changedAsync(processes, () => processes.programs.length === 0);
 
-    Assert.isTrue(ended);
+    Assert.isTrue(ended, settings.diagnostics.text);
     Assert.areEqual(0, settings.database.readAll(ProcessSupervisorFixture.RECORDS).length);
   }
 
@@ -554,7 +554,7 @@ export class NodePtyTerminalsTests {
   public async hangsUpAJobOnceItsShellThatKeptTheHangupFromItIsKilled(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisorFixture.create(settings);
+    const processes = ProcessSupervisorFixture.createWith(settings, new ProcessSettings(300));
     const shell = await processes.startPseudoTerminalAsync(
       ProcessSupervisorFixture.MODULE, new PseudoTerminalRequest(pty, NodePtyTerminalsTests.SHELL, ["--norc", "--noprofile", "-i"], folder.path, 80, 24, NodePtyTerminalsTests.ENVIRONMENT));
     const output = NodePtyTerminalsTests.collect(shell);
@@ -836,7 +836,7 @@ export class ProcessSupervisorTerminalsTests {
     const ended = await terminal.stopAsync();
 
     Assert.areEqual("resize 132x43,pause,resume", calls);
-    Assert.isTrue(ended);
+    Assert.isTrue(ended, settings.diagnostics.text);
   }
 
   @TestMethod
@@ -853,7 +853,7 @@ export class ProcessSupervisorTerminalsTests {
     const exit = await terminal.exited;
     await ProcessSupervisorFixture.waitForAsync(() => library.calls.includes("terminate"));
 
-    Assert.isTrue(ended);
+    Assert.isTrue(ended, settings.diagnostics.text);
     Assert.areEqual(process.platform === "win32" ? "resume,kill,terminate" : "resume,terminate", library.calls.join(","));
     if (process.platform !== "win32")
       Assert.areEqual("SIGHUP", exit.signal);
@@ -865,7 +865,7 @@ export class ProcessSupervisorTerminalsTests {
   public async killsATerminalThatIgnoresTheHangupAfterTheGraceAndGivesASecondCallerTheSameAnswer(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisorFixture.create(settings);
+    const processes = ProcessSupervisorFixture.createWith(settings, new ProcessSettings(300));
     const library = new PseudoTerminalLibraryFixture();
     const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, ProcessSupervisorTerminalsTests.request(library, folder.path, [ProgramFixture.DEAF]));
     const output = ProcessSupervisorTerminalsTests.collect(terminal);
@@ -899,7 +899,7 @@ export class ProcessSupervisorTerminalsTests {
     const ended = await terminal.stopAsync();
 
     Assert.areEqual("3 null", `${exit.code} ${exit.signal}`);
-    Assert.isTrue(ended);
+    Assert.isTrue(ended, settings.diagnostics.text);
     Assert.areEqual(0, settings.database.readAll(ProcessSupervisorFixture.RECORDS).length);
   }
 
@@ -1161,7 +1161,7 @@ export class ProcessSupervisorTerminalsTests {
   public async endsATerminalOnWindowsByClosingItsPseudoConsoleAndStopsTheOutputWorkerOnceItExits(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisorFixture.createWindows(settings, new WindowsProcessApiFixture([]));
+    const processes = ProcessSupervisorFixture.createWindows(settings, new WindowsProcessApiFixture([]), undefined, ProcessSupervisorFixture.CLEAN_EXIT_LIMITS);
     const handle = new PseudoTerminalHandleFixture();
     PseudoTerminalHandleFixture.addWorker(handle, () => handle.calls.push("terminate"));
 
@@ -1172,7 +1172,7 @@ export class ProcessSupervisorTerminalsTests {
     const ended = await stopping;
     await ProcessSupervisorFixture.waitForAsync(() => handle.calls.includes("terminate"));
 
-    Assert.isTrue(ended);
+    Assert.isTrue(ended, settings.diagnostics.text);
     Assert.areEqual("resume,kill,terminate", handle.calls.join(","));
   }
 
@@ -1272,14 +1272,14 @@ export class ProcessSupervisorTerminalsTests {
       return Math.abs(processId) === handle.pid && !isHungUp;
     });
     PseudoTerminalHandleFixture.addSocket(handle, { destroy: () => handle.calls.push("destroy") });
-    const processes = ProcessSupervisorFixture.createLinux(settings, new ProcessTableFixture([]), new ProcessSettings(300, 500, 5_000, 60_000, 100));
+    const processes = ProcessSupervisorFixture.createLinux(settings, new ProcessTableFixture([]), new ProcessSettings(3_500, 500, 5_000, 60_000, 100));
     const terminal = await ProcessSupervisorTerminalsTests.start(processes, handle, process.execPath, folder.path);
 
     const ended = await terminal.stopAsync();
     await ProcessSupervisorFixture.waitForAsync(() => terminal.hasExited, () => settings.diagnostics.text);
     const exit = await terminal.exited;
 
-    Assert.isTrue(ended);
+    Assert.isTrue(ended, settings.diagnostics.text);
     Assert.areEqual("null null", `${exit.code} ${exit.signal}`);
     Assert.areEqual(`-${handle.pid} SIGHUP`, kill.signals.join(","));
     Assert.areEqual("resume,destroy", handle.calls.join(","));
@@ -1292,7 +1292,7 @@ export class ProcessSupervisorTerminalsTests {
   public async endsAStoppedTerminalWhoseOutputIsPausedWithoutACodeWhenTheLibraryNeverReportsItsExit(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(300, 500, 5_000, 100, 100));
+    const processes = ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(3_500, 500, 5_000, 100, 100));
     const library = new PseudoTerminalLibraryFixture();
     library.holdsExits = true;
     const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, ProcessSupervisorTerminalsTests.request(library, folder.path, [ProgramFixture.WAIT]));
@@ -1305,7 +1305,7 @@ export class ProcessSupervisorTerminalsTests {
     await ProcessSupervisorFixture.waitForAsync(() => library.calls.includes("terminate"), () => settings.diagnostics.text);
     library.terminals[0]?.releaseExit();
 
-    Assert.isTrue(ended);
+    Assert.isTrue(ended, settings.diagnostics.text);
     Assert.areEqual("null null", `${exit.code} ${exit.signal}`);
     Assert.areEqual("pause,resume,destroy,terminate", library.calls.join(","));
     Assert.areEqual(ProcessSupervisorFixture.line(terminal, ProcessSupervisorTerminalsTests.UNREPORTED), settings.diagnostics.text);

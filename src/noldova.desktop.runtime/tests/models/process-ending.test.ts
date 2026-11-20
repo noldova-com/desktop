@@ -58,7 +58,7 @@ export class ProcessEndingTests {
       () => `900841\t${leader}\t${ProcessSupervisorFixture.readStarted(settings) + 1}\tC:\\child.exe`,
       new Error("The process snapshot failed with Windows error 8.")
     ]);
-    const processes = ProcessSupervisorFixture.createWindows(settings, windows);
+    const processes = ProcessSupervisorFixture.createWindows(settings, windows, undefined, ProcessSupervisorFixture.CLEAN_EXIT_LIMITS);
     const owned = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.WAIT], undefined, program));
     leader = owned.processId;
     await ProgramFixture.readLineAsync(owned);
