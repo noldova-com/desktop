@@ -47,6 +47,22 @@ export class UpdateWorkQuestionTests {
   }
 
   @TestMethod
+  public async endsWithNoAnswerWhenItsWindowClosesAndIgnoresAnotherWindowClosing(): Promise<void> {
+    const question = this.create();
+    const asked = question.askAsync(["A reply (/data/one)"]);
+
+    question.dismiss(new FakeQuitPrompt());
+    const shownBefore = this.prompt.shown.length;
+    question.dismiss(this.prompt);
+    question.dismiss(this.prompt);
+
+    Assert.isNull(await asked);
+    Assert.areEqual(1, shownBefore);
+    Assert.isFalse(question.answer(this.prompt, QuitChoice.Stop));
+    Assert.areEqual(JSON.stringify(["A reply (/data/one) update", "none"]), JSON.stringify(this.prompt.shown));
+  }
+
+  @TestMethod
   public async readsTheWorkAgainOnEachChangeWhileThePersonWaitsAndGoesOnOnceNoWorkIsLeft(): Promise<void> {
     const question = this.create();
     this.reads.push(["A reply (/data/one)", "A command (/data/two)"], []);

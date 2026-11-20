@@ -6412,6 +6412,22 @@ export declare class UpdateWorkQuestion {
    * ```
    */
   public answer(prompt: IQuitPrompt, choice: unknown): boolean;
+
+  /**
+   * Ends the question with no answer once the window that asks closes, so the restart is cancelled rather than left
+   * waiting for good.
+   *
+   * @param prompt The window that closed; any other window changes nothing.
+   * @example
+   * ```ts
+   * import type { IQuitPrompt, UpdateWorkQuestion } from "@noldova/desktop.electron";
+   *
+   * export function closed(question: UpdateWorkQuestion, prompt: IQuitPrompt): void {
+   *   question.dismiss(prompt);
+   * }
+   * ```
+   */
+  public dismiss(prompt: IQuitPrompt): void;
 }
 
 /**
