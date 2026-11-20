@@ -365,6 +365,7 @@ test.describe("docking", () => {
     test(`the layout, its splits and sizes return ${reopen ? "after reopening on the running runtime" : "after a restart that stops the runtime"} @smoke`, async ({ mainProcess }) => {
       await TabDragFixture.dragOntoPlateAsync(mainProcess.window, outline, notes, "Bottom");
       await mainProcess.window.mouse.up();
+      await expect(TabDragFixture.tab(mainProcess.window, outline)).toBeFocused();
       const sash = mainProcess.window.getByRole("separator", { name: "Resize the right dock" });
       const size = Number(await sash.getAttribute("aria-valuenow"));
       await sash.focus();
