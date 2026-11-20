@@ -29,8 +29,9 @@ async function runAsync(hosted: boolean, isPackageBuilt: boolean): Promise<{ sta
 }
 
 const MINUTE = 60_000;
-const BUILDER_BUDGET = 30 * MINUTE;
+const BEFORE_SIGNING_BUDGET = 15 * MINUTE;
 const OTHER_STEPS_BUDGET = 15 * MINUTE;
+const UNSIGNED_STEP_MINUTES = 40;
 
 async function readResourceNumberAsync(name: string): Promise<number> {
   const text = await readFile(path.resolve(import.meta.dirname, "..", "..", "src", "noldova.desktop.build", "src", "resources.ts"), "utf8");
@@ -39,11 +40,11 @@ async function readResourceNumberAsync(name: string): Promise<number> {
   return Number(value.replaceAll("_", ""));
 }
 
-async function readStepMinutesAsync(step: string): Promise<number> {
+async function readStepMinutesAsync(): Promise<{ signedMac: number, other: number }> {
   const text = await readFile(path.resolve(import.meta.dirname, "..", "..", ".github", "workflows", "package-app.yml"), "utf8");
-  const value = new RegExp(`- name: ${step}\\r?\\n\\s+timeout-minutes: ([0-9]+)`).exec(text)?.[1];
-  assert.ok(value !== undefined, step);
-  return Number(value);
+  const match = /- name: Make the package\r?\n\s+timeout-minutes: \$\{\{ matrix\.platform == 'macos' && matrix\.signed == 'true' && ([0-9]+) \|\| ([0-9]+) \}\}\r?$/m.exec(text);
+  assert.ok(match !== null, "Make the package");
+  return { signedMac: Number(match[1]), other: Number(match[2]) };
 }
 
 async function readJobMinutesAsync(): Promise<readonly number[]> {
@@ -54,12 +55,22 @@ async function readJobMinutesAsync(): Promise<readonly number[]> {
 }
 
 describe("package-app.yml's macOS packaging limit", () => {
-  it("leaves the builder 30 minutes after the disk image's notarization and stapling, and the job's other steps 15", async () => {
-    const [notarization, staple, step, job] = [await readResourceNumberAsync("macNotarizationTimeout"), await readResourceNumberAsync("macStapleTimeout"),
-      (await readStepMinutesAsync("Make the package")) * MINUTE, Math.min(...await readJobMinutesAsync()) * MINUTE];
+  it("leaves signed macOS packaging's own limit 15 minutes of the step for staging, and the job 15 for its other steps", async () => {
+    const [limit, steps, job] = [await readResourceNumberAsync("macPackagingLimit"), await readStepMinutesAsync(), Math.min(...await readJobMinutesAsync()) * MINUTE];
 
-    assert.ok(step - notarization - staple >= BUILDER_BUDGET, `${step}, ${notarization}, ${staple}`);
-    assert.ok(job - step >= OTHER_STEPS_BUDGET, `${job}, ${step}`);
+    assert.ok(steps.signedMac * MINUTE - limit >= BEFORE_SIGNING_BUDGET, `${steps.signedMac}, ${limit}`);
+    assert.ok(job - steps.signedMac * MINUTE >= OTHER_STEPS_BUDGET, `${job}, ${steps.signedMac}`);
+  });
+
+  it("fits the disk image's notarization and every stapling attempt inside signed macOS packaging's own limit", async () => {
+    const [limit, notarization, staple, attempts] = [await readResourceNumberAsync("macPackagingLimit"), await readResourceNumberAsync("macNotarizationTimeout"),
+      await readResourceNumberAsync("macStapleTimeout"), await readResourceNumberAsync("staplerAttempts")];
+
+    assert.ok(notarization + staple * attempts < limit, `${limit}, ${notarization}, ${staple}, ${attempts}`);
+  });
+
+  it("keeps every other platform's packaging step at 40 minutes", async () => {
+    assert.equal((await readStepMinutesAsync()).other, UNSIGNED_STEP_MINUTES);
   });
 });
 

@@ -65,13 +65,47 @@ export class ProcessRunnerTests {
   }
 
   @TestMethod
+  public async stopsARunOrWatchedProcessThatRunsPastItsTimeoutAndAnswersOneThatEndsInTime(): Promise<void> {
+    const runner = new ProcessRunner();
+    const hang = ["-e", "setInterval(() => undefined, 1000)"];
+
+    const run = await Assert.throwsAsync(() => runner.runAsync(process.execPath, hang, tmpdir(), undefined, undefined, 200), ProcessTimeoutException);
+    const watched = await Assert.throwsAsync(() => runner.runAsync(process.execPath, hang, tmpdir(), undefined, () => undefined, 200), ProcessTimeoutException);
+    const exitCode = await runner.runAsync(process.execPath, ["-e", "process.exit(6)"], tmpdir(), undefined, () => undefined, ProcessRunnerTests.LIMIT);
+
+    for (const error of [run, watched])
+      Assert.areEqual(`"${process.execPath}" did not finish within 200 ms.`, error.message);
+    Assert.areEqual(6, exitCode);
+  }
+
+  @TestMethod
+  public async stopsAWatchedProcessAtItsTimeoutWhileAChildItStartedStillHoldsItsOutput(): Promise<void> {
+    const child = "console.log('child ' + process.pid); setInterval(() => undefined, 1000)";
+    const script = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(child)}], { stdio: "inherit" }); setInterval(() => undefined, 1000)`;
+    const seen: string[] = [];
+    try {
+      const error = await Assert.throwsAsync(() => new ProcessRunner().runAsync(process.execPath, ["-e", script], tmpdir(), undefined, t => seen.push(t), 5_000),
+        ProcessTimeoutException);
+
+      Assert.areEqual(`"${process.execPath}" did not finish within 5000 ms.`, error.message);
+      Assert.isTrue(/child [0-9]+/.test(seen.join(String.empty)), seen.join(String.empty));
+    }
+    finally {
+      const id = /child ([0-9]+)/.exec(seen.join(String.empty))?.[1];
+      if (!Object.isUndefined(id))
+        new ProcessRunner().kill(Number(id));
+    }
+  }
+
+  @TestMethod
   public async refusesAProgramThatCannotStart(): Promise<void> {
     const runner = new ProcessRunner();
     const folder = await mkdtemp(path.join(tmpdir(), "process-runner-"));
     try {
       const captured = await Assert.throwsAsync(() => runner.captureAsync(ProcessRunnerTests.MISSING, [], folder, ProcessRunnerTests.LIMIT), BuildException);
       const run = await Assert.throwsAsync(() => runner.runAsync(ProcessRunnerTests.MISSING, [], folder), BuildException);
-      const watched = await Assert.throwsAsync(() => runner.runAsync(ProcessRunnerTests.MISSING, [], folder, process.env, () => undefined), BuildException);
+      const watched = await Assert.throwsAsync(() => runner.runAsync(ProcessRunnerTests.MISSING, [], folder, process.env, () => undefined, ProcessRunnerTests.LIMIT),
+        BuildException);
       const started = await Assert.throwsAsync(() => runner.startAsync(ProcessRunnerTests.MISSING, [], folder, path.join(folder, "log.txt")), BuildException);
 
       for (const error of [captured, run, watched, started]) {

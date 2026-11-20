@@ -719,6 +719,8 @@ export class PackageTests {
     Assert.areEqual(["xcrun notarytool submit", "xcrun stapler staple", "codesign --verify", "codesign --display", "spctl", "xcrun stapler validate", "hdiutil attach",
       "codesign --verify", "codesign --display", "spctl", "xcrun stapler validate", "hdiutil detach", "ditto", "codesign --verify", "codesign --display", "spctl",
       "xcrun stapler validate", "ditto"].join("|"), runners[0]?.macCommands.join("|"));
+    Assert.isTrue((runners[0]?.timeouts.length ?? 0) > 0 && (runners[0]?.timeouts.every(t => !Object.isUndefined(t) && t > 0 && t <= Resources.macPackagingLimit) ?? false),
+      runners[0]?.timeouts.join() ?? String.empty);
   }
 
   @TestMethod
