@@ -93,7 +93,7 @@ export class Resources {
   public static readonly npmCiLogsPrefix: string = "npm-ci-logs-";
   public static readonly npmCiLogsVariable: string = "npm_config_logs_dir";
   public static readonly npmCiErrorCodePattern: RegExp = /^\d+ error code (ETIMEDOUT|ECONNRESET)\r?$/m;
-  public static readonly npmCiReadPattern: RegExp = /^\d+ error syscall read\r?$/m;
+  public static readonly npmCiReadPattern: RegExp = /^\d+ error (syscall read|network aborted)\r?$/m;
   public static readonly npmCiRequestPattern: RegExp = /^\d+ http fetch /;
   public static readonly npmCiRequestLines: number = 5;
   public static readonly uiWorkflowsCiScript: readonly string[] = ["scripts", "ui-workflows.ts"];
@@ -1221,7 +1221,7 @@ export class Resources {
     return `Packages built and installed: ${count}.${Resources.lineEnd}`;
   }
 
-  public static npmCiStalledRead(requests: readonly string[]): string {
-    return `npm ci stopped on a stalled read, which npm doesn't retry, so it runs once more. Its last requests:${Resources.lineEnd}${requests.join(Resources.lineEnd)}${Resources.lineEnd}`;
+  public static npmCiDropped(requests: readonly string[]): string {
+    return `npm ci stopped on a read that stalled or a connection that was reset, which npm doesn't retry, so it runs once more. Its last requests:${Resources.lineEnd}${requests.join(Resources.lineEnd)}${Resources.lineEnd}`;
   }
 }
