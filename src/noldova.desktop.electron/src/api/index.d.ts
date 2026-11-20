@@ -3209,6 +3209,11 @@ export interface IWebViewInputEvent {
    * The event's type, such as `rawKeyDown`, `mouseDown` or `touchStart`.
    */
   readonly type: string;
+
+  /**
+   * A key event's key, as the DOM's `KeyboardEvent.key` names it, such as `a`, `Escape` or `Shift`; other events have none.
+   */
+  readonly key?: string;
 }
 
 /**

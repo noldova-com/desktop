@@ -23,7 +23,7 @@ export class WebViewEventTests {
     [WebViewEventKind.Crashed, {}],
     [WebViewEventKind.ProfileCleared, { profileKey: "workspace-1" }],
     [WebViewEventKind.RequestRefused, { request: "download", origin: "https://example.com" }],
-    [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: true, origin: "https://example.com", disposition: "background-tab" }],
+    [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: true, origin: "https://example.com", disposition: "background-tab", fromPress: true }],
     [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: { timestamp: 1 }, isCut: false }],
     [WebViewEventKind.Dropped, { count: 3 }],
     [WebViewEventKind.Key, { name: "reload" }],
@@ -55,8 +55,18 @@ export class WebViewEventTests {
   }
 
   @TestMethod
+  public carriesANewWindowRequestWithoutFromPress(): void {
+    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\"}}";
+
+    const event = WebViewEvent.fromJson(JsonReader.parse(text).toJson());
+
+    Assert.areEqual(text, JSON.stringify(event.toJson()));
+    Assert.isFalse(Object.hasOwn(event.details, "fromPress"));
+  }
+
+  @TestMethod
   public carriesANewWindowRequestWhoseOriginIsUnknown(): void {
-    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":false,\"origin\":null,\"disposition\":\"foreground-tab\"}}";
+    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":false,\"origin\":null,\"disposition\":\"foreground-tab\",\"fromPress\":false}}";
 
     Assert.areEqual(text, JSON.stringify(WebViewEvent.fromJson(JsonReader.parse(text).toJson()).toJson()));
   }
@@ -83,6 +93,8 @@ export class WebViewEventTests {
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: 1, disposition: "new-window" }],
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, disposition: "new-window" }],
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: null }],
+      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: null }],
+      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: 1 }],
       [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: [], isCut: false }],
       [WebViewEventKind.Dropped, { count: 0 }],
       [WebViewEventKind.Zoom, { factor: 0.2 }],

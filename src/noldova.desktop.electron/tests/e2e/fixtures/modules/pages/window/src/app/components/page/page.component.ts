@@ -70,7 +70,7 @@ export class PageComponent {
     const title = event.kind === WebViewEventKind.State ? String(event.details["title"]) : null;
     const key = event.kind === WebViewEventKind.Key ? String(event.details["name"]) : null;
     const address = event.kind === WebViewEventKind.NewWindowRequested ? String(event.details["address"]) : null;
-    const request = Object.isNull(address) ? String.empty : `${address} ${String(event.details["hadRecentInput"])} ${String(event.details["origin"])} ${String(event.details["disposition"])}\n`;
+    const request = Object.isNull(address) ? String.empty : `${address} ${String(event.details["hadRecentInput"])} ${String(event.details["origin"])} ${String(event.details["disposition"])} ${String(event.details["fromPress"])}\n`;
     const zoom = event.kind === WebViewEventKind.Zoom ? String(event.details["factor"]) : null;
     const image = event.kind === WebViewEventKind.Favicon ? event.details["image"] : undefined;
     const icon = Object.isUndefined(image) ? null : Object.isString(image) ? image : String.empty;

@@ -619,10 +619,61 @@ export class OpenWebViewTests {
     Assert.areEqual(JSON.stringify([{ action: "deny" }, { action: "deny" }]), JSON.stringify([refused, first]));
     Assert.areEqual("RequestRefused {\"request\":\"newWindow\",\"origin\":\"null\"}", refusing.describe());
     Assert.areEqual([
-      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\",\"disposition\":\"foreground-tab\"}",
-      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\"}",
-      "NewWindowRequested {\"address\":\"https://example.com/third\",\"hadRecentInput\":true,\"origin\":null}"
+      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\",\"disposition\":\"foreground-tab\",\"fromPress\":false}",
+      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\",\"fromPress\":true}",
+      "NewWindowRequested {\"address\":\"https://example.com/third\",\"hadRecentInput\":true,\"origin\":null,\"fromPress\":false}"
     ].join("|"), asking.describe());
+  }
+
+  @TestMethod
+  public async givesThePersonsLatestPressInItsViewOneNewWindowForFiveSecondsAndNoneToAnotherView(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    const other = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    harness.contents.emit("input-event", {}, { type: "rawKeyDown", key: "a" });
+    harness.time = 100;
+    const twoPresses = [OpenWebViewTests.isFromPress(harness, "https://example.com/a"), OpenWebViewTests.isFromPress(harness, "https://example.com/b")];
+    harness.contents.emit("input-event", {}, { type: "touchStart" });
+    const inOtherView = OpenWebViewTests.isFromPress(other, "https://example.com/c");
+    harness.time = 5101;
+    const late = OpenWebViewTests.isFromPress(harness, "https://example.com/d");
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    harness.time = 10101;
+    const atTheEdge = OpenWebViewTests.isFromPress(harness, "https://example.com/e");
+
+    Assert.areEqual("true,false|false|false|true", [twoPresses.join(","), inOtherView, late, atTheEdge].join("|"));
+  }
+
+  @TestMethod
+  public async givesEachPressOneNewWindowWhenEachPressIsFollowedByItsRequest(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    const results: boolean[] = [];
+
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    results.push(OpenWebViewTests.isFromPress(harness, "https://example.com/a"));
+    harness.contents.emit("input-event", {}, { type: "keyDown", key: "b" });
+    results.push(OpenWebViewTests.isFromPress(harness, "https://example.com/b"));
+    results.push(OpenWebViewTests.isFromPress(harness, "https://example.com/c"));
+
+    Assert.areEqual("true,true,false", results.join(","));
+  }
+
+  @TestMethod
+  public async givesNoNewWindowForEscapeOrAModifierKeyAlone(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    const results: string[] = [];
+
+    const keys = ["Escape", "Accel", "Alt", "AltGraph", "CapsLock", "Control", "Fn", "FnLock", "Hyper", "Meta", "NumLock", "ScrollLock", "Shift", "ShiftLevel5", "Super", "Symbol", "SymbolLock", "a"];
+    for (const key of keys) {
+      harness.time += 1000;
+      harness.contents.emit("input-event", {}, { type: "rawKeyDown", key });
+      results.push(`${key}:${OpenWebViewTests.isFromPress(harness, `https://example.com/${key}`)}`);
+    }
+
+    Assert.areEqual("Escape:false,Accel:false,Alt:false,AltGraph:false,CapsLock:false,Control:false,Fn:false,FnLock:false,Hyper:false,Meta:false,NumLock:false,"
+      + "ScrollLock:false,Shift:false,ShiftLevel5:false,Super:false,Symbol:false,SymbolLock:false,a:true", results.join(","));
+    Assert.isTrue(harness.describe().split("|").at(-2)?.includes("\"hadRecentInput\":true") === true, harness.describe());
   }
 
   @TestMethod
@@ -1526,6 +1577,7 @@ export class OpenWebViewTests {
 
     Assert.areEqual(JSON.stringify(["Start", "End"]), JSON.stringify(harness.inputs));
     Assert.isTrue(harness.describe().includes("\"hadRecentInput\":false"), harness.describe());
+    Assert.isTrue(harness.describe().includes("\"fromPress\":false"), harness.describe());
   }
 
   @TestMethod
@@ -1568,6 +1620,11 @@ export class OpenWebViewTests {
 
   private static scrolled(contents: FakeWebViewContents, x: number, y: number): void {
     contents.debugger.replies.set("Page.getLayoutMetrics", () => Promise.resolve({ cssLayoutViewport: { pageX: x, pageY: y } }));
+  }
+
+  private static isFromPress(harness: OpenWebViewHarness, address: string): boolean {
+    harness.contents.openWindow(address);
+    return harness.describe().split("|").at(-1)?.includes("\"fromPress\":true") === true;
   }
 
   private static drainAsync(): Promise<void> {
