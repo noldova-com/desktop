@@ -217,10 +217,10 @@ describe("SearchSession", () => {
     expect([first?.signal.aborted, commands.searches.length, titles(session), failures]).toEqual([true, 2, [], []]);
   });
 
-  it("names the text as typed that its groups answer once every source it asks has answered, found nothing or failed, keeping the last such text until then", async () => {
+  it("names the text as typed that its groups answer once every source it asks has found nothing or failed, keeping the last such text until then", async () => {
     session.search("  term ");
     const asked = session.answeredText();
-    messages.answer(0, ["…the terminal opens…"]);
+    messages.answer(0, []);
     commands.answer(0, []);
     await settle();
     const partly = session.answeredText();
@@ -239,6 +239,17 @@ describe("SearchSession", () => {
     session.search(String.empty);
 
     expect([asked, partly, failed, unchanged, waiting, empty, session.answeredText()]).toEqual([String.empty, String.empty, "  term ", "term", "term", " terminal", String.empty]);
+  });
+
+  it("names the text as typed as soon as one source's answer lists a match, while another source never answers", async () => {
+    session.search("term ");
+    messages.answer(0, []);
+    await settle();
+    const nothingYet = session.answeredText();
+    commands.answer(0, ["New terminal"]);
+    await settle();
+
+    expect([nothingYet, session.answeredText(), session.isSearching(), titles(session)]).toEqual([String.empty, "term ", true, [["Best match", "New terminal"]]]);
   });
 
   it("logs a source's failed answer, keeps the others' groups, and shows no count for the failed source", async () => {

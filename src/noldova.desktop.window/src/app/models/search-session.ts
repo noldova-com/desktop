@@ -155,7 +155,7 @@ export class SearchSession {
   }
 
   private markAnswered(): void {
-    if (this.waitingValue().size === 0)
+    if (this.waitingValue().size === 0 || [...this.answersValue().values()].some(t => t.results.length > 0))
       this.answeredValue.set(this.typed);
   }
 
