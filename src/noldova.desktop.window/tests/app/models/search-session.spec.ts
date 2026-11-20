@@ -217,6 +217,30 @@ describe("SearchSession", () => {
     expect([first?.signal.aborted, commands.searches.length, titles(session), failures]).toEqual([true, 2, [], []]);
   });
 
+  it("names the text as typed that its groups answer once every source it asks has answered, found nothing or failed, keeping the last such text until then", async () => {
+    session.search("  term ");
+    const asked = session.answeredText();
+    messages.answer(0, ["…the terminal opens…"]);
+    commands.answer(0, []);
+    await settle();
+    const partly = session.answeredText();
+    chats.searches[0]?.answer.reject(new Error("The chats are gone."));
+    await settle();
+    const failed = session.answeredText();
+
+    session.search("term");
+    const unchanged = session.answeredText();
+    session.search("terminal");
+    session.search(" terminal");
+    const waiting = session.answeredText();
+    [chats, messages, commands].forEach(t => t.answer(1, []));
+    await settle();
+    const empty = session.answeredText();
+    session.search(String.empty);
+
+    expect([asked, partly, failed, unchanged, waiting, empty, session.answeredText()]).toEqual([String.empty, String.empty, "  term ", "term", "term", " terminal", String.empty]);
+  });
+
   it("logs a source's failed answer, keeps the others' groups, and shows no count for the failed source", async () => {
     session.search("term");
     const failure = new Error("The index is locked.");

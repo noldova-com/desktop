@@ -30,8 +30,10 @@ export class SearchSession {
   private readonly recentValue: WritableSignal<ReadonlyMap<string, readonly SearchResult[]>> = signal(new Map());
   private readonly answersValue: WritableSignal<ReadonlyMap<string, SearchAnswer>> = signal(new Map());
   private readonly waitingValue: WritableSignal<ReadonlySet<string>> = signal(new Set());
+  private readonly answeredValue: WritableSignal<string> = signal(String.empty);
   private readonly asks: Map<string, number> = new Map();
   private searching: AbortController | null = null;
+  private typed: string = String.empty;
 
   private readonly searched: Signal<readonly SearchSourceContribution[]> = computed(() =>
     this.queryValue().isCommandsOnly ? this.sources.filter(t => t.name === this.commandsSource) : this.sources);
@@ -42,6 +44,7 @@ export class SearchSession {
 
   public readonly query: Signal<SearchQuery> = this.queryValue.asReadonly();
   public readonly isSearching: Signal<boolean> = computed(() => this.waitingValue().size > 0);
+  public readonly answeredText: Signal<string> = this.answeredValue.asReadonly();
   public readonly filters: Signal<readonly SearchFilter[]> = computed(() => {
     const filter = this.activeFilter();
     const query = this.queryValue();
@@ -87,20 +90,11 @@ export class SearchSession {
   }
 
   public search(typed: string): void {
+    this.typed = typed;
     const query = SearchQuery.parse(typed);
-    if (query.equals(this.queryValue()))
-      return;
-    this.searching?.abort();
-    this.searching = null;
-    this.queryValue.set(query);
-    this.answersValue.set(new Map());
-    this.waitingValue.set(new Set());
-    if ((query.isEmpty && !query.isCommandsOnly) || this.recentController.signal.aborted)
-      return;
-    const controller = new AbortController();
-    this.searching = controller;
-    for (const source of this.searched())
-      this.askAnswer(source, query, controller);
+    if (!query.equals(this.queryValue()))
+      this.ask(query);
+    this.markAnswered();
   }
 
   public refresh(name: string): void {
@@ -130,6 +124,20 @@ export class SearchSession {
     this.waitingValue.set(new Set());
   }
 
+  private ask(query: SearchQuery): void {
+    this.searching?.abort();
+    this.searching = null;
+    this.queryValue.set(query);
+    this.answersValue.set(new Map());
+    this.waitingValue.set(new Set());
+    if ((query.isEmpty && !query.isCommandsOnly) || this.recentController.signal.aborted)
+      return;
+    const controller = new AbortController();
+    this.searching = controller;
+    for (const source of this.searched())
+      this.askAnswer(source, query, controller);
+  }
+
   private askRecent(source: SearchSourceContribution): void {
     const signal = this.recentController.signal;
     void this.askAsync(source, Resources.recentAsk, signal, () => source.recentAsync(signal),
@@ -140,7 +148,15 @@ export class SearchSession {
     this.waitingValue.update(t => new Set([...t, source.name]));
     void this.askAsync(source, Resources.answerAsk, controller.signal, () => source.searchAsync(query.text, controller.signal),
       answer => this.answersValue.update(t => new Map([...t, [source.name, answer]])),
-      () => this.waitingValue.update(t => new Set([...t].filter(u => u !== source.name))));
+      () => {
+        this.waitingValue.update(t => new Set([...t].filter(u => u !== source.name)));
+        this.markAnswered();
+      });
+  }
+
+  private markAnswered(): void {
+    if (this.waitingValue().size === 0)
+      this.answeredValue.set(this.typed);
   }
 
   private async askAsync<T>(source: SearchSourceContribution, kind: string, signal: AbortSignal, call: () => Promise<T>, take: (value: T) => void, settled: () => void): Promise<void> {
