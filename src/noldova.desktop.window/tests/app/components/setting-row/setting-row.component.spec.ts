@@ -258,13 +258,13 @@ describe("SettingRowComponent", () => {
       const button = (): HTMLButtonElement => DomFixture.oneOf(row, ".nol-select-button", HTMLButtonElement);
       const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
       const waiting = button().getBoundingClientRect();
-      const waitingState = [button().disabled, button().getAttribute("aria-label")];
+      const waitingState = [button().getAttribute("aria-disabled"), button().getAttribute("aria-label")];
       fixture.componentRef.setInput("supplied", [new SettingOption("large", "Large")]);
       fixture.detectChanges();
       const supplied = button().getBoundingClientRect();
 
-      expect(waitingState).toEqual([true, "Model, large"]);
-      expect([button().disabled, button().getAttribute("aria-label")]).toEqual([false, "Model, Large"]);
+      expect(waitingState).toEqual(["true", "Model, large"]);
+      expect([button().getAttribute("aria-disabled"), button().getAttribute("aria-label")]).toEqual([null, "Model, Large"]);
       expect([waiting.left / rem, waiting.top / rem, waiting.height / rem]).toEqual([supplied.left / rem, supplied.top / rem, supplied.height / rem]);
     });
 
