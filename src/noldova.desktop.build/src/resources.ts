@@ -1291,6 +1291,10 @@ export class Resources {
   public static readonly aptGetInstalledPrefix: string = "Inst ";
   public static readonly aptGetInstalledDetails: RegExp = /\s.*$/;
   public static readonly dpkgDebCommand: string = "dpkg-deb";
+  public static readonly dpkgQueryCommand: string = "dpkg-query";
+  public static readonly dpkgQueryStatusArguments: readonly string[] = ["--show", "--showformat=${db:Status-Status}"];
+  public static readonly debianNotInstalledStatus: string = "not-installed";
+  public static readonly pkgutilPackagesOption: string = "--pkgs";
   public static readonly dpkgDebFieldOption: string = "--field";
   public static readonly debianPackageField: string = "Package";
   public static readonly readlinkCommand: string = "readlink";
@@ -3992,6 +3996,18 @@ export class Resources {
 
   public static formatRepositoryPage(repository: string): string {
     return `https://github.com/${repository}`;
+  }
+
+  public static formatDebianAlreadyInstalled(packageName: string, status: string): string {
+    return `The Debian package ${packageName} is already on this machine, ${status}; the smoke installs and removes it, so remove it first or smoke on another machine.`;
+  }
+
+  public static formatMacAlreadyInstalled(found: string): string {
+    return `${found} is already on this machine; the smoke installs the app and removes it and its receipt, so remove it first or smoke on another machine.`;
+  }
+
+  public static formatSystemInstallNotUndone(failure: string, removal: string): string {
+    return `${failure} Removing what the install placed failed too, so it may be left on this machine: ${removal}`;
   }
 
   public static formatDebianPackageUnnamed(file: string, exitCode: number | null, text: string): string {

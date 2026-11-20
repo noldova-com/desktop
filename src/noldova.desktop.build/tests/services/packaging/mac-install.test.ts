@@ -13,6 +13,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { ProductIdentity } from "../../../src/models/packages/product-identity.js";
 import { ProcessResult } from "../../../src/models/processes/process-result.js";
+import { Resources } from "../../../src/resources.js";
 import { MacInstall } from "../../../src/services/packaging/mac-install.js";
 import { ScriptedRunnerFixture } from "../../fixtures/scripted-runner.fixture.js";
 
@@ -36,6 +37,7 @@ export class MacInstallTests {
   private static readonly APPLICATION: string = "/Applications/Sample Makers/Sample App.app";
   private static readonly NEIGHBOUR: string = "/Applications/Sample Makers/Smoke Neighbour.app";
   private static readonly PROGRAM: string = `${MacInstallTests.APPLICATION}/Contents/MacOS/Sample App`;
+  private static readonly PROBES: string = `test ! -e ${MacInstallTests.APPLICATION}\npkgutil --pkgs`;
   private static readonly PLACE: string = `sudo --non-interactive mkdir -p ${MacInstallTests.NEIGHBOUR}`;
   private static readonly INSTALL: string = `sudo --non-interactive installer -pkg ${MacInstallTests.FILE} -target /`;
   private static readonly REMOVAL: string = [`sudo --non-interactive rm -rf ${MacInstallTests.APPLICATION} ${MacInstallTests.NEIGHBOUR}`,
@@ -53,7 +55,7 @@ export class MacInstallTests {
     Assert.areEqual(`${MacInstallTests.PROGRAM}|${MacInstallTests.PROGRAM}|${MacInstallTests.APPLICATION}/Contents/Resources`,
       [install.installed.program, install.installed.mainProcess, install.installed.resources].join("|"));
     Assert.isNull(install.installed.command);
-    Assert.areEqual([MacInstallTests.PLACE, MacInstallTests.INSTALL, `test -e ${MacInstallTests.PROGRAM}`, `test -e ${MacInstallTests.NEIGHBOUR}`].join("\n"),
+    Assert.areEqual([MacInstallTests.PROBES, MacInstallTests.PLACE, MacInstallTests.INSTALL, `test -e ${MacInstallTests.PROGRAM}`, `test -e ${MacInstallTests.NEIGHBOUR}`].join("\n"),
       runner.captured.join("\n"));
     Assert.areEqual(`${MacInstallTests.FILE} installed ${MacInstallTests.APPLICATION} and left ${MacInstallTests.NEIGHBOUR} beside it.`, report);
   }
@@ -77,7 +79,40 @@ export class MacInstallTests {
     const error = await Assert.throwsAsync(() => MacInstall.installAsync(runner, MacInstallTests.FILE, MacInstallTests.product(), MacInstallTests.FOLDER), BuildException);
 
     Assert.isTrue(error.message.includes("missing"), error.message);
-    Assert.areEqual([MacInstallTests.PLACE, MacInstallTests.INSTALL, MacInstallTests.REMOVAL].join("\n"), runner.captured.join("\n"));
+    Assert.areEqual([MacInstallTests.PROBES, MacInstallTests.PLACE, MacInstallTests.INSTALL, MacInstallTests.REMOVAL].join("\n"), runner.captured.join("\n"));
+  }
+
+  @TestMethod
+  public async keepsTheInstallersFailureWhenTheRemovalAfterItFailsTooAsync(): Promise<void> {
+    const runner = new ScriptedRunnerFixture((command, commandArguments) => {
+      const line = ScriptedRunnerFixture.format(command, commandArguments);
+      if (line === MacInstallTests.INSTALL)
+        return MacInstallTests.FAILURE;
+      return line.startsWith("sudo --non-interactive rm ") ? Promise.reject(new Error("rm stalled.")) : ScriptedRunnerFixture.SUCCESS;
+    });
+
+    const error = await Assert.throwsAsync(() => MacInstall.installAsync(runner, MacInstallTests.FILE, MacInstallTests.product(), MacInstallTests.FOLDER), BuildException);
+
+    Assert.areEqual(Resources.formatSystemInstallNotUndone(Resources.formatProcessFailed("sudo", ["--non-interactive", "installer", "-pkg", MacInstallTests.FILE, "-target", "/"], 1, "missing"),
+      "rm stalled."), error.message);
+  }
+
+  @TestMethod
+  public async refusesAnAppOrReceiptThisMachineAlreadyHoldsBeforePlacingAnythingAsync(): Promise<void> {
+    const bundled = new ScriptedRunnerFixture((command, commandArguments) =>
+      ScriptedRunnerFixture.format(command, commandArguments) === `test ! -e ${MacInstallTests.APPLICATION}` ? MacInstallTests.FAILURE : ScriptedRunnerFixture.SUCCESS);
+    const received = new ScriptedRunnerFixture((command, commandArguments) => {
+      const line = ScriptedRunnerFixture.format(command, commandArguments);
+      return line === "pkgutil --pkgs" ? new ProcessResult(0, "com.apple.pkg.Core\ncom.example.sample\n", String.empty) : ScriptedRunnerFixture.SUCCESS;
+    });
+
+    const app = await Assert.throwsAsync(() => MacInstall.installAsync(bundled, MacInstallTests.FILE, MacInstallTests.product(), MacInstallTests.FOLDER), BuildException);
+    const receipt = await Assert.throwsAsync(() => MacInstall.installAsync(received, MacInstallTests.FILE, MacInstallTests.product(), MacInstallTests.FOLDER), BuildException);
+
+    Assert.areEqual(Resources.formatMacAlreadyInstalled(MacInstallTests.APPLICATION), app.message);
+    Assert.areEqual(Resources.formatMacAlreadyInstalled("com.example.sample"), receipt.message);
+    Assert.areEqual(`test ! -e ${MacInstallTests.APPLICATION}`, bundled.captured.join("\n"));
+    Assert.areEqual(MacInstallTests.PROBES, received.captured.join("\n"));
   }
 
   @TestMethod
