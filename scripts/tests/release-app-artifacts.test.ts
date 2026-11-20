@@ -111,9 +111,9 @@ async function checkKeptAsync(targets: string, kept: readonly string[]): Promise
 }
 
 describe("release-app.yml's artifacts", () => {
-  it("keeps each artifact the publish, internal and feed jobs take for its decided days, with a revision and without", () => {
+  it("keeps each artifact the publish, internal, feed and unlock jobs take for its decided days, with a revision and without", () => {
     const uploads = listUploads();
-    for (const job of ["publish", "internal", "feed"]) {
+    for (const job of ["publish", "internal", "feed", "unlock"]) {
       const downloads = listDownloads(job);
       assert.ok(downloads.length > 0, `The ${job} job takes no artifact.`);
       for (const download of downloads) {
