@@ -622,8 +622,10 @@ export class Resources {
     return lines.length === 0 ? String.empty : `${suite} suite, limit ${limit} ms:\n${lines.join(Resources.lineEnd)}\n`;
   }
 
-  public static formatSerialTestLeftovers(leftovers: readonly string[]): string {
-    return `Tests finished but left ${leftovers.join(Resources.listSeparator)} in the run's temporary folder; a test must remove what it creates. Failing the run.\n`;
+  public static formatSerialTestLeftovers(leftovers: readonly string[], kept: readonly string[]): string {
+    const mounted = kept.length === 0 ? String.empty
+      : ` The run left unremoved, without entering them, what is on another file system, such as a volume still mounted: ${kept.join(Resources.listSeparator)}.`;
+    return `Tests finished but left ${leftovers.join(Resources.listSeparator)} in the run's temporary folder; a test must remove what it creates.${mounted} Failing the run.\n`;
   }
 
   public static formatSerialTestUnremoved(error: string): string {
