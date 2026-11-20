@@ -18,6 +18,7 @@ Each version's section is written by the pull request that changes the version, 
 - The main process starts or attaches to the runtime as soon as the installation's launch barrier passes, without waiting for Electron, the window or the saved placement; the barrier's message boxes still wait for Electron to be ready.
 - The main process closes its log, `main.log`, before it exits, so its data folder can be removed right after.
 - A main process that loses the runtime while a barrier check is running checks the barrier again, so it quits when another main process closed the installation, even once the runtime is back.
+- Closing the window that asks about running work before a restart to update answers Cancel, so the restart is cancelled and a Quit held meanwhile goes on.
 - A page call to a web view whose guest a move destroys during the call ends, so the module gets its `End` input and later presses on that view count again.
 - A tool failure whose text item isn't a string is answered as a malformed result instead of leaving the call unanswered, and `ToolContent.fromText` refuses a value that isn't a string.
 - A page whose component fails to load shows its module's failure card, "Its page could not be loaded.", naming the module, and reports the error once; a shell page that fails to load reports its error and stays empty.
