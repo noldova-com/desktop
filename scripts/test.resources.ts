@@ -14,7 +14,7 @@ import { Resources } from "./resources.ts";
 import type { RunnerTotals } from "./totals/runner-totals.ts";
 
 export class TestResources {
-  public static readonly usage: string = "Usage: npm test [-- documents | [--filter <text>]... [--repeat <count>] [--rerun-failed] [--skip-test-details] [--skip-coverage-details]]\n";
+  public static readonly usage: string = "Usage: npm test [-- documents | [--filter <text>]... [--repeat <count>] [--rerun-failed] [--skip-test-details] [--skip-coverage-details] | --shard=<part>/2 [--repeat <count>] [--rerun-failed] [--skip-test-details] [--skip-coverage-details]]\n";
   public static readonly skipTestDetailsVariable: string = "NOLDOVA_TEST_SKIP_TEST_DETAILS";
   public static readonly skipTestDetailsValue: string = "1";
   public static readonly summaryHeader: string = "| Check | Result |\n|---|---|\n";
@@ -31,6 +31,11 @@ export class TestResources {
 
   public static formatSummaryFilter(filter: string): string {
     return `<code>${filter.replaceAll(Resources.summaryAmpersand, Resources.summaryAmpersandEntity).replaceAll(Resources.summaryLessThan, Resources.summaryLessThanEntity).replaceAll(Resources.summaryGreaterThan, Resources.summaryGreaterThanEntity).replaceAll(Resources.summaryPipe, Resources.summaryPipeEntity)}</code>`;
+  }
+
+  public static formatPartNotice(part: number): string {
+    const checks = part === Resources.testPartPackageTests ? "Packages and the package tests" : "every check but the package tests";
+    return `Part run: ${part} of ${Resources.testOptionsShardParts}, ${checks}. Only both parts together are the complete gate.${Resources.lineEnd}`;
   }
 
   public static formatRunHeading(run: number, repeat: number): string {
