@@ -59,7 +59,7 @@ npm start
 `npm run build -- --test` builds the test build: every package, and the fixture modules in `src/noldova.desktop.electron/tests/e2e/fixtures/modules`, so the window has modules to show, with the modules from packages in its `packages` folder; `--without <module id>` leaves a module out.
 After `npm run build`, `npm start` runs the app from your build.
 It prepares a copy of Electron's program that carries the app's name, version and icon, taken from the root `package.json`, in `_build/development-app`, and starts it on `_build/development-package`, whose `package.json` gives Electron the app's name and version and names the built `@noldova/desktop.electron` main script, passing on the arguments that follow `npm start --`.
-It prepares the copy again when Electron, the version, the product identity or the icons change, and installs Electron's binary first when it is missing, retrying a failed download.
+It prepares the copy again when Electron, the version, the product identity or the icons change, and installs Electron's binary first when it is missing, retrying a download that failed on the network.
 
 Some Linux systems restrict unprivileged user namespaces, as Ubuntu does since 23.10.
 There, Chromium's sandbox needs its helper owned by root with the setuid bit, and `npm start` stops and prints the commands instead of starting.
