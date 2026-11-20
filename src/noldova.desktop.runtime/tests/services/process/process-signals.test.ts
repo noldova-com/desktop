@@ -8,6 +8,7 @@
 
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { ProcessSettings } from "@noldova/desktop.runtime";
 
 import { ProcessSupervisorFixture } from "../../fixtures/process-supervisor.fixture.js";
 import { ProcessTableFixture } from "../../fixtures/process-table.fixture.js";
@@ -44,7 +45,7 @@ export class ProcessSignalsTests {
   public async killsAProgramThatDoesNotExitWithinTheGracePeriod(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisorFixture.create(settings);
+    const processes = ProcessSupervisorFixture.createWith(settings, new ProcessSettings(300));
     const owned = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.STUBBORN]));
     await ProgramFixture.readLineAsync(owned);
 

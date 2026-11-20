@@ -17,7 +17,7 @@ export class WindowPartFixture implements IWindowPart {
   public readonly moduleId: string;
   public padding?: ContentPadding;
   public isDeactivationFailing: boolean = false;
-  public onReconnect: () => boolean = () => false;
+  public onReconnect: () => boolean | Promise<boolean> = () => false;
 
   public constructor(moduleId: string, log: string[], onActivate: (context: IWindowPartContext) => void = () => undefined) {
     this.moduleId = moduleId;
@@ -34,7 +34,7 @@ export class WindowPartFixture implements IWindowPart {
   public async reconnectAsync(): Promise<boolean> {
     this.log.push(`reconnect ${this.moduleId}`);
     await Promise.resolve();
-    return this.onReconnect();
+    return await this.onReconnect();
   }
 
   public deactivateAsync(): Promise<void> {

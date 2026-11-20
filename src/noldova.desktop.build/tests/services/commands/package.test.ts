@@ -563,7 +563,8 @@ export class PackageTests {
 
     Assert.areEqual(0, result.exitCode, result.output);
     Assert.isTrue(result.output.endsWith(Resources.formatPackagesMade(files)), result.output);
-    Assert.areEqual("linux-x64,false,false", [report.readString("target"), String(report.readBoolean("signed")), String(report.readBoolean("checked"))].join());
+    Assert.areEqual("linux-x64,false,false,false", [report.readString("target"), String(report.readBoolean("signed")), String(report.readBoolean("checked")),
+      String(report.readBoolean("started"))].join());
     Assert.areEqual(1, result.environments.length);
     Assert.areEqual("/usr/bin", result.environments[0]?.["PATH"]);
     Assert.isTrue(Object.isUndefined(result.environments[0]?.["SAMPLE_SECRET"]));
@@ -713,7 +714,8 @@ export class PackageTests {
     Assert.isTrue(result.output.includes(`${Resources.formatPackagesMade([image, archive])}${Resources.formatMacNotarized(image, SignedMacBuilderRunnerFixture.SUBMISSION)}`
       + Resources.formatSignatures([Resources.formatAppleDiskImageVerified(image), Resources.formatAppleArchiveVerified(archive)].join("\n"))), result.output);
     Assert.isTrue(result.output.endsWith(`${Resources.formatMacUpdateVerified(archive, 3, 0)}\n`), result.output);
-    Assert.areEqual("macos-x64,true,true", [report.readString("target"), String(report.readBoolean("signed")), String(report.readBoolean("checked"))].join());
+    Assert.areEqual("macos-x64,true,true,false", [report.readString("target"), String(report.readBoolean("signed")), String(report.readBoolean("checked")),
+      String(report.readBoolean("started"))].join());
     Assert.areEqual(path.join(layout.signing, "notarization-key.p8"), result.environments[0]?.["APPLE_API_KEY"]);
     Assert.isFalse(existsSync(layout.signing));
     Assert.areEqual(["xcrun notarytool submit", "xcrun stapler staple", "codesign --verify", "codesign --display", "spctl", "xcrun stapler validate", "hdiutil attach",

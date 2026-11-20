@@ -13,6 +13,7 @@ import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
+import { ResponseBody } from "../models/response-body.js";
 
 export class ElectronWebViewSession implements IWebViewSession {
   private readonly profile: Session;
@@ -61,7 +62,7 @@ export class ElectronWebViewSession implements IWebViewSession {
   public async readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null> {
     const response = await this.profile.fetch(url, { redirect: "error", signal });
     if (!response.ok || Object.isNull(response.body)) {
-      await response.body?.cancel();
+      await ResponseBody.letGoAsync(response);
       return null;
     }
     const reader = response.body.getReader();

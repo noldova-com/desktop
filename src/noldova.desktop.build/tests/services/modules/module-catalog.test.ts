@@ -56,7 +56,8 @@ export class ModuleCatalogTests {
   private static readonly WINDOW_PIN_INVALID: string =
     `${ModuleCatalogTests.WINDOW_SUBJECT} must be pinned to one exact version among ${ModuleAppFixture.MODULE_PACKAGE}'s dependencies, and installed at it; run npm install.`;
   private static readonly INVALID_NAME: string =
-    "The root package.json's desktop.product.name must be a name without quotes, backslashes or line breaks.\n";
+    "The root package.json's desktop.product.name must be a name without quotes, backslashes, % ! $ ` # / ? < > : * | [ ] { } or control characters, with no dot or space at its end, "
+    + "and not a name Windows reserves, such as CON.\n";
 
   @TestMethod
   public async readsTheDeclarationsOfModulesAndFixtureModulesAndReportsInvalidOnesAsProblems(): Promise<void> {

@@ -403,6 +403,25 @@ export class UpdateRestartTests {
     }, target, false);
   }
 
+  @TestMethod
+  public async cancelsTheUpdateAndLetsQuitGoOnWhenTheWindowAskingAboutWorkCloses(): Promise<void> {
+    const handoff = new FakeUpdateHandoff();
+    const target = new FakeRuntimeConnection();
+    target.answers.set("desktop.work", Response.success("r", { descriptions: ["Indexing the project"], sequence: 1 }));
+    await UpdateRestartTests.restartToUpdateAsync("linux", handoff, async electron => {
+      const window = MainProcessStartFixture.firstWindow(electron);
+      await Condition.waitAsync(() => UpdateRestartTests.quitQuestions(window).length === 1);
+
+      window.destroy();
+      await Condition.waitAsync(() => target.isClosed);
+      electron.app.quit();
+      await Condition.waitAsync(() => electron.app.calls.includes("quit"));
+
+      Assert.areEqual(1, UpdateRestartTests.quitQuestions(window).length);
+      Assert.areEqual(0, handoff.handedOff.length);
+    }, target);
+  }
+
   private static async restartToUpdateAsync(
     platform: string,
     handoff: FakeUpdateHandoff,

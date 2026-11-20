@@ -3209,6 +3209,11 @@ export interface IWebViewInputEvent {
    * The event's type, such as `rawKeyDown`, `mouseDown` or `touchStart`.
    */
   readonly type: string;
+
+  /**
+   * A key event's key, as the DOM's `KeyboardEvent.key` names it, such as `a`, `Escape` or `Shift`; other events have none.
+   */
+  readonly key?: string;
 }
 
 /**
@@ -6412,6 +6417,22 @@ export declare class UpdateWorkQuestion {
    * ```
    */
   public answer(prompt: IQuitPrompt, choice: unknown): boolean;
+
+  /**
+   * Ends the question with no answer once the window that asks closes, so the restart is cancelled rather than left
+   * waiting for good.
+   *
+   * @param prompt The window that closed; any other window changes nothing.
+   * @example
+   * ```ts
+   * import type { IQuitPrompt, UpdateWorkQuestion } from "@noldova/desktop.electron";
+   *
+   * export function closed(question: UpdateWorkQuestion, prompt: IQuitPrompt): void {
+   *   question.dismiss(prompt);
+   * }
+   * ```
+   */
+  public dismiss(prompt: IQuitPrompt): void;
 }
 
 /**
@@ -8428,6 +8449,13 @@ export interface IFeedResponse {
    * The URL that answered, after any redirects.
    */
   readonly url: string;
+
+  /**
+   * The body as a stream, as `fetch` gives it; optional. The feed provider
+   * cancels it when it refuses the answer without reading it, so a server
+   * that keeps the body open doesn't hold the connection until the timeout.
+   */
+  readonly body?: ReadableStream<Uint8Array> | null;
 
   /**
    * Reads the body as text.

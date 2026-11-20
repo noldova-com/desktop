@@ -26,6 +26,7 @@ import type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
+import type { IWebViewInputEvent } from "../interfaces/i-web-view-input-event.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
@@ -63,6 +64,7 @@ export class OpenWebView {
   private readonly favicon: WebViewFavicon;
   private windowRequests: readonly number[] = [];
   private lastInput: number | undefined;
+  private lastPress: number | undefined;
   private relayedInputs: number = 0;
   private relayedPresses: readonly symbol[] = [];
   private heldInputs: readonly (readonly [IWebViewContents, IWebViewInput, boolean])[] = [];
@@ -127,6 +129,7 @@ export class OpenWebView {
     this.lost = lost;
     this.input = input;
     this.lastInput = undefined;
+    this.lastPress = undefined;
     this.pendingUrl = undefined;
     this.committedUrl = undefined;
     this.search = undefined;
@@ -433,7 +436,7 @@ export class OpenWebView {
     });
     guest.on(Resources.inputEvent, (_event, input) => {
       if (this.isBound(guest))
-        this.noteInput(input.type);
+        this.noteInput(input);
     });
     guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
     guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
@@ -752,8 +755,15 @@ export class OpenWebView {
       [Resources.addressField]: details.url,
       [Resources.hadRecentInputField]: !Object.isUndefined(this.lastInput) && now - this.lastInput <= Resources.recentInputMilliseconds,
       [Resources.originField]: origin === Resources.nullOrigin ? null : origin,
-      ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition }
+      ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition },
+      [Resources.fromPressField]: this.takePress(now)
     });
+  }
+
+  private takePress(now: number): boolean {
+    const isFromPress = !Object.isUndefined(this.lastPress) && now - this.lastPress <= Resources.recentInputMilliseconds;
+    this.lastPress = undefined;
+    return isFromPress;
   }
 
   private settleInput(press: symbol | null, isUncounted: boolean): void {
@@ -782,7 +792,8 @@ export class OpenWebView {
     this.input(Resources.inputEndKind);
   }
 
-  private noteInput(type: string): void {
+  private noteInput(input: IWebViewInputEvent): void {
+    const type = input.type;
     if (!Resources.pointerMoveTypes.includes(type))
       this.inputCount += 1;
     const isPress = Resources.personPressTypes.includes(type);
@@ -793,8 +804,12 @@ export class OpenWebView {
     const isPersonInput = Resources.personInputTypes.includes(type);
     if (isPersonInput && this.relayCopies > 0)
       this.relayCopies -= 1;
-    else if (this.relayedInputs === 0 && isPersonInput)
-      this.lastInput = this.now();
+    else if (this.relayedInputs === 0 && isPersonInput) {
+      const now = this.now();
+      this.lastInput = now;
+      if (Object.isUndefined(input.key) || !Resources.nonActivatingKeys.includes(input.key))
+        this.lastPress = now;
+    }
     if (this.openPageCalls > 0 && isPress && this.uncountedInputs === 0)
       this.input(Resources.inputPressKind);
   }

@@ -32,6 +32,7 @@ const manualFormPage = formPage.replace("<script>", "<script>history.scrollResto
 const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><a href=\"/focus?linked\" style=\"position:absolute;left:10px;top:60px;width:150px;height:30px;display:block\">Next</a><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
+const pressPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:200px;height:100px\">D</div><script>const d = document.getElementById(\"d\"); d.addEventListener(\"pointerdown\", e => { if (e.button === 1) { e.preventDefault(); window.open(\"/a\"); window.open(\"/b\"); } else if (e.pointerType === \"mouse\" && e.button === 0) window.open(\"/r\"); }); addEventListener(\"touchend\", () => window.open(\"/t\")); addEventListener(\"keydown\", e => window.open(\"/k/\" + e.key)); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Presses\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
 function png(side: number): Buffer {
@@ -178,17 +179,17 @@ function crashFirstViewAsync(mainProcess: MainProcessFixture): Promise<boolean> 
   });
 }
 
-function holdClockAsync(mainProcess: MainProcessFixture, isHeld: boolean): Promise<void> {
-  return mainProcess.application.evaluate((_, held) => {
+function holdClockAsync(mainProcess: MainProcessFixture, isHeld: boolean, aheadMilliseconds = 2000): Promise<void> {
+  return mainProcess.application.evaluate((_, [held, ahead]) => {
     if (!held) {
       if (globalThis.nativePerformanceNow !== undefined)
         performance.now = globalThis.nativePerformanceNow;
       return;
     }
     globalThis.nativePerformanceNow ??= performance.now.bind(performance);
-    const at = globalThis.nativePerformanceNow() + 2000;
+    const at = globalThis.nativePerformanceNow() + ahead;
     performance.now = (): number => at;
-  }, isHeld);
+  }, [isHeld, aheadMilliseconds] as const);
 }
 
 function runInFirstViewAsync(mainProcess: MainProcessFixture, script: string): Promise<boolean> {
@@ -285,6 +286,10 @@ async function startServerAsync(): Promise<Server> {
     }
     if (request.url === "/clicks") {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(clicksPage);
+      return;
+    }
+    if (request.url === "/presses") {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(pressPage);
       return;
     }
     if (request.url === "/opener") {
@@ -425,6 +430,7 @@ test.describe("web views", () => {
       await CommandSearchFixture.searchAsync(window, "Allow the mark");
       await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.allowMark");
       await window.keyboard.press("Enter");
+      await expect(window.getByRole("tab", { name: /Mark allowed/ })).toHaveCount(1);
       await pressInFirstViewAsync(mainProcess, "L", [mod, "shift"]);
       await expect(window.getByRole("tab", { name: /Marked page/ })).toHaveCount(1);
       await pressInFirstViewAsync(mainProcess, "6");
@@ -1179,22 +1185,28 @@ test.describe("web views", () => {
       await expect(view(window, 0)).toHaveText("Opener");
       const id = await view(window, 0).getAttribute("data-view");
 
-      const script = `${origin}/second false ${origin} foreground-tab\n`;
-      const popup = `${origin}/second false ${origin} new-window\n`;
-      const link = `${origin}/first true ${origin} foreground-tab\n`;
+      const script = `${origin}/second false ${origin} foreground-tab false\n`;
+      const popup = `${origin}/second false ${origin} new-window false\n`;
+      const link = `${origin}/first true ${origin} foreground-tab true\n`;
       expect(await runInFirstViewAsync(mainProcess, "window.open('/second')")).toBe(true);
       await expect(view(window, 0)).toHaveAttribute("data-requests", script);
       await expect(view(window, 1)).toHaveText("Second page");
       expect(await runInFirstViewAsync(mainProcess, "window.open('/second', '_blank', 'popup')")).toBe(true);
       await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}`);
-      expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}`);
-      await expect(view(window, 1)).toHaveText("First page");
-      expect(await clickInFirstViewAsync(mainProcess, 20, 20, "middle")).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}${origin}/first true ${origin} background-tab\n`);
+      await holdClockAsync(mainProcess, true);
+      try {
+        expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
+        await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}`);
+        await expect(view(window, 1)).toHaveText("First page");
+        expect(await clickInFirstViewAsync(mainProcess, 20, 20, "middle")).toBe(true);
+        await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}${origin}/first true ${origin} background-tab true\n`);
+      }
+      finally {
+        await holdClockAsync(mainProcess, false);
+      }
       expect(await readPlacesAsync(window)).toHaveLength(2);
 
-      await holdClockAsync(mainProcess, true);
+      await holdClockAsync(mainProcess, true, 4000);
       const burst = await runInFirstViewAsync(mainProcess, "for (let index = 0; index < 7; index++) window.open('/first?' + index)").finally(() => holdClockAsync(mainProcess, false));
       expect(burst).toBe(true);
       const countAsync = async (): Promise<[number, number]> => [
@@ -1204,6 +1216,65 @@ test.describe("web views", () => {
       await expect.poll(async () => (await countAsync()).reduce((sum, t) => sum + t, 0)).toBe(7);
       expect(await countAsync()).toEqual([5, 2]);
       expect(await readPlacesAsync(window)).toHaveLength(2);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a press of the person's in a view gives its page one new window, so a handler's second request, a relayed click's and a script's get none, and a touch gives one as a click does, but Escape or Shift alone gives none", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/presses` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Presses");
+      const line = (path: string, disposition: string, isFromPress: boolean): string => `${origin}${path} true ${origin} ${disposition} ${String(isFromPress)}\n`;
+
+      const middle = `${line("/a", "foreground-tab", true)}${line("/b", "foreground-tab", false)}`;
+      await holdClockAsync(mainProcess, true);
+      try {
+        expect(await clickInFirstViewAsync(mainProcess, 50, 20, "middle")).toBe(true);
+        await expect(view(window, 0)).toHaveAttribute("data-requests", middle);
+        await requestAsync(window, "pages.click", { view: 0, x: 50, y: 20 });
+        const relayed = `${middle}${line("/r", "foreground-tab", false)}`;
+        await expect(view(window, 0)).toHaveAttribute("data-requests", relayed);
+        const touched = await mainProcess.application.evaluate(async ({ webContents }) => {
+          const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+          if (first === undefined)
+            return false;
+          await first.debugger.sendCommand("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 50, y: 20 }] });
+          await first.debugger.sendCommand("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+          return true;
+        });
+        expect(touched).toBe(true);
+        await expect.poll(async () => ((await view(window, 0).getAttribute("data-requests")) ?? String.empty).slice(relayed.length)).toMatch(new RegExp(`^${origin}/t true ${origin} [a-z-]+ true\n$`));
+        expect(await runInFirstViewAsync(mainProcess, "window.open('/s')")).toBe(true);
+        await expect.poll(async () => (await view(window, 0).getAttribute("data-requests"))?.split("\n").find(t => t.startsWith(`${origin}/s `))).toBe(`${origin}/s true ${origin} foreground-tab false`);
+      }
+      finally {
+        await holdClockAsync(mainProcess, false);
+      }
+
+      const keyed = async (): Promise<string[]> => ((await view(window, 0).getAttribute("data-requests")) ?? String.empty).split("\n").filter(t => t.startsWith(`${origin}/k/`));
+      await holdClockAsync(mainProcess, true, 4000);
+      try {
+        await pressInFirstViewAsync(mainProcess, "Escape");
+        await expect.poll(keyed).toEqual([`${origin}/k/Escape true ${origin} foreground-tab false`]);
+        await pressInFirstViewAsync(mainProcess, "Shift");
+        await expect.poll(keyed).toEqual([`${origin}/k/Escape true ${origin} foreground-tab false`, `${origin}/k/Shift true ${origin} foreground-tab false`]);
+        await pressInFirstViewAsync(mainProcess, "K");
+        await expect.poll(async () => (await keyed()).slice(2).join("\n")).toMatch(new RegExp(`^${origin}/k/[kK] true ${origin} foreground-tab true$`));
+      }
+      finally {
+        await holdClockAsync(mainProcess, false);
+      }
     }
     finally {
       await stopServerAsync(server);

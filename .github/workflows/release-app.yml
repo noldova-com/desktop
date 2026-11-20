@@ -139,7 +139,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@a78d658164b4bbfde91c2735eee477138517b403 # v2.40.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@c18622b1479d896f22483f8091bd862526cb4df4 # v2.41.0
     permissions: {}
 
   fetch:
@@ -318,7 +318,7 @@ jobs:
         with:
           name: desktop.build
           path: ${{ runner.temp }}/desktop.build/*.tgz
-          retention-days: 1
+          retention-days: 35
           if-no-files-found: error
           overwrite: true
 
@@ -527,6 +527,24 @@ jobs:
         with:
           pattern: report-*
           path: _build/release-reports
+
+      - name: Check that this run's release files are still kept
+        timeout-minutes: 1
+        env:
+          RELEASE_TARGETS: ${{ needs.check.outputs.release-targets }}
+        run: |
+          set -euo pipefail
+          missing=''
+          IFS=, read -ra targets <<< "$RELEASE_TARGETS"
+          for target in "${targets[@]}"; do
+            if [ ! -d "_build/release-reports/report-$target" ]; then
+              missing="$missing${missing:+, }$target"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::The release files expired after 14 days, so this run has none for $missing; start a new release with a new version."
+            exit 1
+          fi
 
       - name: Name the release repository's owner and name
         id: release-repository

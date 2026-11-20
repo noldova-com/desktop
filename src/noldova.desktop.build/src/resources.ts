@@ -97,7 +97,8 @@ export class Resources {
   public static readonly electronArchitectureVariable: string = "npm_config_arch";
   public static readonly addonWindowsTargets: readonly string[] = ["win32-x64", "win32-arm64"];
   public static readonly addonPosixTargets: readonly string[] = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
-  public static readonly addonTargets: readonly string[] = [...Resources.addonWindowsTargets, ...Resources.addonPosixTargets];
+  public static readonly addonProcessorSeparator: string = "+";
+  public static readonly addonTargetPattern: RegExp = /^(?:aix|android|cygwin|darwin|freebsd|haiku|linux|netbsd|openbsd|sunos|win32)-[a-z0-9]+(?:\+[a-z0-9]+)*$/;
   public static readonly desktopToolsEntrySegments: readonly string[] = ["node_modules", "@noldova", "desktop.cli", "services", "cli-entry.js"];
   public static readonly runAsNodeVariable: string = "ELECTRON_RUN_AS_NODE";
   public static readonly runAsNodeValue: string = "1";
@@ -1293,6 +1294,10 @@ export class Resources {
   public static readonly aptGetInstalledPrefix: string = "Inst ";
   public static readonly aptGetInstalledDetails: RegExp = /\s.*$/;
   public static readonly dpkgDebCommand: string = "dpkg-deb";
+  public static readonly dpkgQueryCommand: string = "dpkg-query";
+  public static readonly dpkgQueryStatusArguments: readonly string[] = ["--show", "--showformat=${db:Status-Status}"];
+  public static readonly debianNotInstalledStatus: string = "not-installed";
+  public static readonly pkgutilPackagesOption: string = "--pkgs";
   public static readonly dpkgDebFieldOption: string = "--field";
   public static readonly debianPackageField: string = "Package";
   public static readonly readlinkCommand: string = "readlink";
@@ -1623,7 +1628,8 @@ export class Resources {
   public static readonly productSlugPattern: RegExp = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
   public static readonly productVariablePattern: RegExp = /^[A-Z][A-Z0-9_]*$/;
   public static readonly productRepositoryPattern: RegExp = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
-  public static readonly productUnsafeNamePattern: RegExp = /["\\\n\r]/;
+  public static readonly productUnsafeNamePattern: RegExp = /["\\%!$`#/?<>:*|[\]{}\p{Cc}]|[. ]$|^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?$/iu;
+  public static readonly productUnsafePublisherPattern: RegExp = /["\\\n\r%!$`]/;
   public static readonly productLineBreakPattern: RegExp = /[\n\r]/;
   public static readonly productWhitespacePattern: RegExp = /\s/u;
   public static readonly productMacCategoryPattern: RegExp = /^public\.app-category\.[a-z]+(?:-[a-z]+)*$/;
@@ -1631,7 +1637,9 @@ export class Resources {
   public static readonly productUnsafeSegmentPattern: RegExp = /[\\:*?"<>|]/;
   public static readonly checkoutHashLength: number = 8;
   public static readonly checkoutVariableSuffix: string = "_CHECKOUT";
-  public static readonly productNameExpected: string = "a name without quotes, backslashes or line breaks";
+  public static readonly productNameExpected: string = "a name without quotes, backslashes, % ! $ ` # / ? < > : * | [ ] { } or control characters, with no dot or space at its end, "
+    + "and not a name Windows reserves, such as CON";
+  public static readonly productPublisherExpected: string = "a name without quotes, backslashes, % ! $ ` or line breaks";
   public static readonly productSlugExpected: string = "lowercase kebab-case";
   public static readonly productApplicationIdExpected: string = "a lowercase reverse-DNS ID";
   public static readonly productDevelopmentApplicationIdExpected: string = "a lowercase reverse-DNS ID other than applicationId";
@@ -1692,10 +1700,11 @@ export class Resources {
   public static readonly typeOnlyPeersField: string = "typeOnlyPeers";
   public static readonly typeOnlyPeersListField: string = "peers";
   public static readonly typeOnlyPeersShape: string = `The root package.json's ${Resources.typeOnlyPeersSection} must map each package, as <name>@<version>, to { "peers": [<peer name>, ...], "reason": "<why the package never loads them>" }.`;
-  public static readonly packageReportFieldCount: number = 3;
+  public static readonly packageReportFieldCount: number = 4;
   public static readonly packageReportTargetField: "target" = "target";
   public static readonly packageReportSignedField: "signed" = "signed";
   public static readonly packageReportCheckedField: "checked" = "checked";
+  public static readonly packageReportStartedField: "started" = "started";
   public static readonly zipArchiveTarget: string = "zip";
   public static readonly packagePlatforms: ReadonlyMap<string, string> = new Map([
     [Resources.windowsPlatform, Resources.windowsTarget], [Resources.macPlatform, Resources.macosTarget], [Resources.linuxPlatform, Resources.linuxTarget]
@@ -3553,6 +3562,10 @@ export class Resources {
     return `${version} is not newer than the highest release, ${highest}.`;
   }
 
+  public static formatReleaseOvertaken(version: string, highest: string): string {
+    return `${version} is not newer than the highest release, ${highest}, which another run published after this one's check, so ${version} is not published; release a version newer than ${highest}.`;
+  }
+
   public static formatCompareRoute(revision: string): string {
     return `/compare/${revision}...${Resources.mainBranch}`;
   }
@@ -3986,6 +3999,18 @@ export class Resources {
 
   public static formatRepositoryPage(repository: string): string {
     return `https://github.com/${repository}`;
+  }
+
+  public static formatDebianAlreadyInstalled(packageName: string, status: string): string {
+    return `The Debian package ${packageName} is already on this machine, ${status}; the smoke installs and removes it, so remove it first or smoke on another machine.`;
+  }
+
+  public static formatMacAlreadyInstalled(found: string): string {
+    return `${found} is already on this machine; the smoke installs the app and removes it and its receipt, so remove it first or smoke on another machine.`;
+  }
+
+  public static formatSystemInstallNotUndone(failure: string, removal: string): string {
+    return `${failure} Removing what the install placed failed too, so it may be left on this machine: ${removal}`;
   }
 
   public static formatDebianPackageUnnamed(file: string, exitCode: number | null, text: string): string {
@@ -4428,6 +4453,11 @@ export class Resources {
     return `${name} ${version} for ${targets}. ${signing}`;
   }
 
+  public static formatReleaseRunCheckExcept(runUrl: string, unstarted: string): string {
+    return `Each target's package passed its install check on that target's own runner in the run that built it, except ${unstarted}, whose packages that run built `
+      + `but didn't install or start: ${runUrl}`;
+  }
+
   public static formatReleaseCiOnly(ciOnly: string): string {
     return `Accepted by a CI run only: ${ciOnly}.`;
   }
@@ -4454,7 +4484,7 @@ export class Resources {
 
   public static formatAssetMismatch(name: string, size: number, digest: string | null, builtSize: number, expected: string): string {
     return `${name} on GitHub has ${size} bytes and ${digest ?? "no digest"}, but the built file has ${builtSize} bytes and ${expected}. `
-      + "A release's files are never replaced.";
+      + "Only a draft's file from an earlier run is ever replaced.";
   }
 
   public static formatGitHubReleasesContext(index: number): string {
@@ -4507,6 +4537,10 @@ export class Resources {
 
   public static formatIncompleteUploadDeleting(name: string): string {
     return `Deleting the incomplete upload of ${name}.\n`;
+  }
+
+  public static formatDifferentUploadReplacing(name: string): string {
+    return `Replacing ${name}, which the draft holds from an earlier run and which differs from the built file.\n`;
   }
 
   public static formatGitHubReleaseContext(id: number): string {

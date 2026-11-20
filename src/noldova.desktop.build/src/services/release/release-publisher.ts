@@ -21,6 +21,7 @@ import type { GitHubReleaseAsset } from "../../models/release/github-release-ass
 import type { PackageDigest } from "../../models/release/package-digest.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { ReleaseFile } from "../../models/release/release-file.ts";
+import { ReleaseOrder } from "./release-order.ts";
 import { ReleaseTag } from "./release-tag.ts";
 import type { ReleaseRequest } from "../../models/release/release-request.ts";
 import { Resources } from "../../resources.ts";
@@ -37,7 +38,8 @@ export class ReleasePublisher {
   public async publishAsync(request: ReleaseRequest, folder: string, files: readonly ReleaseFile[], notes: string): Promise<void> {
     const { tag, revision } = request;
     const digests = new Map(files.map(t => [t.name, t.digest]));
-    const releases = (await this.api.readPagesAsync(Resources.githubReleasesPath)).map((t, index) => GitHubRelease.read(t, Resources.formatGitHubReleasesContext(index))).filter(t => t.tag === tag);
+    const all = await this.readReleasesAsync();
+    const releases = all.filter(t => t.tag === tag);
     if (releases.length > 1)
       throw new BuildException(Resources.formatReleaseTagShared(releases.length, tag));
     const existing = releases.at(0);
@@ -48,15 +50,18 @@ export class ReleasePublisher {
       return;
     }
 
+    ReleasePublisher.requireNewest(all, request);
     const draft = existing ?? await this.createDraftAsync(request, notes);
     if (!request.isSeparate && draft.target !== revision)
       throw new BuildException(Resources.formatDraftForOtherRevision(tag, draft.target, revision));
     for (const [name, digest] of digests)
       await this.uploadAsync(draft, name, path.join(folder, name), digest);
     ReleasePublisher.requireComplete(await this.readAsync(draft.id), digests);
+    ReleasePublisher.requireNewest(await this.readReleasesAsync(), request);
     if (!request.isSeparate)
       await this.createTagAsync(tag, revision);
-    const published = GitHubRelease.read(await this.api.sendAsync(Resources.httpPatchMethod, Resources.formatGitHubReleasePath(draft.id), [[Resources.githubMakeLatestField, Resources.releaseMakeLatestValue]], [[Resources.githubDraftField, false]]),
+    const published = GitHubRelease.read(await this.api.sendAsync(Resources.httpPatchMethod, Resources.formatGitHubReleasePath(draft.id), [[Resources.githubMakeLatestField, Resources.releaseMakeLatestValue], [Resources.githubBodyField, notes]],
+      [[Resources.githubDraftField, false]]),
       Resources.publishedReleaseContext);
     if (published.isDraft)
       throw new BuildException(Resources.formatReleaseKeptDraft(tag));
@@ -71,15 +76,24 @@ export class ReleasePublisher {
     this.output.write(Resources.formatReleasePublished(tag, revision, digests.size));
   }
 
+  private static requireNewest(releases: readonly GitHubRelease[], request: ReleaseRequest): void {
+    const highest = ReleaseOrder.readHighest(releases, request);
+    if (!Object.isNull(highest) && !request.version.isNewerThan(highest))
+      throw new BuildException(Resources.formatReleaseOvertaken(request.version.text, highest.text));
+  }
+
   private static isTransient(error: unknown): error is GitHubRequestException | ProcessTimeoutException {
     return error instanceof ProcessTimeoutException || (error instanceof GitHubRequestException
       && (Object.isNull(error.status) || error.status >= Resources.httpServerErrorStatus || Resources.githubRetriedStatuses.includes(error.status)));
   }
 
+  private static isSame(asset: GitHubReleaseAsset, digest: PackageDigest): boolean {
+    return asset.digest === Resources.formatAssetDigest(digest.sha256) && asset.size === digest.size;
+  }
+
   private static requireSame(asset: GitHubReleaseAsset, digest: PackageDigest): void {
-    const expected = Resources.formatAssetDigest(digest.sha256);
-    if (asset.digest !== expected || asset.size !== digest.size)
-      throw new BuildException(Resources.formatAssetMismatch(asset.name, asset.size, asset.digest, digest.size, expected));
+    if (!ReleasePublisher.isSame(asset, digest))
+      throw new BuildException(Resources.formatAssetMismatch(asset.name, asset.size, asset.digest, digest.size, Resources.formatAssetDigest(digest.sha256)));
   }
 
   private static requireComplete(release: GitHubRelease, digests: ReadonlyMap<string, PackageDigest>): void {
@@ -96,6 +110,10 @@ export class ReleasePublisher {
       throw new BuildException(Resources.formatReleaseAssetsDiffer(release.tag, missing, unexpected));
   }
 
+  private async readReleasesAsync(): Promise<GitHubRelease[]> {
+    return (await this.api.readPagesAsync(Resources.githubReleasesPath)).map((t, index) => GitHubRelease.read(t, Resources.formatGitHubReleasesContext(index)));
+  }
+
   private async createDraftAsync(request: ReleaseRequest, notes: string): Promise<GitHubRelease> {
     const tagged = await ReleaseTag.readCommitAsync(this.api, request.tag);
     if (request.isSeparate && !Object.isNull(tagged))
@@ -110,7 +128,7 @@ export class ReleasePublisher {
 
   private async uploadAsync(release: GitHubRelease, name: string, file: string, digest: PackageDigest): Promise<void> {
     for (let attempt = 1; attempt <= Resources.releaseUploadAttempts; attempt++) {
-      if (await this.isUploadedAsync(release.id, name, digest))
+      if (await this.isUploadedAsync(release.id, name, digest, attempt === 1))
         return;
       try {
         await this.api.uploadAsync(release.tag, file);
@@ -122,16 +140,21 @@ export class ReleasePublisher {
         await timers.setTimeout(Resources.releaseRetryPause);
       }
     }
-    if (!await this.isUploadedAsync(release.id, name, digest))
+    if (!await this.isUploadedAsync(release.id, name, digest, false))
       throw new BuildException(Resources.formatUploadFailed(name));
   }
 
-  private async isUploadedAsync(id: number, name: string, digest: PackageDigest): Promise<boolean> {
+  private async isUploadedAsync(id: number, name: string, digest: PackageDigest, isReplaceable: boolean): Promise<boolean> {
     const asset = (await this.readAsync(id)).assets.find(t => t.name === name);
     if (Object.isUndefined(asset))
       return false;
     if (!asset.isUploaded) {
       this.output.write(Resources.formatIncompleteUploadDeleting(name));
+      await this.api.deleteAsync(Resources.formatGitHubAssetPath(asset.id));
+      return false;
+    }
+    if (isReplaceable && !ReleasePublisher.isSame(asset, digest)) {
+      this.output.write(Resources.formatDifferentUploadReplacing(name));
       await this.api.deleteAsync(Resources.formatGitHubAssetPath(asset.id));
       return false;
     }

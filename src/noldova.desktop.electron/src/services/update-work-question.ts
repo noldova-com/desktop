@@ -50,6 +50,11 @@ export class UpdateWorkQuestion {
     return true;
   }
 
+  public dismiss(prompt: IQuitPrompt): void {
+    if (prompt === this.prompt)
+      this.finish(null);
+  }
+
   private get isFinished(): boolean {
     return this.finished.signal.aborted;
   }
