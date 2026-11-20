@@ -25,6 +25,6 @@ export class FakeWebViewFrame implements IWebViewFrame {
     this.scripts.push(code);
     if (Object.isNull(this.failure))
       return Promise.resolve(undefined);
-    throw this.failure;
+    return Promise.reject(this.failure);
   }
 }

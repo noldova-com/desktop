@@ -756,15 +756,6 @@ export class OpenWebView {
       this.refuseFrame(navigation.frame, navigation.url, false);
   }
 
-  private static async showRefusedAsync(frame: IWebViewFrame, page: string): Promise<void> {
-    try {
-      await frame.executeJavaScript(Resources.formatRefusedPageScript(page));
-    }
-    catch {
-      // A frame that has gone, or changed process, keeps no refused page; the module still has the event.
-    }
-  }
-
   private takesRefusedPage(navigation: IFrameNavigation): boolean {
     const frame = navigation.frame?.frameTreeNodeId;
     if (Object.isUndefined(frame))
@@ -797,7 +788,7 @@ export class OpenWebView {
     const page = this.refusedPage.format(origin === Resources.nullOrigin ? url : origin, randomUUID());
     const kept = [...this.refusedPages].filter(([key]) => key !== frame.frameTreeNodeId).slice(1 - Resources.refusedPageLimit);
     this.refusedPages = new Map([...kept, [frame.frameTreeNodeId, page]]);
-    void OpenWebView.showRefusedAsync(frame, page);
+    void frame.executeJavaScript(Resources.formatRefusedPageScript(page)).catch(() => undefined);
   }
 
   private noteStart(guest: IWebViewContents, navigation: IWindowNavigation): void {
