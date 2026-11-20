@@ -109,8 +109,7 @@ export class ToolbarComponent {
   }
 
   protected run(row: CommandRow): void {
-    if (row.isEnabled)
-      this.commands.runAsync(row.command, row.commandArguments).catch((error: unknown) => this.errors.handleError(error));
+    this.commands.runAsync(row.command, row.commandArguments).catch((error: unknown) => this.errors.handleError(error));
   }
 
   private measure(): void {
