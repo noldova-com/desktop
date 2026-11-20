@@ -32,13 +32,15 @@ export class MacFolderProtectorTests {
   private static readonly IGNORED: string = "the volume /Volumes/Shared is mounted with ownership ignored, so every account acts as the owner of its files";
   private static readonly DETACH_ATTEMPTS: number = 5;
   private static readonly DETACH_PAUSE_MILLISECONDS: number = 1000;
+  private static readonly HOLDERS: string = "{ sudo -n /usr/sbin/lsof -n 2>/dev/null || /usr/sbin/lsof -n; } | grep -F -e \"$1\" -e \"$2\"; "
+    + "ps -axo pid,ppid,etime,stat,command | grep -E '[d]iskimage|[m]ds|[m]dworker|[f]seventsd|[f]sck|[d]iskarbitration|[h]diutil|[d]iskutil'; /usr/bin/hdiutil info";
   private static readonly WHOLE_DISK: RegExp = /^(\/dev\/disk\d+)\s/mu;
 
   private static volumes(fake: AddonModuleFixture, functions: readonly (keyof IPosixProcessAddon)[] = ["readVolume"]): NativeAddon<IPosixProcessAddon> {
     return new NativeAddon<IPosixProcessAddon>(fake.file, functions);
   }
 
-  private static async detachAsync(disk: string): Promise<void> {
+  private static async detachAsync(disk: string, mountPoint: string): Promise<void> {
     const failures: string[] = [];
     for (let attempt = 1; attempt <= MacFolderProtectorTests.DETACH_ATTEMPTS; attempt++) {
       if (attempt > 1)
@@ -48,7 +50,9 @@ export class MacFolderProtectorTests {
         return;
       failures.push(`attempt ${attempt}: exit ${String(result.status)}, signal ${String(result.signal)}${result.error === undefined ? "" : `, ${result.error.message}`}\n${result.stdout}${result.stderr}`);
     }
-    throw new Error(`hdiutil could not detach ${disk} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}`);
+    const holders = spawnSync("/bin/sh", ["-c", MacFolderProtectorTests.HOLDERS, "holders", disk, mountPoint], { encoding: "utf8" });
+    throw new Error(`hdiutil could not detach ${disk} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}\n`
+      + `What held ${disk} or ${mountPoint} then, with the disk image, Spotlight, fseventsd, fsck and disk arbitration processes and hdiutil info:\n${holders.stdout}${holders.stderr}`);
   }
 
   @TestMethod
@@ -200,7 +204,7 @@ export class MacFolderProtectorTests {
 
       Assert.areEqual(`the volume ${await realpath(mountPoint)} is mounted with ownership ignored, so every account acts as the owner of its files`, exception.access);
     } finally {
-      await MacFolderProtectorTests.detachAsync(disk ?? mountPoint);
+      await MacFolderProtectorTests.detachAsync(disk ?? mountPoint, mountPoint);
     }
   }
 }
