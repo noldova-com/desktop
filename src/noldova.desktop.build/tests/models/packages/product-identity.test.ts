@@ -78,14 +78,25 @@ export class ProductIdentityTests {
   }
 
   @TestMethod
-  public refusesANameOrPublisherWithACharacterTheScriptsOrTheUploadWouldRead(): void {
-    for (const field of ["name", "publisher"])
-      for (const value of ["Te\"st", "Te\\st", "Te\nst", "Te\rst", "100% Done", "Done!", "Te$t", "Te`st`", "A#B", " ", String.empty]) {
-        const refusal = Assert.throws(() => ProductIdentityTests.read({ [field]: value }), BuildException);
-        Assert.areEqual(`The root package.json's desktop.product.${field} must be a name without quotes, backslashes, % ! $ \` # or line breaks.`, refusal.message,
-          JSON.stringify([field, value]));
-      }
-    Assert.areEqual("Sample & App (2)", ProductIdentityTests.read({ name: "Sample & App (2)" }).name);
+  public refusesANameTheScriptsOrTheUploadWouldReadOrThePackagesWouldNameOtherwise(): void {
+    for (const value of ["Te\"st", "Te\\st", "Te\nst", "Te\rst", "Te\tst", "Te\u0000st", "Te\u007fst", "Te\u0085st", "100% Done", "Done!", "Te$t", "Te`st`", "A#B", "Notes/Pro", "Notes?",
+      "<Notes>", "Notes: Pro", "Notes*", "Notes|Pro", "[Notes]", "{Notes}", "Notes@{HOME}", "Notes.", "Notes ", "...", "CON", "con.app", "Nul", "COM1", "lpt9", " ", String.empty]) {
+      const refusal = Assert.throws(() => ProductIdentityTests.read({ name: value }), BuildException);
+      Assert.areEqual("The root package.json's desktop.product.name must be a name without quotes, backslashes, % ! $ ` # / ? < > : * | [ ] { } or control characters, "
+        + "with no dot or space at its end, and not a name Windows reserves, such as CON.", refusal.message, JSON.stringify(value));
+    }
+    for (const name of ["Sample & App (2)", "Notes Pro 2.0", "Console", "COM", "Notes@Work", ".Notes"])
+      Assert.areEqual(name, ProductIdentityTests.read({ name }).name);
+  }
+
+  @TestMethod
+  public refusesAPublisherTheGeneratedScriptsWouldRead(): void {
+    for (const value of ["Te\"st", "Te\\st", "Te\nst", "Te\rst", "100% Done", "Done!", "Te$t", "Te`st`", " ", String.empty]) {
+      const refusal = Assert.throws(() => ProductIdentityTests.read({ publisher: value }), BuildException);
+      Assert.areEqual("The root package.json's desktop.product.publisher must be a name without quotes, backslashes, % ! $ ` or line breaks.", refusal.message,
+        JSON.stringify(value));
+    }
+    Assert.areEqual("Sample Inc.", ProductIdentityTests.read({ publisher: "Sample Inc." }).publisher);
   }
 
   @TestMethod

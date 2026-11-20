@@ -61,7 +61,7 @@ export class ProductIdentity {
     const [windows, macos, linux] = deviceFolders;
     const [macCategory, linuxCategory] = categories;
     ProductIdentity.require(name.trim().length > 0 && !Resources.productUnsafeNamePattern.test(name), Resources.productNameField, Resources.productNameExpected);
-    ProductIdentity.require(publisher.trim().length > 0 && !Resources.productUnsafeNamePattern.test(publisher), Resources.productPublisherField, Resources.productNameExpected);
+    ProductIdentity.require(publisher.trim().length > 0 && !Resources.productUnsafePublisherPattern.test(publisher), Resources.productPublisherField, Resources.productPublisherExpected);
     ProductIdentity.require(Resources.productSlugPattern.test(slug), Resources.productSlugField, Resources.productSlugExpected);
     ProductIdentity.require(Resources.productApplicationIdPattern.test(applicationId), Resources.productApplicationIdField, Resources.productApplicationIdExpected);
     ProductIdentity.require(Resources.productApplicationIdPattern.test(developmentApplicationId) && developmentApplicationId !== applicationId,
