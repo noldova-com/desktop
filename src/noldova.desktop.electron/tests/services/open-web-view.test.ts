@@ -665,6 +665,7 @@ export class OpenWebViewTests {
     const results: string[] = [];
 
     for (const key of ["Escape", "Shift", "Control", "Alt", "Meta", "CapsLock", "a"]) {
+      harness.time += 1000;
       harness.contents.emit("input-event", {}, { type: "rawKeyDown", key });
       results.push(`${key}:${OpenWebViewTests.isFromPress(harness, `https://example.com/${key}`)}`);
     }
