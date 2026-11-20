@@ -78,11 +78,11 @@ export class ProductIdentityTests {
   }
 
   @TestMethod
-  public refusesANameOrPublisherWithACharacterTheGeneratedScriptsWouldRead(): void {
+  public refusesANameOrPublisherWithACharacterTheScriptsOrTheUploadWouldRead(): void {
     for (const field of ["name", "publisher"])
-      for (const value of ["Te\"st", "Te\\st", "Te\nst", "Te\rst", "100% Done", "Done!", "Te$t", "Te`st`", " ", String.empty]) {
+      for (const value of ["Te\"st", "Te\\st", "Te\nst", "Te\rst", "100% Done", "Done!", "Te$t", "Te`st`", "A#B", " ", String.empty]) {
         const refusal = Assert.throws(() => ProductIdentityTests.read({ [field]: value }), BuildException);
-        Assert.areEqual(`The root package.json's desktop.product.${field} must be a name without quotes, backslashes, % ! $ \` or line breaks.`, refusal.message,
+        Assert.areEqual(`The root package.json's desktop.product.${field} must be a name without quotes, backslashes, % ! $ \` # or line breaks.`, refusal.message,
           JSON.stringify([field, value]));
       }
     Assert.areEqual("Sample & App (2)", ProductIdentityTests.read({ name: "Sample & App (2)" }).name);
