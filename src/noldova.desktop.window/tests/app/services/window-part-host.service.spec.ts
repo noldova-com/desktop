@@ -22,6 +22,7 @@ import { ContentPadding } from "../../../src/app/enums/content-padding";
 import { DockSide } from "../../../src/app/enums/dock-side";
 import { LinkPlace } from "../../../src/app/enums/link-place";
 import { FileSaveOutcome } from "../../../src/app/enums/file-save-outcome";
+import { CommandNotEnabledException } from "../../../src/app/exceptions/command-not-enabled.exception";
 import { FileNotOpenedException } from "../../../src/app/exceptions/file-not-opened.exception";
 import { FileNotShownException } from "../../../src/app/exceptions/file-not-shown.exception";
 import { LinkNotOpenedException } from "../../../src/app/exceptions/link-not-opened.exception";
@@ -633,6 +634,25 @@ describe("WindowPartHostService", () => {
     expect(runs).toEqual(["notes.newNote {\"folder\":\"inbox\"}"]);
     expect([host.isCommandRegistered("clock.tick"), host.isCommandRegistered("notes.newNote"), host.isCommandRegistered("notes.open")]).toEqual([true, true, false]);
     expect(["N", "M"].map(t => host.findWindowCommand(new KeyboardEvent("keydown", { key: t.toLowerCase(), code: `Key${t}`, ctrlKey: true, altKey: true })))).toEqual(["notes.newNote", null]);
+  });
+
+  it("refuses a part's run of a command that is not enabled for its arguments, without running it", async () => {
+    const runs: string[] = [];
+    const notes = new WindowPartFixture("notes", log, t => {
+      t.registerCommand(new CommandContribution("notes.archive", "Archive", null, null, u => {
+        runs.push(`notes.archive ${JSON.stringify(u)}`);
+        return Promise.resolve("archived");
+      }, u => !Object.isNull(u)));
+    });
+    const { host } = start([source("notes", notes, [], [], ["notes.archive"])], [status("notes")]);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+
+    const refused = await host.runCommandAsync("notes.archive", null).catch((error: unknown) => error);
+    const ran = await host.runCommandAsync("notes.archive", { note: 1 });
+
+    expect(refused).toBeInstanceOf(CommandNotEnabledException);
+    expect(ran).toBe("archived");
+    expect(runs).toEqual(["notes.archive {\"note\":1}"]);
   });
 
   it("gives a part a command's key that follows the person's bindings", () => {

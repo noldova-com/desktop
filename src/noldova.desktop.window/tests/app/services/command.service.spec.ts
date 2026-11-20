@@ -15,6 +15,7 @@ import { JsonReader, type JsonObject } from "@noldova/context.json";
 import { KeyChord } from "@noldova/desktop.protocol";
 
 import { ActionNotConfirmedException } from "../../../src/app/exceptions/action-not-confirmed.exception";
+import { CommandNotEnabledException } from "../../../src/app/exceptions/command-not-enabled.exception";
 import { CommandNotFoundException } from "../../../src/app/exceptions/command-not-found.exception";
 import { RuntimeDisconnectedException } from "../../../src/app/exceptions/runtime-disconnected.exception";
 import { CommandContribution } from "../../../src/app/models/command-contribution";
@@ -147,6 +148,32 @@ describe("CommandService", () => {
     expect(whileStarting).toEqual([false, true]);
     expect([service.isAvailable("notes.newNote"), service.isAvailable("clock.tick")]).toEqual([true, false]);
     expect(runs).toEqual([]);
+  });
+
+  it("runs a command only while it is enabled for its arguments, refuses it otherwise or when asking fails, and runs none while the runtime starts again", async () => {
+    const service = start("win32");
+    service.setCommands([
+      new CommandContribution("notes.archive", "Archive", null, null, t => {
+        runs.push(`notes.archive ${JSON.stringify(t)}`);
+        return Promise.resolve("archived");
+      }, t => !Object.isNull(t)),
+      new CommandContribution("notes.sorting", "Sorting", null, null, () => Promise.resolve(null), () => {
+        throw new Error("No sorting.");
+      })
+    ]);
+    await vi.waitFor(() => expect(TestBed.inject(StartupService).hasStarted()).toBe(true));
+
+    const ran = await service.runEnabledAsync("notes.archive", { note: 1 });
+    const refused = await service.runEnabledAsync("notes.archive", null).catch((error: unknown) => error);
+    const failed = await service.runEnabledAsync("notes.sorting", null).catch((error: unknown) => error);
+    bridge.publishStartup({ kind: "Connecting", details: [] });
+    const whileStarting = await service.runEnabledAsync("notes.archive", { note: 2 });
+    bridge.publishStartup({ kind: "Ready", details: [] });
+
+    expect([ran, whileStarting]).toEqual(["archived", null]);
+    expect([refused instanceof CommandNotEnabledException, failed instanceof CommandNotEnabledException]).toEqual([true, true]);
+    expect(runs).toEqual(["notes.archive {\"note\":1}"]);
+    expect(errors.map(t => FailureFixture.of(t, Error).message)).toEqual(["No sorting."]);
   });
 
   it("uses Cmd for Mod on macOS", async () => {

@@ -441,7 +441,7 @@ export class WindowPartHostService implements IWindowPartHost {
   }
 
   public runCommandAsync(name: string, commandArguments: JsonValue): Promise<JsonValue> {
-    return this.commands.runAsync(name, commandArguments);
+    return this.commands.runEnabledAsync(name, commandArguments);
   }
 
   public findWindowCommand(event: KeyboardEvent): string | null {
