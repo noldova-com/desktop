@@ -55,8 +55,6 @@ export class MacFolderProtectorTests {
       + `What held ${disk} or ${mountPoint} then:\n${MacFolderProtectorTests.readHolders(disk, mountPoint)}`);
   }
 
-  // What has the disk or its mount point open, the processes that usually do, and hdiutil's entry for the disk; a command
-  // that fails, stalls past its limit or can't start says so in place of its output.
   private static readHolders(disk: string, mountPoint: string): string {
     const targets = disk === mountPoint ? [mountPoint] : [mountPoint, disk];
     const asRoot = MacFolderProtectorTests.run("/usr/bin/sudo", ["-n", "/usr/sbin/lsof", "-n", ...targets]);
@@ -71,8 +69,6 @@ export class MacFolderProtectorTests {
     ].join("\n");
   }
 
-  // Runs a command for at most the limit, giving its exit status, its output, and a text naming how it ended, a time-out
-  // or a failure to start included, followed by everything it wrote.
   private static run(file: string, commandArguments: readonly string[]): { readonly status: number | null; readonly output: string; readonly text: string } {
     const result = spawnSync(file, commandArguments, { encoding: "utf8", timeout: MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS, killSignal: "SIGKILL" });
     const ending = result.error === undefined
