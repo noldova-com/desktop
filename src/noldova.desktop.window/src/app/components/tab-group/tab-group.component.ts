@@ -107,15 +107,7 @@ export class TabGroupComponent {
         trigger.getMenu()?.focusFirstItem(Resources.keyboardFocusOrigin);
       }
     });
-    const keepFieldMenu = (event: MouseEvent): void => {
-      if (!Object.isNull(this.renames.editing()) && event.target instanceof HTMLInputElement)
-        event.stopPropagation();
-    };
-    this.host.addEventListener(Resources.contextMenuEvent, keepFieldMenu, true);
-    inject(DestroyRef).onDestroy(() => {
-      this.host.removeEventListener(Resources.contextMenuEvent, keepFieldMenu, true);
-      strips.setOverflowing(this.group().id, false);
-    });
+    inject(DestroyRef).onDestroy(() => strips.setOverflowing(this.group().id, false));
   }
 
   protected tabId(index: number): string {
