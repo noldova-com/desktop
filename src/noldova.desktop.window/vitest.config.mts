@@ -30,7 +30,9 @@ export default defineConfig({
   },
   test: {
     attachmentsDir: fileURLToPath(new URL("../../.vitest/attachments", import.meta.url)),
-    browser: { commands: { watchFailedModuleRequests: new FailedModuleRequests().watch } },
+    // The browser server listens on 127.0.0.1, and the test page loads from it: on "localhost" it listened on ::1 alone, as Node resolves it on Windows,
+    // while the browser at times connected on 127.0.0.1 and was refused.
+    browser: { api: { host: "127.0.0.1" }, commands: { watchFailedModuleRequests: new FailedModuleRequests().watch } },
     coverage: {
       reportsDirectory: fileURLToPath(new URL("../../_build/angular-coverage", import.meta.url))
     },
