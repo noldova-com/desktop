@@ -392,6 +392,15 @@ The check treats these as fixed pauses, outside strings:
 - `scheduler.wait(`, `Atomics.wait(`, `Atomics.waitAsync(` and `waitForTimeout(`;
 - `setTimeout(` with a named callback or a number as its delay, and a `new Promise` whose executor starts with `setTimeout(`.
 
+### Timing parameters
+
+Production code takes no parameter only tests pass, except where no product boundary controls the code's timing, as the organization's testing standard allows.
+Each such parameter defaults to the real value or operation, and no production caller passes it.
+
+- `ThirdPartyPackage.prepareAsync`'s `limit`, in `src/noldova.desktop.build/src/models/packaging/third-party-package.ts`: how long one attempt at a tarball's download may take, 120 seconds; a registry's answer and its body arrive when the network delivers them, so the tests shorten it to reach the timeouts before and during the body without waiting 120 seconds.
+- `ThirdPartyPackage.prepareAsync`'s `pause`: how long it waits before it tries a tarball again, 15 seconds; nothing outside the download decides it, so the tests pass 0 to reach every retry and the last attempt's failure without sleeping a minute.
+- `ThirdPartyPackage.prepareAsync`'s `download`: the `fetch` it downloads with; no server's answer can be timed to fail only once the attempt's limit has passed, so the test of a body cut by that limit passes a `fetch` whose body fails when the limit aborts it, rather than racing a real server against the limit.
+
 ### Casts the tests keep
 
 Tests type their fakes like any other code; these casts and Object calls stay because no typed form compiles.

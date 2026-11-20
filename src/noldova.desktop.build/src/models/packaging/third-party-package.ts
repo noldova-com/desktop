@@ -9,6 +9,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { Writable } from "node:stream";
 
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
@@ -19,6 +20,7 @@ import { LicenseExpression } from "./license-expression.ts";
 import type { LockedPackage } from "./locked-package.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
+import { RetriedDownload } from "../../services/processes/retried-download.ts";
 import { ResponseBody } from "../response-body.ts";
 import { TarArchive } from "./tar-archive.ts";
 import type { TypeOnlyPeers } from "./type-only-peers.ts";
@@ -38,11 +40,12 @@ export class ThirdPartyPackage {
     this.skipped = skipped;
   }
 
-  public static async prepareAsync(locked: LockedPackage, folder: string, reviewedLicenses: readonly string[], accepted: AcceptedLicenses, typeOnly: TypeOnlyPeers):
+  public static async prepareAsync(locked: LockedPackage, folder: string, reviewedLicenses: readonly string[], accepted: AcceptedLicenses, typeOnly: TypeOnlyPeers,
+    output: Writable, limit: number = Resources.thirdPartyDownloadTimeout, pause: number = Resources.downloadRetryPause, download: typeof fetch = fetch):
     Promise<ThirdPartyPackage> {
     const file = path.join(folder, locked.fileName);
     const kept = existsSync(file) ? await readFile(file) : null;
-    const data = !Object.isNull(kept) && locked.matches(kept) ? kept : await ThirdPartyPackage.downloadAsync(locked);
+    const data = !Object.isNull(kept) && locked.matches(kept) ? kept : await ThirdPartyPackage.downloadAsync(locked, output, limit, pause, download);
     await mkdir(folder, { recursive: true });
     await writeFile(file, data);
 
@@ -91,21 +94,53 @@ export class ThirdPartyPackage {
     return (await readFile(file, Resources.textEncoding)).trim();
   }
 
-  private static async downloadAsync(locked: LockedPackage): Promise<Buffer> {
-    let response: Response;
-    try {
-      response = await fetch(locked.resolved, { signal: AbortSignal.timeout(Resources.thirdPartyDownloadTimeout) });
-    }
-    catch (error) {
-      throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
-    }
-    if (!response.ok) {
-      await ResponseBody.letGoAsync(response);
-      throw new BuildException(Resources.formatDownloadStatus(locked.id, locked.resolved, response.status));
-    }
-    const data = Buffer.from(await response.arrayBuffer());
+  private static async downloadAsync(locked: LockedPackage, output: Writable, limit: number, pause: number, download: typeof fetch): Promise<Buffer> {
+    let data = Buffer.alloc(0);
+    await RetriedDownload.runAsync(Resources.formatDownloadSubject(locked.id, locked.resolved), output, async () => {
+      const signal = AbortSignal.timeout(limit);
+      const response = await ThirdPartyPackage.fetchAsync(locked, signal, download);
+      if (Object.isString(response))
+        return response;
+      if (!response.ok && (response.status >= Resources.httpServerErrorStatus || Resources.downloadRetriedStatuses.includes(response.status))) {
+        await ResponseBody.letGoAsync(response);
+        return Resources.formatHttpStatus(response.status);
+      }
+      if (!response.ok) {
+        await ResponseBody.letGoAsync(response);
+        throw new BuildException(Resources.formatDownloadStatus(locked.id, locked.resolved, response.status));
+      }
+      try {
+        data = Buffer.from(await response.arrayBuffer());
+      }
+      catch (error) {
+        if (signal.aborted)
+          throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
+        return ThirdPartyPackage.describe(error);
+      }
+      return null;
+    }, pause);
     if (!locked.matches(data))
       throw new BuildException(Resources.formatTarballIntegrityMismatch(locked.id, locked.resolved));
     return data;
+  }
+
+  private static async fetchAsync(locked: LockedPackage, signal: AbortSignal, download: typeof fetch): Promise<Response | string> {
+    try {
+      return await download(locked.resolved, { signal });
+    }
+    catch (error) {
+      if (!Object.isNull(ThirdPartyPackage.codeOf(error)))
+        return ThirdPartyPackage.describe(error);
+      throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, ThirdPartyPackage.describe(error)), new ExceptionOptions(error));
+    }
+  }
+
+  private static describe(error: unknown): string {
+    const code = ThirdPartyPackage.codeOf(error);
+    return Object.isNull(code) ? String(error) : Resources.formatNetworkFailure(String(error), code);
+  }
+
+  private static codeOf(error: unknown): string | null {
+    return error instanceof Error && error.cause instanceof Error && "code" in error.cause ? String(error.cause.code) : null;
   }
 }
