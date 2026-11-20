@@ -4,6 +4,34 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.10
+
+- A `NewWindowRequested` event carries `fromPress`, following a browser's popup rule: each press of the person's own mouse button, key or touch in a view, but Escape or a modifier alone, gives the view one activation for 5 seconds, and the first new-window request after it uses it up and gets `true`; every other request, including the second one from the same press, gets `false`.
+  An event without `fromPress` is accepted until 0.1.0, and `WEB-VIEWS.md` now describes `disposition` as the engine gives it.
+- A window part's `context.runCommandAsync` rejects with `CommandNotEnabledException`, without running the command, when the command is not enabled for its arguments, as the published API says; after the runtime starts again, a runtime command a part runs from `reconnectAsync` is judged on the new runtime's states.
+- A window whose update hold is set after the update ended releases the hold and saves what is unsaved, so its later moves and sizes are saved again.
+- `IFeedResponse` has an optional `body`, the response's stream, and the feed provider cancels it when it refuses an answer without reading it; `feed-check`, third-party package downloads and the signing package download cancel a refused answer's body too, so a server that keeps the body open no longer holds the command until its timeout.
+- The search palette gives its quick input the query its items answer, so Enter waits for a new query's results, and then opens the selected row, such as the Best match, even while a late source is still answering.
+- `feed-check` waits for a file the update information lists that the feed doesn't serve yet, trying again every 15 seconds until `FEED_WAIT_SECONDS`, as it does for the update information.
+- `release-publish` checks again, before it makes the release's draft and before it tags and publishes it, that its version is newer than every published release, so a version another run overtook after this run's check isn't published.
+- `release-publish` replaces a file of a draft an earlier run left that differs from this run's build, saying so in the log, and publishes the draft with this run's notes; a file that differs after this run's own upload still fails.
+- The release notes name the targets whose packages the run built but never installed or started, such as ARM64 packages built on an x64 runner; a package report has a fourth field, `started`, which `package:smoke` sets after a passing run, and a report without it no longer reads.
+- `release-app.yml` keeps `desktop.build` and its `@noldova` peers 35 days, so `publish` and `feed` find them however long the approvals wait, and `publish` fails naming the targets whose release files expired after 14 days.
+- `desktop.product.name` refuses `#`, which `gh release upload` reads as a label, `%`, `!`, `$`, a backquote, `/ ? < > : * |`, `[ ] { }`, control characters, a dot or space at its end and the names Windows reserves; `desktop.product.publisher` refuses `%`, `!`, `$` and a backquote too, which the generated command scripts would read.
+- Packaging leaves out every other target's `native/<platform>-<arch>/` and `prebuilds/<platform>-<arch>/` folder, whatever platform and processor it names, such as `prebuilds/win32-ia32/` or `prebuilds/darwin-x64+arm64/`.
+- `package:smoke` refuses to install where the machine already holds the app, and a Debian or macOS install that fails removes what it placed.
+- `package:smoke` finds an AppImage's mount under a folder whose path holds a space, a tab, a line break or a backslash.
+- Signed macOS packaging shares one 70-minute limit across electron-builder, which notarizes the app, the disk image's notarization and stapling, and the checks after them, and fails naming the process the limit stopped; the disk image's notarization waits 45 minutes instead of an hour, and `package-app.yml`'s "Make the package" step gets 85 minutes for signed macOS.
+- A release holds a lock, the ref `refs/locks/release`, from its publish through its feed check, so two releases close together publish one after the other; a lock whose run has ended is taken over, and a new `unlock` job lets go of it however the run ends.
+  `release-app.yml`'s `publish` job needs `actions: read` and waits up to 90 minutes for the lock, the `unlock` job needs `contents: write`, and the `check` job refuses a `desktop.build` without the `release-lock` command, so an app moves its `release-app.yml` pin and `desktop.build` together.
+- Packaging tries a third-party tarball's download again, up to 4 attempts 15 seconds apart, after a network error or an HTTP 408, 429 or 5xx answer, and says each retry in the step's output.
+- An addon build that needs Node.js's headers, every Windows addon and a POSIX addon on a Node without them, downloads them first with `node-gyp install`, tried again 15 seconds later after node-gyp's "Completion callback never invoked!" stall, up to 3 tries; any other failure, or a third stall, fails the build naming the download.
+- `package-app.yml`'s install step runs `npm ci` once more after a download a reset connection cut short, which npm logs as `ECONNRESET` and `network aborted`, as it already did after a stalled read.
+- On Windows, the runtime's forced end gives what it killed the whole end time, `ProcessSettings`' time for killed programs to end, from when it has listed the processes rather than from before it lists them, so a slow listing no longer uses that time up.
+- `@noldova/desktop.build` and `@noldova/desktop.runtime` need `@noldova/context.text` 0.0.9 or later, below 0.1.0; `@noldova/context.core`, `context.exceptions` and `context.json` are pinned at 0.0.9, `@noldova/ui.components.angular` at 0.0.19, and the workflows at `.github`'s v2.41.0.
+- Tests and CI: the macOS x64 Build and test job runs in two parts; the window tests are served from 127.0.0.1 and print each request still open after 10 s; process tests give real programs three times the measured stop times as their limits, and a stalled install's stop waits for the exit itself; the volume test names the step that outruns its limit and records what holds the disk; the web-views test waits for its allow-mark command.
+  The packages are unchanged by these.
+
 ## 0.0.9
 
 - When the runtime ends a client's session, it cancels that session's running requests and closes the connection itself if the client hasn't closed it within the close grace period.
