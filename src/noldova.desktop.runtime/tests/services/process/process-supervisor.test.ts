@@ -1161,7 +1161,7 @@ export class ProcessSupervisorTerminalsTests {
   public async endsATerminalOnWindowsByClosingItsPseudoConsoleAndStopsTheOutputWorkerOnceItExits(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisorFixture.createWindows(settings, new WindowsProcessApiFixture([]));
+    const processes = ProcessSupervisorFixture.createWindows(settings, new WindowsProcessApiFixture([]), undefined, ProcessSupervisorFixture.CLEAN_EXIT_LIMITS);
     const handle = new PseudoTerminalHandleFixture();
     PseudoTerminalHandleFixture.addWorker(handle, () => handle.calls.push("terminate"));
 
@@ -1272,7 +1272,7 @@ export class ProcessSupervisorTerminalsTests {
       return Math.abs(processId) === handle.pid && !isHungUp;
     });
     PseudoTerminalHandleFixture.addSocket(handle, { destroy: () => handle.calls.push("destroy") });
-    const processes = ProcessSupervisorFixture.createLinux(settings, new ProcessTableFixture([]), new ProcessSettings(300, 500, 5_000, 60_000, 100));
+    const processes = ProcessSupervisorFixture.createLinux(settings, new ProcessTableFixture([]), new ProcessSettings(3_500, 500, 5_000, 60_000, 100));
     const terminal = await ProcessSupervisorTerminalsTests.start(processes, handle, process.execPath, folder.path);
 
     const ended = await terminal.stopAsync();
@@ -1292,7 +1292,7 @@ export class ProcessSupervisorTerminalsTests {
   public async endsAStoppedTerminalWhoseOutputIsPausedWithoutACodeWhenTheLibraryNeverReportsItsExit(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(300, 500, 5_000, 100, 100));
+    const processes = ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(3_500, 500, 5_000, 100, 100));
     const library = new PseudoTerminalLibraryFixture();
     library.holdsExits = true;
     const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE, ProcessSupervisorTerminalsTests.request(library, folder.path, [ProgramFixture.WAIT]));

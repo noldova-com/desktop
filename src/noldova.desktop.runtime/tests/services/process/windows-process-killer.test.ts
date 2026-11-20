@@ -9,6 +9,7 @@
 import { mock } from "node:test";
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { ProcessSettings } from "@noldova/desktop.runtime";
 
 import { ProcessSupervisorFixture } from "../../fixtures/process-supervisor.fixture.js";
 import { ProcessTableFixture } from "../../fixtures/process-table.fixture.js";
@@ -20,6 +21,7 @@ import { WindowsProcessApiFixture } from "../../fixtures/windows-process-api.fix
 
 @TestClass
 export class WindowsProcessKillerTests {
+  private static readonly END_MILLISECONDS: number = 500;
   private static readonly LISTING_MILLISECONDS: number = 600;
 
   @TestMethod
@@ -46,7 +48,7 @@ export class WindowsProcessKillerTests {
     ]);
     windows.replaced.set(900_107, WindowsProcessApiFixture.END);
     const table = new ProcessTableFixture([]);
-    const processes = ProcessSupervisorFixture.createWindows(settings, windows, table);
+    const processes = ProcessSupervisorFixture.createWindows(settings, windows, table, ProcessSupervisorFixture.CLEAN_EXIT_LIMITS);
     const owned = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.WAIT], undefined, program));
     leader = owned.processId;
     started = owned.started.getTime();
@@ -120,7 +122,7 @@ export class WindowsProcessKillerTests {
       return row;
     }]);
     windows.unseenExits.set(900_872, 2);
-    const processes = ProcessSupervisorFixture.createWindows(settings, windows);
+    const processes = ProcessSupervisorFixture.createWindows(settings, windows, new ProcessTableFixture([]), new ProcessSettings(300, WindowsProcessKillerTests.END_MILLISECONDS));
 
     mock.timers.enable({ apis: ["Date"], now: Date.now() });
     try {
