@@ -1774,6 +1774,7 @@ export class Resources {
   public static readonly tarHeaderEncoding: BufferEncoding = "latin1";
   public static readonly thirdPartyDownloadTimeout: number = 120_000;
   public static readonly downloadRetriedStatuses: readonly number[] = [408, 429];
+  public static readonly downloadTransientPattern: RegExp = /\b(?:ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|EPIPE|ENETUNREACH|EHOSTUNREACH)\b|socket hang up|fetch failed|TypeError: terminated|server closed connection|Download failed: size mismatch|timed out after \d+ms|\b(?:Response code|server returned code) (?:5\d\d|408|429)\b/;
   public static readonly licenseFilePattern: RegExp = /^(?:(?:licen[cs]e|copying|unlicense)(?:[-_][a-z0-9+-]+(?:\.\d+)*)?|[a-z0-9+-]+(?:\.\d+)*[-_]licen[cs]e)(?:\.(?:md|txt|markdown))?$/i;
   public static readonly scriptFilePattern: RegExp = /\.[cm]?js$/;
   public static readonly regexSpecialCharacters: RegExp = /[.*+?^${}()|[\]\\]/g;
@@ -4844,6 +4845,10 @@ export class Resources {
 
   public static formatDownloadRetry(subject: string, attempt: number): string {
     return `${subject} could not be installed (attempt ${attempt} of ${Resources.downloadAttempts}); trying again in ${Resources.downloadRetryPause / Resources.millisecondsPerSecond} seconds.\n`;
+  }
+
+  public static formatDownloadNotRetried(subject: string, failure: string): string {
+    return `${subject} could not be installed; it failed with ${failure}, which isn't a network failure that trying again could fix.`;
   }
 
   public static formatDownloadGaveUp(subject: string, failure: string): string {
