@@ -224,7 +224,7 @@ export class ReleasePublishTests {
         await app.writeAppFileAsync(`release/${name}`, `${name} bytes`);
       await set.writeAsync(path.join(app.path, "release"), target, ReleasePublishTests.DATE);
       const isSigned = ReleasePublishTests.SIGNED.includes(target.platform);
-      await new PackageReport(target.id, isSigned, isSigned).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
+      await new PackageReport(target.id, isSigned, isSigned, true).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
     }
     return app;
   }

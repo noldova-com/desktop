@@ -1690,10 +1690,11 @@ export class Resources {
   public static readonly typeOnlyPeersField: string = "typeOnlyPeers";
   public static readonly typeOnlyPeersListField: string = "peers";
   public static readonly typeOnlyPeersShape: string = `The root package.json's ${Resources.typeOnlyPeersSection} must map each package, as <name>@<version>, to { "peers": [<peer name>, ...], "reason": "<why the package never loads them>" }.`;
-  public static readonly packageReportFieldCount: number = 3;
+  public static readonly packageReportFieldCount: number = 4;
   public static readonly packageReportTargetField: "target" = "target";
   public static readonly packageReportSignedField: "signed" = "signed";
   public static readonly packageReportCheckedField: "checked" = "checked";
+  public static readonly packageReportStartedField: "started" = "started";
   public static readonly zipArchiveTarget: string = "zip";
   public static readonly packagePlatforms: ReadonlyMap<string, string> = new Map([
     [Resources.windowsPlatform, Resources.windowsTarget], [Resources.macPlatform, Resources.macosTarget], [Resources.linuxPlatform, Resources.linuxTarget]
@@ -4428,6 +4429,11 @@ export class Resources {
 
   public static formatReleaseSummary(name: string, version: string, targets: string, signing: string): string {
     return `${name} ${version} for ${targets}. ${signing}`;
+  }
+
+  public static formatReleaseRunCheckExcept(runUrl: string, unstarted: string): string {
+    return `Each target's package passed its install check on that target's own runner in the run that built it, except ${unstarted}, which that run built on a runner `
+      + `of another kind and didn't install or start: ${runUrl}`;
   }
 
   public static formatReleaseCiOnly(ciOnly: string): string {

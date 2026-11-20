@@ -14,7 +14,7 @@ import { Resources } from "../../resources.ts";
 
 export class ReleaseNotes {
   public static compose(product: ProductIdentity, targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[], request: ReleaseRequest,
-    runUrl: string): string {
+    runUrl: string, unstarted: readonly PackageTarget[] = []): string {
     if (!URL.canParse(runUrl) || new URL(runUrl).protocol !== Resources.secureProtocol)
       throw new BuildException(Resources.formatReleaseRunInvalid(runUrl));
     const name = product.name;
@@ -25,7 +25,7 @@ export class ReleaseNotes {
     else if (ciOnly.length > 0)
       paragraphs.push(Resources.formatReleaseCiOnly(ReleaseNotes.formatTargets(ciOnly)));
     if (!request.isBuiltApart)
-      paragraphs.push(Resources.formatReleaseRunCheck(runUrl));
+      paragraphs.push(unstarted.length === 0 ? Resources.formatReleaseRunCheck(runUrl) : Resources.formatReleaseRunCheckExcept(runUrl, ReleaseNotes.formatTargets(unstarted)));
     if (request.isSeparate)
       paragraphs.push(Resources.formatReleaseSource(request.sourceRepository, request.revision));
     if (!product.isReleaseRepository(request.repository))

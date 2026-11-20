@@ -37,6 +37,7 @@ import { SmokeAnswer } from "../packaging/smoke-answer.ts";
 import { SandboxValidator } from "../desktop/sandbox.validator.ts";
 import { UserNamespaces } from "../desktop/user-namespaces.ts";
 import { ModuleCatalog } from "../modules/module-catalog.ts";
+import { PackageReport } from "../../models/packaging/package-report.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { UserPath } from "../packaging/user-path.ts";
 import type { ProcessResult } from "../../models/processes/process-result.ts";
@@ -109,7 +110,10 @@ export class PackageSmoke {
         throw error;
       hasFailed = true;
     }
-    return hasFailed || !await this.cleanUpAsync() ? Resources.failureExitCode : 0;
+    if (hasFailed || !await this.cleanUpAsync())
+      return Resources.failureExitCode;
+    await PackageReport.markStartedAsync(new PackageLayout(this.root).report);
+    return 0;
   }
 
   private get extractsAndRuns(): boolean {
