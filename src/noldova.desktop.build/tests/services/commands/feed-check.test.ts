@@ -14,6 +14,7 @@ import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { FeedCheck } from "../../../src/services/commands/feed-check.js";
+import { WaitFixture } from "../../fixtures/wait.fixture.js";
 
 type Route = (request: IncomingMessage, response: ServerResponse) => void;
 
@@ -240,6 +241,33 @@ export class FeedCheckTests {
       Assert.areEqual("15000,5000", result.pauses.join());
       Assert.areEqual(3, reads);
       Assert.isTrue(result.output.endsWith(`tries again.\nlatest-linux-x64.yml could not be read from ${feed}: HTTP 404.\n`), result.output);
+    });
+  }
+
+  @TestMethod
+  public async letsGoOfAnUpdateInformationFileThatAnswers404BeforeItTriesAgainAsync(): Promise<void> {
+    const routes = FeedCheckTests.release("1.2.3");
+    const current = routes.get("/latest-linux-x64.yml");
+    let reads = 0;
+    let closed = false;
+    routes.set("/latest-linux-x64.yml", (request, response) => {
+      reads += 1;
+      if (reads > 1 && !Object.isUndefined(current)) {
+        current(request, response);
+        return;
+      }
+      response.on("close", () => {
+        closed = true;
+      });
+      response.writeHead(404, { "Content-Type": "text/plain" });
+      response.write("not here yet");
+    });
+    await FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "60" });
+
+      Assert.areEqual(0, result.exitCode, result.output);
+      Assert.areEqual(2, reads);
+      Assert.isTrue(await WaitFixture.untilAsync(() => closed, 10_000), "The 404 answer's connection stayed open.");
     });
   }
 

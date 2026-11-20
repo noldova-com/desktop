@@ -76,8 +76,10 @@ export class FeedCheck {
   private async readUpdateInformationAsync(feed: string, name: string, version: string, deadline: number, end: number): Promise<string> {
     const response = await this.openAsync(feed, name, end);
     let problem: string;
-    if (response.status === Resources.httpNotFoundStatus)
+    if (response.status === Resources.httpNotFoundStatus) {
+      await response.body?.cancel();
       problem = Resources.formatFeedHttpProblem(name, feed, response.status);
+    }
     else {
       const text = (await FeedCheck.readBodyAsync(response, feed, name)).toString(Resources.textEncoding);
       const found = Resources.feedVersionLinePattern.exec(text)?.[1] ?? String.empty;
