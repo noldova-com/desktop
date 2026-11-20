@@ -51,7 +51,7 @@ describe("release-app.yml's release lock", () => {
     assert.ok(needs.includes("publish") && needs.includes("feed"), needs);
     assert.ok(condition.startsWith("    if: ${{ always() && needs.publish.result != 'skipped'"), condition);
     assert.deepEqual(readBlock(unlock, "permissions"), ["contents: write"]);
-    assert.ok(unlock.at(-1)?.endsWith("release-command-line.js\" release-unlock"), unlock.at(-1));
+    assert.ok(unlock.at(-1)?.endsWith("release-command-line.js\" release-unlock"), unlock.at(-1) ?? "");
     assert.ok(readJob("feed").includes("    permissions: {}"));
   });
 });
