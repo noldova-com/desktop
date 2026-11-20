@@ -60,7 +60,8 @@ export class ReleasePublisher {
     ReleasePublisher.requireNewest(await this.readReleasesAsync(), request);
     if (!request.isSeparate)
       await this.createTagAsync(tag, revision);
-    const published = GitHubRelease.read(await this.api.sendAsync(Resources.httpPatchMethod, Resources.formatGitHubReleasePath(draft.id), [[Resources.githubMakeLatestField, Resources.releaseMakeLatestValue]], [[Resources.githubDraftField, false]]),
+    const published = GitHubRelease.read(await this.api.sendAsync(Resources.httpPatchMethod, Resources.formatGitHubReleasePath(draft.id), [[Resources.githubMakeLatestField, Resources.releaseMakeLatestValue], [Resources.githubBodyField, notes]],
+      [[Resources.githubDraftField, false]]),
       Resources.publishedReleaseContext);
     if (published.isDraft)
       throw new BuildException(Resources.formatReleaseKeptDraft(tag));

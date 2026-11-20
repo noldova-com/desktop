@@ -4456,7 +4456,7 @@ export class Resources {
 
   public static formatAssetMismatch(name: string, size: number, digest: string | null, builtSize: number, expected: string): string {
     return `${name} on GitHub has ${size} bytes and ${digest ?? "no digest"}, but the built file has ${builtSize} bytes and ${expected}. `
-      + "A release's files are never replaced.";
+      + "Only a draft's file from an earlier run is ever replaced.";
   }
 
   public static formatGitHubReleasesContext(index: number): string {

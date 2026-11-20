@@ -49,10 +49,10 @@ export class ResourcesTests {
   @TestMethod
   public namesAnAssetWithoutADigest(): void {
     Assert.areEqual(
-      "app.exe on GitHub has 10 bytes and no digest, but the built file has 12 bytes and sha256:ab. A release's files are never replaced.",
+      "app.exe on GitHub has 10 bytes and no digest, but the built file has 12 bytes and sha256:ab. Only a draft's file from an earlier run is ever replaced.",
       Resources.formatAssetMismatch("app.exe", 10, null, 12, "sha256:ab"));
     Assert.areEqual(
-      "app.exe on GitHub has 10 bytes and sha256:cd, but the built file has 12 bytes and sha256:ab. A release's files are never replaced.",
+      "app.exe on GitHub has 10 bytes and sha256:cd, but the built file has 12 bytes and sha256:ab. Only a draft's file from an earlier run is ever replaced.",
       Resources.formatAssetMismatch("app.exe", 10, "sha256:cd", 12, "sha256:ab"));
   }
 

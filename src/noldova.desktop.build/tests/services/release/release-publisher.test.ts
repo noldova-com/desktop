@@ -48,7 +48,7 @@ export class ReleasePublisherTests {
     Assert.areEqual("Sample App-1.2.3-linux-x64.AppImage,latest-linux-x64.yml", release?.assets.map(t => t.name).join());
     Assert.areEqual(ReleasePublisherTests.REVISION, github.tags.get(ReleasePublisherTests.TAG));
     Assert.isTrue(github.requests.some(t => t.includes("--raw-field body=The notes.") && t.includes("--field draft=true")), github.requests.join("\n"));
-    Assert.isTrue(github.requests.some(t => t.includes("--raw-field make_latest=true --field draft=false")), github.requests.join("\n"));
+    Assert.isTrue(github.requests.some(t => t.includes("--raw-field make_latest=true --raw-field body=The notes. --field draft=false")), github.requests.join("\n"));
   }
 
   @TestMethod
@@ -167,6 +167,17 @@ export class ReleasePublisherTests {
   }
 
   @TestMethod
+  public async publishesAnEarlierRunsDraftWithThisRunsNotesAsync(): Promise<void> {
+    const github = new GitHubReleasesFixture();
+    github.addRelease(ReleasePublisherTests.TAG, ReleasePublisherTests.REVISION, true, []);
+
+    await ReleasePublisherTests.publishAsync(github);
+
+    Assert.isFalse(github.requests.some(t => t.includes("--raw-field tag_name=")), github.requests.join("\n"));
+    Assert.isTrue(github.requests.some(t => t.includes("--method PATCH") && t.includes("--raw-field body=The notes. --field draft=false")), github.requests.join("\n"));
+  }
+
+  @TestMethod
   public async refusesAFileThisRunUploadedThatDiffersFromTheBuiltOneAsync(): Promise<void> {
     const github = new GitHubReleasesFixture();
     const [first] = ReleasePublisherTests.FILES;
@@ -182,7 +193,7 @@ export class ReleasePublisherTests {
     const error = await Assert.throwsAsync(() => ReleasePublisherTests.publishAsync(github), BuildException);
 
     Assert.areEqual(`Sample App-1.2.3-linux-x64.AppImage on GitHub has 15 bytes and ${GitHubReleasesFixture.digest(Buffer.from("another package"))}, `
-      + `but the built file has ${built.size} bytes and sha256:${built.sha256}. A release's files are never replaced.`, error.message);
+      + `but the built file has ${built.size} bytes and sha256:${built.sha256}. Only a draft's file from an earlier run is ever replaced.`, error.message);
     Assert.areEqual(1, github.requests.filter(t => t.startsWith("release upload")).length);
   }
 
