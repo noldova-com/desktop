@@ -943,6 +943,31 @@ export class MainProcessTests {
   }
 
   @TestMethod
+  public async logsBoundsItCannotSaveOnceTheUpdateEndedBeforeTheWindowAnsweredItsSaveRequest(): Promise<void> {
+    const connection = new FakeRuntimeConnection();
+    const launcher = new FakeRuntimeLauncher(connection);
+    const mainProcess = new FakeMainProcessEnvironment("darwin");
+    const electron = await MainProcessStartFixture.startReadyAsync("darwin", launcher, new FakeElectron(), new FakeDeviceIdentity(), mainProcess);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await Condition.waitAsync(() => connection.calls.includes("desktop.readWindowBounds"));
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await Condition.waitAsync(() => window.webContents.sent.some(t => t[0] === "desktop:updateSaveRequest"));
+    launcher.listener?.onEvent(new Event(ShellEvents.updateEnded, null));
+    connection.answers.set("desktop.writeWindowBounds", Response.failure("r", new Failure(FailureCode.Internal, "The database is busy.")));
+    const before = MainProcessTests.countWrites(connection);
+    window.bounds = { x: 40, y: 60, width: 900, height: 640 };
+    window.change("move");
+    const request = window.webContents.sent.find(t => t[0] === "desktop:updateSaveRequest");
+
+    await electron.ipcMain.invoke("desktop:updateSaveAnswer", MainProcessStartFixture.trustedEvent("darwin"), request?.[1], []);
+    await Condition.waitAsync(() => connection.calls.includes("desktop.updateSaved"));
+
+    const refused = "The window's bounds could not be saved: WindowStateRefusedException: The runtime refused desktop.writeWindowBounds: The database is busy.";
+    Assert.areEqual(before + 2, MainProcessTests.countWrites(connection));
+    Assert.areEqual(JSON.stringify([refused, refused]), JSON.stringify(MainProcessStartFixture.readErrors(mainProcess, "The window's bounds could not be saved")));
+  }
+
+  @TestMethod
   public async savesAWindowsBoundsAgainWhenTheUpdateEndsWhileTheWindowsHoldSavesThem(): Promise<void> {
     const connection = new FakeRuntimeConnection();
     const launcher = new FakeRuntimeLauncher(connection);
