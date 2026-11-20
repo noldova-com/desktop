@@ -7,6 +7,7 @@
  */
 
 import { DependencyNotFollowedException } from "../../../src/app/exceptions/dependency-not-followed.exception";
+import { PageNotLoadedException } from "../../../src/app/exceptions/page-not-loaded.exception";
 import { SettingOptionsFailedException } from "../../../src/app/exceptions/setting-options-failed.exception";
 import { SettingOptionsRepeatedException } from "../../../src/app/exceptions/setting-options-repeated.exception";
 import { SettingsPageNotLoadedException } from "../../../src/app/exceptions/settings-page-not-loaded.exception";
@@ -27,6 +28,7 @@ describe("WindowPartFailureException", () => {
       new WindowPartReconnectionFailedException("notes", cause),
       new DependencyNotFollowedException("notes", cause),
       new SettingsPageNotLoadedException("notes", cause),
+      new PageNotLoadedException("notes", cause),
       new SettingOptionsFailedException("notes", "notes.font", cause),
       new WindowPartSaveFailedException("notes", "Sample App", cause),
       new WindowPartSaveFailedForUpdateException("notes", "Sample App", cause),
@@ -39,6 +41,7 @@ describe("WindowPartFailureException", () => {
       [true, "notes", cause, "WindowPartReconnectionFailedException", "Its window part failed to continue after the runtime started again."],
       [true, "notes", cause, "DependencyNotFollowedException", "Its window part failed to follow a change of a module it optionally depends on."],
       [true, "notes", cause, "SettingsPageNotLoadedException", "Its settings page could not be loaded."],
+      [true, "notes", cause, "PageNotLoadedException", "Its page could not be loaded."],
       [true, "notes", cause, "SettingOptionsFailedException", "Supplying the options of the setting notes.font failed; Settings shows its value alone until they are supplied again."],
       [true, "notes", cause, "WindowPartSaveFailedException", "Its window part failed to save while Sample App was closing."],
       [true, "notes", cause, "WindowPartSaveFailedForUpdateException", "Its window part failed to save while Sample App was preparing to install an update."],

@@ -29,6 +29,8 @@ export class Request extends WireMessage {
   public constructor(id: string, method: QualifiedName, payload: JsonValue, timeoutMilliseconds?: number, window?: number, page?: number) {
     super();
     ArgumentException.throwIfNullOrWhitespace(id, Resources.idField);
+    if (id.length > Resources.maximumIdLength)
+      throw new ArgumentOutOfRangeException(Resources.idField, id.length, Resources.idTooLong);
     if (!Object.isUndefined(timeoutMilliseconds) && (!Number.isInteger(timeoutMilliseconds) || timeoutMilliseconds <= 0))
       throw new ArgumentOutOfRangeException(Resources.timeoutField, timeoutMilliseconds, Resources.timeoutInvalid);
     if (!Object.isUndefined(window) && (!Number.isInteger(window) || window <= 0))

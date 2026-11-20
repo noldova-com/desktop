@@ -7814,12 +7814,15 @@ export declare class Handshake extends WireMessage {
   /**
    * Creates the handshake.
    *
-   * @param id The id the response carries; not whitespace only.
+   * @param id The id the response carries; not whitespace only, and at most
+   * 256 characters.
    * @param identity The client's build identity.
    * @param token The capability token; not whitespace only.
    * @param client The kind of client; not whitespace only.
    * @throws ArgumentException synchronously when the id, token or client is
    * empty or whitespace only.
+   * @throws ArgumentOutOfRangeException synchronously when the id is longer
+   * than 256 characters.
    *
    * @example
    * ```ts
@@ -7917,7 +7920,8 @@ export declare class Request extends WireMessage {
   /**
    * Creates the request.
    *
-   * @param id The correlation id; not whitespace only.
+   * @param id The correlation id; not whitespace only, and at most 256
+   * characters.
    * @param method The method's name.
    * @param payload The method's arguments.
    * @param timeoutMilliseconds The time limit in milliseconds, a positive
@@ -7928,9 +7932,9 @@ export declare class Request extends WireMessage {
    * omit it when no window sends it.
    * @throws ArgumentException synchronously when the id is empty or
    * whitespace only.
-   * @throws ArgumentOutOfRangeException synchronously when the time limit,
-   * the window or the page is not a positive integer, or a page is given
-   * without a window.
+   * @throws ArgumentOutOfRangeException synchronously when the id is longer
+   * than 256 characters, the time limit, the window or the page is not a
+   * positive integer, or a page is given without a window.
    *
    * @example
    * ```ts

@@ -7,7 +7,7 @@
  */
 
 import "@noldova/context.core";
-import { ArgumentException } from "@noldova/context.exceptions";
+import { ArgumentException, ArgumentOutOfRangeException } from "@noldova/context.exceptions";
 import { JsonException, JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 import { BuildIdentity, Handshake, WireMessageKind } from "@noldova/desktop.protocol";
@@ -53,5 +53,14 @@ export class HandshakeTests {
     Assert.areEqual("$.token", Assert.throws(() => Handshake.fromJson({ id: "h1", identity, token: String.empty, client: "cli" }), JsonException).path);
     Assert.areEqual("$.identity.fingerprint", Assert.throws(() => Handshake.fromJson({ id: "h1", identity: { ...identity, fingerprint: 1 }, token: "t", client: "cli" }), JsonException).path);
     Assert.areEqual("$.identity", Assert.throws(() => Handshake.fromJson({ id: "h1", token: "t", client: "cli" }), JsonException).path);
+  }
+
+  @TestMethod
+  public takesAnIdOfAtMost256Characters(): void {
+    const identity = new BuildIdentity("0.0.1", 1, "abc");
+
+    Assert.areEqual(256, new Handshake("h".repeat(256), identity, "t", "cli").id.length);
+    Assert.throws(() => new Handshake("h".repeat(257), identity, "t", "cli"), ArgumentOutOfRangeException);
+    Assert.areEqual("$.id", Assert.throws(() => Handshake.fromJson({ id: "h".repeat(257), identity: identity.toJson(), token: "t", client: "cli" }), JsonException).path);
   }
 }

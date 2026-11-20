@@ -65,7 +65,7 @@ export class Package {
 
   public async runAsync(packageArguments: readonly string[]): Promise<number> {
     const credentials = SigningCredentials.take(this.environment);
-    const layout = new PackageLayout(this.root);
+    const layout = new PackageLayout(this.root, this.environment);
     await rm(layout.report, { force: true });
     const feedIndex = packageArguments.indexOf(Resources.updateFeedOption);
     const updateFeed = feedIndex < 0 ? null : packageArguments[feedIndex + 1] ?? String.empty;

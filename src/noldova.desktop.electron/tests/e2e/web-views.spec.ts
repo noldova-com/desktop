@@ -430,6 +430,7 @@ test.describe("web views", () => {
       await CommandSearchFixture.searchAsync(window, "Allow the mark");
       await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.allowMark");
       await window.keyboard.press("Enter");
+      await expect(window.getByRole("tab", { name: /Mark allowed/ })).toHaveCount(1);
       await pressInFirstViewAsync(mainProcess, "L", [mod, "shift"]);
       await expect(window.getByRole("tab", { name: /Marked page/ })).toHaveCount(1);
       await pressInFirstViewAsync(mainProcess, "6");

@@ -12,9 +12,11 @@ import { Resources } from "../../resources.ts";
 
 export class PackageLayout {
   private readonly folder: string;
+  private readonly runnerTemporary: string;
 
-  public constructor(root: string) {
+  public constructor(root: string, environment: NodeJS.ProcessEnv = {}) {
     this.folder = path.join(root, ...Resources.packageLayoutFolderSegments);
+    this.runnerTemporary = environment[Resources.runnerTemporaryVariable] ?? String.empty;
   }
 
   public get stage(): string {
@@ -54,7 +56,7 @@ export class PackageLayout {
   }
 
   public get signing(): string {
-    return path.join(this.folder, Resources.packageSigningFolder);
+    return this.runnerTemporary === String.empty ? path.join(this.folder, Resources.packageSigningFolder) : path.join(this.runnerTemporary, Resources.runnerSigningFolder);
   }
 
   public get archiveCheck(): string {

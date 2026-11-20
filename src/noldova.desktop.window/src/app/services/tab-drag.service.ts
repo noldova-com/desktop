@@ -7,7 +7,7 @@
  */
 
 import { DOCUMENT } from "@angular/common";
-import { Injectable, type Signal, type WritableSignal, inject, signal } from "@angular/core";
+import { DestroyRef, Injectable, type Signal, type WritableSignal, inject, signal } from "@angular/core";
 
 import "@noldova/context.core";
 import { DragGesture, PointerDrag } from "@noldova/ui.components.angular";
@@ -24,11 +24,13 @@ import type { Tab } from "../models/layout/tab.js";
 import type { TabGroup } from "../models/layout/tab-group.js";
 import { TabDropTarget } from "../models/layout/tab-drop-target.js";
 import { LayoutService } from "./layout.service.js";
+import { TabFocusService } from "./tab-focus.service.js";
 
 @Injectable({ providedIn: "root" })
 export class TabDragService {
   private readonly document: Document = inject(DOCUMENT);
   private readonly layout: LayoutService = inject(LayoutService);
+  private readonly tabFocus: TabFocusService = inject(TabFocusService);
   private readonly draggingState: WritableSignal<Tab | null> = signal(null);
   private readonly targetState: WritableSignal<DropTarget | null> = signal(null);
   private readonly hoveredState: WritableSignal<number | null> = signal(null);
@@ -41,6 +43,10 @@ export class TabDragService {
   public readonly hoveredGroup: Signal<number | null> = this.hoveredState.asReadonly();
   public readonly pointerX: Signal<number> = this.pointerXState.asReadonly();
   public readonly pointerY: Signal<number> = this.pointerYState.asReadonly();
+
+  public constructor() {
+    inject(DestroyRef).onDestroy(() => this.stop());
+  }
 
   public begin(tab: Tab, event: PointerEvent): void {
     if (event.button !== Resources.primaryButton || (event.target instanceof Element && !Object.isNull(event.target.closest(Resources.tabCloseSelector))))
@@ -78,8 +84,10 @@ export class TabDragService {
     const tab = this.draggingState();
     const target = this.targetState();
     this.stop();
-    if (!Object.isNull(tab) && !Object.isNull(target))
-      this.layout.place(tab, target);
+    if (Object.isNull(tab) || Object.isNull(target))
+      return;
+    this.layout.place(tab, target);
+    this.tabFocus.focus(tab);
   }
 
   private stop(): void {

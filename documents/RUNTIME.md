@@ -75,6 +75,8 @@ What a module declares and contributes is in [MODULES.md](MODULES.md); the windo
 - When an authenticated connection closes, by a command ending, the app quitting or the main process crashing, the runtime tells each active part `{ connection, window: null }` once; a connection that reconnects is a new connection.
 - Protocol owns the frames, their size limit, deadlines, cancellation and disconnection.
   A request or answer over the limit fails with `FrameTooLarge` and the connection stays open; an event over the limit is logged once and sent to no client.
+  A request's or a handshake's id is at most 256 characters; an answer the runtime can't send with its id goes with a null id, and one it can't send at all closes the connection.
+  A client's ids are its name, a colon and a number, so `RuntimeClient.connectAsync` refuses a name over 239 characters before it connects.
 - A client answers a request it couldn't send, or whose connection ended first, with `Disconnected`; a request without an answer in time on an open connection fails with `Unavailable`.
 - When its connection ends, the main process connects again at once; each further end within 30 seconds of being ready waits 1, 2, 4 and then 8 seconds first, and the sixth stops and shows why.
   Before each reconnection it writes a line to `logs/main.log` saying whether the runtime or the main process ended the connection.

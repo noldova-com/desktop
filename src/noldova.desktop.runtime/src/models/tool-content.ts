@@ -20,7 +20,7 @@ export class ToolContent {
   public readonly origin: string | null;
 
   private constructor(kind: ToolContentKind, value: string, mimeType: string | null, origin: string | null) {
-    if (!Object.isNull(origin) && (String.isNullOrWhitespace(origin) || origin.length > Resources.maximumToolOriginLength))
+    if (!Object.isNull(origin) && (!Object.isString(origin) || String.isNullOrWhitespace(origin) || origin.length > Resources.maximumToolOriginLength))
       throw new ArgumentException(Resources.toolOriginInvalid, Resources.originParameterName);
 
     this.kind = kind;
@@ -34,6 +34,8 @@ export class ToolContent {
   }
 
   public static fromText(text: string, origin: string | null): ToolContent {
+    if (!Object.isString(text))
+      throw new ArgumentException(Resources.toolTextInvalid, Resources.textParameterName);
     return new ToolContent(ToolContentKind.Text, text, null, origin);
   }
 

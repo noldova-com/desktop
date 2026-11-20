@@ -86,6 +86,13 @@ export class RequestTests {
   }
 
   @TestMethod
+  public takesAnIdOfAtMost256Characters(): void {
+    Assert.areEqual(256, new Request("r".repeat(256), QualifiedName.parse("desktop.ping"), null).id.length);
+    Assert.throws(() => new Request("r".repeat(257), QualifiedName.parse("desktop.ping"), null), ArgumentOutOfRangeException);
+    Assert.areEqual("$.id", Assert.throws(() => Request.fromJson({ id: "r".repeat(257), method: "desktop.ping", payload: null }), JsonException).path);
+  }
+
+  @TestMethod
   @TestData("{\"id\":\"r1\",\"method\":\"ping\",\"payload\":null}", "$.method")
   @TestData("{\"id\":\"r1\",\"method\":\"desktop.ping\",\"payload\":null,\"timeoutMilliseconds\":0}", "$.timeoutMilliseconds")
   @TestData("{\"id\":\"r1\",\"method\":\"desktop.ping\",\"payload\":null,\"timeoutMilliseconds\":\"5\"}", "$.timeoutMilliseconds")

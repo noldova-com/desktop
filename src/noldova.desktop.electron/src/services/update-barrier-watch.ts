@@ -23,6 +23,7 @@ export class UpdateBarrierWatch {
   private watcher: FSWatcher | null = null;
   private isChecking: boolean = false;
   private isStale: boolean = false;
+  private isStaleLost: boolean = false;
 
   public constructor(updates: Pick<IUpdateHost, "processId" | "readBarrierAsync" | "hasUpdateEndedAsync" | "quit">, folder: string, isConnected: () => boolean,
     onChange: () => void, log: (text: string) => void) {
@@ -55,19 +56,23 @@ export class UpdateBarrierWatch {
   }
 
   public async checkAsync(): Promise<boolean> {
+    let isLost = !this.isConnected();
     if (this.isChecking) {
       this.isStale = true;
+      this.isStaleLost ||= isLost;
       return false;
     }
     this.isChecking = true;
     try {
       do {
         this.isStale = false;
-        if (await this.isClosingAsync()) {
+        this.isStaleLost = false;
+        if (await this.isClosingAsync(isLost)) {
           this.stop();
           this.updates.quit();
           return true;
         }
+        isLost = this.isStaleLost;
       } while (this.isStale);
       return false;
     }
@@ -81,8 +86,8 @@ export class UpdateBarrierWatch {
     void this.checkAsync();
   }
 
-  private async isClosingAsync(): Promise<boolean> {
-    if (this.isConnected())
+  private async isClosingAsync(isLost: boolean): Promise<boolean> {
+    if (!isLost)
       return false;
     const barrier = await this.updates.readBarrierAsync().catch(() => null);
     return barrier?.state === UpdateBarrierState.Closing && barrier.holder.processId !== this.updates.processId && !await this.updates.hasUpdateEndedAsync().catch(() => true);
