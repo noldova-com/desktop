@@ -266,6 +266,61 @@ export class FeedCheckTests {
   }
 
   @TestMethod
+  public async triesAgainWhileAListedFileIsNotThereYetAsync(): Promise<void> {
+    const routes = FeedCheckTests.release("1.2.3");
+    const served = routes.get("/App-1.2.3.AppImage");
+    let reads = 0;
+    routes.set("/App-1.2.3.AppImage", (request, response) => {
+      reads += 1;
+      if (reads === 1 || Object.isUndefined(served))
+        response.writeHead(404).end();
+      else
+        served(request, response);
+    });
+    await FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "60" });
+
+      Assert.areEqual(0, result.exitCode, result.output);
+      Assert.areEqual(2, reads);
+      Assert.areEqual("15000", result.pauses.join());
+      Assert.isTrue(
+        result.output.startsWith(`App-1.2.3.AppImage could not be read from ${feed}: HTTP 404. The feed may still be catching up, so the check tries again.\nlinux-x64: `),
+        result.output);
+    });
+  }
+
+  @TestMethod
+  public async stopsTryingAListedFileAgainAtTheDeadlineAsync(): Promise<void> {
+    const routes = FeedCheckTests.release("1.2.3");
+    let reads = 0;
+    routes.set("/App-1.2.3.AppImage", (_request, response) => {
+      reads += 1;
+      response.writeHead(404).end();
+    });
+    await FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "20" });
+
+      Assert.areEqual(1, result.exitCode);
+      Assert.areEqual("15000,5000", result.pauses.join());
+      Assert.areEqual(3, reads);
+      Assert.isTrue(result.output.endsWith(`tries again.\nApp-1.2.3.AppImage could not be read from ${feed}: HTTP 404.\n`), result.output);
+    });
+  }
+
+  @TestMethod
+  public async refusesAListedFileThatFailsOtherwiseWithoutWaitingAsync(): Promise<void> {
+    const routes = FeedCheckTests.release("1.2.3");
+    routes.set("/App-1.2.3.AppImage", (_request, response) => response.writeHead(503).end());
+    await FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "60" });
+
+      Assert.areEqual(1, result.exitCode);
+      Assert.areEqual(String.empty, result.pauses.join());
+      Assert.areEqual(`App-1.2.3.AppImage could not be read from ${feed}: HTTP 503.\n`, result.output);
+    });
+  }
+
+  @TestMethod
   public async skipsTheCheckWithoutReadingTheFeedWhenTheReleaseAsksAsync(): Promise<void> {
     await FeedCheckTests.withFeedAsync(FeedCheckTests.release("1.2.2"), async (feed, requests) => {
       const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), SKIP_FEED_CHECK: "true" });

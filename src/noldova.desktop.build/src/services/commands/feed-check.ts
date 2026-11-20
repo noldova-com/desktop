@@ -68,7 +68,7 @@ export class FeedCheck {
     for (const target of targets) {
       const name = UpdateMetadata.formatFileName(target);
       const text = await this.readUpdateInformationAsync(feed, name, version, deadline, end);
-      this.output.write(Resources.formatOutputLine(await this.checkFilesAsync(feed, name, version, text, target, end)));
+      this.output.write(Resources.formatOutputLine(await this.checkFilesAsync(feed, name, version, text, target, deadline, end)));
     }
     this.output.write(Resources.formatFeedServes(feed, version, targets.map(t => t.id)));
   }
@@ -85,22 +85,35 @@ export class FeedCheck {
         return text;
       problem = Resources.formatFeedVersionMismatch(name, feed, found, version);
     }
+    await this.waitAsync(problem, deadline);
+    return this.readUpdateInformationAsync(feed, name, version, deadline, end);
+  }
+
+  private async readFileAsync(feed: string, name: string, deadline: number, end: number): Promise<Buffer> {
+    const response = await this.openAsync(feed, name, end);
+    if (response.status !== Resources.httpNotFoundStatus)
+      return await FeedCheck.readBodyAsync(response, feed, name);
+    await response.body?.cancel();
+    await this.waitAsync(Resources.formatFeedHttpProblem(name, feed, response.status), deadline);
+    return await this.readFileAsync(feed, name, deadline, end);
+  }
+
+  private async waitAsync(problem: string, deadline: number): Promise<void> {
     const remaining = deadline - this.clock.now();
     if (remaining <= 0)
       throw new BuildException(problem);
     this.output.write(Resources.formatFeedCatchingUp(problem));
     await this.clock.pauseAsync(Math.min(Resources.feedRetryInterval, remaining));
-    return this.readUpdateInformationAsync(feed, name, version, deadline, end);
   }
 
-  private async checkFilesAsync(feed: string, metadata: string, version: string, text: string, target: PackageTarget, end: number): Promise<string> {
+  private async checkFilesAsync(feed: string, metadata: string, version: string, text: string, target: PackageTarget, deadline: number, end: number): Promise<string> {
     const files: IFeedFile[] = [...text.matchAll(Resources.feedFileEntryPattern)].map(t => ({ name: FeedCheck.unquote(String(t[1])), sha512: String(t[2]), size: Number(t[3]) }));
     if (files.length === 0)
       throw new BuildException(Resources.formatFeedListsNoFiles(metadata, feed));
     if (files.length !== [...text.matchAll(Resources.feedEntryStartPattern)].length)
       throw new BuildException(Resources.formatFeedFileIncomplete(metadata, feed));
     for (const file of files) {
-      const bytes = await FeedCheck.readBodyAsync(await this.openAsync(feed, file.name, end), feed, file.name);
+      const bytes = await this.readFileAsync(feed, file.name, deadline, end);
       const sha512 = createHash(Resources.feedFileHash).update(bytes).digest(Resources.feedFileDigest);
       if (sha512 !== file.sha512)
         throw new BuildException(Resources.formatFeedHashMismatch(file.name, feed, sha512, metadata, file.sha512));
@@ -182,8 +195,6 @@ export class FeedCheck {
   }
 
   private static async readBodyAsync(response: Response, feed: string, name: string): Promise<Buffer> {
-    if (!response.ok)
-      throw new BuildException(Resources.formatFeedHttpProblem(name, feed, response.status));
     try {
       return Buffer.from(await response.arrayBuffer());
     }
