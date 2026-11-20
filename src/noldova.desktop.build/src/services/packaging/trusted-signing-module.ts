@@ -17,6 +17,7 @@ import type { ProcessRunner } from "../processes/process-runner.ts";
 import { PackageConfiguration } from "./package-configuration.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { PinnedPackage } from "../../models/packaging/pinned-package.ts";
+import { ResponseBody } from "../../models/response-body.ts";
 import { WindowsSigningAccount } from "../../models/packaging/windows-signing-account.ts";
 import { Resources } from "../../resources.ts";
 
@@ -118,7 +119,7 @@ export class TrustedSigningModule {
       throw new BuildException(Resources.formatSigningPackageDownloadFailed(url, error), new ExceptionOptions(error));
     }
     if (!response.ok) {
-      await response.body?.cancel();
+      await ResponseBody.letGoAsync(response);
       throw new BuildException(Resources.formatSigningPackageHttpFailed(url, response.status));
     }
     return Buffer.from(await response.arrayBuffer());

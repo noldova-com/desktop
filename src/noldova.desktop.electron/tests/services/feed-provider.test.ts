@@ -171,6 +171,17 @@ export class FeedProviderTests {
   }
 
   @TestMethod
+  public async keepsTheRefusalWhenCancellingTheBodyFails(): Promise<void> {
+    const body = new ReadableStream<Uint8Array>({ cancel: () => {
+      throw new TypeError("The stream could not be cancelled.");
+    } });
+
+    await FeedProviderTests.withAnswerAsync({ ok: false, status: 500, url: FeedProviderTests.RELEASE, body, text: () => Promise.resolve(String.empty) }, async provider => {
+      Assert.areEqual("The update feed answered with HTTP status 500.", (await Assert.throwsAsync(() => provider.getLatestVersion(), UpdateFeedRefusedException)).message);
+    });
+  }
+
+  @TestMethod
   public async cancelsTheBodyOfAnAnswerThatRedirectedToAnotherProtocol(): Promise<void> {
     let isCancelled = false;
     const body = new ReadableStream<Uint8Array>({ cancel: () => {

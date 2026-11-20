@@ -21,6 +21,7 @@ import { UpdateInfoInvalidException } from "../exceptions/update-info-invalid.ex
 import type { IFeedRuntimeOptions } from "../interfaces/i-feed-runtime-options.js";
 import { CaughtFailure } from "../models/caught-failure.js";
 import { FeedSource } from "../models/feed-source.js";
+import { ResponseBody } from "../models/response-body.js";
 import { Resources } from "../resources.js";
 import { ProductAppAdapter } from "./product-app-adapter.js";
 
@@ -42,12 +43,12 @@ export class FeedProvider extends Provider<UpdateInfo> {
     const signal = this.source.timeout(Resources.updateFeedTimeout);
     const response = await FeedProvider.reach(this.source.fetchAsync(requested.href, signal));
     if (!response.ok) {
-      await response.body?.cancel();
+      await ResponseBody.letGoAsync(response);
       throw new UpdateFeedRefusedException(response.status);
     }
     const url = response.url.length > 0 ? new URL(response.url) : requested;
     if (url.protocol !== requested.protocol) {
-      await response.body?.cancel();
+      await ResponseBody.letGoAsync(response);
       throw new UpdateFeedRedirectedException();
     }
     const info = FeedProvider.parse(await FeedProvider.reach(response.text()), this.source.channelFile, url);

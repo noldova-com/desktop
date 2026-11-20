@@ -19,6 +19,7 @@ import { LicenseExpression } from "./license-expression.ts";
 import type { LockedPackage } from "./locked-package.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
+import { ResponseBody } from "../response-body.ts";
 import { TarArchive } from "./tar-archive.ts";
 import type { TypeOnlyPeers } from "./type-only-peers.ts";
 
@@ -99,7 +100,7 @@ export class ThirdPartyPackage {
       throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
     }
     if (!response.ok) {
-      await response.body?.cancel();
+      await ResponseBody.letGoAsync(response);
       throw new BuildException(Resources.formatDownloadStatus(locked.id, locked.resolved, response.status));
     }
     const data = Buffer.from(await response.arrayBuffer());
