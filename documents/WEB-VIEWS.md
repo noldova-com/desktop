@@ -152,10 +152,11 @@ The origin check refuses a frame's navigation, or a frame's load or redirect, as
 - The view raises `FrameNavigationRefused` with the address, its origin, `isRedirect` and `frameId`, the frame's id, which stays the same while the frame exists; the page itself stays where it is, and `NavigationRefused` stays the main frame's alone.
   A module built before this event ignores it, as it ignores any event kind it doesn't know.
 - The host sends the frame to a `data:` page it builds for that one refusal, which says "`<name>` doesn't open `<origin>`", with the name the module gave `openAsync`, or "This view doesn't open `<origin>`" without one; the name and the origin are text in the page, never markup, and it takes the window's colours.
+  The frame's own document runs the page's address, and so can read it, so the page names the origin only when that frame itself started the navigation; for a redirect, a navigation its parent or no frame started, or a load the check refused, it says "this address" instead, and only the module's event holds the address.
 - The page runs no script and loads nothing: its policy is `default-src 'none'`, and it replaces the frame's document, so the frame's own scripts stop.
 - The origin check lets that page through once, its navigation and then its one load, only for the frame it was built for, only when the frame itself navigates there, and only by its exact address; the frame's next navigation, or a new main-frame document, drops it, and a frame that has gone can't use it, since its id is never used again.
   Every other `data:` address, the page's own included, stays refused, as does the same address a second time or in another frame.
-- A frame that has gone, or changed process, before the page reaches it keeps nothing; the module still gets the event.
+- A frame that is already gone when the check refuses it raises no event and gets no page; one that goes, or changes process, after the refusal keeps no page, and the module still gets the event.
 
 ### New windows
 

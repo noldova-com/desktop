@@ -323,7 +323,7 @@ export class OpenWebView {
     if (!allows && isPage)
       this.emitRefusedNavigation(request.url, isRedirect);
     if (!allows && isFrame)
-      this.refuseFrame(request.frame ?? null, request.url, isRedirect);
+      this.refuseFrame(request.frame ?? null, request.url, isRedirect, null);
     return allows;
   }
 
@@ -753,7 +753,7 @@ export class OpenWebView {
     if (navigation.isMainFrame)
       this.emitRefusedNavigation(navigation.url, false);
     else
-      this.refuseFrame(navigation.frame, navigation.url, false);
+      this.refuseFrame(navigation.frame, navigation.url, false, navigation.initiator ?? null);
   }
 
   private takesRefusedPage(navigation: IFrameNavigation): boolean {
@@ -779,13 +779,15 @@ export class OpenWebView {
     return page === request.url;
   }
 
-  private refuseFrame(frame: IWebViewFrame | null, url: string, isRedirect: boolean): void {
+  private refuseFrame(frame: IWebViewFrame | null, url: string, isRedirect: boolean, initiator: IWebViewFrame | null): void {
     if (Object.isNull(frame))
       return;
     const origin = OpenWebView.originOf(url);
     this.emit(WebViewEventKind.FrameNavigationRefused,
       { [Resources.addressField]: url, [Resources.originField]: origin, [Resources.isRedirectField]: isRedirect, [Resources.frameIdField]: frame.frameTreeNodeId });
-    const page = this.refusedPage.format(origin === Resources.nullOrigin ? url : origin, randomUUID());
+    const isOwn = !isRedirect && initiator?.frameTreeNodeId === frame.frameTreeNodeId;
+    const shown = origin === Resources.nullOrigin ? url : origin;
+    const page = this.refusedPage.format(isOwn ? shown : null, randomUUID());
     const kept = [...this.refusedPages].filter(([key]) => key !== frame.frameTreeNodeId).slice(1 - Resources.refusedPageLimit);
     this.refusedPages = new Map([...kept, [frame.frameTreeNodeId, page]]);
     void frame.executeJavaScript(Resources.formatRefusedPageScript(page)).catch(() => undefined);

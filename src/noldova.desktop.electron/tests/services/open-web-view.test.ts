@@ -578,6 +578,31 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async namesOnlyATargetTheFrameChoseItselfAndKeepsARedirectsAParentsOrARefusedLoadsTargetOutOfThePage(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    const [frame, parent] = [new FakeWebViewFrame(7), new FakeWebViewFrame(1)];
+    const title = (): string => /<h1>(.*?)<\/h1>/u.exec(OpenWebViewTests.readPage(frame.pages.at(-1) ?? String.empty))?.[1] ?? String.empty;
+
+    harness.contents.navigateFrame("https://own.example.net/a", false, frame);
+    const own = title();
+    harness.contents.navigateFrame("https://secret.example.org/p", false, frame, parent);
+    const fromParent = title();
+    harness.contents.navigateFrame("https://secret.example.org/n", false, frame, null);
+    const fromNobody = title();
+    harness.open.allowsRequest({ id: 1, url: "https://secret.example.org/l", resourceType: "subFrame", frame });
+    const loaded = title();
+    harness.open.noteRedirect({ id: 2, url: "https://example.com/f", redirectURL: "https://secret.example.org/r" });
+    harness.open.allowsRequest({ id: 2, url: "https://secret.example.org/r", resourceType: "subFrame", frame });
+    const redirected = title();
+
+    Assert.areEqual(["Browser doesn't open https://own.example.net", ...Array.from({ length: 4 }, () => "Browser doesn't open this address")].join("|"),
+      [own, fromParent, fromNobody, loaded, redirected].join("|"));
+    Assert.isFalse(frame.pages.some(t => OpenWebViewTests.readPage(t).includes("secret")));
+    Assert.areEqual(4, harness.describe().split("\"address\":\"https://secret.example.org/").length - 1);
+  }
+
+  @TestMethod
   public async letsOnlyTheRefusedFrameItselfShowItsPageAndOnlyOnceBeforeItsNextNavigation(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);

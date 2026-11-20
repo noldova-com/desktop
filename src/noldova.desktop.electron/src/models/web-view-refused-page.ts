@@ -21,9 +21,9 @@ export class WebViewRefusedPage {
     this.readAppearance = readAppearance;
   }
 
-  public format(origin: string, nonce: string): string {
+  public format(origin: string | null, nonce: string): string {
     const appearance = this.readAppearance();
-    const shown = WebViewRefusedPage.escape([...origin].slice(0, Resources.refusedPageOriginLimit).join(String.empty));
+    const shown = Object.isNull(origin) ? Resources.hiddenRefusedTarget : WebViewRefusedPage.escape([...origin].slice(0, Resources.refusedPageOriginLimit).join(String.empty));
     const name = WebViewRefusedPage.escape(this.name);
     const [title, reason] = String.isNullOrWhitespace(name)
       ? [Resources.formatNamelessRefusedTitle(shown), Resources.namelessRefusedReason]

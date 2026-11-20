@@ -64,6 +64,16 @@ export class WebViewRefusedPageTests {
   }
 
   @TestMethod
+  public saysThisAddressWithoutNamingATargetItIsNotGiven(): void {
+    const named = WebViewRefusedPageTests.read(new WebViewRefusedPage("Browser", () => null).format(null, "n"));
+    const nameless = WebViewRefusedPageTests.read(new WebViewRefusedPage(null, () => null).format(null, "n"));
+
+    Assert.isTrue(named.includes("<title>Browser doesn't open this address</title>"));
+    Assert.isTrue(named.includes("<h1>Browser doesn't open this address</h1><p>Its address isn't one Browser opens.</p>"));
+    Assert.isTrue(nameless.includes("<h1>This view doesn't open this address</h1><p>Its address isn't one this view opens.</p>"));
+  }
+
+  @TestMethod
   public capsTheNameAndTheAddressItShows(): void {
     const page = WebViewRefusedPageTests.read(new WebViewRefusedPage(` ${"N".repeat(70)} `, () => null).format(`https://${"a".repeat(300)}.example`, "n"));
 
