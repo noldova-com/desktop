@@ -165,6 +165,7 @@ export { WindowAppearance } from "../models/window-appearance.js";
 export { WindowState } from "../models/window-state.js";
 export { ChildProgramHost } from "../services/child-program-host.js";
 export { CloseCoordinator } from "../services/close-coordinator.js";
+export { CommandLineRelay } from "../services/command-line-relay.js";
 export { UpdateSaveCoordinator } from "../services/update-save-coordinator.js";
 export { MainProcess } from "../services/main-process.js";
 export { MainProcessLog } from "../services/main-process-log.js";

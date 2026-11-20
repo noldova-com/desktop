@@ -28,18 +28,19 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@fd77a920a674e4c9369f34d799329ac93793c8a2 # v2.39.1
+    uses: noldova-com/.github/.github/workflows/versions.yml@c18622b1479d896f22483f8091bd862526cb4df4 # v2.41.0
     permissions: {}
 
   build-and-test:
     name: Build and test
-    uses: noldova-com/.github/.github/workflows/build-and-test.yml@fd77a920a674e4c9369f34d799329ac93793c8a2 # v2.39.1
+    uses: noldova-com/.github/.github/workflows/build-and-test.yml@c18622b1479d896f22483f8091bd862526cb4df4 # v2.41.0
     permissions:
       contents: read
       packages: read
     with:
       targets: linux-x64 linux-arm64 windows-x64 windows-arm64 macos-x64 macos-arm64
       publishes: true
+      shards: macos-x64=2
 
   package-targets:
     name: List the package targets

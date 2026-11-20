@@ -1022,6 +1022,29 @@ export class ToolRegistryTests {
   }
 
   @TestMethod
+  public answersAFailureWhoseModuleCodeIsNotAStringAsMalformedBeforeAnAbortAndWithinTheGrace(): Promise<void> {
+    return ToolRegistryTests.withRegistryAsync(async (registry, session) => {
+      const failure = new ToolFailure(ToolFailureCode.Refused, "Refused.", JSON.parse("42"));
+      ToolRegistryTests.register(registry, ToolRegistryTests.SEARCH, new ToolHandlerFixture(() => Promise.reject(new ToolFailureException(failure))));
+      const find = new ToolHandlerFixture(call => new Promise((_resolve, reject) =>
+        call.signal.addEventListener("abort", () => reject(new ToolFailureException(failure)), { once: true })));
+      ToolRegistryTests.register(registry, { ...ToolRegistryTests.SEARCH, name: "notes_find" }, find);
+
+      const rejected = await session.callAsync("notes_search", {});
+      const controller = new AbortController();
+      const cancelled = session.callAsync("notes_find", {}, { signal: controller.signal });
+      await find.waitForCallAsync(1);
+      controller.abort();
+
+      ToolRegistryTests.assertFailure(ToolFailureCode.Unavailable, rejected, "The tool's result does not fit its shape or its schema.");
+      Assert.areEqual("notes.malformedResult", ToolRegistryTests.failure(rejected).moduleCode);
+      const ended = await cancelled;
+      ToolRegistryTests.assertFailure(ToolFailureCode.Cancelled, ended, "The call was cancelled.");
+      Assert.isNull(ToolRegistryTests.failure(ended).moduleCode);
+    });
+  }
+
+  @TestMethod
   public refusesAToolWhoseSchemaTheValidatorRefuses(): void {
     const registry = ToolRegistryFixture.create();
 

@@ -68,6 +68,8 @@ export class WindowPlacement {
 
   public async holdAsync(open: OpenWindow): Promise<void> {
     await open.bounds.holdAsync().catch((error: unknown) => this.logUnsaved(error));
+    if (this.startup.current.kind === StartupStateKind.Ready)
+      await open.bounds.saveUnsavedAsync().catch((error: unknown) => this.logUnsaved(error));
   }
 
   private createStore(device: string): MirroredWindowStateStore {

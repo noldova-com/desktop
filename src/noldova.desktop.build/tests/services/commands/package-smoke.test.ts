@@ -18,6 +18,7 @@ import { JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
+import { PackageReport } from "../../../src/models/packaging/package-report.js";
 import { ProcessResult } from "../../../src/models/processes/process-result.js";
 import { Resources } from "../../../src/resources.js";
 import { PackageSmoke } from "../../../src/services/commands/package-smoke.js";
@@ -237,6 +238,24 @@ export class PackageSmokeTests {
     Assert.isTrue(result.output.endsWith(Resources.formatOutputLine(Resources.formatSmokePowerShellFailed(SmokeRunnerFixture.SLUG, 1,
       "The term 'sample-app' is not recognized."))), result.output);
     Assert.areEqual("SIGKILL", runner.main?.signals.join("|"));
+  }
+
+  @TestMethod
+  public async marksThePackageReportStartedOnlyAfterARunThatPassesAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const report = await app.writeAppFileAsync(`_build/package/${Resources.packageReportFile}`, String.empty);
+    await new PackageReport("macos-x64", false, false).writeAsync(report);
+
+    const failed = await PackageSmokeTests.smokeAsync(app, parent.path, "darwin", PackageSmokeTests.createEndingRunner());
+    const afterFailure = PackageReport.parse(JsonReader.parse(await readFile(report, "utf8")));
+    const passed = await PackageSmokeTests.smokeAsync(app, parent.path, "darwin", new SmokeRunnerFixture());
+    const afterPass = PackageReport.parse(JsonReader.parse(await readFile(report, "utf8")));
+
+    Assert.areEqual(1, failed.exitCode, failed.output);
+    Assert.isFalse(afterFailure?.isStarted ?? true);
+    Assert.areEqual(0, passed.exitCode, passed.output);
+    Assert.isTrue(afterPass?.isStarted ?? false);
   }
 
   @TestMethod
@@ -503,6 +522,7 @@ export class PackageSmokeTests {
       Resources.formatOutputLine(Resources.packagedModulesNone),
       Resources.formatOutputLine(Resources.formatWindowShown(SmokeRunnerFixture.PRODUCT_NAME)),
       Resources.formatOutputLine(Resources.formatSandboxOff("renderer 0")),
+      Resources.formatSmokeStatusReported(SmokeRunnerFixture.SLUG, Resources.smokeMomentDebianCommand, "1.2.3", result.data),
       Resources.smokeMainQuit,
       Resources.smokeRuntimeStopped,
       Resources.formatOutputLine(Resources.formatDebianRemoved(SmokeRunnerFixture.SLUG, runner.debianFolder, profile))
@@ -539,6 +559,51 @@ export class PackageSmokeTests {
   }
 
   @TestMethod
+  public async refusesADebianCommandThatCannotAnswerWithNoDisplayAndRemovesThePackageAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const processes = await PackageSmokeTests.createProcessesAsync(path.join(parent.path, "elf"), PackageSmokeTests.ELF);
+    const runner = new SmokeRunnerFixture();
+    runner.debianFolder = path.join(parent.path, "opt", "Sample App").replaceAll("\\", "/");
+    const refusal = new ProcessResult(5, String.empty, "Missing X server or $DISPLAY");
+    const environments: NodeJS.ProcessEnv[] = [];
+    runner.answer = (name, commandArguments, environment) => {
+      if (name !== SmokeRunnerFixture.SLUG || commandArguments[0] !== "status")
+        return null;
+      environments.push(environment ?? {});
+      return refusal;
+    };
+
+    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "linux", runner, ["--deb", "--no-sandbox"], { DISPLAY: ":0", WAYLAND_DISPLAY: "wayland-0", KEPT: "kept" },
+      new RecordingTemporaryFolderFixture(parent.path), processes);
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.includes(Resources.formatSmokeWindowlessCommandFailed(SmokeRunnerFixture.SLUG, Resources.smokeMomentDebianCommand, 5, refusal.text)), result.output);
+    Assert.areEqual(1, environments.length);
+    Assert.isUndefined(environments[0]?.["DISPLAY"]);
+    Assert.isUndefined(environments[0]?.["WAYLAND_DISPLAY"]);
+    Assert.areEqual("kept", environments[0]?.["KEPT"]);
+    Assert.isTrue(runner.environments.some(t => t["DISPLAY"] === ":0"), "the other commands keep the display");
+    Assert.isFalse(existsSync(runner.debianFolder));
+  }
+
+  @TestMethod
+  public async removesADebianPackageWhoseInstallFailsAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const runner = PackageSmokeTests.createEndingRunner();
+    runner.debianFolder = path.join(parent.path, "opt", "Sample App").replaceAll("\\", "/");
+    runner.answer = (name, commandArguments) => name === "sudo" && commandArguments.includes("install") ? new ProcessResult(100, String.empty, "dpkg: error processing package") : null;
+
+    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "linux", runner, ["--deb"]);
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.includes("dpkg: error processing package"), result.output);
+    Assert.areEqual(1, runner.captured.filter(t => t === `sudo --non-interactive apt-get -o DPkg::Lock::Timeout=60 remove --yes ${SmokeRunnerFixture.SLUG}`).length,
+      runner.captured.join("\n"));
+  }
+
+  @TestMethod
   public async reportsADebianPackageItCannotRemoveAsync(): Promise<void> {
     await using app = await PackageSmokeTests.createAppAsync();
     await using parent = await PackageSmokeTests.createParentAsync();
@@ -571,7 +636,7 @@ export class PackageSmokeTests {
   }
 
   @TestMethod
-  public async installsTheInstallerPackageOfAnAppThatNamesAFolderAndStopsWhenTheInstallerFailsAsync(): Promise<void> {
+  public async installsTheInstallerPackageOfAnAppThatNamesAFolderAndRemovesWhatItPlacedWhenTheInstallerFailsAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync({ installFolder: "Sample Makers" });
     await using parent = await PackageSmokeTests.createParentAsync();
     const runner = new SmokeRunnerFixture();
@@ -582,7 +647,9 @@ export class PackageSmokeTests {
     Assert.areEqual(1, result.exitCode);
     Assert.isTrue(result.output.includes("installer: refused"), result.output);
     Assert.areEqual(["sudo --non-interactive mkdir -p /Applications/Sample Makers/Smoke Neighbour.app",
-      `sudo --non-interactive installer -pkg ${path.join(app.path, "_build", "package", "out", "Sample App-1.2.3-macos-x64.pkg")} -target /`].join("\n"),
+      `sudo --non-interactive installer -pkg ${path.join(app.path, "_build", "package", "out", "Sample App-1.2.3-macos-x64.pkg")} -target /`,
+      "sudo --non-interactive rm -rf /Applications/Sample Makers/Sample App.app /Applications/Sample Makers/Smoke Neighbour.app",
+      "sudo --non-interactive pkgutil --forget com.example.sample"].join("\n"),
     runner.captured.filter(t => t.startsWith("sudo")).join("\n"));
   }
 
@@ -812,6 +879,7 @@ export class PackageSmokeTests {
       Resources.formatOutputLine(Resources.packagedModulesNone),
       Resources.formatOutputLine(Resources.formatWindowShown(SmokeRunnerFixture.PRODUCT_NAME)),
       Resources.formatOutputLine(Resources.formatSandboxOff("renderer 0")),
+      Resources.formatSmokeStatusReported(SmokeRunnerFixture.SLUG, Resources.smokeMomentAppImageCommandLine, "1.2.3", result.data),
       Resources.formatSmokeExtraction(path.join(result.folder, "extraction"), AppImageCopyRunnerFixture.EXTRACTED_BYTES),
       Resources.formatSmokeStatusReported(SmokeRunnerFixture.SLUG, Resources.smokeMomentReplaced, "1.2.3", result.data),
       Resources.smokeMainQuit,
@@ -820,6 +888,8 @@ export class PackageSmokeTests {
     ].join(String.empty), PackageSmokeTests.withoutTimes(result.output));
     Assert.areEqual("package", await readFile(path.join(app.path, PackageSmokeTests.APP_IMAGE), "utf8"));
     Assert.isFalse(existsSync(path.join(app.path, `${PackageSmokeTests.APP_IMAGE}.replacement`)));
+    Assert.isTrue(runner.captured.includes(`${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-linux-x64.AppImage --command-line status --json --device-dir ${path.join(result.folder, "device")} --data-dir ${result.data}`),
+      runner.captured.join("\n"));
     Assert.isFalse(existsSync(result.folder));
   }
 
@@ -835,7 +905,7 @@ export class PackageSmokeTests {
     failing.answer = (_, commandArguments) => {
       if (commandArguments.includes("status"))
         statuses += 1;
-      return commandArguments.includes("status") && statuses === 4 ? new ProcessResult(1, String.empty, "The runtime is gone.") : null;
+      return commandArguments.includes("status") && statuses === 5 ? new ProcessResult(1, String.empty, "The runtime is gone.") : null;
     };
 
     const unreadable = await PackageSmokeTests.smokeAppImageAsync(app, parent.path, reading, script, true);

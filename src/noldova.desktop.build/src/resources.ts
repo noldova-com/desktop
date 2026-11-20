@@ -97,7 +97,8 @@ export class Resources {
   public static readonly electronArchitectureVariable: string = "npm_config_arch";
   public static readonly addonWindowsTargets: readonly string[] = ["win32-x64", "win32-arm64"];
   public static readonly addonPosixTargets: readonly string[] = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
-  public static readonly addonTargets: readonly string[] = [...Resources.addonWindowsTargets, ...Resources.addonPosixTargets];
+  public static readonly addonProcessorSeparator: string = "+";
+  public static readonly addonTargetPattern: RegExp = /^(?:aix|android|cygwin|darwin|freebsd|haiku|linux|netbsd|openbsd|sunos|win32)-[a-z0-9]+(?:\+[a-z0-9]+)*$/;
   public static readonly desktopToolsEntrySegments: readonly string[] = ["node_modules", "@noldova", "desktop.cli", "services", "cli-entry.js"];
   public static readonly runAsNodeVariable: string = "ELECTRON_RUN_AS_NODE";
   public static readonly runAsNodeValue: string = "1";
@@ -389,7 +390,7 @@ export class Resources {
   public static readonly packagedUnpackedFolder: string = `${Resources.packagedArchiveFile}.unpacked`;
   public static readonly packagedThirdPartySegments: readonly string[] = [Resources.packagedResourcesFolder, Resources.packagedUnpackedFolder, Resources.nodeModulesFolder];
   public static readonly windowsLineSeparator: string = "\r\n";
-  public static readonly macResourcesVariable: string = "$resources";
+  public static readonly posixResourcesVariable: string = "$resources";
   public static readonly parentFolderSegment: string = "..";
   public static readonly macProgramSegments: readonly string[] = [Resources.parentFolderSegment, "MacOS"];
   public static readonly executableMode: number = 0o755;
@@ -453,6 +454,8 @@ export class Resources {
   public static readonly packageSmokeFolder: string = "smoke";
   public static readonly packageCommandFolder: string = "command";
   public static readonly packageSigningFolder: string = "signing";
+  public static readonly runnerTemporaryVariable: string = "RUNNER_TEMP";
+  public static readonly runnerSigningFolder: string = "noldova-package-signing";
   public static readonly packageArchiveCheckFolder: string = "archive-check";
   public static readonly packageConfigurationFile: string = "electron-builder.json";
   public static readonly packageReportFile: string = "package-report.json";
@@ -1238,6 +1241,9 @@ export class Resources {
   public static readonly debianTemplates: ReadonlyMap<string, string> = new Map([["afterInstall", "after-install.tpl"], ["afterRemove", "after-remove.tpl"],
     ["appArmorProfile", "apparmor-profile.tpl"]]);
   public static readonly debianTemplateProductPath: string = "/opt/${sanitizedProductName}/";
+  public static readonly debianCommandTemplates: ReadonlySet<string> = new Set(["after-install.tpl", "after-remove.tpl"]);
+  public static readonly debianTemplateProgram: string = "'/opt/${sanitizedProductName}/${executable}'";
+  public static readonly debianTemplateCommand: string = "'/opt/${sanitizedProductName}/resources/bin/${executable}'";
   public static readonly diskImageDetachFailure: string = "Unable to detach device cleanly";
   public static readonly builderDetachRetry: string = "electron-builder could not detach the disk image it was making while macOS still held its volume; building the packages again, once.\n";
   public static readonly builderVariables: ReadonlySet<string> = new Set([
@@ -1286,6 +1292,10 @@ export class Resources {
   public static readonly aptGetInstalledPrefix: string = "Inst ";
   public static readonly aptGetInstalledDetails: RegExp = /\s.*$/;
   public static readonly dpkgDebCommand: string = "dpkg-deb";
+  public static readonly dpkgQueryCommand: string = "dpkg-query";
+  public static readonly dpkgQueryStatusArguments: readonly string[] = ["--show", "--showformat=${db:Status-Status}"];
+  public static readonly debianNotInstalledStatus: string = "not-installed";
+  public static readonly pkgutilPackagesOption: string = "--pkgs";
   public static readonly dpkgDebFieldOption: string = "--field";
   public static readonly debianPackageField: string = "Package";
   public static readonly readlinkCommand: string = "readlink";
@@ -1399,6 +1409,10 @@ export class Resources {
   public static readonly smokeMomentKilled: string = "was killed";
   public static readonly smokeMomentPowerShell: string = "through PowerShell";
   public static readonly smokeMomentLink: string = "through a link to the app's command";
+  public static readonly smokeMomentDebianCommand: string = "through the Debian package's command, with no display";
+  public static readonly smokeMomentAppImageCommandLine: string = "through the AppImage's --command-line flag, with no display";
+  public static readonly displayVariables: readonly string[] = ["DISPLAY", "WAYLAND_DISPLAY"];
+  public static readonly commandLineOption: string = "--command-line";
   public static readonly smokeMomentReplaced: string = "after the AppImage was replaced";
   public static readonly smokeMainQuit: string = "The main process quit.\n";
   public static readonly smokeRuntimeStopped: string = "The runtime stopped once idle.\n";
@@ -1612,7 +1626,8 @@ export class Resources {
   public static readonly productSlugPattern: RegExp = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
   public static readonly productVariablePattern: RegExp = /^[A-Z][A-Z0-9_]*$/;
   public static readonly productRepositoryPattern: RegExp = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
-  public static readonly productUnsafeNamePattern: RegExp = /["\\\n\r]/;
+  public static readonly productUnsafeNamePattern: RegExp = /["\\%!$`#/?<>:*|[\]{}\p{Cc}]|[. ]$|^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?$/iu;
+  public static readonly productUnsafePublisherPattern: RegExp = /["\\\n\r%!$`]/;
   public static readonly productLineBreakPattern: RegExp = /[\n\r]/;
   public static readonly productWhitespacePattern: RegExp = /\s/u;
   public static readonly productMacCategoryPattern: RegExp = /^public\.app-category\.[a-z]+(?:-[a-z]+)*$/;
@@ -1620,7 +1635,9 @@ export class Resources {
   public static readonly productUnsafeSegmentPattern: RegExp = /[\\:*?"<>|]/;
   public static readonly checkoutHashLength: number = 8;
   public static readonly checkoutVariableSuffix: string = "_CHECKOUT";
-  public static readonly productNameExpected: string = "a name without quotes, backslashes or line breaks";
+  public static readonly productNameExpected: string = "a name without quotes, backslashes, % ! $ ` # / ? < > : * | [ ] { } or control characters, with no dot or space at its end, "
+    + "and not a name Windows reserves, such as CON";
+  public static readonly productPublisherExpected: string = "a name without quotes, backslashes, % ! $ ` or line breaks";
   public static readonly productSlugExpected: string = "lowercase kebab-case";
   public static readonly productApplicationIdExpected: string = "a lowercase reverse-DNS ID";
   public static readonly productDevelopmentApplicationIdExpected: string = "a lowercase reverse-DNS ID other than applicationId";
@@ -1681,10 +1698,11 @@ export class Resources {
   public static readonly typeOnlyPeersField: string = "typeOnlyPeers";
   public static readonly typeOnlyPeersListField: string = "peers";
   public static readonly typeOnlyPeersShape: string = `The root package.json's ${Resources.typeOnlyPeersSection} must map each package, as <name>@<version>, to { "peers": [<peer name>, ...], "reason": "<why the package never loads them>" }.`;
-  public static readonly packageReportFieldCount: number = 3;
+  public static readonly packageReportFieldCount: number = 4;
   public static readonly packageReportTargetField: "target" = "target";
   public static readonly packageReportSignedField: "signed" = "signed";
   public static readonly packageReportCheckedField: "checked" = "checked";
+  public static readonly packageReportStartedField: "started" = "started";
   public static readonly zipArchiveTarget: string = "zip";
   public static readonly packagePlatforms: ReadonlyMap<string, string> = new Map([
     [Resources.windowsPlatform, Resources.windowsTarget], [Resources.macPlatform, Resources.macosTarget], [Resources.linuxPlatform, Resources.linuxTarget]
@@ -2418,7 +2436,7 @@ export class Resources {
     ].map(t => `${t}${Resources.windowsLineSeparator}`).join(String.empty);
   }
 
-  public static formatMacCommandScript(program: string, entry: string): string {
+  public static formatPosixCommandScript(program: string, entry: string): string {
     return [
       "#!/bin/sh",
       "link=\"$0\"",
@@ -3543,6 +3561,10 @@ export class Resources {
     return `${version} is not newer than the highest release, ${highest}.`;
   }
 
+  public static formatReleaseOvertaken(version: string, highest: string): string {
+    return `${version} is not newer than the highest release, ${highest}, which another run published after this one's check, so ${version} is not published; release a version newer than ${highest}.`;
+  }
+
   public static formatCompareRoute(revision: string): string {
     return `/compare/${revision}...${Resources.mainBranch}`;
   }
@@ -3676,6 +3698,10 @@ export class Resources {
 
   public static formatSmokePowerShellFailed(slug: string, exitCode: number | null, text: string): string {
     return `${slug} status ${Resources.smokeMomentPowerShell} exited with ${exitCode}:\n${text}`;
+  }
+
+  public static formatSmokeWindowlessCommandFailed(slug: string, moment: string, exitCode: number | null, text: string): string {
+    return `${slug} status ${moment} exited with ${exitCode}:\n${text}`;
   }
 
   public static formatSmokeLinkFailed(slug: string, command: string, exitCode: number | null, text: string): string {
@@ -3949,6 +3975,10 @@ export class Resources {
       + `so the package can't move them into ${Resources.formatDebianInstallFolder(installFolder)}.`;
   }
 
+  public static formatDebianTemplateProgramUnlinked(template: string): string {
+    return `electron-builder's Debian template ${template} links no ${Resources.debianTemplateProgram}, so the package can't link /usr/bin to its command line in its place.`;
+  }
+
   public static formatDebianTemplateUnplaced(template: string, installFolder: string): string {
     return `electron-builder's Debian template ${template} names no ${Resources.debianTemplateProductPath}, so the package can't move its paths into `
       + `${Resources.formatDebianInstallFolder(installFolder)}.`;
@@ -3970,6 +4000,18 @@ export class Resources {
     return `https://github.com/${repository}`;
   }
 
+  public static formatDebianAlreadyInstalled(packageName: string, status: string): string {
+    return `The Debian package ${packageName} is already on this machine, ${status}; the smoke installs and removes it, so remove it first or smoke on another machine.`;
+  }
+
+  public static formatMacAlreadyInstalled(found: string): string {
+    return `${found} is already on this machine; the smoke installs the app and removes it and its receipt, so remove it first or smoke on another machine.`;
+  }
+
+  public static formatSystemInstallNotUndone(failure: string, removal: string): string {
+    return `${failure} Removing what the install placed failed too, so it may be left on this machine: ${removal}`;
+  }
+
   public static formatDebianPackageUnnamed(file: string, exitCode: number | null, text: string): string {
     return `dpkg-deb found no package name in ${file}, ${Resources.formatExitCodeProblem(exitCode, text)}`;
   }
@@ -3978,6 +4020,10 @@ export class Resources {
     const lacking = missing.length > 0 ? `needs ${missing.join(Resources.listSeparator)}, which this runner lacks` : `has dependencies apt-get could not resolve here: ${simulation.trim()}`;
     return `${file} ${lacking}, and sudo --non-interactive apt-get update could not run to find them, ${Resources.formatExitCodeProblem(exitCode, text)}. `
       + "The Debian package's smoke needs the runner's user to run apt-get as root without a password, as it installs and removes the package with sudo.";
+  }
+
+  public static formatDebianCommandNotCommandLine(command: string, target: string): string {
+    return `The Debian package's command ${command} leads to ${target}, not to the command line in its resources' ${Resources.commandFolder} folder, so it would start the app.`;
   }
 
   public static formatDebianCommandUnresolved(command: string, exitCode: number | null, text: string): string {
@@ -4418,6 +4464,11 @@ export class Resources {
     return `${name} ${version} for ${targets}. ${signing}`;
   }
 
+  public static formatReleaseRunCheckExcept(runUrl: string, unstarted: string): string {
+    return `Each target's package passed its install check on that target's own runner in the run that built it, except ${unstarted}, whose packages that run built `
+      + `but didn't install or start: ${runUrl}`;
+  }
+
   public static formatReleaseCiOnly(ciOnly: string): string {
     return `Accepted by a CI run only: ${ciOnly}.`;
   }
@@ -4444,7 +4495,7 @@ export class Resources {
 
   public static formatAssetMismatch(name: string, size: number, digest: string | null, builtSize: number, expected: string): string {
     return `${name} on GitHub has ${size} bytes and ${digest ?? "no digest"}, but the built file has ${builtSize} bytes and ${expected}. `
-      + "A release's files are never replaced.";
+      + "Only a draft's file from an earlier run is ever replaced.";
   }
 
   public static formatGitHubReleasesContext(index: number): string {
@@ -4497,6 +4548,10 @@ export class Resources {
 
   public static formatIncompleteUploadDeleting(name: string): string {
     return `Deleting the incomplete upload of ${name}.\n`;
+  }
+
+  public static formatDifferentUploadReplacing(name: string): string {
+    return `Replacing ${name}, which the draft holds from an earlier run and which differs from the built file.\n`;
   }
 
   public static formatGitHubReleaseContext(id: number): string {

@@ -57,6 +57,7 @@ export class PackageStageTests {
     "shared-type": { version: "2.1.0" }
   };
   private static readonly TARGET: PackageTarget = PackageTarget.fromProcess("linux", "x64");
+  private static readonly STOP_WAIT: number = 2_000;
   private static readonly OTHER_ARCHITECTURE: string = process.arch === "arm64" ? "x64" : "arm64";
   private static readonly INVALID: string = "The root package.json's overrides must be an object, as npm reads them.";
   private static readonly FAILED: string = "Installing the packages into the stage failed with exit code 1; it uses only the build's archives and never the registry:\n";
@@ -171,9 +172,20 @@ export class PackageStageTests {
     const script = `${marker} process.on("SIGTERM", () => {}); require("node:fs").writeFileSync(ready, ""); setInterval(() => {}, 1_000)`;
     const waits = `${marker} const watch = setInterval(() => { if (require("node:fs").existsSync(ready)) clearInterval(watch); }, 25);`;
 
+    const [, lines] = await PackageStageTests.stallAsync(script, 500, t => [process.execPath, ["-e", waits, t]], PackageStageTests.STOP_WAIT);
+
+    Assert.isTrue(lines.includes(process.platform === "win32" ? "It ended at SIGTERM." : "It outlived the wait after SIGTERM, and ended at SIGKILL."), lines.join("\n"));
+  }
+
+  @TestMethod
+  public async reportsAStalledInstallWhoseExitComesSecondsAfterSigtermAsEndedAtSigterm(): Promise<void> {
+    const marker = "const ready = require(\"node:path\").join(process.argv[1], \"handled\");";
+    const script = `${marker} process.on("SIGTERM", () => setTimeout(() => process.exit(0), 4_000)); require("node:fs").writeFileSync(ready, ""); setInterval(() => {}, 1_000)`;
+    const waits = `${marker} const watch = setInterval(() => { if (require("node:fs").existsSync(ready)) clearInterval(watch); }, 25);`;
+
     const [, lines] = await PackageStageTests.stallAsync(script, 500, t => [process.execPath, ["-e", waits, t]]);
 
-    Assert.isTrue(lines.includes(process.platform === "win32" ? "It ended at SIGTERM." : "It outlived SIGTERM by 3000 ms and ended at SIGKILL."), lines.join("\n"));
+    Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
   }
 
   @TestMethod
@@ -189,7 +201,7 @@ export class PackageStageTests {
 
   @TestMethod
   public async stopsAStalledInstallBeforeTheTestsEndWhenTheListingHangs(): Promise<void> {
-    const [, lines] = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, () => [process.execPath, ["-e", "setInterval(() => {}, 1_000)"]]);
+    const [, lines] = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, () => [process.execPath, ["-e", "setInterval(() => {}, 1_000)"]], PackageStageTests.STOP_WAIT);
 
     Assert.isTrue(lines.some(t => t.startsWith("The listing failed: Error: Command failed: ")), lines.join("\n"));
     Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
@@ -348,12 +360,12 @@ export class PackageStageTests {
     return [null, await PackageStageTests.readVersionAsync(path.join(stage.folder, "node_modules", "shared-type")), written["overrides"]];
   }
 
-  private static async stallAsync(script: string, stall: number, listing: ((folder: string) => readonly [string, readonly string[]]) | null = null):
-    Promise<readonly [string, readonly string[]]> {
+  private static async stallAsync(script: string, stall: number, listing: ((folder: string) => readonly [string, readonly string[]]) | null = null,
+    wait: number = Number.POSITIVE_INFINITY): Promise<readonly [string, readonly string[]]> {
     const folder = await mkdtemp(path.join(tmpdir(), "package-stage-"));
     try {
       const runner = await TemporaryFolderRunnerFixture.createAsync(path.join(folder, "temporary"), TemporaryFolderRunnerFixture.stallAfter(stall),
-        Object.isNull(listing) ? null : listing(folder));
+        Object.isNull(listing) ? null : listing(folder), wait);
 
       const error = await Assert.throwsAsync(() => runner.captureAsync(process.execPath, ["-e", script, folder], tmpdir(), 600_000), BuildException);
 

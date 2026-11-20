@@ -101,8 +101,14 @@ export class ClientSession {
   }
 
   public end(): void {
+    if (!this.isOpen)
+      return;
     this.currentState = SessionState.Closed;
+    for (const controller of this.requests.values())
+      controller.abort();
     this.socket.end();
+    const timer = setTimeout(() => this.socket.destroy(), Resources.closeGrace);
+    this.socket.once(Resources.closeEvent, () => clearTimeout(timer));
   }
 
   public close(): void {
@@ -110,6 +116,8 @@ export class ClientSession {
   }
 
   private receive(chunk: string): void {
+    if (!this.isOpen)
+      return;
     let frames: string[];
     try {
       frames = this.reader.read(chunk);

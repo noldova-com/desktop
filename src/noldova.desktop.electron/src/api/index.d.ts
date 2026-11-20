@@ -8,6 +8,7 @@
 
 /// <reference types="node" />
 
+import type { SpawnSyncOptions, SpawnSyncReturns } from "node:child_process";
 import type { Stats } from "node:fs";
 import type { Writable } from "node:stream";
 
@@ -3208,6 +3209,11 @@ export interface IWebViewInputEvent {
    * The event's type, such as `rawKeyDown`, `mouseDown` or `touchStart`.
    */
   readonly type: string;
+
+  /**
+   * A key event's key, as the DOM's `KeyboardEvent.key` names it, such as `a`, `Escape` or `Shift`; other events have none.
+   */
+  readonly key?: string;
 }
 
 /**
@@ -6230,6 +6236,65 @@ export declare class WindowState {
 }
 
 /**
+ * Runs the command line through the app's own program in Node mode, for a package that has no command of its own, such
+ * as the AppImage: `<App>.AppImage --command-line <args>` answers like the command, opening no window. The main process
+ * checks for the flag before anything else, takes only the arguments after it, runs the command line to its end while
+ * holding its own thread, so Chromium never goes on to set up its display, and exits with the command line's exit code.
+ */
+export declare class CommandLineRelay {
+  /**
+   * Creates the relay.
+   *
+   * @param run Runs the command line's process to its end, as `child_process.spawnSync` does.
+   * @param program The app's program, which runs the entry with `ELECTRON_RUN_AS_NODE=1`.
+   * @param entry The command line's entry script.
+   * @param environment The command line's environment, to which the relay adds `ELECTRON_RUN_AS_NODE=1`.
+   * @param error Where the relay writes that the command line could not start.
+   * @example
+   * ```ts
+   * import { spawnSync } from "node:child_process";
+   *
+   * import { CommandLineRelay } from "@noldova/desktop.electron";
+   *
+   * export const relay: CommandLineRelay = new CommandLineRelay((program, args, options) => spawnSync(program, [...args], options), process.execPath,
+   *   "/opt/Sample/resources/app.asar/node_modules/@noldova/desktop.cli/services/cli-entry.js", process.env, process.stderr);
+   * ```
+   */
+  public constructor(run: (program: string, programArguments: readonly string[], options: SpawnSyncOptions) => SpawnSyncReturns<string | Buffer>, program: string, entry: string,
+    environment: NodeJS.ProcessEnv, error: Writable);
+
+  /**
+   * Reads the command line's arguments from the main process's arguments.
+   *
+   * @param argv The main process's arguments.
+   * @returns The arguments after the first `--command-line`, or `null` when there is none.
+   * @example
+   * ```ts
+   * import { CommandLineRelay } from "@noldova/desktop.electron";
+   *
+   * export const commandLine: readonly string[] | null = CommandLineRelay.readArguments(process.argv);
+   * ```
+   */
+  public static readArguments(argv: readonly string[]): readonly string[] | null;
+
+  /**
+   * Runs the command line with the arguments to its end, sharing the main process's standard input, output and error.
+   *
+   * @param commandArguments The command line's arguments.
+   * @returns The command line's exit code; 128 plus the signal's number when a signal ended it, and 1 when it could not start or nothing says how it ended.
+   * @example
+   * ```ts
+   * import type { CommandLineRelay } from "@noldova/desktop.electron";
+   *
+   * export function relayStatus(relay: CommandLineRelay): number {
+   *   return relay.relay(["status", "--json"]);
+   * }
+   * ```
+   */
+  public relay(commandArguments: readonly string[]): number;
+}
+
+/**
  * Asks one window to save before it closes, and decides whether it may close: a window that reports a failed save
  * stays open, while a window that is gone or does not answer in time does not block closing.
  */
@@ -6352,6 +6417,22 @@ export declare class UpdateWorkQuestion {
    * ```
    */
   public answer(prompt: IQuitPrompt, choice: unknown): boolean;
+
+  /**
+   * Ends the question with no answer once the window that asks closes, so the restart is cancelled rather than left
+   * waiting for good.
+   *
+   * @param prompt The window that closed; any other window changes nothing.
+   * @example
+   * ```ts
+   * import type { IQuitPrompt, UpdateWorkQuestion } from "@noldova/desktop.electron";
+   *
+   * export function closed(question: UpdateWorkQuestion, prompt: IQuitPrompt): void {
+   *   question.dismiss(prompt);
+   * }
+   * ```
+   */
+  public dismiss(prompt: IQuitPrompt): void;
 }
 
 /**
@@ -6676,7 +6757,7 @@ export declare class UpdateBarrierGate {
    * }
    * ```
    */
-  public constructor(installation: Pick<Installation, "readAsync" | "readTextAsync" | "checkAsync" | "removeAsync">, productVersion: string, dialog: IDialogHost, log: (text: string) => void);
+  public constructor(installation: Pick<Installation, "readAsync" | "readTextAsync" | "checkAsync" | "removeAsync">, productVersion: string, dialog: Pick<IDialogHost, "showMessageBox">, log: (text: string) => void);
 
   /**
    * Checks the barrier and, when it holds, asks as {@link askAsync} does. A barrier that cannot be read lets the
@@ -6844,8 +6925,10 @@ export declare class MainProcess {
 
   /**
    * Starts the main process: chooses the data directory and keeps Electron's profile in its `mainProcess` folder (unless
-   * `--user-data-dir=` gives one), claims the single-instance lock, then opens the window when Electron is ready and
-   * starts or attaches to the runtime, which runs from the main process's program in Node mode. The files it reads
+   * `--user-data-dir=` gives one), claims the single-instance lock, checks the launch barrier and, once it passes, starts
+   * or attaches to the runtime at once, without waiting for Electron, which runs from the main process's program in Node
+   * mode. It opens the window when Electron is ready; the window reads the start's state as it loads and gets the runtime
+   * events held until then, so the window works the same whether the runtime is ready before it or after. The files it reads
    * before Electron is ready (the folders a restarted version kept, the app's icons, the checkout's path and the shipped
    * dictionaries) are read without blocking, so an ES module entry point awaits the returned promise at its top level,
    * which Electron waits for before it becomes ready.
@@ -8366,6 +8449,13 @@ export interface IFeedResponse {
    * The URL that answered, after any redirects.
    */
   readonly url: string;
+
+  /**
+   * The body as a stream, as `fetch` gives it; optional. The feed provider
+   * cancels it when it refuses the answer without reading it, so a server
+   * that keeps the body open doesn't hold the connection until the timeout.
+   */
+  readonly body?: ReadableStream<Uint8Array> | null;
 
   /**
    * Reads the body as text.

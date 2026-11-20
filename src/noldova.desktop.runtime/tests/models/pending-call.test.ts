@@ -40,7 +40,7 @@ export class PendingCallTests {
     return RuntimeClientFixture.runRawAsync(
       (_frame, index) => index === 0 ? [RuntimeClientFixture.AUTHENTICATED] : [],
       async (server, listener) => {
-        const client = await RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, RuntimeClientFixture.SETTINGS);
+        const client = await RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, RuntimeClientFixture.SHORT_GRACE);
         const started = Date.now();
 
         const exception = await Assert.throwsAsync(() => client.callAsync(RuntimeServerFixture.ECHO, null, 50), CallUnansweredException);

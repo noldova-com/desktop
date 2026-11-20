@@ -15,6 +15,7 @@ import { TemporaryFolderFixture } from "./temporary-folder.fixture.js";
 import { TextOutputFixture } from "./text-output.fixture.js";
 
 export class SettingsFixture implements AsyncDisposable {
+  public static readonly PROCESS_LIMITS: ProcessSettings = new ProcessSettings(3_500, 2_000);
   public readonly service: SettingsService;
   public readonly database: ShellDatabase;
   public readonly diagnostics: TextOutputFixture;
@@ -22,20 +23,23 @@ export class SettingsFixture implements AsyncDisposable {
   private readonly folder: TemporaryFolderFixture;
   private readonly lock: OwnershipLock;
 
-  private constructor(folder: TemporaryFolderFixture, lock: OwnershipLock, database: ShellDatabase, diagnostics: TextOutputFixture, definitions: readonly SettingDefinition[]) {
+  private constructor(
+    folder: TemporaryFolderFixture, lock: OwnershipLock, database: ShellDatabase, diagnostics: TextOutputFixture, definitions: readonly SettingDefinition[],
+    processSettings: ProcessSettings) {
     this.folder = folder;
     this.lock = lock;
     this.database = database;
     this.diagnostics = diagnostics;
     this.service = new SettingsService(database, definitions, diagnostics);
-    this.processes = ProcessSupervisor.create(database, process.platform, process.env, diagnostics, new ProcessSettings(1_000, 1_000));
+    this.processes = ProcessSupervisor.create(database, process.platform, process.env, diagnostics, processSettings);
   }
 
-  public static async createAsync(definitions: readonly SettingDefinition[] = []): Promise<SettingsFixture> {
+  public static async createAsync(
+    definitions: readonly SettingDefinition[] = [], processSettings: ProcessSettings = SettingsFixture.PROCESS_LIMITS): Promise<SettingsFixture> {
     const folder = await TemporaryFolderFixture.createAsync();
     const lock = OwnershipLock.acquire(new DataDirectory(folder.path));
     const database = await ShellDatabase.openAsync(lock, ShellMigrations.all);
-    return new SettingsFixture(folder, lock, database, new TextOutputFixture(), definitions);
+    return new SettingsFixture(folder, lock, database, new TextOutputFixture(), definitions, processSettings);
   }
 
   public async [Symbol.asyncDispose](): Promise<void> {

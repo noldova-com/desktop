@@ -14,6 +14,7 @@ import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { FeedCheck } from "../../../src/services/commands/feed-check.js";
+import { WaitFixture } from "../../fixtures/wait.fixture.js";
 
 type Route = (request: IncomingMessage, response: ServerResponse) => void;
 
@@ -94,6 +95,12 @@ export class FeedCheckTests {
         Assert.areEqual(1, requests.length);
       });
     }
+  }
+
+  @TestMethod
+  public async letsGoOfAFailedAnswerOrAWebPageBeforeItRefusesTheFeedAsync(): Promise<void> {
+    Assert.isTrue(await FeedCheckTests.isLetGoAsync(500, "text/plain"), "The failed answer's connection stayed open.");
+    Assert.isTrue(await FeedCheckTests.isLetGoAsync(200, "text/html"), "The web page's connection stayed open.");
   }
 
   @TestMethod
@@ -244,6 +251,33 @@ export class FeedCheckTests {
   }
 
   @TestMethod
+  public async letsGoOfAnUpdateInformationFileThatAnswers404BeforeItTriesAgainAsync(): Promise<void> {
+    const routes = FeedCheckTests.release("1.2.3");
+    const current = routes.get("/latest-linux-x64.yml");
+    let reads = 0;
+    let closed = false;
+    routes.set("/latest-linux-x64.yml", (request, response) => {
+      reads += 1;
+      if (reads > 1 && !Object.isUndefined(current)) {
+        current(request, response);
+        return;
+      }
+      response.on("close", () => {
+        closed = true;
+      });
+      response.writeHead(404, { "Content-Type": "text/plain" });
+      response.write("not here yet");
+    });
+    await FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "60" });
+
+      Assert.areEqual(0, result.exitCode, result.output);
+      Assert.areEqual(2, reads);
+      Assert.isTrue(await WaitFixture.untilAsync(() => closed, 10_000), "The 404 answer's connection stayed open.");
+    });
+  }
+
+  @TestMethod
   public async triesAgainWhileTheFeedIsBehindAsync(): Promise<void> {
     const routes = FeedCheckTests.release("1.2.3");
     const behind = FeedCheckTests.file(FeedCheckTests.metadata("1.2.2", [["'App-1.2.2.AppImage'", FeedCheckTests.LINUX, FeedCheckTests.LINUX.length]]));
@@ -262,6 +296,61 @@ export class FeedCheckTests {
       Assert.isTrue(
         result.output.startsWith(`latest-linux-x64.yml in ${feed} names the version "1.2.2", not 1.2.3. The feed may still be catching up, so the check tries again.\nlinux-x64: `),
         result.output);
+    });
+  }
+
+  @TestMethod
+  public async triesAgainWhileAListedFileIsNotThereYetAsync(): Promise<void> {
+    const routes = FeedCheckTests.release("1.2.3");
+    const served = routes.get("/App-1.2.3.AppImage");
+    let reads = 0;
+    routes.set("/App-1.2.3.AppImage", (request, response) => {
+      reads += 1;
+      if (reads === 1 || Object.isUndefined(served))
+        response.writeHead(404).end();
+      else
+        served(request, response);
+    });
+    await FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "60" });
+
+      Assert.areEqual(0, result.exitCode, result.output);
+      Assert.areEqual(2, reads);
+      Assert.areEqual("15000", result.pauses.join());
+      Assert.isTrue(
+        result.output.startsWith(`App-1.2.3.AppImage could not be read from ${feed}: HTTP 404. The feed may still be catching up, so the check tries again.\nlinux-x64: `),
+        result.output);
+    });
+  }
+
+  @TestMethod
+  public async stopsTryingAListedFileAgainAtTheDeadlineAsync(): Promise<void> {
+    const routes = FeedCheckTests.release("1.2.3");
+    let reads = 0;
+    routes.set("/App-1.2.3.AppImage", (_request, response) => {
+      reads += 1;
+      response.writeHead(404).end();
+    });
+    await FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "20" });
+
+      Assert.areEqual(1, result.exitCode);
+      Assert.areEqual("15000,5000", result.pauses.join());
+      Assert.areEqual(3, reads);
+      Assert.isTrue(result.output.endsWith(`tries again.\nApp-1.2.3.AppImage could not be read from ${feed}: HTTP 404.\n`), result.output);
+    });
+  }
+
+  @TestMethod
+  public async refusesAListedFileThatFailsOtherwiseWithoutWaitingAsync(): Promise<void> {
+    const routes = FeedCheckTests.release("1.2.3");
+    routes.set("/App-1.2.3.AppImage", (_request, response) => response.writeHead(503).end());
+    await FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "60" });
+
+      Assert.areEqual(1, result.exitCode);
+      Assert.areEqual(String.empty, result.pauses.join());
+      Assert.areEqual(`App-1.2.3.AppImage could not be read from ${feed}: HTTP 503.\n`, result.output);
     });
   }
 
@@ -373,6 +462,24 @@ export class FeedCheckTests {
 
   private static sha512(bytes: Buffer): string {
     return createHash("sha512").update(bytes).digest("base64");
+  }
+
+  private static async isLetGoAsync(status: number, contentType: string): Promise<boolean> {
+    const routes = FeedCheckTests.release("1.2.3");
+    let closed = false;
+    routes.set("/latest-linux-x64.yml", (_request, response) => {
+      response.on("close", () => {
+        closed = true;
+      });
+      response.writeHead(status, { "Content-Type": contentType });
+      response.write("partial");
+    });
+    return FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "60" });
+
+      Assert.areEqual(1, result.exitCode, result.output);
+      return WaitFixture.untilAsync(() => closed, 10_000);
+    });
   }
 
   private static async withFeedAsync<T>(routes: ReadonlyMap<string, Route>, use: (feed: string, requests: readonly string[]) => Promise<T>): Promise<T> {

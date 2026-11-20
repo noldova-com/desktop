@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -19,23 +20,25 @@ import { PackageReport } from "../../../src/models/packaging/package-report.js";
 @TestClass
 export class PackageReportTests {
   @TestMethod
-  public readsAReportWithExactlyItsThreeFields(): void {
-    const report = PackageReport.parse(JsonReader.fromValue({ target: "windows-x64", signed: true, checked: false }));
+  public readsAReportWithExactlyItsFourFields(): void {
+    const report = PackageReport.parse(JsonReader.fromValue({ target: "windows-x64", signed: true, checked: false, started: true }));
 
-    Assert.areEqual("{\"target\":\"windows-x64\",\"isSigned\":true,\"isChecked\":false}", JSON.stringify(report));
+    Assert.areEqual("{\"target\":\"windows-x64\",\"isSigned\":true,\"isChecked\":false,\"isStarted\":true}", JSON.stringify(report));
   }
 
   @TestMethod
   public readsNoReportWithOtherFieldsOrTypes(): void {
     const reports = [
-      { target: "windows-x64", signed: true },
-      { target: "windows-x64", signed: true, checked: false, extra: 1 },
-      { target: "windows-x64", signed: true, other: false },
-      { target: "windows-x64", other: true, checked: false },
-      { other: "windows-x64", signed: true, checked: false },
-      { target: 1, signed: true, checked: false },
-      { target: "windows-x64", signed: "yes", checked: false },
-      { target: "windows-x64", signed: true, checked: "no" }
+      { target: "windows-x64", signed: true, checked: false },
+      { target: "windows-x64", signed: true, checked: false, started: false, extra: 1 },
+      { target: "windows-x64", signed: true, checked: false, other: false },
+      { target: "windows-x64", signed: true, other: false, started: false },
+      { target: "windows-x64", other: true, checked: false, started: false },
+      { other: "windows-x64", signed: true, checked: false, started: false },
+      { target: 1, signed: true, checked: false, started: false },
+      { target: "windows-x64", signed: "yes", checked: false, started: false },
+      { target: "windows-x64", signed: true, checked: "no", started: false },
+      { target: "windows-x64", signed: true, checked: false, started: "no" }
     ];
 
     for (const report of reports)
@@ -49,7 +52,30 @@ export class PackageReportTests {
 
       await new PackageReport("macos-arm64", false, true).writeAsync(file);
 
-      Assert.areEqual("{\n  \"target\": \"macos-arm64\",\n  \"signed\": false,\n  \"checked\": true\n}\n", await readFile(file, "utf8"));
+      Assert.areEqual("{\n  \"target\": \"macos-arm64\",\n  \"signed\": false,\n  \"checked\": true,\n  \"started\": false\n}\n", await readFile(file, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public marksAWrittenReportStarted(): Promise<void> {
+    return PackageReportTests.withFolderAsync(async folder => {
+      const file = path.join(folder, "report.json");
+      await new PackageReport("linux-arm64", false, true).writeAsync(file);
+
+      await PackageReport.markStartedAsync(file);
+
+      Assert.areEqual("{\n  \"target\": \"linux-arm64\",\n  \"signed\": false,\n  \"checked\": true,\n  \"started\": true\n}\n", await readFile(file, "utf8"));
+    });
+  }
+
+  @TestMethod
+  public marksNoReportWhereNoneWasWritten(): Promise<void> {
+    return PackageReportTests.withFolderAsync(async folder => {
+      const file = path.join(folder, "report.json");
+
+      await PackageReport.markStartedAsync(file);
+
+      Assert.isFalse(existsSync(file));
     });
   }
 

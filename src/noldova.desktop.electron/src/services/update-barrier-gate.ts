@@ -15,10 +15,10 @@ import { Resources } from "../resources.js";
 export class UpdateBarrierGate {
   private readonly installation: Pick<Installation, "readAsync" | "readTextAsync" | "checkAsync" | "removeAsync">;
   private readonly productVersion: string;
-  private readonly dialog: IDialogHost;
+  private readonly dialog: Pick<IDialogHost, "showMessageBox">;
   private readonly log: (text: string) => void;
 
-  public constructor(installation: Pick<Installation, "readAsync" | "readTextAsync" | "checkAsync" | "removeAsync">, productVersion: string, dialog: IDialogHost, log: (text: string) => void) {
+  public constructor(installation: Pick<Installation, "readAsync" | "readTextAsync" | "checkAsync" | "removeAsync">, productVersion: string, dialog: Pick<IDialogHost, "showMessageBox">, log: (text: string) => void) {
     this.installation = installation;
     this.productVersion = productVersion;
     this.dialog = dialog;

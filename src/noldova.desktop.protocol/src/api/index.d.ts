@@ -543,7 +543,17 @@ export declare enum WebViewEventKind {
    * link's `target="_blank"` or a script's plain `window.open`, `new-window`
    * for a `window.open` that asks for a popup or a Shift click, and `default`
    * or `other` otherwise. The host always sends it; an event without it, such
-   * as one a module's tests build, is accepted until 0.1.0.
+   * as one a module's tests build, is accepted until 0.1.0. The engine takes
+   * the disposition from the event the page is handling, so a page's own
+   * `click` or `auxclick` handler running during the person's middle or Ctrl or
+   * Cmd click gets `background-tab` for each `window.open` it makes. Last,
+   * `fromPress`: `true` for the request that uses up the view's one
+   * activation, which each real press of the person's own mouse button, key
+   * or touch in the view renews for 5 seconds, as a browser's popup rule does,
+   * and `false` for every other request, the second from the same press
+   * included; presses don't add up, Escape and a modifier key alone give
+   * none, and relayed input never counts. An event without it is accepted
+   * until 0.1.0.
    */
   NewWindowRequested = "NewWindowRequested",
 
@@ -7806,12 +7816,15 @@ export declare class Handshake extends WireMessage {
   /**
    * Creates the handshake.
    *
-   * @param id The id the response carries; not whitespace only.
+   * @param id The id the response carries; not whitespace only, and at most
+   * 256 characters.
    * @param identity The client's build identity.
    * @param token The capability token; not whitespace only.
    * @param client The kind of client; not whitespace only.
    * @throws ArgumentException synchronously when the id, token or client is
    * empty or whitespace only.
+   * @throws ArgumentOutOfRangeException synchronously when the id is longer
+   * than 256 characters.
    *
    * @example
    * ```ts
@@ -7909,7 +7922,8 @@ export declare class Request extends WireMessage {
   /**
    * Creates the request.
    *
-   * @param id The correlation id; not whitespace only.
+   * @param id The correlation id; not whitespace only, and at most 256
+   * characters.
    * @param method The method's name.
    * @param payload The method's arguments.
    * @param timeoutMilliseconds The time limit in milliseconds, a positive
@@ -7920,9 +7934,9 @@ export declare class Request extends WireMessage {
    * omit it when no window sends it.
    * @throws ArgumentException synchronously when the id is empty or
    * whitespace only.
-   * @throws ArgumentOutOfRangeException synchronously when the time limit,
-   * the window or the page is not a positive integer, or a page is given
-   * without a window.
+   * @throws ArgumentOutOfRangeException synchronously when the id is longer
+   * than 256 characters, the time limit, the window or the page is not a
+   * positive integer, or a page is given without a window.
    *
    * @example
    * ```ts

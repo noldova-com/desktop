@@ -24,6 +24,7 @@ export class MainProcessApiTests {
         "AppImageUnreadableException",
         "ChildProgramHost",
         "CloseCoordinator",
+        "CommandLineRelay",
         "DatabasesNotBackedUpException",
         "DebianHandoff",
         "DebianInstallerMissingException",

@@ -73,6 +73,13 @@ export class Resources {
   public static readonly testOptionsRepeatValue: string = "--repeat takes a whole number from 1.";
   public static readonly testOptionsRepeatOnce: string = "--repeat may be given only once.";
   public static readonly testOptionsRerunFailedOnce: string = "--rerun-failed may be given only once.";
+  public static readonly testOptionsShardPattern: RegExp = /^--shard=([1-9]\d*)\/([1-9]\d*)$/;
+  public static readonly testOptionsShardPrefix: string = "--shard=";
+  public static readonly testOptionsShardParts: number = 2;
+  public static readonly testPartPackageTests: number = 1;
+  public static readonly testOptionsShardValue: string = "--shard takes 1/2, the package tests, or 2/2, every other check.";
+  public static readonly testOptionsShardOnce: string = "--shard may be given only once.";
+  public static readonly testOptionsShardFiltered: string = "--shard runs a whole part, so it takes no --filter.";
   public static readonly testOptionsDefaultRepeat: number = 1;
   public static readonly buildCommandLineSegments: readonly string[] = ["src", "noldova.desktop.build", "src", "services", "build-command-line.ts"];
   public static readonly buildCommand: string = "build";
@@ -622,8 +629,10 @@ export class Resources {
     return lines.length === 0 ? String.empty : `${suite} suite, limit ${limit} ms:\n${lines.join(Resources.lineEnd)}\n`;
   }
 
-  public static formatSerialTestLeftovers(leftovers: readonly string[]): string {
-    return `Tests finished but left ${leftovers.join(Resources.listSeparator)} in the run's temporary folder; a test must remove what it creates. Failing the run.\n`;
+  public static formatSerialTestLeftovers(leftovers: readonly string[], kept: readonly string[]): string {
+    const mounted = kept.length === 0 ? String.empty
+      : ` The run left unremoved, without entering them, what is on another file system, such as a volume still mounted: ${kept.join(Resources.listSeparator)}.`;
+    return `Tests finished but left ${leftovers.join(Resources.listSeparator)} in the run's temporary folder; a test must remove what it creates.${mounted} Failing the run.\n`;
   }
 
   public static formatSerialTestUnremoved(error: string): string {

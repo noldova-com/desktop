@@ -22,6 +22,7 @@ export class ReleaseNotesTests {
   private static readonly REPOSITORY: string = "example/sample-app";
   private static readonly LINUX: PackageTarget = new PackageTarget("linux", "x64");
   private static readonly MACOS_ARM64: PackageTarget = new PackageTarget("macos", "arm64");
+  private static readonly LINUX_ARM64: PackageTarget = new PackageTarget("linux", "arm64");
 
   @TestMethod
   public namesTheTargetsTheReleaseBuiltAndNoOthers(): void {
@@ -34,6 +35,15 @@ export class ReleaseNotesTests {
         `Each target's package passed its install check on that target's own runner in the run that built it: ${ReleaseNotesTests.RUN}`
       ].join("\n\n"),
       notes);
+  }
+
+  @TestMethod
+  public namesTheTargetsWhosePackagesTheRunNeverStarted(): void {
+    const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX, ReleaseNotesTests.LINUX_ARM64], [], [], ReleaseNotesTests.REPOSITORY, ReleaseNotesTests.RUN,
+      ReleaseNotesTests.REPOSITORY, "example/sample-app", ReleaseNotesTests.REPOSITORY, [ReleaseNotesTests.LINUX_ARM64]);
+
+    Assert.isTrue(notes.endsWith("Each target's package passed its install check on that target's own runner in the run that built it, except Linux ARM64, whose packages that "
+      + `run built but didn't install or start: ${ReleaseNotesTests.RUN}`), notes);
   }
 
   @TestMethod
@@ -117,7 +127,8 @@ export class ReleaseNotesTests {
   }
 
   private static compose(targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[] = [], repository: string = ReleaseNotesTests.REPOSITORY,
-    run: string = ReleaseNotesTests.RUN, source: string = repository, releaseRepository: string = "example/sample-app", build: string = source): string {
+    run: string = ReleaseNotesTests.RUN, source: string = repository, releaseRepository: string = "example/sample-app", build: string = source,
+    unstarted: readonly PackageTarget[] = []): string {
     const product = ProductIdentity.fromManifest(JsonReader.fromValue({
       desktop: {
         product: {
@@ -135,6 +146,6 @@ export class ReleaseNotesTests {
       }
     }));
     const request = ReleaseRequest.read({ RELEASE_REPOSITORY: repository, RELEASE_SOURCE_REPOSITORY: source, RELEASE_BUILD_REPOSITORY: build, RELEASE_TAG_PREFIX: repository === source ? String.empty : "sample-app-", RELEASE_VERSION: "0.0.2", RELEASE_REVISION: "0123456789abcdef0123456789abcdef01234567" });
-    return ReleaseNotes.compose(product, targets, supported, signed, request, run);
+    return ReleaseNotes.compose(product, targets, supported, signed, request, run, unstarted);
   }
 }

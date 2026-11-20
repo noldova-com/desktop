@@ -193,6 +193,21 @@ export class ReleasePublishTests {
     Assert.areEqual(Resources.formatReleasePublishUsage("noldova-desktop-release"), output.read(output.readableLength)?.toString() ?? String.empty);
   }
 
+  @TestMethod
+  public async namesInTheNotesATargetWhosePackageTheRunNeverStartedAsync(): Promise<void> {
+    const arm = new PackageTarget("linux", "arm64");
+    const targets = [...ReleasePublishTests.TARGETS, arm];
+    await using app = await ReleasePublishTests.createAppAsync("1.2.3", targets, [arm.id]);
+    const github = new GitHubReleasesFixture();
+    const environment = { ...ReleasePublishTests.environment(app, String.empty), RELEASE_INTERNAL_VERSION: undefined, RELEASE_TARGETS: targets.map(t => t.id).join(",") };
+
+    const result = await ReleasePublishTests.runAsync(app.path, github, environment);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(github.requests.some(t => t.includes("--raw-field body=") && t.includes("in the run that built it, except Linux ARM64, whose packages that run built "
+      + "but didn't install or start: https://github.com/example/sample-app/actions/runs/1")), github.requests.join("\n"));
+  }
+
   private static environment(app: InstalledAppFixture, version: string): NodeJS.ProcessEnv {
     return {
       RELEASE_REPOSITORY: "example/sample-app",
@@ -214,17 +229,18 @@ export class ReleasePublishTests {
     return { exitCode, output: chunks.join(String.empty) };
   }
 
-  private static async createAppAsync(written: string = ReleasePublishTests.VERSION): Promise<InstalledAppFixture> {
+  private static async createAppAsync(written: string = ReleasePublishTests.VERSION, targets: readonly PackageTarget[] = ReleasePublishTests.TARGETS,
+    unstarted: readonly string[] = []): Promise<InstalledAppFixture> {
     const app = await InstalledAppFixture.createAsync();
     const manifest = await readFile(path.join(app.path, "package.json"), "utf8");
     await app.writeAppFileAsync("package.json", manifest.replace("\"desktop\":{", `"desktop":{"signedPlatforms":${JSON.stringify(ReleasePublishTests.SIGNED)},`));
-    const set = new ReleaseFileSet("Sample App", written, ReleasePublishTests.TARGETS);
-    for (const target of ReleasePublishTests.TARGETS) {
+    const set = new ReleaseFileSet("Sample App", written, targets);
+    for (const target of targets) {
       for (const name of target.listFileNames("Sample App", written))
         await app.writeAppFileAsync(`release/${name}`, `${name} bytes`);
       await set.writeAsync(path.join(app.path, "release"), target, ReleasePublishTests.DATE);
       const isSigned = ReleasePublishTests.SIGNED.includes(target.platform);
-      await new PackageReport(target.id, isSigned, isSigned).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
+      await new PackageReport(target.id, isSigned, isSigned, !unstarted.includes(target.id)).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
     }
     return app;
   }

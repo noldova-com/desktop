@@ -37,6 +37,7 @@ import { SmokeAnswer } from "../packaging/smoke-answer.ts";
 import { SandboxValidator } from "../desktop/sandbox.validator.ts";
 import { UserNamespaces } from "../desktop/user-namespaces.ts";
 import { ModuleCatalog } from "../modules/module-catalog.ts";
+import { PackageReport } from "../../models/packaging/package-report.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { UserPath } from "../packaging/user-path.ts";
 import type { ProcessResult } from "../../models/processes/process-result.ts";
@@ -109,7 +110,10 @@ export class PackageSmoke {
         throw error;
       hasFailed = true;
     }
-    return hasFailed || !await this.cleanUpAsync() ? Resources.failureExitCode : 0;
+    if (hasFailed || !await this.cleanUpAsync())
+      return Resources.failureExitCode;
+    await PackageReport.markStartedAsync(new PackageLayout(this.root).report);
+    return 0;
   }
 
   private get extractsAndRuns(): boolean {
@@ -182,6 +186,10 @@ export class PackageSmoke {
       }, product.name)));
       if (target.platform === Resources.linuxTarget)
         this.output.write(Resources.formatOutputLine(await new PackagedSandbox(this.processes, { now: () => Date.now(), pauseAsync: timers.setTimeout }).verifyAsync(mainProcess.id, isSandboxed)));
+      if (target.platform === Resources.linuxTarget)
+        await (Object.isNull(this.system)
+          ? this.checkWindowlessCommandAsync(installed.mainProcess, [Resources.commandLineOption], Resources.smokeMomentAppImageCommandLine, manifest.productVersion, data, folder)
+          : this.checkWindowlessCommandAsync(path.posix.join(Resources.linuxCommandFolder, product.slug), [], Resources.smokeMomentDebianCommand, manifest.productVersion, data, folder));
       if (!Object.isNull(installed.command))
         await this.checkPowerShellAsync(installed.command, manifest.productVersion, data, folder);
       const found = await PackageSmoke.readRuntimeIdAsync(data);
@@ -294,6 +302,15 @@ export class PackageSmoke {
     if (!status.isSuccessful)
       throw new BuildException(Resources.formatSmokeLinkFailed(this.slug, command, status.exitCode, status.text));
     this.checkStarted(status.output, version, data, Resources.smokeMomentLink);
+  }
+
+  private async checkWindowlessCommandAsync(command: string, commandArguments: readonly string[], moment: string, version: string, data: string, folder: string): Promise<void> {
+    const environment = Object.fromEntries(Object.entries(this.environment).filter(([name]) => !Resources.displayVariables.includes(name)));
+    const status = await this.runner.captureAsync(command, PackageSmoke.formatArguments([...commandArguments, ...Resources.smokeStatusArguments], data, folder), folder,
+      Resources.smokeCommandLimit, environment);
+    if (!status.isSuccessful)
+      throw new BuildException(Resources.formatSmokeWindowlessCommandFailed(this.slug, moment, status.exitCode, status.text));
+    this.checkStarted(status.output, version, data, moment);
   }
 
   private createCommandEnvironment(command: string): NodeJS.ProcessEnv {

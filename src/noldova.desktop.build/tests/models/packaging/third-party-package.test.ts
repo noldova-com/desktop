@@ -24,6 +24,8 @@ import { ThirdPartyPackage } from "../../../src/models/packaging/third-party-pac
 import { TypeOnlyPeers } from "../../../src/models/packaging/type-only-peers.js";
 import { Resources } from "../../../src/resources.js";
 import { TarballFixture } from "../../fixtures/tarball.fixture.js";
+import { UnendingAnswerFixture } from "../../fixtures/unending-answer.fixture.js";
+import { WaitFixture } from "../../fixtures/wait.fixture.js";
 
 @TestClass
 export class ThirdPartyPackageTests {
@@ -276,6 +278,34 @@ export class ThirdPartyPackageTests {
     const prepared = await ThirdPartyPackageTests.prepareKeptAsync(tarball);
 
     Assert.areEqual("bin/link as a symbolic link|outside as a hard link", prepared.skipped.join("|"));
+  }
+
+  @TestMethod
+  public async letsGoOfAFailedDownloadsAnswerBeforeItRefusesTheTarball(): Promise<void> {
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License\n" });
+    await using failing = await UnendingAnswerFixture.startAsync(404);
+    await using folder = await ThirdPartyPackageTests.createFolderAsync();
+    const resolved = `${failing.url}/sample-1.0.0.tgz`;
+
+    const error = await Assert.throwsAsync(() => ThirdPartyPackage.prepareAsync(ThirdPartyPackageTests.lock(tarball, resolved), folder.path, [], new AcceptedLicenses(),
+      new TypeOnlyPeers(), new PassThrough()), BuildException);
+
+    Assert.areEqual(`sample@1.0.0 could not be downloaded from ${resolved}: HTTP 404.`, error.message);
+    Assert.isTrue(await WaitFixture.untilAsync(() => failing.isClosed, 10_000), "The failed answer's connection stayed open.");
+  }
+
+  @TestMethod
+  public async letsGoOfABusyServersAnswerBeforeItTriesTheTarballAgain(): Promise<void> {
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE": "License\n" });
+    await using busy = await UnendingAnswerFixture.startAsync(503);
+    await using folder = await ThirdPartyPackageTests.createFolderAsync();
+    const resolved = `${busy.url}/sample-1.0.0.tgz`;
+
+    const error = await Assert.throwsAsync(() => ThirdPartyPackage.prepareAsync(ThirdPartyPackageTests.lock(tarball, resolved), folder.path, [], new AcceptedLicenses(),
+      new TypeOnlyPeers(), new PassThrough(), Resources.thirdPartyDownloadTimeout, 0), BuildException);
+
+    Assert.areEqual(`sample@1.0.0 from ${resolved} could not be installed in 4 attempts; the last failed with HTTP 503.`, error.message);
+    Assert.isTrue(await WaitFixture.untilAsync(() => busy.isClosed, 10_000), "The busy answer's connection stayed open.");
   }
 
   private static lock(tarball: Buffer, resolved: string = ThirdPartyPackageTests.UNREACHABLE): LockedPackage {

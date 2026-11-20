@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, it } from "node:test";
 
@@ -107,10 +107,43 @@ const LOCKING = (hangs: boolean, leaves: boolean = true): string => [
   "TestClass(LockingTests);"
 ].join("\n");
 
+const MOUNTING = [
+  "import \"@noldova/context.core\";",
+  "import fs from \"node:fs\";",
+  "import { syncBuiltinESMExports } from \"node:module\";",
+  "import os from \"node:os\";",
+  "import path from \"node:path\";",
+  "import { TestClass, TestMethod } from \"@noldova/context.testing\";",
+  "export class MountingTests {",
+  "  leavesAVolumeMounted() {",
+  "    const volume = path.join(os.tmpdir(), \"mounted-volume\");",
+  "    fs.mkdirSync(path.join(volume, \"discovery\"), { recursive: true });",
+  "    fs.mkdirSync(path.join(os.tmpdir(), \"emptied\", \"nested\"), { recursive: true });",
+  "    fs.writeFileSync(path.join(os.tmpdir(), \"emptied\", \"nested\", \"file\"), \"\");",
+  "    const { lstatSync, rmSync } = fs;",
+  "    fs.lstatSync = (item, ...rest) => {",
+  "      const stats = lstatSync(item, ...rest);",
+  "      if (path.basename(String(item)) === \"mounted-volume\")",
+  "        stats.dev += 1;",
+  "      return stats;",
+  "    };",
+  "    fs.rmSync = (item, ...rest) => {",
+  "      if (String(item).includes(\"mounted-volume\"))",
+  "        throw new Error(\"The removal entered the volume.\");",
+  "      return rmSync(item, ...rest);",
+  "    };",
+  "    syncBuiltinESMExports();",
+  "  }",
+  "}",
+  "TestMethod(MountingTests.prototype.leavesAVolumeMounted);",
+  "TestClass(MountingTests);"
+].join("\n");
+
 interface ISerialTestRunOutcome {
   readonly code: unknown;
   readonly output: string;
   readonly errors: string;
+  readonly left: readonly string[];
 }
 
 const runAsync = async (source: string, variables: Readonly<Record<string, string>> = {}): Promise<ISerialTestRunOutcome> => {
@@ -143,7 +176,9 @@ const runAsync = async (source: string, variables: Readonly<Record<string, strin
         output += t;
       });
       const [code] = await closed;
-      return { code, output, errors };
+      const runs = await readdir(temporary);
+      const left = (await Promise.all(runs.map(t => readdir(path.join(temporary, t), { recursive: true })))).flat().sort();
+      return { code, output, errors, left };
     }
     finally {
       run.kill();
@@ -208,6 +243,14 @@ describe("SerialTestRun", () => {
     assert.equal(code, Resources.failedExitCode, errors);
     assert.match(errors, /Tests finished but the run's temporary folder could not be removed: Error: EBUSY: resource busy or locked\. Failing the run\.\n/u);
     assert.doesNotMatch(errors, /Tests finished but left /u);
+  });
+
+  it("fails the run, naming a folder on another file system that it left without entering, and removes the rest", async () => {
+    const { code, errors, left } = await runAsync(MOUNTING);
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(errors, /Tests finished but left emptied, mounted-volume in the run's temporary folder; a test must remove what it creates\. The run left unremoved, without entering them, what is on another file system, such as a volume still mounted: .+mounted-volume\. Failing the run\.\n/u);
+    assert.deepEqual(left, ["mounted-volume", path.join("mounted-volume", "discovery")]);
   });
 
   it("prints each suite's slowest tests under its limit after the summary", async () => {

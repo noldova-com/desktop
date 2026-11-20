@@ -17,7 +17,7 @@ import "@noldova/context.core";
 import type { MenuItemConstructorOptions } from "electron";
 
 import { Assert } from "@noldova/context.testing";
-import type { Installation, LaunchSettings } from "@noldova/desktop.runtime";
+import { Installation, type LaunchSettings } from "@noldova/desktop.runtime";
 import { MainProcess, MainProcessSettings, type IIpcEvent, type IUpdateCheckLock, type IUpdater } from "@noldova/desktop.electron";
 
 import { Condition } from "./condition.fixture.js";
@@ -78,6 +78,13 @@ export class MainProcessStartFixture {
     await MainProcessStartFixture.openAsync(electron);
     await setImmediate();
     return electron;
+  }
+
+  public static async writeBarrierAsync(process: FakeMainProcessEnvironment, deviceFolder: string, barrier: string): Promise<Installation> {
+    const installation = new Installation(Installation.locate(deviceFolder, process.execPath, process.platform), () => Promise.resolve(true));
+    await mkdir(installation.folder, { recursive: true });
+    await writeFile(installation.barrierFile, barrier);
+    return installation;
   }
 
   public static async openAsync(electron: FakeElectron): Promise<void> {

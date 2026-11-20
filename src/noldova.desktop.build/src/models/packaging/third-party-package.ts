@@ -21,6 +21,7 @@ import type { LockedPackage } from "./locked-package.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
 import { RetriedDownload } from "../../services/processes/retried-download.ts";
+import { ResponseBody } from "../response-body.ts";
 import { TarArchive } from "./tar-archive.ts";
 import type { TypeOnlyPeers } from "./type-only-peers.ts";
 
@@ -101,11 +102,13 @@ export class ThirdPartyPackage {
       if (Object.isString(response))
         return response;
       if (!response.ok && (response.status >= Resources.httpServerErrorStatus || Resources.downloadRetriedStatuses.includes(response.status))) {
-        await response.body?.cancel();
+        await ResponseBody.letGoAsync(response);
         return Resources.formatHttpStatus(response.status);
       }
-      if (!response.ok)
+      if (!response.ok) {
+        await ResponseBody.letGoAsync(response);
         throw new BuildException(Resources.formatDownloadStatus(locked.id, locked.resolved, response.status));
+      }
       try {
         data = Buffer.from(await response.arrayBuffer());
       }
