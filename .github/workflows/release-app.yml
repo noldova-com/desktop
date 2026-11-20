@@ -318,7 +318,7 @@ jobs:
         with:
           name: desktop.build
           path: ${{ runner.temp }}/desktop.build/*.tgz
-          retention-days: 1
+          retention-days: 35
           if-no-files-found: error
           overwrite: true
 
