@@ -9,6 +9,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { mock } from "node:test";
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
@@ -22,6 +23,8 @@ import { CoverageEnvironmentFixture } from "../../fixtures/coverage-environment.
 export class ProcessRunnerTests {
   private static readonly LIMIT: number = 30_000;
   private static readonly MISSING: string = "no-such-program-for-this-test";
+  private static readonly LIFETIME: number = 20_000;
+  private static readonly CHILD: RegExp = /child ([0-9]+)\n/;
 
   @TestMethod
   public async capturesTheExitCodeAndBothOutputsInTheGivenEnvironment(): Promise<void> {
@@ -65,13 +68,62 @@ export class ProcessRunnerTests {
   }
 
   @TestMethod
+  public async stopsARunOrWatchedProcessThatRunsPastItsTimeoutAndAnswersOneThatEndsInTime(): Promise<void> {
+    const runner = new ProcessRunner();
+    const hang = ["-e", "setInterval(() => undefined, 1000)"];
+
+    const run = await Assert.throwsAsync(() => runner.runAsync(process.execPath, hang, tmpdir(), undefined, undefined, 200), ProcessTimeoutException);
+    const watched = await Assert.throwsAsync(() => runner.runAsync(process.execPath, hang, tmpdir(), undefined, () => undefined, 200), ProcessTimeoutException);
+    const exitCode = await runner.runAsync(process.execPath, ["-e", "process.exit(6)"], tmpdir(), undefined, () => undefined, ProcessRunnerTests.LIMIT);
+
+    for (const error of [run, watched])
+      Assert.areEqual(`"${process.execPath}" did not finish within 200 ms.`, error.message);
+    Assert.areEqual(6, exitCode);
+  }
+
+  @TestMethod
+  public async stopsAWatchedProcessAtItsTimeoutWhileAChildItStartedStillHoldsItsOutput(): Promise<void> {
+    const child = `console.log("child " + process.pid); setTimeout(() => undefined, ${ProcessRunnerTests.LIFETIME})`;
+    const script = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(child)}], { stdio: "inherit" }); setTimeout(() => undefined, ${ProcessRunnerTests.LIFETIME})`;
+    let output = String.empty;
+    let isTimedOut = false;
+    const { promise: started, resolve: start } = Promise.withResolvers<void>();
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const running = new ProcessRunner().runAsync(process.execPath, ["-e", script], tmpdir(), undefined, t => {
+        output += t;
+        if (ProcessRunnerTests.CHILD.test(output))
+          start();
+      }, ProcessRunnerTests.LIMIT);
+      void running.then(() => start(), () => start());
+      const failure = Assert.throwsAsync(() => running, ProcessTimeoutException);
+      await started;
+      mock.timers.tick(ProcessRunnerTests.LIMIT);
+      isTimedOut = true;
+      const error = await failure;
+
+      Assert.areEqual(`"${process.execPath}" did not finish within ${ProcessRunnerTests.LIMIT} ms.`, error.message);
+      Assert.isTrue(ProcessRunnerTests.CHILD.test(output), output);
+    }
+    finally {
+      if (!isTimedOut)
+        mock.timers.tick(ProcessRunnerTests.LIMIT);
+      mock.timers.reset();
+      const id = ProcessRunnerTests.CHILD.exec(output)?.[1];
+      if (!Object.isUndefined(id))
+        new ProcessRunner().kill(Number(id));
+    }
+  }
+
+  @TestMethod
   public async refusesAProgramThatCannotStart(): Promise<void> {
     const runner = new ProcessRunner();
     const folder = await mkdtemp(path.join(tmpdir(), "process-runner-"));
     try {
       const captured = await Assert.throwsAsync(() => runner.captureAsync(ProcessRunnerTests.MISSING, [], folder, ProcessRunnerTests.LIMIT), BuildException);
       const run = await Assert.throwsAsync(() => runner.runAsync(ProcessRunnerTests.MISSING, [], folder), BuildException);
-      const watched = await Assert.throwsAsync(() => runner.runAsync(ProcessRunnerTests.MISSING, [], folder, process.env, () => undefined), BuildException);
+      const watched = await Assert.throwsAsync(() => runner.runAsync(ProcessRunnerTests.MISSING, [], folder, process.env, () => undefined, ProcessRunnerTests.LIMIT),
+        BuildException);
       const started = await Assert.throwsAsync(() => runner.startAsync(ProcessRunnerTests.MISSING, [], folder, path.join(folder, "log.txt")), BuildException);
 
       for (const error of [captured, run, watched, started]) {
