@@ -236,8 +236,9 @@ jobs:
               || ! grep -qsE $'^[0-9]+ error (syscall read|network aborted)\r?$' "$logs"/*.log; then
               exit "$status"
             fi
-            echo "npm ci stopped on a read that stalled or a connection that was reset, which npm doesn't retry, so it runs once more. Its last requests:"
+            echo "npm ci stopped on a read that stalled or a connection that was reset, which npm doesn't retry, so it runs once more in 5 seconds. Its last requests:"
             grep -hsE '^[0-9]+ http fetch ' "$logs"/*.log | tail -n 5 || true
+            sleep 5
           done
           for script in preinstall install postinstall prepublish preprepare prepare postprepare; do
             npm run --if-present "$script"

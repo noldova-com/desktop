@@ -46,11 +46,19 @@ export class NpmFakeFixture implements AsyncDisposable {
     const command = path.join(fake.bin, "npm");
     await writeFile(command, `#!/bin/sh\nexec "${NpmFakeFixture.toShell(process.execPath)}" "${NpmFakeFixture.toShell(fake.script)}" "$@"\n`);
     await chmod(command, 0o755);
+    await writeFile(path.join(fake.folder, "sleeps.txt"), "");
+    const sleep = path.join(fake.bin, "sleep");
+    await writeFile(sleep, `#!/bin/sh\necho "$@" >> "${NpmFakeFixture.toShell(path.join(fake.folder, "sleeps.txt"))}"\n`);
+    await chmod(sleep, 0o755);
     return fake;
   }
 
   public async readCallsAsync(): Promise<readonly string[]> {
     return (await readFile(path.join(this.folder, "calls.txt"), "utf8")).split("\n").filter(t => t.length > 0);
+  }
+
+  public async readSleepsAsync(): Promise<readonly string[]> {
+    return (await readFile(path.join(this.folder, "sleeps.txt"), "utf8")).split("\n").filter(t => t.length > 0);
   }
 
   public async readPacksAsync(): Promise<readonly string[]> {
