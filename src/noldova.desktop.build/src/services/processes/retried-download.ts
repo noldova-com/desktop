@@ -16,7 +16,8 @@ import { Resources } from "../../resources.ts";
 
 export class RetriedDownload {
 
-  public static async runAsync(subject: string, output: Writable, attemptAsync: () => Promise<string | null>): Promise<void> {
+  public static async runAsync(subject: string, output: Writable, attemptAsync: () => Promise<string | null>,
+    pause: number = Resources.downloadRetryPause): Promise<void> {
     let failure = String.empty;
     for (let attempt = 1; attempt <= Resources.downloadAttempts; attempt++) {
       const reason = await attemptAsync();
@@ -25,7 +26,7 @@ export class RetriedDownload {
       failure = reason;
       if (attempt < Resources.downloadAttempts) {
         output.write(Resources.formatDownloadRetry(subject, attempt));
-        await timers.setTimeout(Resources.downloadRetryPause);
+        await timers.setTimeout(pause);
       }
     }
     throw new BuildException(Resources.formatDownloadGaveUp(subject, failure));
