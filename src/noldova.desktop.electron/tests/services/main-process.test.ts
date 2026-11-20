@@ -920,6 +920,61 @@ export class MainProcessTests {
   }
 
   @TestMethod
+  public async savesAWindowsBoundsAgainWhenTheUpdateEndsBeforeTheWindowAnswersItsSaveRequest(): Promise<void> {
+    const connection = new FakeRuntimeConnection();
+    const launcher = new FakeRuntimeLauncher(connection);
+    const electron = await MainProcessStartFixture.startReadyAsync("darwin", launcher);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await Condition.waitAsync(() => connection.calls.includes("desktop.readWindowBounds"));
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await Condition.waitAsync(() => window.webContents.sent.some(t => t[0] === "desktop:updateSaveRequest"));
+    launcher.listener?.onEvent(new Event(ShellEvents.updateEnded, null));
+    const request = window.webContents.sent.find(t => t[0] === "desktop:updateSaveRequest");
+
+    await electron.ipcMain.invoke("desktop:updateSaveAnswer", MainProcessStartFixture.trustedEvent("darwin"), request?.[1], []);
+    await Condition.waitAsync(() => connection.calls.includes("desktop.updateSaved"));
+    const before = MainProcessTests.countWrites(connection);
+    window.bounds = { x: 40, y: 60, width: 900, height: 640 };
+    window.change("move");
+    await Condition.waitAsync(() => MainProcessTests.countWrites(connection) > before);
+
+    Assert.areEqual(JSON.stringify({ x: 40, y: 60, width: 900, height: 640, maximized: false }),
+      JSON.stringify(connection.states.get(`writeWindowBounds:${FakeDeviceIdentity.ID}:main`)));
+  }
+
+  @TestMethod
+  public async savesAWindowsBoundsAgainWhenTheUpdateEndsWhileTheWindowsHoldSavesThem(): Promise<void> {
+    const connection = new FakeRuntimeConnection();
+    const launcher = new FakeRuntimeLauncher(connection);
+    const electron = await MainProcessStartFixture.startReadyAsync("darwin", launcher);
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await Condition.waitAsync(() => connection.calls.includes("desktop.readWindowBounds"));
+    launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
+    await Condition.waitAsync(() => window.webContents.sent.some(t => t[0] === "desktop:updateSaveRequest"));
+    const writes = Promise.withResolvers<Response>();
+    connection.deferred.set("desktop.writeWindowBounds", () => writes.promise);
+    const before = MainProcessTests.countWrites(connection);
+    window.bounds = { x: 40, y: 60, width: 900, height: 640 };
+    window.change("move");
+    const request = window.webContents.sent.find(t => t[0] === "desktop:updateSaveRequest");
+
+    const answered = electron.ipcMain.invoke("desktop:updateSaveAnswer", MainProcessStartFixture.trustedEvent("darwin"), request?.[1], []);
+    await Condition.waitAsync(() => MainProcessTests.countWrites(connection) === before + 1);
+    launcher.listener?.onEvent(new Event(ShellEvents.updateEnded, null));
+    await Condition.waitAsync(() => MainProcessTests.countWrites(connection) === before + 2);
+    connection.deferred.delete("desktop.writeWindowBounds");
+    writes.resolve(Response.success("r", null));
+    await answered;
+    await Condition.waitAsync(() => connection.calls.includes("desktop.updateSaved"));
+    window.bounds = { x: 80, y: 90, width: 900, height: 640 };
+    window.change("move");
+    await Condition.waitAsync(() => MainProcessTests.countWrites(connection) === before + 3);
+
+    Assert.areEqual(JSON.stringify({ x: 80, y: 90, width: 900, height: 640, maximized: false }),
+      JSON.stringify(connection.states.get(`writeWindowBounds:${FakeDeviceIdentity.ID}:main`)));
+  }
+
+  @TestMethod
   public async recordsItselfInItsInstallationAndLogsWhenItCannotButStartsAnyway(): Promise<void> {
     const recorded = await MainProcessTests.startRecordingAsync(true);
     const notFound = await MainProcessTests.startRecordingAsync(false);
@@ -2278,6 +2333,10 @@ export class MainProcessTests {
 
   private static async requestAsync(electron: FakeElectron, event: IIpcEvent, method: unknown, payload: unknown, page?: string): Promise<Response> {
     return Response.fromJson(await electron.ipcMain.invoke("desktop:request", event, method, payload, page));
+  }
+
+  private static countWrites(connection: FakeRuntimeConnection): number {
+    return connection.calls.filter(t => t === "desktop.writeWindowBounds").length;
   }
 
   private static isReady(electron: FakeElectron): boolean {
