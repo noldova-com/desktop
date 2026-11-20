@@ -151,8 +151,6 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     }
   }
 
-  // SIGTERM, then the exit itself, with SIGKILL only once the test is about to run out of time; how it ended comes from the
-  // exit, so an exit seen late on a loaded machine still reads as the SIGTERM it was.
   private async stopAsync(child: ChildProcess, exited: Promise<boolean>): Promise<string> {
     if (!Object.isNull(child.exitCode) || !Object.isNull(child.signalCode))
       return "It had ended before SIGTERM.";
