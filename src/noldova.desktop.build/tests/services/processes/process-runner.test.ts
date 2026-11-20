@@ -6,7 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { mock } from "node:test";
@@ -25,6 +26,8 @@ export class ProcessRunnerTests {
   private static readonly MISSING: string = "no-such-program-for-this-test";
   private static readonly LIFETIME: number = 20_000;
   private static readonly CHILD: RegExp = /child ([0-9]+)\n/;
+  private static readonly TREE_LIMIT: number = 2_000;
+  private static readonly GRANDCHILD_LIFETIME: number = 60_000;
 
   @TestMethod
   public async capturesTheExitCodeAndBothOutputsInTheGivenEnvironment(): Promise<void> {
@@ -116,6 +119,16 @@ export class ProcessRunnerTests {
   }
 
   @TestMethod
+  public async stopsACapturedProcessAndTheGrandchildHoldingItsOutputAtItsTimeout(): Promise<void> {
+    await ProcessRunnerTests.stopsAGrandchildHoldingTheOutputAsync(`setTimeout(() => undefined, ${ProcessRunnerTests.GRANDCHILD_LIFETIME})`);
+  }
+
+  @TestMethod
+  public async stopsACapturedProcessWhoseChildEndedWhileAGrandchildStillHoldsItsOutput(): Promise<void> {
+    await ProcessRunnerTests.stopsAGrandchildHoldingTheOutputAsync(String.empty);
+  }
+
+  @TestMethod
   public async refusesAProgramThatCannotStart(): Promise<void> {
     const runner = new ProcessRunner();
     const folder = await mkdtemp(path.join(tmpdir(), "process-runner-"));
@@ -196,6 +209,28 @@ export class ProcessRunnerTests {
       Assert.isFalse(runner.isRunning(started.id));
     }
     finally {
+      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
+    }
+  }
+
+  private static async stopsAGrandchildHoldingTheOutputAsync(childRest: string): Promise<void> {
+    const folder = await mkdtemp(path.join(tmpdir(), "process-runner-"));
+    const started = path.join(folder, "grandchild.pid");
+    const grandchild = `require("node:fs").writeFileSync(${JSON.stringify(started)}, String(process.pid)); setTimeout(() => undefined, ${ProcessRunnerTests.GRANDCHILD_LIFETIME})`;
+    const child = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(grandchild)}], { stdio: ["ignore", "inherit", "inherit"] }); ${childRest}`;
+    try {
+      const error = await Assert.throwsAsync(() => new ProcessRunner().captureAsync(process.execPath, ["-e", child], folder, ProcessRunnerTests.TREE_LIMIT),
+        ProcessTimeoutException);
+
+      Assert.areEqual(ProcessRunnerTests.TREE_LIMIT, error.timeout);
+      Assert.isTrue(existsSync(started), "The grandchild never started, so nothing held the output.");
+    }
+    finally {
+      if (existsSync(started)) {
+        const id = Number(await readFile(started, "utf8"));
+        if (new ProcessRunner().isRunning(id))
+          new ProcessRunner().kill(id);
+      }
       await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
     }
   }

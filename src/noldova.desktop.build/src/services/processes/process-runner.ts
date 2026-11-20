@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { spawn } from "node:child_process";
+import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
 import path from "node:path";
 
@@ -25,7 +25,7 @@ export class ProcessRunner {
     Promise<ProcessResult> {
     return new Promise<ProcessResult>((resolve, reject) => {
       const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, stdio: [Resources.ignoreStdio, Resources.pipeStdio, Resources.pipeStdio], windowsHide: true,
-        env: environment ?? process.env, windowsVerbatimArguments: isVerbatim, argv0: isVerbatim ? `"${command}"` : command });
+        env: environment ?? process.env, windowsVerbatimArguments: isVerbatim, argv0: isVerbatim ? `"${command}"` : command, detached: ProcessRunner.isGrouped });
       const output: Buffer[] = [];
       const errorOutput: Buffer[] = [];
       const transcript = new ProcessTranscript();
@@ -44,7 +44,15 @@ export class ProcessRunner {
           transcript.add(chunk, isError);
         }
       };
-      const timer = setTimeout(() => stop(new ProcessTimeoutException(command, timeout, transcript.text)), timeout);
+      const timer = setTimeout(() => {
+        failure ??= new ProcessTimeoutException(command, timeout, transcript.text);
+        ProcessRunner.endTree(child);
+        ProcessRunner.onExit(child, () => {
+          child.stdout.destroy();
+          child.stderr.destroy();
+          reject(failure);
+        });
+      }, timeout);
       child.stdout.on(Resources.dataEvent, (t: Buffer) => receive(output, t, false));
       child.stderr.on(Resources.dataEvent, (t: Buffer) => receive(errorOutput, t, true));
       child.on(Resources.errorEvent, t => stop(new BuildException(Resources.formatProcessNotStarted(command), new ExceptionOptions(t))));
@@ -70,13 +78,16 @@ export class ProcessRunner {
     return new Promise<number | null>((resolve, reject) => {
       const isWatched = !Object.isUndefined(watch);
       const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, env: environment ?? process.env,
-        stdio: isWatched ? [Resources.inheritStdio, Resources.pipeStdio, Resources.pipeStdio] : Resources.inheritStdio });
+        stdio: isWatched ? [Resources.inheritStdio, Resources.pipeStdio, Resources.pipeStdio] : Resources.inheritStdio,
+        detached: !Object.isUndefined(timeout) && ProcessRunner.isGrouped });
       if (isWatched) {
         child.stdout?.on(Resources.dataEvent, (t: Buffer) => ProcessRunner.forward(process.stdout, t, watch));
         child.stderr?.on(Resources.dataEvent, (t: Buffer) => ProcessRunner.forward(process.stderr, t, watch));
       }
       const timer = Object.isUndefined(timeout) ? null : setTimeout(() => {
-        child.kill();
+        ProcessRunner.endTree(child);
+        child.stdout?.destroy();
+        child.stderr?.destroy();
         reject(new ProcessTimeoutException(command, timeout));
       }, timeout);
       child.on(Resources.errorEvent, t => {
@@ -108,6 +119,26 @@ export class ProcessRunner {
 
   public kill(processId: number): void {
     ProcessRunner.signal(processId, Resources.killSignal);
+  }
+
+  private static get isGrouped(): boolean {
+    return process.platform !== Resources.windowsPlatform;
+  }
+
+  private static endTree(child: ChildProcess): void {
+    if (Object.isUndefined(child.pid))
+      return;
+    if (ProcessRunner.isGrouped)
+      ProcessRunner.signal(-child.pid, Resources.killSignal);
+    else
+      execFile(Resources.taskkillCommand, [Resources.taskkillProcessOption, String(child.pid), ...Resources.taskkillTreeOptions], { windowsHide: true }, () => undefined);
+  }
+
+  private static onExit(child: ChildProcess, settle: () => void): void {
+    if (Object.isNull(child.exitCode) && Object.isNull(child.signalCode))
+      child.once(Resources.exitEvent, settle);
+    else
+      settle();
   }
 
   private static forward(target: NodeJS.WritableStream, chunk: Buffer, watch: (text: string) => void): void {

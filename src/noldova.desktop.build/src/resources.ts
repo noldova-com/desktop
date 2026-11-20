@@ -1357,6 +1357,9 @@ export class Resources {
   public static readonly pngExtension: string = ".png";
   public static readonly githubStepSummaryVariable: string = "GITHUB_STEP_SUMMARY";
   public static readonly killSignal: NodeJS.Signals = "SIGKILL";
+  public static readonly taskkillCommand: string = "taskkill";
+  public static readonly taskkillProcessOption: string = "/pid";
+  public static readonly taskkillTreeOptions: readonly string[] = ["/T", "/F"];
   public static readonly ignoreStdio: "ignore" = "ignore";
   public static readonly pipeStdio: "pipe" = "pipe";
   public static readonly inheritStdio: "inherit" = "inherit";
