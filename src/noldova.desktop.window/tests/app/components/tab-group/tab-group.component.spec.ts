@@ -10,9 +10,11 @@ import "@noldova/context.core";
 import { Component, type Signal, computed, inject } from "@angular/core";
 import { type ComponentFixture, TestBed } from "@angular/core/testing";
 import type {} from "@vitest/browser-playwright";
+import { userEvent } from "vitest/browser";
 
 import { TooltipDirective } from "@noldova/ui.components.angular";
 
+import { FieldMenuComponent } from "../../../../src/app/components/field-menu/field-menu.component";
 import { TabGroupComponent } from "../../../../src/app/components/tab-group/tab-group.component";
 import { DockSide } from "../../../../src/app/enums/dock-side";
 import { DocumentTone } from "../../../../src/app/enums/document-tone";
@@ -682,21 +684,37 @@ describe("TabGroupComponent", () => {
       expect([closed, renames.editing(), group(0).querySelector("input.nol-tab-field"), heard]).toEqual([null, null, null, []]);
     });
 
-    it("opens no tab menu from a right-click in the title field, and still opens one from another tab", async () => {
-      const menu = (): Element | null => document.querySelector(".cdk-overlay-container nol-menu[data-place='desktop.tab']");
+    it("opens the field menu, not a tab menu, from a right-click in the title field, and still opens a tab menu from another tab", async () => {
+      const menu = (place: string): Element | null => document.querySelector(`.cdk-overlay-container nol-menu[data-place='${place}']`);
       await renderAsync(prepared, 120, renamable);
+      const fieldMenu = TestBed.createComponent(FieldMenuComponent);
+      document.body.append(host);
       TestBed.inject(TabRenameService).begin(LayoutFixture.plan);
       update();
       await fixture.whenStable();
-      field(tab(0, 0)).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: 10, clientY: 10 }));
-      update();
-      await fixture.whenStable();
-      const inField = menu();
+      const box = field(tab(0, 0)).getBoundingClientRect();
+      const [x, y] = [box.left + box.width / 2, box.top + box.height / 2];
+      const click = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: x, clientY: y });
+      const settleAsync = async (): Promise<void> => {
+        fieldMenu.detectChanges();
+        update();
+        await Promise.all([fieldMenu.whenStable(), fixture.whenStable()]);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      };
+      field(tab(0, 0)).dispatchEvent(click);
+      await settleAsync();
+      bridge.publishFieldMenu({ x, y, isKeyboard: false, word: String.empty, suggestions: [] });
+      await settleAsync();
+      const inField = [click.defaultPrevented, !Object.isNull(menu("desktop.field")), menu("desktop.tab")];
+      await userEvent.keyboard("{Escape}");
+      fieldMenu.destroy();
       tab(0, 1).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: 40, clientY: 10 }));
       update();
       await fixture.whenStable();
+      host.remove();
 
-      expect([inField, !Object.isNull(menu())]).toEqual([null, true]);
+      expect(inField).toEqual([false, true, null]);
+      expect(Object.isNull(menu("desktop.tab"))).toBe(false);
     });
   });
 
