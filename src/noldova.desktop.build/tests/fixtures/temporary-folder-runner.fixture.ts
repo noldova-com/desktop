@@ -38,12 +38,14 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   private readonly folder: string;
   private readonly end: number | null;
   private readonly listing: readonly [string, readonly string[]] | null;
+  private readonly wait: number;
 
-  private constructor(folder: string, end: number | null, listing: readonly [string, readonly string[]] | null) {
+  private constructor(folder: string, end: number | null, listing: readonly [string, readonly string[]] | null, wait: number) {
     super();
     this.folder = folder;
     this.end = end;
     this.listing = listing;
+    this.wait = wait;
   }
 
   public static startTest(): number {
@@ -54,11 +56,12 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     return performance.now() + TemporaryFolderRunnerFixture.REPORT_TIME + milliseconds;
   }
 
-  public static async createAsync(folder: string, end: number | null = null, listing: readonly [string, readonly string[]] | null = null): Promise<TemporaryFolderRunnerFixture> {
+  public static async createAsync(folder: string, end: number | null = null, listing: readonly [string, readonly string[]] | null = null,
+    wait: number = Number.POSITIVE_INFINITY): Promise<TemporaryFolderRunnerFixture> {
     await mkdir(folder, { recursive: true });
     for (const [, file] of TemporaryFolderRunnerFixture.CONFIGURATION_FILES)
       await writeFile(path.join(folder, file), String.empty);
-    return new TemporaryFolderRunnerFixture(folder, end, listing);
+    return new TemporaryFolderRunnerFixture(folder, end, listing, wait);
   }
 
   public override async captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv): Promise<ProcessResult> {
@@ -115,7 +118,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   }
 
   private async listProcessesAsync(): Promise<readonly { id: number, parent: number, line: string }[]> {
-    const limit = !Object.isNull(this.listing) ? this.left()
+    const limit = !Object.isNull(this.listing) ? Math.min(this.wait, this.left())
       : Math.min(process.platform === "win32" ? TemporaryFolderRunnerFixture.LIST_LIMIT + TemporaryFolderRunnerFixture.SAMPLE_LIMIT : TemporaryFolderRunnerFixture.LIST_LIMIT, this.left());
     if (limit <= 0)
       return [{ id: Number.NaN, parent: Number.NaN, line: "The listing was skipped: no time was left." }];
@@ -158,15 +161,15 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     if (!await TemporaryFolderRunnerFixture.withinAsync(exited, this.untilKill())) {
       child.kill("SIGKILL");
       if (!await TemporaryFolderRunnerFixture.withinAsync(exited, TemporaryFolderRunnerFixture.KILL_LIMIT))
-        return `It outlived SIGTERM until ${TemporaryFolderRunnerFixture.KILL_RESERVE} ms before the test's end, and SIGKILL by ${TemporaryFolderRunnerFixture.KILL_LIMIT} ms.`;
+        return `It outlived the wait after SIGTERM, and SIGKILL by ${TemporaryFolderRunnerFixture.KILL_LIMIT} ms.`;
     }
     return child.signalCode === "SIGKILL"
-      ? `It outlived SIGTERM until ${TemporaryFolderRunnerFixture.KILL_RESERVE} ms before the test's end, and ended at SIGKILL.`
+      ? "It outlived the wait after SIGTERM, and ended at SIGKILL."
       : "It ended at SIGTERM.";
   }
 
   private untilKill(): number {
-    return Object.isNull(this.end) ? 0 : Math.max(0, Math.floor(this.end - performance.now() - TemporaryFolderRunnerFixture.KILL_RESERVE));
+    return Object.isNull(this.end) ? 0 : Math.min(this.wait, Math.max(0, Math.floor(this.end - performance.now() - TemporaryFolderRunnerFixture.KILL_RESERVE)));
   }
 
   private static async withinAsync(settled: Promise<boolean>, milliseconds: number): Promise<boolean> {
