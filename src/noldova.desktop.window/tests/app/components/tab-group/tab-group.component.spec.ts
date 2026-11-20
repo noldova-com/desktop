@@ -684,12 +684,13 @@ describe("TabGroupComponent", () => {
       expect([closed, renames.editing(), group(0).querySelector("input.nol-tab-field"), heard]).toEqual([null, null, null, []]);
     });
 
-    it("opens the field menu, not a tab menu, from a right-click in the title field, and still opens a tab menu from another tab", async () => {
+    it("opens the field menu, not a tab menu, from a right-click in the title field, keeps the rename once it closes, and still opens a tab menu from another tab", async () => {
       const menu = (place: string): Element | null => document.querySelector(`.cdk-overlay-container nol-menu[data-place='${place}']`);
       await renderAsync(prepared, 120, renamable);
       const fieldMenu = TestBed.createComponent(FieldMenuComponent);
       document.body.append(host);
-      TestBed.inject(TabRenameService).begin(LayoutFixture.plan);
+      const renames = TestBed.inject(TabRenameService);
+      renames.begin(LayoutFixture.plan);
       update();
       await fixture.whenStable();
       const box = field(tab(0, 0)).getBoundingClientRect();
@@ -707,6 +708,8 @@ describe("TabGroupComponent", () => {
       await settleAsync();
       const inField = [click.defaultPrevented, !Object.isNull(menu("desktop.field")), menu("desktop.tab")];
       await userEvent.keyboard("{Escape}");
+      await settleAsync();
+      const afterMenu = [menu("desktop.field"), renames.editing(), document.activeElement === field(tab(0, 0))];
       fieldMenu.destroy();
       tab(0, 1).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: 40, clientY: 10 }));
       update();
@@ -714,6 +717,7 @@ describe("TabGroupComponent", () => {
       host.remove();
 
       expect(inField).toEqual([false, true, null]);
+      expect(afterMenu).toEqual([null, LayoutFixture.plan, true]);
       expect(Object.isNull(menu("desktop.tab"))).toBe(false);
     });
   });
