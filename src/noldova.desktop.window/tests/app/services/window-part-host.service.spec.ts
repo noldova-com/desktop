@@ -751,6 +751,25 @@ describe("WindowPartHostService", () => {
     expect(errors).toEqual([]);
   });
 
+  it("takes no command states from an answer that arrives after its connection ended", async () => {
+    let resolve: (value: unknown) => void = () => undefined;
+    bridge.responses.set("desktop.commands", new Promise<unknown>(t => {
+      resolve = t;
+    }));
+    const { host } = start([], [status("clock")]);
+    const commands = TestBed.inject(CommandService);
+    await vi.waitFor(() => expect(bridge.requests.map(t => t[0])).toContain("desktop.commands"));
+
+    bridge.publishStartup({ kind: "Connecting", details: [] });
+    resolve({ payload: { commands: [{ name: "clock.tick", title: "Tick", isEnabled: false }], sequence: 9 } });
+    bridge.responses.set("desktop.commands", { payload: { commands: [{ name: "clock.tick", title: "Tick" }], sequence: 1 } });
+    bridge.publishStartup({ kind: "Ready", details: [] });
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+
+    expect(commands.isEnabled("clock.tick")).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
   it("disables the runtime commands while the runtime is away and takes a new runtime's first answer whatever its sequence", async () => {
     bridge.responses.set("desktop.commands", { payload: { commands: [{ name: "clock.tick", title: "Tick" }], sequence: 7 } });
     const { host } = start([], [status("clock")]);
