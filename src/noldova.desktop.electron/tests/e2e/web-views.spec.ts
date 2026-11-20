@@ -179,17 +179,17 @@ function crashFirstViewAsync(mainProcess: MainProcessFixture): Promise<boolean> 
   });
 }
 
-function holdClockAsync(mainProcess: MainProcessFixture, isHeld: boolean): Promise<void> {
-  return mainProcess.application.evaluate((_, held) => {
+function holdClockAsync(mainProcess: MainProcessFixture, isHeld: boolean, aheadMilliseconds = 2000): Promise<void> {
+  return mainProcess.application.evaluate((_, [held, ahead]) => {
     if (!held) {
       if (globalThis.nativePerformanceNow !== undefined)
         performance.now = globalThis.nativePerformanceNow;
       return;
     }
     globalThis.nativePerformanceNow ??= performance.now.bind(performance);
-    const at = globalThis.nativePerformanceNow() + 2000;
+    const at = globalThis.nativePerformanceNow() + ahead;
     performance.now = (): number => at;
-  }, isHeld);
+  }, [isHeld, aheadMilliseconds] as const);
 }
 
 function runInFirstViewAsync(mainProcess: MainProcessFixture, script: string): Promise<boolean> {
@@ -1206,7 +1206,7 @@ test.describe("web views", () => {
       }
       expect(await readPlacesAsync(window)).toHaveLength(2);
 
-      await holdClockAsync(mainProcess, true);
+      await holdClockAsync(mainProcess, true, 4000);
       const burst = await runInFirstViewAsync(mainProcess, "for (let index = 0; index < 7; index++) window.open('/first?' + index)").finally(() => holdClockAsync(mainProcess, false));
       expect(burst).toBe(true);
       const countAsync = async (): Promise<[number, number]> => [
