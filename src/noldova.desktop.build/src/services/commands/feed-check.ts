@@ -195,8 +195,6 @@ export class FeedCheck {
   }
 
   private static async readBodyAsync(response: Response, feed: string, name: string): Promise<Buffer> {
-    if (!response.ok)
-      throw new BuildException(Resources.formatFeedHttpProblem(name, feed, response.status));
     try {
       return Buffer.from(await response.arrayBuffer());
     }
