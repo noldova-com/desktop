@@ -42,8 +42,8 @@ export class ReleaseNotesTests {
     const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX, ReleaseNotesTests.LINUX_ARM64], [], [], ReleaseNotesTests.REPOSITORY, ReleaseNotesTests.RUN,
       ReleaseNotesTests.REPOSITORY, "example/sample-app", ReleaseNotesTests.REPOSITORY, [ReleaseNotesTests.LINUX_ARM64]);
 
-    Assert.isTrue(notes.endsWith("Each target's package passed its install check on that target's own runner in the run that built it, except Linux ARM64, which that run "
-      + `built on a runner of another kind and didn't install or start: ${ReleaseNotesTests.RUN}`), notes);
+    Assert.isTrue(notes.endsWith("Each target's package passed its install check on that target's own runner in the run that built it, except Linux ARM64, whose packages that "
+      + `run built but didn't install or start: ${ReleaseNotesTests.RUN}`), notes);
   }
 
   @TestMethod

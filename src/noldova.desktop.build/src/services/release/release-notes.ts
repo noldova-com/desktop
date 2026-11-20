@@ -14,7 +14,7 @@ import { Resources } from "../../resources.ts";
 
 export class ReleaseNotes {
   public static compose(product: ProductIdentity, targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[], request: ReleaseRequest,
-    runUrl: string, unstarted: readonly PackageTarget[] = []): string {
+    runUrl: string, unstarted: readonly PackageTarget[]): string {
     if (!URL.canParse(runUrl) || new URL(runUrl).protocol !== Resources.secureProtocol)
       throw new BuildException(Resources.formatReleaseRunInvalid(runUrl));
     const name = product.name;

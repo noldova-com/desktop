@@ -4432,8 +4432,8 @@ export class Resources {
   }
 
   public static formatReleaseRunCheckExcept(runUrl: string, unstarted: string): string {
-    return `Each target's package passed its install check on that target's own runner in the run that built it, except ${unstarted}, which that run built on a runner `
-      + `of another kind and didn't install or start: ${runUrl}`;
+    return `Each target's package passed its install check on that target's own runner in the run that built it, except ${unstarted}, whose packages that run built `
+      + `but didn't install or start: ${runUrl}`;
   }
 
   public static formatReleaseCiOnly(ciOnly: string): string {
