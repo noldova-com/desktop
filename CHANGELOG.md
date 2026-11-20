@@ -4,6 +4,29 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.9
+
+- When the runtime ends a client's session, it cancels that session's running requests and closes the connection itself if the client hasn't closed it within the close grace period.
+- A request's or a handshake's id is at most 256 characters, and `RuntimeClient.connectAsync` refuses a client name longer than 239 characters, so each of its request ids fits.
+  Every answer the runtime sends goes through one path: an answer that can't be sent falls back to a failure with the same id, then to one with no id, and then the connection closes.
+- On a CI runner, packaging keeps its signing folder in the runner's temporary folder, which the runner empties after each job; elsewhere it stays under the app's `_build/package`.
+- A setting's title, description and choice titles in `settings.json` can name a key with a token such as `{key:Mod+Enter}`, which Settings shows in the platform's own form: `Ctrl+Enter` on Windows and Linux, and in words, such as `Cmd+Enter` and `Option+Enter`, on macOS.
+  A token that names no key shows as written.
+- `PseudoTerminal.readForegroundProcessAsync()` reads the terminal's foreground process group with its leader's program and command line and the terminal program's own, as the new exported `ForegroundProcess`, so a module can tell whether a command has started its program or is still the shell's copy that forked it.
+- On macOS, the installer package installs only into `/Applications/<folder>` on the startup disk, and `package:smoke --pkg` checks that; an app running from `/Applications/<folder>` moves a copy of itself in `~/Applications/<folder>` with the same bundle id, at the same version or older, to the Trash.
+- On Linux, the app's command answers the command line instead of opening the window: the Debian package links `/usr/bin/<slug>` to the command script in `resources/bin/<slug>`, and `<App>.AppImage --command-line <args>` runs the command line; `package:smoke` checks both with `status --json`.
+- The main process starts or attaches to the runtime as soon as the installation's launch barrier passes, without waiting for Electron, the window or the saved placement; the barrier's message boxes still wait for Electron to be ready.
+- The main process closes its log, `main.log`, before it exits, so its data folder can be removed right after.
+- A main process that loses the runtime while a barrier check is running checks the barrier again, so it quits when another main process closed the installation, even once the runtime is back.
+- A page call to a web view whose guest a move destroys during the call ends, so the module gets its `End` input and later presses on that view count again.
+- A tool failure whose text item isn't a string is answered as a malformed result instead of leaving the call unanswered, and `ToolContent.fromText` refuses a value that isn't a string.
+- A page whose component fails to load shows its module's failure card, "Its page could not be loaded.", naming the module, and reports the error once; a shell page that fails to load reports its error and stays empty.
+- A dropped tab has the keyboard focus, as after a move with the keyboard or a menu.
+- `release-publish`'s release text no longer names the supported targets; it names only the targets a CI run alone accepted.
+- `@noldova/ui.components.angular` is pinned at 0.0.17, and the workflows at `.github`'s v2.40.0 (#308).
+- Tests and the CI smoke: a timed-out command's record names what it last wrote, and the Linux smoke waits for apt's lock; the build tests keep npm's compile cache out of their temporary folders; the main-process log, silence-report, teardown and ownership-ignored volume tests wait on what they check; and the runtime client tests use the product's default limits except where a test checks one.
+  The packages are unchanged by these.
+
 ## 0.0.8
 
 - Web Bluetooth is off in every window: the main process adds `WebBluetooth` to `--disable-blink-features` before ready, so a page has no `navigator.bluetooth`, and every web contents cancels a Bluetooth device choice with an empty device id.
