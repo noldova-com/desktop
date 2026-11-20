@@ -163,11 +163,7 @@ export class ProcessSupervisorFixture {
     return new ProcessSupervisor(settings.database, platform, environment, posix, settings.diagnostics, windows, processSettings, clock);
   }
 
-  private static after(describe: () => string): string {
-    return describe().length === 0 ? String.empty : ` ${describe()}`;
-  }
-
-  private static async boundAsync<T>(waiting: Promise<T>, failure: () => string): Promise<T> {
+  public static async boundAsync<T>(waiting: Promise<T>, failure: () => string): Promise<T> {
     let limit: NodeJS.Timeout | undefined;
     const limited = new Promise<never>((_, reject) => {
       limit = setTimeout(() => reject(new Error(`Waited ${ProcessSupervisorFixture.HANG_MILLISECONDS / 1_000} seconds. ${failure()}`)), ProcessSupervisorFixture.HANG_MILLISECONDS);
@@ -178,5 +174,9 @@ export class ProcessSupervisorFixture {
     finally {
       clearTimeout(limit);
     }
+  }
+
+  private static after(describe: () => string): string {
+    return describe().length === 0 ? String.empty : ` ${describe()}`;
   }
 }

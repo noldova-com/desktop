@@ -124,7 +124,7 @@ export class WindowsProcessKillerTests {
 
     mock.timers.enable({ apis: ["Date"], now: Date.now() });
     try {
-      await processes.cleanUpAsync();
+      await ProcessSupervisorFixture.boundAsync(processes.cleanUpAsync(), () => settings.diagnostics.text);
     }
     finally {
       mock.timers.reset();
