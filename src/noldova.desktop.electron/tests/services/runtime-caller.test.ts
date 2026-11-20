@@ -34,7 +34,8 @@ export class RuntimeCallerTests {
     connection.isClosed = true;
     connection.rejection = new ConnectionClosedException();
     const closed = await RuntimeCallerTests.requestAsync(electron, event, "notes.open", null);
-    connection.rejection = new TypeError("A defect.");
+    connection.rejection = undefined;
+    connection.deferred.set("notes.open", () => Promise.reject(new TypeError("A defect.")));
 
     await Assert.throwsAsync(() => RuntimeCallerTests.requestAsync(electron, event, "notes.open", null), TypeError);
     Assert.areEqual(JSON.stringify({ code: "Disconnected", message: "Noldova Desktop Sample is not connected to its runtime." }), JSON.stringify(unconnected.failure?.toJson()));
