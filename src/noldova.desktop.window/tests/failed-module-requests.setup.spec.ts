@@ -20,7 +20,8 @@ describe("failed module request setup", () => {
     script.remove();
     return type;
   };
-  const printedFor = async (url: string): Promise<readonly string[]> => (await commands.watchFailedModuleRequests()).filter(t => t.endsWith(` ${url}`));
+  const failureLinesAsync = async (): Promise<readonly string[]> => (await commands.watchFailedModuleRequests()).filter(t => t.startsWith("Failed module "));
+  const printedFor = async (url: string): Promise<readonly string[]> => (await failureLinesAsync()).filter(t => t.endsWith(` ${url}`));
 
   it("prints a module request the browser refuses once, with when it failed, its network error and its URL", async () => {
     const url = refusedAt("module");
@@ -55,7 +56,7 @@ describe("failed module request setup", () => {
     expect(await failedLoadAsync(later)).toBe("error");
     await expect.poll(() => printedFor(later)).toHaveLength(1);
 
-    const printed = (await commands.watchFailedModuleRequests()).filter(t => t.includes(`module=${id}`));
+    const printed = (await failureLinesAsync()).filter(t => t.includes(`module=${id}`));
     expect(printed).toHaveLength(1);
     expect(printed[0]).toMatch(/^Failed module response at \S+: 200 text\/html/u);
   });
