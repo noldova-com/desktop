@@ -39,6 +39,13 @@ describe("NpmCi", () => {
     assert.equal(result.calls.length, 2);
   });
 
+  it("runs npm ci once more after a download the connection reset, which npm logs as aborted with no syscall", async () => {
+    const result = await runAsync([[196, NpmLogsFixture.ABORTED], [0, NpmLogsFixture.REQUESTS]]);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.calls.length, 2);
+  });
+
   it("recognizes the stalled read in a log whose lines end in CRLF", async () => {
     const result = await runAsync([[196, NpmLogsFixture.STALLED], [0, NpmLogsFixture.REQUESTS]], "\r\n");
 
