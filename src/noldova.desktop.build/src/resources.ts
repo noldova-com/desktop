@@ -4511,6 +4511,10 @@ export class Resources {
     return `Deleting the incomplete upload of ${name}.\n`;
   }
 
+  public static formatDifferentUploadReplacing(name: string): string {
+    return `Replacing ${name}, which the draft holds from an earlier run and which differs from the built file.\n`;
+  }
+
   public static formatGitHubReleaseContext(id: number): string {
     return `release ${id}`;
   }

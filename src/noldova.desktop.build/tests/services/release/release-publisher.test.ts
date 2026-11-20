@@ -152,16 +152,38 @@ export class ReleasePublisherTests {
   }
 
   @TestMethod
-  public async refusesAnUploadedFileThatDiffersFromTheBuiltOneAsync(): Promise<void> {
+  public async replacesADraftFileThatDiffersFromTheBuiltOneAsync(): Promise<void> {
     const github = new GitHubReleasesFixture();
     const [first] = ReleasePublisherTests.FILES;
-    github.addRelease(ReleasePublisherTests.TAG, ReleasePublisherTests.REVISION, true, [github.createAsset(first?.[0] ?? String.empty, Buffer.from("another package"))]);
+    const draft = github.addRelease(ReleasePublisherTests.TAG, ReleasePublisherTests.REVISION, true, [github.createAsset(first?.[0] ?? String.empty, Buffer.from("another package"))]);
+    const earlier = draft.assets[0]?.id;
+
+    const output = await ReleasePublisherTests.publishAsync(github);
+
+    Assert.areEqual("Replacing Sample App-1.2.3-linux-x64.AppImage, which the draft holds from an earlier run and which differs from the built file.\n"
+      + `Published ${ReleasePublisherTests.TAG} from ${ReleasePublisherTests.REVISION} with 2 files.\n`, output);
+    Assert.areEqual(2, github.requests.filter(t => t.startsWith("release upload")).length);
+    Assert.isTrue(github.requests.some(t => t.endsWith(`releases/assets/${String(earlier)}`)), github.requests.join("\n"));
+  }
+
+  @TestMethod
+  public async refusesAFileThisRunUploadedThatDiffersFromTheBuiltOneAsync(): Promise<void> {
+    const github = new GitHubReleasesFixture();
+    const [first] = ReleasePublisherTests.FILES;
+    const draft = github.addRelease(ReleasePublisherTests.TAG, ReleasePublisherTests.REVISION, true, []);
+    github.intercept = t => {
+      if (t[0] !== "release" || t[3]?.endsWith(".AppImage") !== true)
+        return null;
+      draft.assets.push(github.createAsset(first?.[0] ?? String.empty, Buffer.from("another package")));
+      return GitHubReleasesFixture.ok(null);
+    };
     const built = PackageDigest.fromBytes(first?.[1] ?? Buffer.alloc(0));
 
     const error = await Assert.throwsAsync(() => ReleasePublisherTests.publishAsync(github), BuildException);
 
     Assert.areEqual(`Sample App-1.2.3-linux-x64.AppImage on GitHub has 15 bytes and ${GitHubReleasesFixture.digest(Buffer.from("another package"))}, `
       + `but the built file has ${built.size} bytes and sha256:${built.sha256}. A release's files are never replaced.`, error.message);
+    Assert.areEqual(1, github.requests.filter(t => t.startsWith("release upload")).length);
   }
 
   @TestMethod
