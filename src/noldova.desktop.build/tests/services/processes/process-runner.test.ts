@@ -23,8 +23,8 @@ import { CoverageEnvironmentFixture } from "../../fixtures/coverage-environment.
 export class ProcessRunnerTests {
   private static readonly LIMIT: number = 30_000;
   private static readonly MISSING: string = "no-such-program-for-this-test";
-  private static readonly LIFETIME: number = 120_000;
-  private static readonly CHILD: RegExp = /child ([0-9]+)/;
+  private static readonly LIFETIME: number = 20_000;
+  private static readonly CHILD: RegExp = /child ([0-9]+)\n/;
 
   @TestMethod
   public async capturesTheExitCodeAndBothOutputsInTheGivenEnvironment(): Promise<void> {

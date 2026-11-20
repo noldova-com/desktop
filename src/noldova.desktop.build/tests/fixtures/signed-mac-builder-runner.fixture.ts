@@ -11,6 +11,7 @@ import path from "node:path";
 
 import "@noldova/context.core";
 
+import { ProcessTimeoutException } from "../../src/exceptions/process-timeout.exception.js";
 import { ProcessResult } from "../../src/models/processes/process-result.js";
 import type { ProcessRunner } from "../../src/services/processes/process-runner.js";
 import { StandInBuilderRunnerFixture } from "./stand-in-builder-runner.fixture.js";
@@ -19,18 +20,22 @@ export class SignedMacBuilderRunnerFixture extends StandInBuilderRunnerFixture {
   public static readonly SUBMISSION: string = "sample-submission";
 
   private readonly application: string;
+  private readonly isBuilderTimedOut: boolean;
 
   public readonly macCommands: string[] = [];
   public readonly timeouts: (number | undefined)[] = [];
 
-  public constructor(runner: ProcessRunner, files: readonly string[], application: string) {
+  public constructor(runner: ProcessRunner, files: readonly string[], application: string, isBuilderTimedOut: boolean = false) {
     super(runner, files);
     this.application = application;
+    this.isBuilderTimedOut = isBuilderTimedOut;
   }
 
   public override async runAsync(command: string, commandArguments: readonly string[], directory: string, environment?: NodeJS.ProcessEnv, _watch?: (text: string) => void,
     timeout?: number): Promise<number | null> {
     this.timeouts.push(timeout);
+    if (this.isBuilderTimedOut)
+      throw new ProcessTimeoutException(command, timeout ?? 0);
     const exitCode = await super.runAsync(command, commandArguments, directory, environment);
     await mkdir(path.join(this.application, "Contents", "Frameworks"), { recursive: true });
     await writeFile(path.join(this.application, "Contents", "Info.plist"), "<plist version=\"1.0\"><dict/></plist>\n");

@@ -724,6 +724,18 @@ export class PackageTests {
   }
 
   @TestMethod
+  public async namesElectronBuilderWhenSignedMacOsPackagingReachesItsLimitAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const application = path.join(new PackageLayout(app.path).output, "mac", `${PackageTests.PRODUCT_NAME}.app`);
+
+    const result = await PackageTests.buildAsync(app, "darwin", "x64", true, ["--signed"], { ...PackageTests.MAC_CREDENTIALS },
+      (t, u) => new SignedMacBuilderRunnerFixture(t, u, application, true));
+
+    Assert.areEqual(Resources.failureExitCode, result.exitCode, result.output);
+    Assert.isTrue(result.output.includes(Resources.formatPackagingLimitReached(Resources.macPackagingLimit, "electron-builder")), result.output);
+  }
+
+  @TestMethod
   public async keepsTheMacOsSigningKeyInTheRunnersTemporaryFolderAndRemovesItAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync();
     const temporary = path.join(app.path, "runner-temp");
