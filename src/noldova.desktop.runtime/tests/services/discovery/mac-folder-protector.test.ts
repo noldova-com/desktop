@@ -32,8 +32,9 @@ export class MacFolderProtectorTests {
   private static readonly IGNORED: string = "the volume /Volumes/Shared is mounted with ownership ignored, so every account acts as the owner of its files";
   private static readonly DETACH_ATTEMPTS: number = 5;
   private static readonly DETACH_PAUSE_MILLISECONDS: number = 1000;
-  private static readonly HOLDERS: string = "{ sudo -n /usr/sbin/lsof -n 2>/dev/null || /usr/sbin/lsof -n; } | grep -F -e \"$1\" -e \"$2\"; "
-    + "ps -axo pid,ppid,etime,stat,command | grep -E '[d]iskimage|[m]ds|[m]dworker|[f]seventsd|[f]sck|[d]iskarbitration|[h]diutil|[d]iskutil'; /usr/bin/hdiutil info";
+  private static readonly COMMAND_LIMIT_MILLISECONDS: number = 20_000;
+  private static readonly HOLDER_PROCESS: RegExp = /diskimage|mds|mdworker|fseventsd|fsck|diskarbitration|hdiutil|diskutil/u;
+  private static readonly IMAGE_ENTRIES: RegExp = /^=+$/mu;
   private static readonly WHOLE_DISK: RegExp = /^(\/dev\/disk\d+)\s/mu;
 
   private static volumes(fake: AddonModuleFixture, functions: readonly (keyof IPosixProcessAddon)[] = ["readVolume"]): NativeAddon<IPosixProcessAddon> {
@@ -45,14 +46,39 @@ export class MacFolderProtectorTests {
     for (let attempt = 1; attempt <= MacFolderProtectorTests.DETACH_ATTEMPTS; attempt++) {
       if (attempt > 1)
         await setTimeout(MacFolderProtectorTests.DETACH_PAUSE_MILLISECONDS);
-      const result = spawnSync("/usr/bin/hdiutil", ["detach", "-force", disk], { encoding: "utf8" });
+      const result = MacFolderProtectorTests.run("/usr/bin/hdiutil", ["detach", "-force", disk]);
       if (result.status === 0)
         return;
-      failures.push(`attempt ${attempt}: exit ${String(result.status)}, signal ${String(result.signal)}${result.error === undefined ? "" : `, ${result.error.message}`}\n${result.stdout}${result.stderr}`);
+      failures.push(`attempt ${attempt}: ${result.text}`);
     }
-    const holders = spawnSync("/bin/sh", ["-c", MacFolderProtectorTests.HOLDERS, "holders", disk, mountPoint], { encoding: "utf8" });
     throw new Error(`hdiutil could not detach ${disk} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}\n`
-      + `What held ${disk} or ${mountPoint} then, with the disk image, Spotlight, fseventsd, fsck and disk arbitration processes and hdiutil info:\n${holders.stdout}${holders.stderr}`);
+      + `What held ${disk} or ${mountPoint} then:\n${MacFolderProtectorTests.readHolders(disk, mountPoint)}`);
+  }
+
+  // What has the disk or its mount point open, the processes that usually do, and hdiutil's entry for the disk; a command
+  // that fails, stalls past its limit or can't start says so in place of its output.
+  private static readHolders(disk: string, mountPoint: string): string {
+    const targets = disk === mountPoint ? [mountPoint] : [mountPoint, disk];
+    const asRoot = MacFolderProtectorTests.run("/usr/bin/sudo", ["-n", "/usr/sbin/lsof", "-n", ...targets]);
+    const open = asRoot.text.includes("sudo:") ? MacFolderProtectorTests.run("/usr/sbin/lsof", ["-n", ...targets]) : asRoot;
+    const processes = MacFolderProtectorTests.run("/bin/ps", ["-axo", "pid,ppid,etime,stat,comm"]);
+    const images = MacFolderProtectorTests.run("/usr/bin/hdiutil", ["info"]);
+    const device = new RegExp(`^${disk}(?:s\\d+)?\\s`, "mu");
+    return [
+      `lsof ${targets.join(" ")}: ${open.text}`,
+      processes.status === 0 ? processes.output.split("\n").filter(t => MacFolderProtectorTests.HOLDER_PROCESS.test(t)).join("\n") : `ps: ${processes.text}`,
+      images.status === 0 ? images.output.split(MacFolderProtectorTests.IMAGE_ENTRIES).filter(t => t.includes(mountPoint) || device.test(t)).join("\n") : `hdiutil info: ${images.text}`
+    ].join("\n");
+  }
+
+  // Runs a command for at most the limit, giving its exit status, its output, and a text naming how it ended, a time-out
+  // or a failure to start included, followed by everything it wrote.
+  private static run(file: string, commandArguments: readonly string[]): { readonly status: number | null; readonly output: string; readonly text: string } {
+    const result = spawnSync(file, commandArguments, { encoding: "utf8", timeout: MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS, killSignal: "SIGKILL" });
+    const ending = result.error === undefined
+      ? `exit ${String(result.status)}, signal ${String(result.signal)}`
+      : `${result.error.message}${result.signal === null ? "" : `, ended by ${result.signal} at the ${MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS} ms limit`}`;
+    return { status: result.status, output: result.stdout, text: `${ending}\n${result.stdout}${result.stderr}` };
   }
 
   @TestMethod
