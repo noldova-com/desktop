@@ -18,7 +18,7 @@ import {
 import { ProcessClockFixture } from "./process-clock.fixture.js";
 import { ProgramFixture } from "./program.fixture.js";
 import type { PseudoTerminalLibraryFixture } from "./pseudo-terminal-library.fixture.js";
-import type { SettingsFixture } from "./settings.fixture.js";
+import { SettingsFixture } from "./settings.fixture.js";
 import { WaitFixture } from "./wait.fixture.js";
 
 export class ProcessSupervisorFixture {
@@ -29,7 +29,7 @@ export class ProcessSupervisorFixture {
   public static readonly SEEN: string = "SELECT started, seen FROM owned_processes";
   public static readonly HOUR: number = 3_600_000;
   public static readonly HANG_MILLISECONDS: number = 20_000;
-  public static readonly LIMITS: ProcessSettings = new ProcessSettings(3_500, 2_000);
+  public static readonly LIMITS: ProcessSettings = SettingsFixture.PROCESS_LIMITS;
   public static readonly SIMULATED_LIMITS: ProcessSettings = new ProcessSettings(300, 500);
   public static readonly CLEAN_EXIT_LIMITS: ProcessSettings = new ProcessSettings(3_500, 500);
   public static readonly SYSTEM_ROOT: string = process.env["SystemRoot"] ?? "C:\\Windows";

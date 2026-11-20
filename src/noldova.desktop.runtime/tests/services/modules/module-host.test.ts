@@ -13,8 +13,8 @@ import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 import { ModuleStatusList, QualifiedName, SettingDefinition, SettingKey, SettingLocality, SettingType, SettingValue } from "@noldova/desktop.protocol";
 import {
-  DataDirectory, type IRuntimePart, type IRuntimePartContext, MethodRegistry, Migration, ModuleActivationException, ModuleDatabase, ModuleDeclaration, ModuleHost, type OwnedProcess, RequestContext,
-  SettingsService, type ToolFailure, type ToolResult, ToolRisk, WorkTracker
+  DataDirectory, type IRuntimePart, type IRuntimePartContext, MethodRegistry, Migration, ModuleActivationException, ModuleDatabase, ModuleDeclaration, ModuleHost, type OwnedProcess,
+  ProcessSettings, RequestContext, SettingsService, type ToolFailure, type ToolResult, ToolRisk, WorkTracker
 } from "@noldova/desktop.runtime";
 
 import { EventSinkFixture } from "../../fixtures/event-sink.fixture.js";
@@ -205,7 +205,7 @@ export class ModuleHostTests {
 
   @TestMethod
   public async endsTheProgramsOfEveryPartTogetherWhenTheyDeactivate(): Promise<void> {
-    await using settings = await SettingsFixture.createAsync();
+    await using settings = await SettingsFixture.createAsync([], new ProcessSettings(300, SettingsFixture.PROCESS_LIMITS.endMilliseconds));
     await using folder = await TemporaryFolderFixture.createAsync();
     const started: Promise<OwnedProcess>[] = [];
     const start = (context: IRuntimePartContext): void => {
