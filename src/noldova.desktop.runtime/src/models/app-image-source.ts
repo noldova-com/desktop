@@ -10,6 +10,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
+import { OctalEscapeService } from "@noldova/context.text";
 
 import { Resources } from "../resources.js";
 import { SystemErrorCode } from "./system-error-code.js";
@@ -26,7 +27,7 @@ export class AppImageSource {
   public async isMountedAsync(): Promise<boolean> {
     const mountPoints = (await AppImageSource.readMountTableAsync()).split(Resources.lineEnd)
       .map(t => t.split(Resources.mountTableFieldSeparator)[Resources.mountPointField] ?? String.empty)
-      .map(t => t.replace(Resources.mountTableEscape, (_, code: string) => String.fromCharCode(Number.parseInt(code, Resources.octalRadix))));
+      .map(t => OctalEscapeService.decode(t));
     return mountPoints.includes(this.folder);
   }
 

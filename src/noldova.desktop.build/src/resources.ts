@@ -1385,7 +1385,6 @@ export class Resources {
   public static readonly fuseMountPattern: RegExp = / - fuse[. ]/;
   public static readonly mountFieldSeparator: string = " ";
   public static readonly mountPointField: number = 4;
-  public static readonly mountTableEscape: RegExp = /\\([0-7]{3})/g;
   public static readonly smokeReplacementSuffix: string = ".replacement";
   public static readonly elfMagic: string = "\x7fELF";
   public static readonly elfMagicEncoding: BufferEncoding = "latin1";

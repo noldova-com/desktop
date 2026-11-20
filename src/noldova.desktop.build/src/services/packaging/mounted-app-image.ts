@@ -11,6 +11,7 @@ import path from "node:path";
 import type { Writable } from "node:stream";
 
 import "@noldova/context.core";
+import { OctalEscapeService } from "@noldova/context.text";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { IKilledCopySession } from "../../interfaces/i-killed-copy-session.ts";
@@ -85,6 +86,6 @@ export class MountedAppImage implements ISmokeCopy {
   private static async readFuseMountsAsync(processes: string): Promise<readonly string[]> {
     const lines = (await readFile(path.join(processes, ...Resources.mountTableSegments), Resources.textEncoding)).split(Resources.lineSeparator).filter(t => Resources.fuseMountPattern.test(t));
     return lines.map(t => t.split(Resources.mountFieldSeparator)[Resources.mountPointField] ?? String.empty).filter(t => t.length > 0)
-      .map(t => t.replace(Resources.mountTableEscape, (_, code: string) => String.fromCharCode(Number.parseInt(code, Resources.octalRadix))));
+      .map(t => OctalEscapeService.decode(t));
   }
 }
