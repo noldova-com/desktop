@@ -693,14 +693,27 @@ export class OpenWebView {
     if (Object.isNull(scroll) || (scroll[0] === 0 && scroll[1] === 0))
       return;
     const shown = await this.readLayoutScrollAsync(guest);
-    if (Object.isNull(shown)) {
-      if (this.guest === guest)
-        this.log(Resources.formatWebViewScrollNotRestored(this.info.module, this.info.id));
+    const stop = this.findScrollBackStop(guest, kept, count, inputs, shown);
+    if (!Object.isNull(stop)) {
+      this.log(Resources.formatWebViewScrollNotRestored(this.info.module, this.info.id, scroll[0], scroll[1], stop));
       return;
     }
-    if (shown[0] !== 0 || shown[1] !== 0 || this.navigationCount !== count || this.inputCount !== inputs || this.guest !== guest || guest.getURL() !== kept.currentUrl)
-      return;
-    await guest.executeJavaScriptInIsolatedWorld(Resources.scrollBackWorld, [{ code: Resources.formatScrollBackScript(scroll[0], scroll[1]) }]).catch(() => undefined);
+    await guest.executeJavaScriptInIsolatedWorld(Resources.scrollBackWorld, [{ code: Resources.formatScrollBackScript(scroll[0], scroll[1]) }]).catch((error: unknown) =>
+      this.log(Resources.formatWebViewScrollNotRestored(this.info.module, this.info.id, scroll[0], scroll[1], Resources.formatWebViewScrollScriptFailed(String(error)))));
+  }
+
+  private findScrollBackStop(guest: IWebViewContents, kept: WebViewHistory, count: number, inputs: number, shown: readonly [number, number] | null): string | null {
+    if (Object.isNull(shown))
+      return Resources.webViewScrollUnread;
+    if (this.guest !== guest)
+      return Resources.webViewScrollUnbound;
+    if (this.navigationCount !== count)
+      return Resources.webViewScrollNavigated;
+    if (guest.getURL() !== kept.currentUrl)
+      return Resources.webViewScrollRedirected;
+    if (this.inputCount !== inputs)
+      return Resources.webViewScrollInput;
+    return shown[0] !== 0 || shown[1] !== 0 ? Resources.formatWebViewScrollShown(shown[0], shown[1]) : null;
   }
 
   private async readScrollAsync(guest: IWebViewContents): Promise<readonly [number, number] | null> {

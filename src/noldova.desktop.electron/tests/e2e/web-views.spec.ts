@@ -737,7 +737,7 @@ test.describe("web views", () => {
         await expect.poll(() => runInViewAtAsync(mainProcess, url, formScript)).toEqual([text, 1200, false]);
       }
       catch (error) {
-        throw new Error(`${String(error)}\nThe main process wrote, such as which step lost the scroll:\n${mainProcess.failures.join("\n")}`, { cause: error });
+        throw new Error(`${String(error)}\nThe main process said of web views' scroll:\n${mainProcess.diagnostics.join("\n")}`, { cause: error });
       }
     };
     const runAsync = async (title: string): Promise<void> => {

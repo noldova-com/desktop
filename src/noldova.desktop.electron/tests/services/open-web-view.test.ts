@@ -1130,10 +1130,14 @@ export class OpenWebViewTests {
 
       await harness.open.bindAsync(fresh, true);
       await OpenWebViewTests.drainAsync();
-      results.push(`${fresh.debugger.methods().filter(t => t === "Page.getLayoutMetrics").length} ${fresh.isolated.join(",")}`);
+      results.push(`${fresh.debugger.methods().filter(t => t === "Page.getLayoutMetrics").length} ${fresh.isolated.join(",")}:${harness.logs.join(",")}`);
     }
 
-    Assert.areEqual("1 1998 scrollTo(40, 1200)|1 |0 ", results.join("|"));
+    Assert.areEqual([
+      "1 1998 scrollTo(40, 1200):Web view 1 of browser was not scrolled back to (40, 1200): its scroll script failed (Error: The page went away.).",
+      "1 :Web view 1 of browser was not scrolled back to (40, 1200): its restored page already showed (0, 300).",
+      "0 :"
+    ].join("|"), results.join("|"));
   }
 
   @TestMethod
@@ -1169,9 +1173,17 @@ export class OpenWebViewTests {
       results.push(`${fresh.isolated.join(",")}:${harness.logs.join(",")}`);
     }
 
-    Assert.areEqual(
-      ["1998 scrollTo(0, 1200):", ":", ":", ":", ":Web view 1 of browser was not scrolled back: its restored page did not answer where it was scrolled.", ":", ":", ":"].join("|"),
-      results.join("|"));
+    const stopped = (reason: string): string => `:Web view 1 of browser was not scrolled back to (0, 1200): ${reason}.`;
+    Assert.areEqual([
+      "1998 scrollTo(0, 1200):",
+      stopped("an input came while its page loaded"),
+      stopped("a navigation came while its page loaded"),
+      stopped("its page went to another address while it loaded"),
+      stopped("its restored page did not answer where it was scrolled"),
+      stopped("its page was replaced or closed while it loaded"),
+      stopped("its restored page did not answer where it was scrolled"),
+      stopped("its page was replaced or closed while it loaded")
+    ].join("|"), results.join("|"));
   }
 
   @TestMethod

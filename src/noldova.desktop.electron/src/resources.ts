@@ -237,6 +237,11 @@ export class Resources {
   public static readonly pageYField: string = "pageY";
   public static readonly scrollBackWorld: number = 1998;
   public static readonly webViewScrollReadTimeout: number = 500;
+  public static readonly webViewScrollUnread: string = "its restored page did not answer where it was scrolled";
+  public static readonly webViewScrollUnbound: string = "its page was replaced or closed while it loaded";
+  public static readonly webViewScrollNavigated: string = "a navigation came while its page loaded";
+  public static readonly webViewScrollInput: string = "an input came while its page loaded";
+  public static readonly webViewScrollRedirected: string = "its page went to another address while it loaded";
   public static readonly pointerMoveTypes: readonly string[] = ["mouseMove", "mouseEnter", "mouseLeave"];
   public static readonly autoRepeatField: string = "autoRepeat";
   public static readonly keyDownType: string = "keyDown";
@@ -1223,8 +1228,16 @@ export class Resources {
     return `Web view ${view} of ${module} kept no scroll position: its page did not answer where it was scrolled within ${Resources.webViewScrollReadTimeout} ms, or answered no position, so it will not be scrolled back once it moves.`;
   }
 
-  public static formatWebViewScrollNotRestored(module: string, view: string): string {
-    return `Web view ${view} of ${module} was not scrolled back: its restored page did not answer where it was scrolled.`;
+  public static formatWebViewScrollNotRestored(module: string, view: string, x: number, y: number, reason: string): string {
+    return `Web view ${view} of ${module} was not scrolled back to (${x}, ${y}): ${reason}.`;
+  }
+
+  public static formatWebViewScrollShown(x: number, y: number): string {
+    return `its restored page already showed (${x}, ${y})`;
+  }
+
+  public static formatWebViewScrollScriptFailed(error: string): string {
+    return `its scroll script failed (${error})`;
   }
 
   public static formatWebViewAttachRefused(windowId: number, partition: string): string {
