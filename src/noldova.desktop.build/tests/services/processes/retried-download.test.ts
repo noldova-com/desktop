@@ -51,6 +51,11 @@ export class RetriedDownloadTests {
   @TestData("Download failed: server returned code 502 body ''. URL: https://example.com/chromium.zip")
   @TestData("Error: read ECONNRESET")
   @TestData("Error: connect ETIMEDOUT 192.0.2.1:443")
+  @TestData("Error: connect ENETUNREACH 192.0.2.1:443")
+  @TestData("Error: connect EHOSTUNREACH 192.0.2.1:443")
+  @TestData("Error: Download failed: Request to https://cdn.playwright.dev/chromium.zip timed out after 30000ms. URL: https://cdn.playwright.dev/chromium.zip")
+  @TestData("Error: Download failed: size mismatch, file size: 1048576, expected size: 175000000 URL: https://cdn.playwright.dev/chromium.zip")
+  @TestData("TypeError: terminated\n    at Fetch.onAborted (node:internal/deps/undici/undici:11000:53)")
   public givesAnInstallThatFailedOnTheNetworkAnotherTry(text: string): void {
     Assert.areEqual(Resources.formatExitCodeProblem(1, text), RetriedDownload.describeInstall("Chromium", new ProcessResult(1, String.empty, text)));
   }
@@ -60,6 +65,7 @@ export class RetriedDownloadTests {
   @TestData("Download failed: server returned code 404 body 'Not Found'. URL: https://example.com/chromium.zip")
   @TestData("Error: ENOSPC: no space left on device, write")
   @TestData("Error: EACCES: permission denied, mkdir '/opt/cache'")
+  @TestData("Error: getaddrinfo ENOTFOUND mirror.example.invalid")
   public failsAnInstallAtOnceWhenItsFailureIsNotANetworkOne(text: string): void {
     const error = Assert.throws(() => RetriedDownload.describeInstall("Chromium", new ProcessResult(1, String.empty, text)), BuildException);
 
