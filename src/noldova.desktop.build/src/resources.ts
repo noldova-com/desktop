@@ -97,7 +97,8 @@ export class Resources {
   public static readonly electronArchitectureVariable: string = "npm_config_arch";
   public static readonly addonWindowsTargets: readonly string[] = ["win32-x64", "win32-arm64"];
   public static readonly addonPosixTargets: readonly string[] = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
-  public static readonly addonTargets: readonly string[] = [...Resources.addonWindowsTargets, ...Resources.addonPosixTargets];
+  public static readonly addonProcessorSeparator: string = "+";
+  public static readonly addonTargetPattern: RegExp = /^(?:aix|android|cygwin|darwin|freebsd|haiku|linux|netbsd|openbsd|sunos|win32)-[a-z0-9]+(?:\+[a-z0-9]+)*$/;
   public static readonly desktopToolsEntrySegments: readonly string[] = ["node_modules", "@noldova", "desktop.cli", "services", "cli-entry.js"];
   public static readonly runAsNodeVariable: string = "ELECTRON_RUN_AS_NODE";
   public static readonly runAsNodeValue: string = "1";
