@@ -10,6 +10,6 @@ describe("The test server's address", () => {
   it("serves the test page from 127.0.0.1, where the server listens, so the browser never resolves localhost to an address it doesn't", async () => {
     const response = await fetch(location.href, { cache: "no-store" });
 
-    expect([location.hostname, new URL(response.url).hostname, response.ok]).toEqual(["127.0.0.1", "127.0.0.1", true]);
+    expect([location.hostname, location.port, new URL(response.url).hostname, response.ok]).toEqual(["127.0.0.1", "24326", "127.0.0.1", true]);
   });
 });
