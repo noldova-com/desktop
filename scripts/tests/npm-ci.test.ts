@@ -16,11 +16,13 @@ import { NpmLogsFixture } from "./fixtures/npm-logs.fixture.ts";
 
 const ARGUMENTS = ["ci", "--ignore-scripts"];
 
-async function runAsync(plan: readonly (readonly [number, readonly string[]])[], ending: string = "\n"): Promise<{ status: number, calls: readonly string[], reports: readonly string[] }> {
+async function runAsync(plan: readonly (readonly [number, readonly string[]])[], ending: string = "\n")
+  : Promise<{ status: number, calls: readonly string[], reports: readonly string[], waits: readonly number[] }> {
   await using npm = await NpmFakeFixture.createAsync(plan, ending);
   const reports: string[] = [];
-  const status = NpmCi.run(npm.script, ARGUMENTS, npm.folder, t => reports.push(t));
-  return { status, calls: await npm.readCallsAsync(), reports };
+  const waits: number[] = [];
+  const status = NpmCi.run(npm.script, ARGUMENTS, npm.folder, t => reports.push(t), t => waits.push(t));
+  return { status, calls: await npm.readCallsAsync(), reports, waits };
 }
 
 describe("NpmCi", () => {
@@ -30,6 +32,7 @@ describe("NpmCi", () => {
     assert.equal(result.status, 0);
     assert.deepEqual(result.calls, [JSON.stringify(ARGUMENTS), JSON.stringify(ARGUMENTS)]);
     assert.deepEqual(result.reports, [Resources.npmCiDropped(NpmLogsFixture.REQUESTS.slice(-5))]);
+    assert.deepEqual(result.waits, [Resources.npmCiRetryPause]);
   });
 
   it("runs npm ci once more after a read the connection reset", async () => {
@@ -74,6 +77,7 @@ describe("NpmCi", () => {
     assert.equal(result.status, 1);
     assert.equal(result.calls.length, 1);
     assert.deepEqual(result.reports, []);
+    assert.deepEqual(result.waits, []);
   });
 
   it("runs npm ci once when it succeeds", async () => {

@@ -96,6 +96,7 @@ export class Resources {
   public static readonly npmCiReadPattern: RegExp = /^\d+ error (syscall read|network aborted)\r?$/m;
   public static readonly npmCiRequestPattern: RegExp = /^\d+ http fetch /;
   public static readonly npmCiRequestLines: number = 5;
+  public static readonly npmCiRetryPause: number = 5000;
   public static readonly uiWorkflowsCiScript: readonly string[] = ["scripts", "ui-workflows.ts"];
   public static readonly uiWorkflowsCiSessionBus: string = "dbus-run-session";
   public static readonly uiWorkflowsCiSessionBusArguments: readonly string[] = ["--"];
@@ -1222,6 +1223,6 @@ export class Resources {
   }
 
   public static npmCiDropped(requests: readonly string[]): string {
-    return `npm ci stopped on a read that stalled or a connection that was reset, which npm doesn't retry, so it runs once more. Its last requests:${Resources.lineEnd}${requests.join(Resources.lineEnd)}${Resources.lineEnd}`;
+    return `npm ci stopped on a read that stalled or a connection that was reset, which npm doesn't retry, so it runs once more in ${Resources.npmCiRetryPause / 1000} seconds. Its last requests:${Resources.lineEnd}${requests.join(Resources.lineEnd)}${Resources.lineEnd}`;
   }
 }

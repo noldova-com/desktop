@@ -14,17 +14,23 @@ import path from "node:path";
 import { Resources } from "./resources.ts";
 
 export class NpmCi {
-  public static run(npm: string, commandArguments: readonly string[], root: string, report: (text: string) => void): number {
+  public static run(npm: string, commandArguments: readonly string[], root: string, report: (text: string) => void,
+    wait: (milliseconds: number) => void = NpmCi.sleep): number {
     const first = NpmCi.attempt(npm, commandArguments, root);
     if (first.status === Resources.successExitCode || !NpmCi.isStalledRead(first.log))
       return first.status;
 
     report(Resources.npmCiDropped(first.log.split(/\r?\n/).filter(t => Resources.npmCiRequestPattern.test(t)).slice(-Resources.npmCiRequestLines)));
+    wait(Resources.npmCiRetryPause);
     return NpmCi.attempt(npm, commandArguments, root).status;
   }
 
   public static isStalledRead(log: string): boolean {
     return Resources.npmCiErrorCodePattern.test(log) && Resources.npmCiReadPattern.test(log);
+  }
+
+  private static sleep(milliseconds: number): void {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
   }
 
   private static attempt(npm: string, commandArguments: readonly string[], root: string): { status: number, log: string } {
