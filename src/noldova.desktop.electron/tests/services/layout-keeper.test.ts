@@ -9,7 +9,7 @@
 import "@noldova/context.core";
 import { type JsonObject, JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { PreShellData } from "@noldova/desktop.protocol";
+import { PreShellData, ShellMethods } from "@noldova/desktop.protocol";
 import { CallUnansweredException, ConnectionClosedException, PreShellDataFoundException } from "@noldova/desktop.runtime";
 import type { IIpcEvent } from "@noldova/desktop.electron";
 
@@ -94,7 +94,8 @@ export class LayoutKeeperTests {
     connection.isClosed = true;
     connection.rejection = new ConnectionClosedException();
     const closed = await LayoutKeeperTests.invokeAsync(electron, "desktop:writeLayout", event, { version: 1 });
-    connection.rejection = new TypeError("A defect.");
+    connection.rejection = undefined;
+    connection.deferred.set(ShellMethods.writeWindowLayout.text, () => Promise.reject(new TypeError("A defect.")));
 
     await Assert.throwsAsync(() => LayoutKeeperTests.invokeAsync(electron, "desktop:writeLayout", event, { version: 1 }), TypeError);
     Assert.areEqual(
