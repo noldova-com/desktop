@@ -9,7 +9,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import type { Browser, CDPSession, Page } from "@playwright/test";
+type CDPSession = {
+  send(method: string, params?: object): Promise<{ data?: string; eof?: boolean; base64Encoded?: boolean }>;
+  once(event: string, listener: (payload: { stream?: string }) => void): unknown;
+};
+type Browser = { newBrowserCDPSession(): Promise<CDPSession> };
+type Request = { url(): string; resourceType(): string };
+type Page = { on(event: string, listener: (request: Request) => void): unknown; context(): { browser(): Browser | null } };
 
 // Probe only, never merged: records Chromium's network log in a ring buffer through tracing, and saves it a moment after a refused connection,
 // with the connection attempts it holds printed, so a refusal names the address the browser tried and what each attempt got.
@@ -22,6 +28,7 @@ export class NetLogTrace {
   private lastSave: number = 0;
 
   public start(page: unknown, print: (line: string) => void): void {
+    this.watchStalls(page as Page, print);
     if (this.session !== null)
       return;
     this.session = (async () => {
@@ -48,6 +55,39 @@ export class NetLogTrace {
     return this.queue;
   }
 
+  private readonly pending: Map<Request, number> = new Map();
+  private readonly watched: WeakSet<Page> = new WeakSet();
+  private readonly reported: WeakSet<Request> = new WeakSet();
+  private stallSaves: number = 0;
+  private timer: ReturnType<typeof setInterval> | null = null;
+
+  private watchStalls(page: Page, print: (line: string) => void): void {
+    if (this.watched.has(page))
+      return;
+    this.watched.add(page);
+    page.on("request", request => this.pending.set(request, Date.now()));
+    page.on("requestfinished", request => this.pending.delete(request));
+    page.on("requestfailed", request => this.pending.delete(request));
+    if (this.timer === null) {
+      this.timer = setInterval(() => this.checkStalls(print), 2_000);
+      this.timer.unref();
+    }
+  }
+
+  private checkStalls(print: (line: string) => void): void {
+    const now = Date.now();
+    for (const [request, at] of this.pending) {
+      if (now - at < 10_000 || this.reported.has(request))
+        continue;
+      this.reported.add(request);
+      print(`Stalled request at ${new Date().toISOString()}, open ${Math.round((now - at) / 1000)} s since ${new Date(at).toISOString()}: ${request.resourceType()} ${request.url()}`);
+      if (this.stallSaves < 5) {
+        this.stallSaves++;
+        void this.save(new URL(request.url()).port, print);
+      }
+    }
+  }
+
   public flushedAsync(): Promise<void> {
     return this.queue;
   }
@@ -68,7 +108,7 @@ export class NetLogTrace {
     if (stream !== undefined) {
       for (;;) {
         const chunk = await session.send("IO.read", { handle: stream });
-        text += chunk.base64Encoded === true ? Buffer.from(chunk.data, "base64").toString("utf8") : chunk.data;
+        text += chunk.base64Encoded === true ? Buffer.from(chunk.data ?? "", "base64").toString("utf8") : chunk.data ?? "";
         if (chunk.eof)
           break;
       }
