@@ -83,7 +83,7 @@ export class WindowsProcessEnderTests {
     const program = await ProgramFixture.locateWindowsProgramAsync(folder.path);
     const windows = new WindowsProcessApiFixture([String.empty]);
     const table = new ProcessTableFixture([]);
-    const processes = ProcessSupervisorFixture.createWindows(settings, windows, table);
+    const processes = ProcessSupervisorFixture.createWindows(settings, windows, table, ProcessSupervisorFixture.CLEAN_EXIT_LIMITS);
     const owned = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.WAIT], undefined, program));
     simulated.own(owned.processId);
     await ProgramFixture.readLineAsync(owned);
@@ -459,7 +459,7 @@ export class WindowsProcessEnderTests {
     const program = await ProgramFixture.locateWindowsProgramAsync(folder.path);
     const windows = new WindowsProcessApiFixture([String.empty]);
     windows.assignmentError = 8;
-    const processes = ProcessSupervisorFixture.createWindows(settings, windows);
+    const processes = ProcessSupervisorFixture.createWindows(settings, windows, undefined, ProcessSupervisorFixture.CLEAN_EXIT_LIMITS);
     const owned = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.WAIT], undefined, program));
     await ProgramFixture.readLineAsync(owned);
 

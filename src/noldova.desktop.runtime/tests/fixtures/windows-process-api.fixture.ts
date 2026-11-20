@@ -29,6 +29,7 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
   public readonly unreadable: Map<number, number> = new Map();
   public readonly replaced: Map<number, number> = new Map();
   public readonly exitCodes: Map<number, number> = new Map();
+  public readonly unseenExits: Map<number, number> = new Map();
   public readonly createdJobs: boolean[] = [];
   public listings: number = 0;
   public exitChecks: number = 0;
@@ -97,7 +98,13 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
 
   public hasExited(handle: bigint): boolean {
     this.exitChecks++;
-    return !WindowsProcessApiFixture.isRunning(this.find(handle));
+    const processId = this.find(handle);
+    const unseen = this.unseenExits.get(processId) ?? 0;
+    if (unseen > 0) {
+      this.unseenExits.set(processId, unseen - 1);
+      return false;
+    }
+    return !WindowsProcessApiFixture.isRunning(processId);
   }
 
   public readExitCode(handle: bigint): number | null {
