@@ -554,7 +554,7 @@ export class NodePtyTerminalsTests {
   public async hangsUpAJobOnceItsShellThatKeptTheHangupFromItIsKilled(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisorFixture.create(settings);
+    const processes = ProcessSupervisorFixture.createWith(settings, new ProcessSettings(300));
     const shell = await processes.startPseudoTerminalAsync(
       ProcessSupervisorFixture.MODULE, new PseudoTerminalRequest(pty, NodePtyTerminalsTests.SHELL, ["--norc", "--noprofile", "-i"], folder.path, 80, 24, NodePtyTerminalsTests.ENVIRONMENT));
     const output = NodePtyTerminalsTests.collect(shell);
