@@ -98,8 +98,10 @@ export class ThirdPartyPackage {
     catch (error) {
       throw new BuildException(Resources.formatDownloadFailed(locked.id, locked.resolved, String(error)), new ExceptionOptions(error));
     }
-    if (!response.ok)
+    if (!response.ok) {
+      await response.body?.cancel();
       throw new BuildException(Resources.formatDownloadStatus(locked.id, locked.resolved, response.status));
+    }
     const data = Buffer.from(await response.arrayBuffer());
     if (!locked.matches(data))
       throw new BuildException(Resources.formatTarballIntegrityMismatch(locked.id, locked.resolved));

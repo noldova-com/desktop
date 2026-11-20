@@ -98,6 +98,12 @@ export class FeedCheckTests {
   }
 
   @TestMethod
+  public async letsGoOfAFailedAnswerOrAWebPageBeforeItRefusesTheFeedAsync(): Promise<void> {
+    Assert.isTrue(await FeedCheckTests.isLetGoAsync(500, "text/plain"), "The failed answer's connection stayed open.");
+    Assert.isTrue(await FeedCheckTests.isLetGoAsync(200, "text/html"), "The web page's connection stayed open.");
+  }
+
+  @TestMethod
   public async refusesAPackageThatIsNotThereAsync(): Promise<void> {
     const routes = FeedCheckTests.release("1.2.3");
     routes.delete("/App-1.2.3.AppImage");
@@ -456,6 +462,24 @@ export class FeedCheckTests {
 
   private static sha512(bytes: Buffer): string {
     return createHash("sha512").update(bytes).digest("base64");
+  }
+
+  private static async isLetGoAsync(status: number, contentType: string): Promise<boolean> {
+    const routes = FeedCheckTests.release("1.2.3");
+    let closed = false;
+    routes.set("/latest-linux-x64.yml", (_request, response) => {
+      response.on("close", () => {
+        closed = true;
+      });
+      response.writeHead(status, { "Content-Type": contentType });
+      response.write("partial");
+    });
+    return FeedCheckTests.withFeedAsync(routes, async feed => {
+      const result = await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), FEED_WAIT_SECONDS: "60" });
+
+      Assert.areEqual(1, result.exitCode, result.output);
+      return WaitFixture.untilAsync(() => closed, 10_000);
+    });
   }
 
   private static async withFeedAsync<T>(routes: ReadonlyMap<string, Route>, use: (feed: string, requests: readonly string[]) => Promise<T>): Promise<T> {

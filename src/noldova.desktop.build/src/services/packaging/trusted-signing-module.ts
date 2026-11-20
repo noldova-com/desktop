@@ -117,8 +117,10 @@ export class TrustedSigningModule {
     catch (error) {
       throw new BuildException(Resources.formatSigningPackageDownloadFailed(url, error), new ExceptionOptions(error));
     }
-    if (!response.ok)
+    if (!response.ok) {
+      await response.body?.cancel();
       throw new BuildException(Resources.formatSigningPackageHttpFailed(url, response.status));
+    }
     return Buffer.from(await response.arrayBuffer());
   }
 

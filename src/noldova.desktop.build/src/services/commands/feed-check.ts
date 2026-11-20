@@ -132,10 +132,14 @@ export class FeedCheck {
       const response = await FeedCheck.requestAsync(url, feed, name, Math.max(Resources.feedMinimumRequestTimeout, end - this.clock.now()));
       const location = response.headers.get(Resources.locationHeader);
       if (!Resources.redirectStatuses.includes(response.status) || Object.isNull(location)) {
-        if (response.ok && (response.headers.get(Resources.contentTypeHeader) ?? String.empty).startsWith(Resources.webPageContentType))
+        if (response.ok && (response.headers.get(Resources.contentTypeHeader) ?? String.empty).startsWith(Resources.webPageContentType)) {
+          await response.body?.cancel();
           throw new BuildException(Resources.formatFeedWebPage(name, feed, url.origin, url.pathname));
-        if (!response.ok && response.status !== Resources.httpNotFoundStatus)
+        }
+        if (!response.ok && response.status !== Resources.httpNotFoundStatus) {
+          await response.body?.cancel();
           throw new BuildException(Resources.formatFeedHttpProblem(name, feed, response.status));
+        }
         return response;
       }
       await response.body?.cancel();

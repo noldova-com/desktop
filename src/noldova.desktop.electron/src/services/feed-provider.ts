@@ -41,11 +41,15 @@ export class FeedProvider extends Provider<UpdateInfo> {
     const requested = new URL(this.source.channelFile, this.source.feed);
     const signal = this.source.timeout(Resources.updateFeedTimeout);
     const response = await FeedProvider.reach(this.source.fetchAsync(requested.href, signal));
-    if (!response.ok)
+    if (!response.ok) {
+      await response.body?.cancel();
       throw new UpdateFeedRefusedException(response.status);
+    }
     const url = response.url.length > 0 ? new URL(response.url) : requested;
-    if (url.protocol !== requested.protocol)
+    if (url.protocol !== requested.protocol) {
+      await response.body?.cancel();
       throw new UpdateFeedRedirectedException();
+    }
     const info = FeedProvider.parse(await FeedProvider.reach(response.text()), this.source.channelFile, url);
     FeedProvider.check(info);
     if (!Resources.releaseVersionPattern.test(info.version) || Object.isUndefined(FeedProvider.findPackage(info, this.source.formatReleasedFile(info.version))))
