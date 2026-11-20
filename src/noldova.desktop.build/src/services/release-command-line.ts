@@ -10,6 +10,8 @@
 import type { Writable } from "node:stream";
 import { setTimeout } from "node:timers/promises";
 
+import type { IRetryClock } from "../interfaces/i-retry-clock.ts";
+
 import { Resources } from "../resources.ts";
 import { ChooseFeed } from "./commands/choose-feed.ts";
 import { NoldovaDesktopRange } from "./commands/noldova-desktop-range.ts";
@@ -17,6 +19,7 @@ import { FeedCheck } from "./commands/feed-check.ts";
 import { ListTargets } from "./commands/list-targets.ts";
 import { ModuleRange } from "./commands/module-range.ts";
 import { ReleaseCheck } from "./commands/release-check.ts";
+import { ReleaseLocking } from "./commands/release-locking.ts";
 import { ReleasePublish } from "./commands/release-publish.ts";
 import { ProcessRunner } from "./processes/process-runner.ts";
 
@@ -25,6 +28,7 @@ export class ReleaseCommandLine {
   private readonly environment: NodeJS.ProcessEnv;
   private readonly output: Writable;
   private readonly errors: Writable;
+  private readonly clock: IRetryClock = { now: () => Date.now(), pauseAsync: t => setTimeout(t) };
 
   public constructor(folder: string, environment: NodeJS.ProcessEnv, output: Writable, errors: Writable) {
     this.folder = folder;
@@ -44,8 +48,11 @@ export class ReleaseCommandLine {
         return new ChooseFeed(this.environment, this.output, Resources.releaseCommandName).runAsync(rest);
       case Resources.releasePublishCommand:
         return new ReleasePublish(this.folder, new ProcessRunner(), this.environment, this.output, Resources.releaseCommandName).runAsync(rest);
+      case Resources.releaseLockCommand:
+      case Resources.releaseUnlockCommand:
+        return new ReleaseLocking(this.folder, new ProcessRunner(), this.environment, this.output, Resources.releaseCommandName, this.clock).runAsync(command, rest);
       case Resources.feedCheckCommand:
-        return new FeedCheck(this.environment, this.output, Resources.releaseCommandName, { now: () => Date.now(), pauseAsync: t => setTimeout(t) }).runAsync(rest);
+        return new FeedCheck(this.environment, this.output, Resources.releaseCommandName, this.clock).runAsync(rest);
       case Resources.moduleRangeCommand:
         return new ModuleRange(this.folder, this.environment, this.output, Resources.releaseCommandName).runAsync(rest);
       case Resources.noldovaDesktopRangeCommand:
