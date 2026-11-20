@@ -528,6 +528,24 @@ jobs:
           pattern: report-*
           path: _build/release-reports
 
+      - name: Check that this run's release files are still kept
+        timeout-minutes: 1
+        env:
+          RELEASE_TARGETS: ${{ needs.check.outputs.release-targets }}
+        run: |
+          set -euo pipefail
+          missing=''
+          IFS=, read -ra targets <<< "$RELEASE_TARGETS"
+          for target in "${targets[@]}"; do
+            if [ ! -d "_build/release-reports/report-$target" ]; then
+              missing="$missing${missing:+, }$target"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::The release files expired after 14 days, so this run has none for $missing; start a new release with a new version."
+            exit 1
+          fi
+
       - name: Name the release repository's owner and name
         id: release-repository
         if: inputs.release-repository != '' && inputs.release-repository != github.repository

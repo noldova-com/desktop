@@ -622,7 +622,7 @@ jobs:
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.deb
             ${{ inputs.app-folder }}/_build/package/out/${{ steps.product.outputs.name }}-*.sha256
             ${{ inputs.app-folder }}/_build/package/out/latest-*.yml
-          retention-days: &retention ${{ inputs.revision == '' && 1 || 35 }}
+          retention-days: &retention ${{ inputs.revision == '' && 1 || 14 }}
           if-no-files-found: error
           overwrite: true
 
