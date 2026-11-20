@@ -20,7 +20,7 @@ const HEADER = Resources.npmCiDropped([]).trimEnd();
 async function runAsync(plan: readonly (readonly [number, readonly string[]])[], ending: string = "\n")
   : Promise<{ status: number | null, calls: readonly string[], output: string, sleeps: readonly string[] }> {
   await using npm = await NpmFakeFixture.createAsync(plan, ending);
-  const result = await WorkflowStepFixture.runAsync(WorkflowStepFixture.readRun("package-app.yml", "Install the dependencies"), npm.folder, npm.bin, {});
+  const result = await WorkflowStepFixture.runAsync(WorkflowStepFixture.readRun("package-app.yml", "Install the dependencies"), npm.folder, npm.bin, { BASH_ENV: npm.sleeper });
   return { status: result.status, calls: await npm.readCallsAsync(), output: result.output, sleeps: await npm.readSleepsAsync() };
 }
 

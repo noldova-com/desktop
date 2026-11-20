@@ -29,11 +29,13 @@ export class NpmFakeFixture implements AsyncDisposable {
   public readonly folder: string;
   public readonly script: string;
   public readonly bin: string;
+  public readonly sleeper: string;
 
   private constructor(folder: string) {
     this.folder = folder;
     this.script = path.join(folder, "npm.mjs");
     this.bin = path.join(folder, "bin");
+    this.sleeper = NpmFakeFixture.toShell(path.join(folder, "sleeper.sh"));
   }
 
   public static async createAsync(plan: readonly (readonly [number, readonly string[]])[], ending: string): Promise<NpmFakeFixture> {
@@ -47,9 +49,7 @@ export class NpmFakeFixture implements AsyncDisposable {
     await writeFile(command, `#!/bin/sh\nexec "${NpmFakeFixture.toShell(process.execPath)}" "${NpmFakeFixture.toShell(fake.script)}" "$@"\n`);
     await chmod(command, 0o755);
     await writeFile(path.join(fake.folder, "sleeps.txt"), "");
-    const sleep = path.join(fake.bin, "sleep");
-    await writeFile(sleep, `#!/bin/sh\necho "$@" >> "${NpmFakeFixture.toShell(path.join(fake.folder, "sleeps.txt"))}"\n`);
-    await chmod(sleep, 0o755);
+    await writeFile(fake.sleeper, `sleep() { echo "$@" >> "${NpmFakeFixture.toShell(path.join(fake.folder, "sleeps.txt"))}"; }\n`);
     return fake;
   }
 
