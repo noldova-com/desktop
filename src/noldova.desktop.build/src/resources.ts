@@ -3655,6 +3655,10 @@ export class Resources {
     return `${Resources.formatReleaseLockHolder(holder)} holds the release lock of ${repository}, so this run tries again every ${Resources.releaseLockRetryInterval / Resources.millisecondsPerSecond} s until that run lets go of it or ends.\n`;
   }
 
+  public static formatReleaseLockLost(repository: string): string {
+    return `Another run changed the release lock of ${repository} first, so this run reads it again in ${Resources.releaseLockRetryInterval / Resources.millisecondsPerSecond} s.\n`;
+  }
+
   public static formatReleaseLockFree(repository: string): string {
     return `Nothing holds the release lock of ${repository}, so there is nothing to let go of.\n`;
   }

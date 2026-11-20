@@ -371,6 +371,17 @@ jobs:
             tar --extract --gzip --file "$RUNNER_TEMP/desktop.build/$name.tgz" --directory "$folder" --strip-components=1
           done
 
+      - name: Check that desktop.build can take the release lock
+        if: inputs.internal-feed != 'build' && inputs.update-feed == ''
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          usage="$(node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" 2>&1 || true)"
+          if [[ "$usage" != *" release-lock,"* ]]; then
+            echo "::error::The desktop.build the app's lockfile locks has no release-lock command, which this release-app.yml's publish job runs; lock the desktop.build of the Noldova Desktop version this release-app.yml comes from."
+            exit 1
+          fi
+
       - name: Check the version and the revision
         id: check
         timeout-minutes: 5

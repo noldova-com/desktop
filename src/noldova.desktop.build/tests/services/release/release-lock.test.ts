@@ -105,7 +105,7 @@ export class ReleaseLockTests {
     const result = await ReleaseLockTests.takeAsync(github, () => github.runs.set(ReleaseLockTests.OTHER, "completed"));
 
     Assert.areEqual("[15000]", JSON.stringify(result.pauses));
-    Assert.areEqual("Run 7 holds the release lock of example/releases, so this run tries again every 15 s until that run lets go of it or ends.\n"
+    Assert.areEqual("Another run changed the release lock of example/releases first, so this run reads it again in 15 s.\n"
       + "Run 7 held the release lock of example/releases and has ended without letting go of it, so run 42 took it over.\n", result.output);
     Assert.areEqual("Release lock for run 42", github.holder());
   }
@@ -129,8 +129,29 @@ export class ReleaseLockTests {
     });
 
     Assert.areEqual("[15000]", JSON.stringify(result.pauses));
-    Assert.areEqual("Run 8 holds the release lock of example/releases, so this run tries again every 15 s until that run lets go of it or ends.\n"
+    Assert.areEqual("Another run changed the release lock of example/releases first, so this run reads it again in 15 s.\n"
       + "Run 42 took the release lock of example/releases.\n", result.output);
+  }
+
+  @TestMethod
+  public async pausesAfterEachWriteItLosesWhileTheLockStillReadsFreeOrEndedAsync(): Promise<void> {
+    const free = ReleaseLockTests.withRevision();
+    let created = 0;
+    free.intercept = t => t.includes("POST") && t.some(u => u.endsWith("/git/refs")) && ++created <= 3 ? GitHubReleasesFixture.fail(422) : null;
+    const ended = ReleaseLockTests.withRevision();
+    ended.hold(ReleaseLockTests.OTHER, "completed");
+    let moved = 0;
+    ended.intercept = t => t.includes("PATCH") && ++moved <= 2 ? GitHubReleasesFixture.fail(422) : null;
+
+    const fromFree = await ReleaseLockTests.takeAsync(free);
+    const fromEnded = await ReleaseLockTests.takeAsync(ended);
+
+    Assert.areEqual("[15000,15000,15000]", JSON.stringify(fromFree.pauses));
+    Assert.areEqual("Another run changed the release lock of example/releases first, so this run reads it again in 15 s.\n".repeat(3) + "Run 42 took the release lock of example/releases.\n", fromFree.output);
+    Assert.areEqual("[15000,15000]", JSON.stringify(fromEnded.pauses));
+    Assert.areEqual("Another run changed the release lock of example/releases first, so this run reads it again in 15 s.\n".repeat(2) + "Run 7 held the release lock of example/releases and has ended without letting go of it, so run 42 took it over.\n", fromEnded.output);
+    Assert.areEqual("Release lock for run 42", free.holder());
+    Assert.areEqual("Release lock for run 42", ended.holder());
   }
 
   @TestMethod

@@ -41,6 +41,7 @@ export class ReleaseLock {
           this.output.write(Resources.formatReleaseLockTaken(this.repository, run));
           return;
         }
+        this.output.write(Resources.formatReleaseLockLost(this.repository));
       }
       else if (holder.run === run || await this.hasEndedAsync(holder.run)) {
         const commit = await this.createCommitAsync(run, holder.commit);
@@ -48,13 +49,14 @@ export class ReleaseLock {
           this.output.write(holder.run === run ? Resources.formatReleaseLockTakenAgain(this.repository, run) : Resources.formatReleaseLockBroken(this.repository, run, holder.run));
           return;
         }
+        this.output.write(Resources.formatReleaseLockLost(this.repository));
       }
       else {
         if (awaited !== holder.run)
           this.output.write(Resources.formatReleaseLockWaiting(this.repository, holder.run));
         awaited = holder.run;
-        await this.clock.pauseAsync(Resources.releaseLockRetryInterval);
       }
+      await this.clock.pauseAsync(Resources.releaseLockRetryInterval);
     }
   }
 
