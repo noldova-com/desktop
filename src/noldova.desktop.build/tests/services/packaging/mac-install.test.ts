@@ -98,6 +98,21 @@ export class MacInstallTests {
   }
 
   @TestMethod
+  public async keepsAnInstallersFailureThatIsNoErrorAsTextWhenTheRemovalFailsTooAsync(): Promise<void> {
+    const runner = new ScriptedRunnerFixture((command, commandArguments) => {
+      const line = ScriptedRunnerFixture.format(command, commandArguments);
+      if (line === MacInstallTests.INSTALL)
+        return Promise.reject("installer stalled.");
+      return line.startsWith("sudo --non-interactive rm ") ? Promise.reject("rm stalled.") : ScriptedRunnerFixture.SUCCESS;
+    });
+
+    const error = await Assert.throwsAsync(() => MacInstall.installAsync(runner, MacInstallTests.FILE, MacInstallTests.product(), MacInstallTests.FOLDER), BuildException);
+
+    Assert.areEqual(Resources.formatSystemInstallNotUndone("installer stalled.", "rm stalled."), error.message);
+    Assert.areEqual("installer stalled.", error.cause);
+  }
+
+  @TestMethod
   public async refusesAnAppOrReceiptThisMachineAlreadyHoldsBeforePlacingAnythingAsync(): Promise<void> {
     const bundled = new ScriptedRunnerFixture((command, commandArguments) =>
       ScriptedRunnerFixture.format(command, commandArguments) === `test ! -e ${MacInstallTests.APPLICATION}` ? MacInstallTests.FAILURE : ScriptedRunnerFixture.SUCCESS);

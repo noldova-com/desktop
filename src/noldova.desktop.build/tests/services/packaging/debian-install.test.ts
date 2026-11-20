@@ -146,6 +146,23 @@ export class DebianInstallTests {
   }
 
   @TestMethod
+  public async keepsAnInstallsFailureThatIsNoErrorAsTextWhenTheRemovalFailsTooAsync(): Promise<void> {
+    const runner = new ScriptedRunnerFixture((command, commandArguments) => {
+      const line = ScriptedRunnerFixture.format(command, commandArguments);
+      if (line === DebianInstallTests.FIELD)
+        return new ProcessResult(0, "sample-app\n", String.empty);
+      if (line === DebianInstallTests.INSTALL)
+        return Promise.reject("apt-get install stalled.");
+      return line === DebianInstallTests.REMOVE ? Promise.reject("apt-get remove stalled.") : ScriptedRunnerFixture.SUCCESS;
+    });
+
+    const error = await Assert.throwsAsync(() => DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER), BuildException);
+
+    Assert.areEqual(Resources.formatSystemInstallNotUndone("apt-get install stalled.", "apt-get remove stalled."), error.message);
+    Assert.areEqual("apt-get install stalled.", error.cause);
+  }
+
+  @TestMethod
   @TestData("installed")
   @TestData("half-configured")
   @TestData("config-files")
