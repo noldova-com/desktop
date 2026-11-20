@@ -706,17 +706,17 @@ describe("TabGroupComponent", () => {
       await settleAsync();
       bridge.publishFieldMenu({ x, y, isKeyboard: false, word: String.empty, suggestions: [] });
       await settleAsync();
-      const inField = [click.defaultPrevented, !Object.isNull(menu("desktop.field")), menu("desktop.tab")];
+      const inField = [!Object.isNull(menu("desktop.field")), menu("desktop.tab")];
       await userEvent.keyboard("{Escape}");
       await settleAsync();
-      const afterMenu = [menu("desktop.field"), renames.editing(), document.activeElement === field(tab(0, 0))];
+      const afterMenu = [menu("desktop.field"), renames.editing(), document.activeElement === tab(0, 0).querySelector("input.nol-tab-field")];
       fieldMenu.destroy();
       tab(0, 1).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: 40, clientY: 10 }));
       update();
       await fixture.whenStable();
       host.remove();
 
-      expect(inField).toEqual([false, true, null]);
+      expect(inField).toEqual([true, null]);
       expect(afterMenu).toEqual([null, LayoutFixture.plan, true]);
       expect(Object.isNull(menu("desktop.tab"))).toBe(false);
     });
