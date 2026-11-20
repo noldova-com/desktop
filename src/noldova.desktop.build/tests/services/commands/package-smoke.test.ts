@@ -588,6 +588,22 @@ export class PackageSmokeTests {
   }
 
   @TestMethod
+  public async removesADebianPackageWhoseInstallFailsAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const runner = PackageSmokeTests.createEndingRunner();
+    runner.debianFolder = path.join(parent.path, "opt", "Sample App").replaceAll("\\", "/");
+    runner.answer = (name, commandArguments) => name === "sudo" && commandArguments.includes("install") ? new ProcessResult(100, String.empty, "dpkg: error processing package") : null;
+
+    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "linux", runner, ["--deb"]);
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.includes("dpkg: error processing package"), result.output);
+    Assert.areEqual(1, runner.captured.filter(t => t === `sudo --non-interactive apt-get -o DPkg::Lock::Timeout=60 remove --yes ${SmokeRunnerFixture.SLUG}`).length,
+      runner.captured.join("\n"));
+  }
+
+  @TestMethod
   public async reportsADebianPackageItCannotRemoveAsync(): Promise<void> {
     await using app = await PackageSmokeTests.createAppAsync();
     await using parent = await PackageSmokeTests.createParentAsync();
@@ -620,7 +636,7 @@ export class PackageSmokeTests {
   }
 
   @TestMethod
-  public async installsTheInstallerPackageOfAnAppThatNamesAFolderAndStopsWhenTheInstallerFailsAsync(): Promise<void> {
+  public async installsTheInstallerPackageOfAnAppThatNamesAFolderAndRemovesWhatItPlacedWhenTheInstallerFailsAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync({ installFolder: "Sample Makers" });
     await using parent = await PackageSmokeTests.createParentAsync();
     const runner = new SmokeRunnerFixture();
@@ -631,7 +647,9 @@ export class PackageSmokeTests {
     Assert.areEqual(1, result.exitCode);
     Assert.isTrue(result.output.includes("installer: refused"), result.output);
     Assert.areEqual(["sudo --non-interactive mkdir -p /Applications/Sample Makers/Smoke Neighbour.app",
-      `sudo --non-interactive installer -pkg ${path.join(app.path, "_build", "package", "out", "Sample App-1.2.3-macos-x64.pkg")} -target /`].join("\n"),
+      `sudo --non-interactive installer -pkg ${path.join(app.path, "_build", "package", "out", "Sample App-1.2.3-macos-x64.pkg")} -target /`,
+      "sudo --non-interactive rm -rf /Applications/Sample Makers/Sample App.app /Applications/Sample Makers/Smoke Neighbour.app",
+      "sudo --non-interactive pkgutil --forget com.example.sample"].join("\n"),
     runner.captured.filter(t => t.startsWith("sudo")).join("\n"));
   }
 
