@@ -187,8 +187,8 @@ describe("FailedModuleRequests", () => {
 
     assert.deepEqual(logged, []);
 
-    mock.timers.tick(1_000);
-    mock.timers.tick(3_000);
+    for (let second = 0; second < 4; second++)
+      mock.timers.tick(1_000);
 
     assert.deepEqual(logged, [
       `Stalled request at ${at(10_000)}: stylesheet ${STYLES} open 10.0 s since ${AT}; 2 other requests open, oldest first: script ${CHUNK} open 8.0 s, fetch ${SPEC} open 7.0 s`,
