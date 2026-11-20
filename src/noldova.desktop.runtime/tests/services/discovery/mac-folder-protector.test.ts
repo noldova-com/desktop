@@ -6,10 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { chmod, mkdir, realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import { setTimeout } from "node:timers/promises";
 
 import "@noldova/context.core";
@@ -33,6 +34,10 @@ export class MacFolderProtectorTests {
   private static readonly DETACH_ATTEMPTS: number = 5;
   private static readonly DETACH_PAUSE_MILLISECONDS: number = 1000;
   private static readonly COMMAND_LIMIT_MILLISECONDS: number = 20_000;
+  private static readonly ATTACH_LIMIT_MILLISECONDS: number = 12_000;
+  private static readonly MOUNT_LIMIT_MILLISECONDS: number = 3_000;
+  private static readonly REFUSAL_LIMIT_MILLISECONDS: number = 3_000;
+  private static readonly DETACH_LIMIT_MILLISECONDS: number = 18_000;
   private static readonly HOLDER_PROCESS: RegExp = /diskimage|mds|mdworker|fseventsd|fsck|diskarbitration|hdiutil|diskutil/u;
   private static readonly IMAGE_ENTRIES: RegExp = /^=+$/mu;
   private static readonly WHOLE_DISK: RegExp = /^(\/dev\/disk\d+)\s/mu;
@@ -41,26 +46,50 @@ export class MacFolderProtectorTests {
     return new NativeAddon<IPosixProcessAddon>(fake.file, functions);
   }
 
-  private static async detachAsync(disk: string, mountPoint: string): Promise<void> {
-    const failures: string[] = [];
+  private static async stepAsync<T>(steps: string[], step: string, limit: number, action: () => Promise<T>, details: readonly string[] = []): Promise<T> {
+    const started = performance.now();
+    const timer = new AbortController();
+    const expired = setTimeout(limit, undefined, { signal: timer.signal }).then((): never => {
+      throw new Error(`The volume test was still ${step} after ${limit} ms; ${steps.length === 0 ? "no step finished before it" : `the steps before it took ${steps.join(", ")}`}.${details.map(t => `\n${t}`).join("")}`);
+    });
+    try {
+      return await Promise.race([action(), expired]);
+    } finally {
+      timer.abort();
+      steps.push(`${step} ${Math.round(performance.now() - started)} ms`);
+    }
+  }
+
+  private static async attachAsync(image: string, mountPoint: string): Promise<string> {
+    const created = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["create", "-quiet", "-size", "8m", "-fs", "HFS+", "-volname", "Shared", image]);
+    if (created.status !== 0)
+      throw new Error(`hdiutil could not create ${image}: ${created.text}`);
+    const attached = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["attach", "-nobrowse", "-owners", "off", "-mountpoint", mountPoint, image]);
+    if (attached.status !== 0)
+      throw new Error(`hdiutil could not attach ${image}: ${attached.text}`);
+    return attached.output;
+  }
+
+  private static async detachAsync(disk: string, mountPoint: string, failures: string[]): Promise<void> {
     for (let attempt = 1; attempt <= MacFolderProtectorTests.DETACH_ATTEMPTS; attempt++) {
       if (attempt > 1)
         await setTimeout(MacFolderProtectorTests.DETACH_PAUSE_MILLISECONDS);
-      const result = MacFolderProtectorTests.run("/usr/bin/hdiutil", ["detach", "-force", disk]);
+      const result = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["detach", "-force", disk]);
       if (result.status === 0)
         return;
       failures.push(`attempt ${attempt}: ${result.text}`);
+      if (attempt === 1)
+        failures.push(`What held ${disk} or ${mountPoint} after it:\n${await MacFolderProtectorTests.readHoldersAsync(disk, mountPoint)}`);
     }
-    throw new Error(`hdiutil could not detach ${disk} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}\n`
-      + `What held ${disk} or ${mountPoint} then:\n${MacFolderProtectorTests.readHolders(disk, mountPoint)}`);
+    throw new Error(`hdiutil could not detach ${disk} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}`);
   }
 
-  private static readHolders(disk: string, mountPoint: string): string {
+  private static async readHoldersAsync(disk: string, mountPoint: string): Promise<string> {
     const targets = disk === mountPoint ? [mountPoint] : [mountPoint, disk];
-    const asRoot = MacFolderProtectorTests.run("/usr/bin/sudo", ["-n", "/usr/sbin/lsof", "-n", ...targets]);
-    const open = asRoot.text.includes("sudo:") ? MacFolderProtectorTests.run("/usr/sbin/lsof", ["-n", ...targets]) : asRoot;
-    const processes = MacFolderProtectorTests.run("/bin/ps", ["-axo", "pid,ppid,etime,stat,comm"]);
-    const images = MacFolderProtectorTests.run("/usr/bin/hdiutil", ["info"]);
+    const asRoot = await MacFolderProtectorTests.runAsync("/usr/bin/sudo", ["-n", "/usr/sbin/lsof", "-n", ...targets]);
+    const open = asRoot.text.includes("sudo:") ? await MacFolderProtectorTests.runAsync("/usr/sbin/lsof", ["-n", ...targets]) : asRoot;
+    const processes = await MacFolderProtectorTests.runAsync("/bin/ps", ["-axo", "pid,ppid,etime,stat,comm"]);
+    const images = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["info"]);
     const device = new RegExp(`^${disk}(?:s\\d+)?\\s`, "mu");
     return [
       `lsof ${targets.join(" ")}: ${open.text}`,
@@ -69,12 +98,16 @@ export class MacFolderProtectorTests {
     ].join("\n");
   }
 
-  private static run(file: string, commandArguments: readonly string[]): { readonly status: number | null; readonly output: string; readonly text: string } {
-    const result = spawnSync(file, commandArguments, { encoding: "utf8", timeout: MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS, killSignal: "SIGKILL" });
-    const ending = result.error === undefined
-      ? `exit ${String(result.status)}, signal ${String(result.signal)}`
-      : `${result.error.message}${result.signal === null ? "" : `, ended by ${result.signal} at the ${MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS} ms limit`}`;
-    return { status: result.status, output: result.stdout, text: `${ending}\n${result.stdout}${result.stderr}` };
+  private static runAsync(file: string, commandArguments: readonly string[]): Promise<{ readonly status: number | null; readonly output: string; readonly text: string }> {
+    return new Promise(resolve => {
+      execFile(file, commandArguments, { encoding: "utf8", timeout: MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS, killSignal: "SIGKILL" }, (error, stdout, stderr) => {
+        const status = error === null ? 0 : typeof error.code === "number" ? error.code : null;
+        const ending = error === null || typeof error.code === "number"
+          ? `exit ${String(status)}, signal ${String(error?.signal ?? null)}`
+          : `${error.message}${error.killed === true ? `, ended by ${String(error.signal)} at the ${MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS} ms limit` : ""}`;
+        resolve({ status, output: stdout, text: `${ending}\n${stdout}${stderr}` });
+      });
+    });
   }
 
   @TestMethod
@@ -209,24 +242,30 @@ export class MacFolderProtectorTests {
   @TestMethod
   @PlatformFixture.macOnly()
   public async refusesAFolderOnARealVolumeMountedWithOwnershipIgnored(): Promise<void> {
-    await using folder = await TemporaryFolderFixture.createAsync();
+    const folder = await TemporaryFolderFixture.createAsync();
     const image = path.join(folder.path, "shared.dmg");
     const mountPoint = path.join(folder.path, "shared");
     await mkdir(mountPoint);
-    execFileSync("/usr/bin/hdiutil", ["create", "-quiet", "-size", "8m", "-fs", "HFS+", "-volname", "Shared", image]);
-    const attached = execFileSync("/usr/bin/hdiutil", ["attach", "-nobrowse", "-owners", "off", "-mountpoint", mountPoint, image], { encoding: "utf8" });
-    const disk = MacFolderProtectorTests.WHOLE_DISK.exec(attached)?.[1];
+    const steps: string[] = [];
+    const failures: string[] = [];
+    let disk: string | undefined;
     try {
+      const attached = await MacFolderProtectorTests.stepAsync(steps, "attaching the image", MacFolderProtectorTests.ATTACH_LIMIT_MILLISECONDS,
+        () => MacFolderProtectorTests.attachAsync(image, mountPoint));
+      disk = MacFolderProtectorTests.WHOLE_DISK.exec(attached)?.[1];
       if (Object.isUndefined(disk))
         throw new Error(`hdiutil attach printed no whole disk's device:\n${attached}`);
       const discovery = path.join(mountPoint, "discovery");
-      await mkdir(discovery);
+      await MacFolderProtectorTests.stepAsync(steps, "making a folder on the volume", MacFolderProtectorTests.MOUNT_LIMIT_MILLISECONDS, () => mkdir(discovery));
 
-      const exception = await Assert.throwsAsync(() => FolderProtectorFactory.create("darwin", new SystemCommand(), {}).protectAsync(discovery), FolderNotPrivateException);
+      const exception = await MacFolderProtectorTests.stepAsync(steps, "refusing the folder", MacFolderProtectorTests.REFUSAL_LIMIT_MILLISECONDS,
+        () => Assert.throwsAsync(() => FolderProtectorFactory.create("darwin", new SystemCommand(), {}).protectAsync(discovery), FolderNotPrivateException));
 
       Assert.areEqual(`the volume ${await realpath(mountPoint)} is mounted with ownership ignored, so every account acts as the owner of its files`, exception.access);
     } finally {
-      await MacFolderProtectorTests.detachAsync(disk ?? mountPoint, mountPoint);
+      await MacFolderProtectorTests.stepAsync(steps, "detaching the image", MacFolderProtectorTests.DETACH_LIMIT_MILLISECONDS,
+        () => MacFolderProtectorTests.detachAsync(disk ?? mountPoint, mountPoint, failures), failures);
+      await folder[Symbol.asyncDispose]();
     }
   }
 }
