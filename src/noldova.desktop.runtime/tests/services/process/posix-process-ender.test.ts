@@ -624,7 +624,7 @@ export class PosixProcessEnderTests {
     await using folder = await TemporaryFolderFixture.createAsync();
     using simulated = new SimulatedProcessesFixture();
     const table = new ProcessTableFixture([]);
-    const processes = ProcessSupervisorFixture.createLinux(settings, table);
+    const processes = ProcessSupervisorFixture.createLinux(settings, table, ProcessSupervisorFixture.CLEAN_EXIT_LIMITS);
     const ended = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.EXIT, "2"]));
     await ended.exited;
     const running = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.WAIT]));

@@ -152,7 +152,7 @@ export class ProcessSupervisorFixture {
   }
 
   public static createSeeing(settings: SettingsFixture): ProcessSupervisor {
-    return ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(3_500, 2_000, 20));
+    return ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(ProcessSupervisorFixture.LIMITS.graceMilliseconds, ProcessSupervisorFixture.LIMITS.endMilliseconds, 20));
   }
 
   public static create(
