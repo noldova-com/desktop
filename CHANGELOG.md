@@ -11,6 +11,7 @@ Each version's section is written by the pull request that changes the version, 
 - A window part's `context.runCommandAsync` rejects with `CommandNotEnabledException`, without running the command, when the command is not enabled for its arguments, as the published API says; after the runtime starts again, a runtime command a part runs from `reconnectAsync` is judged on the new runtime's states.
 - A window whose update hold is set after the update ended releases the hold and saves what is unsaved, so its later moves and sizes are saved again.
 - `IFeedResponse` has an optional `body`, the response's stream, and the feed provider cancels it when it refuses an answer without reading it; `feed-check`, third-party package downloads and the signing package download cancel a refused answer's body too, so a server that keeps the body open no longer holds the command until its timeout.
+- The search palette gives its quick input the query its items answer, so Enter waits for a new query's results, and then opens the selected row, such as the Best match, even while a late source is still answering.
 - `feed-check` waits for a file the update information lists that the feed doesn't serve yet, trying again every 15 seconds until `FEED_WAIT_SECONDS`, as it does for the update information.
 - `release-publish` checks again, before it makes the release's draft and before it tags and publishes it, that its version is newer than every published release, so a version another run overtook after this run's check isn't published.
 - `release-publish` replaces a file of a draft an earlier run left that differs from this run's build, saying so in the log, and publishes the draft with this run's notes; a file that differs after this run's own upload still fails.
@@ -19,7 +20,9 @@ Each version's section is written by the pull request that changes the version, 
 - `desktop.product.name` refuses `#`, which `gh release upload` reads as a label, `%`, `!`, `$`, a backquote, `/ ? < > : * |`, `[ ] { }`, control characters, a dot or space at its end and the names Windows reserves; `desktop.product.publisher` refuses `%`, `!`, `$` and a backquote too, which the generated command scripts would read.
 - Packaging leaves out every other target's `native/<platform>-<arch>/` and `prebuilds/<platform>-<arch>/` folder, whatever platform and processor it names, such as `prebuilds/win32-ia32/` or `prebuilds/darwin-x64+arm64/`.
 - `package:smoke` refuses to install where the machine already holds the app, and a Debian or macOS install that fails removes what it placed.
-- `@noldova/ui.components.angular` is pinned at 0.0.19, and the workflows at `.github`'s v2.41.0.
+- `package:smoke` finds an AppImage's mount under a folder whose path holds a space, a tab, a line break or a backslash.
+- Packaging tries a third-party tarball's download again, up to 4 attempts 15 seconds apart, after a network error or an HTTP 408, 429 or 5xx answer, and says each retry in the step's output.
+- `@noldova/desktop.build` and `@noldova/desktop.runtime` need `@noldova/context.text` 0.0.9 or later, below 0.1.0; `@noldova/context.core`, `context.exceptions` and `context.json` are pinned at 0.0.9, `@noldova/ui.components.angular` at 0.0.19, and the workflows at `.github`'s v2.41.0.
 - Tests and CI: the macOS x64 Build and test job runs in two parts; the window tests are served from 127.0.0.1 and print each request still open after 10 s; process tests give real programs the product's limits as hang guards, and a stalled install's stop waits for the exit itself; the volume test names the step that outruns its limit and records what holds the disk; the web-views test waits for its allow-mark command.
   The packages are unchanged by these.
 
