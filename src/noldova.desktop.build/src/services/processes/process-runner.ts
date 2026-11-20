@@ -44,7 +44,7 @@ export class ProcessRunner {
           transcript.add(chunk, isError);
         }
       };
-      const timer = setTimeout(() => stop(new ProcessTimeoutException(command, timeout, transcript.text)), timeout);
+      const timer = setTimeout(() => stop(new ProcessTimeoutException(command, timeout, transcript.text, child.pid)), timeout);
       child.stdout.on(Resources.dataEvent, (t: Buffer) => receive(output, t, false));
       child.stderr.on(Resources.dataEvent, (t: Buffer) => receive(errorOutput, t, true));
       child.on(Resources.errorEvent, t => stop(new BuildException(Resources.formatProcessNotStarted(command), new ExceptionOptions(t))));

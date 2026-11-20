@@ -532,8 +532,8 @@ export class PackageInstallerTests {
       const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
         BuildException);
 
-      Assert.areEqual(`${timeout.message}\n${installFolder} held 2 files when the installer was stopped:\nSample App.exe: 3 bytes\n${path.join("resources", "app.asar")}: 4 bytes`,
-        error.message);
+      Assert.areEqual(`${timeout.message}\n${installFolder} held 2 files when the installer was stopped:\nSample App.exe: 3 bytes\n${path.join("resources", "app.asar")}: 4 bytes\n`
+        + `${path.join(folder, "temporary")} held no temporary folder the installer had made.`, error.message);
       Assert.areEqual(timeout, error.cause);
     });
   }
@@ -547,7 +547,39 @@ export class PackageInstallerTests {
       const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
         BuildException);
 
-      Assert.areEqual(`${timeout.message}\nThe installer had not created ${installFolder}.`, error.message);
+      Assert.areEqual(`${timeout.message}\nThe installer had not created ${installFolder}.\n${path.join(folder, "temporary")} held no temporary folder the installer had made.`,
+        error.message);
+    });
+  }
+
+  @TestMethod
+  public async looksForTheStoppedInstallersTemporaryFolderInTmpThenTemp(): Promise<void> {
+    await PackageInstallerTests.withFolderAsync(async (folder, installFolder) => {
+      const local = path.dirname(path.dirname(installFolder));
+      const runner = new ScriptedRunner(() => Promise.reject(new ProcessTimeoutException("Sample App-1.2.3-windows-x64.exe", 120000)));
+      const install = (environment: NodeJS.ProcessEnv): Promise<BuildException> => Assert.throwsAsync(
+        () => new PackageInstaller(folder, runner, { LOCALAPPDATA: local, SystemRoot: "C:\\Windows", ...environment })
+          .installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder), BuildException);
+
+      const temp = await install({ TEMP: path.join(folder, "temp") });
+      const neither = await install({});
+
+      Assert.isTrue(temp.message.endsWith(`\n${path.join(folder, "temp")} held no temporary folder the installer had made.`), temp.message);
+      Assert.isTrue(neither.message.endsWith("\nThe installer's temporary folder is unknown: neither TMP nor TEMP is set."), neither.message);
+    });
+  }
+
+  @TestMethod
+  public async listsWhatAStoppedInstallerStartedByItsProcessId(): Promise<void> {
+    await PackageInstallerTests.withFolderAsync(async (folder, _installFolder, installer) => {
+      const runner = new ScriptedRunner(command => path.basename(command) === "powershell.exe" ? Promise.resolve(new ProcessResult(0, String.empty, String.empty))
+        : Promise.reject(new ProcessTimeoutException(command, 120000, null, 4242)));
+
+      const error = await Assert.throwsAsync(() => installer(runner).installAsync(new PackageTarget("windows", "x64"), PackageInstallerTests.PRODUCT, "1.2.3", folder),
+        BuildException);
+
+      Assert.isTrue(error.message.endsWith("\nNothing the installer, process 4242, had started was still running after it was stopped."), error.message);
+      Assert.areEqual("4242", runner.environment?.["NOLDOVA_DESKTOP_INSTALLER_PROCESS"]);
     });
   }
 
@@ -734,7 +766,7 @@ export class PackageInstallerTests {
     try {
       const local = path.join(folder, "local");
       await run(folder, path.join(local, "Programs", PackageInstallerTests.PRODUCT.slug),
-        runner => new PackageInstaller(folder, runner, { LOCALAPPDATA: local, SystemRoot: "C:\\Windows" }));
+        runner => new PackageInstaller(folder, runner, { LOCALAPPDATA: local, SystemRoot: "C:\\Windows", TMP: path.join(folder, "temporary") }));
     }
     finally {
       await rm(folder, { recursive: true, force: true });

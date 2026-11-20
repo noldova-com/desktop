@@ -407,6 +407,20 @@ export class Resources {
     grantFileProtocolExtraPrivileges: true
   };
   public static readonly installerTimeout: number = 120_000;
+  public static readonly installerTemporaryVariable: string = "TMP";
+  public static readonly installerTemporaryFallbackVariable: string = "TEMP";
+  public static readonly installerTemporaryFolderPattern: RegExp = /^ns[^.]*\.tmp$/iu;
+  public static readonly installerTemporaryMargin: number = 2_000;
+  public static readonly installerTemporaryUnknown: string = "The installer's temporary folder is unknown: neither TMP nor TEMP is set.";
+  public static readonly installerProcessVariable: string = "NOLDOVA_DESKTOP_INSTALLER_PROCESS";
+  public static readonly installerProcessesTimeout: number = 30_000;
+  public static readonly installerProcessesScript: string = [
+    Resources.powershellStopLine,
+    `$parent = [int]$env:${Resources.installerProcessVariable}`,
+    "@(CimCmdlets\\Get-CimInstance -ClassName Win32_Process -Filter \"ParentProcessId = $parent\") | Microsoft.PowerShell.Core\\ForEach-Object {",
+    "  \"$($_.ProcessId) $($_.Name), started $($_.CreationDate.ToString('HH:mm:ss')): $($_.CommandLine)\"",
+    "}"
+  ].join(Resources.lineSeparator);
   public static readonly localAppDataVariable: string = "LOCALAPPDATA";
   public static readonly windowsProgramsFolder: string = "Programs";
   public static readonly silentInstallArguments: readonly string[] = ["/S"];
@@ -2494,6 +2508,30 @@ export class Resources {
 
   public static formatInstalledFileSize(file: string, size: number): string {
     return `${file}: ${size} bytes`;
+  }
+
+  public static formatInstallerTemporaryNone(temporary: string): string {
+    return `${temporary} held no temporary folder the installer had made.`;
+  }
+
+  public static formatInstallerTemporaryFolder(folder: string): string {
+    return `The installer's temporary folder ${folder} held:`;
+  }
+
+  public static formatInstallerTemporaryContent(name: string, count: number, size: number): string {
+    return `${name}: ${count} files, ${size} bytes`;
+  }
+
+  public static formatInstallerProcesses(processId: number, processes: string): string {
+    return `What the installer, process ${processId}, had started and was still running after it was stopped:\n${processes}`;
+  }
+
+  public static formatInstallerProcessesNone(processId: number): string {
+    return `Nothing the installer, process ${processId}, had started was still running after it was stopped.`;
+  }
+
+  public static formatInstallerProcessesReadFailed(processId: number, reason: string): string {
+    return `What the installer, process ${processId}, had started could not be listed: ${reason}`;
   }
 
   public static formatInstallerTimedOut(message: string, description: string): string {
