@@ -234,6 +234,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - The palette asks every source at once and shows each one's group as its answer comes, keeping the selected row while it is listed.
   It aborts a source's `signal` when the query changes or the palette closes, and drops an answer that comes after that.
   A source whose call rejects shows no group and no count, and its failure goes to the window's log; the other sources never wait for a late or failed one.
+  The palette tells its quick input, as `itemsQuery`, the text as typed that its rows answer: that text once the list holds the first answer with a match for its query, or once every source has answered or failed with none, so Enter pressed while a new query loads waits only until then and opens the row then selected, such as the Best match, even while a late source is still answering.
   When Noldova Desktop's commands change while the palette is open, such as when the window's start ends, the palette asks Commands again for the open query and its recent items, and shows the newest answer, dropping an older one that comes later; a module's source is asked once per query.
 
 ## Settings and modules

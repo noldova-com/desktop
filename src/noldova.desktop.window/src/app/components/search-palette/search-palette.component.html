@@ -6,7 +6,7 @@ This source code is licensed under the license found in the
 LICENSE file in the root directory of this source tree.
 -->
 
-<nol-quick-input [items]="items()" [label]="label()" [icon]="resources.searchGlyph" [query]="query()" [emptyText]="emptyText()" (queryChange)="search($event)"
+<nol-quick-input [items]="items()" [label]="label()" [icon]="resources.searchGlyph" [query]="query()" [emptyText]="emptyText()" [itemsQuery]="itemsQuery()" (queryChange)="search($event)"
   [attr.data-searching]="isSearching()" (chosen)="open($event)" (dismissed)="close()" (tabKey)="moveFilter($event)">
   @for (filter of filters(); track filter.source) {
     <button nolQuickInputFilters type="button" class="nol-search-filter" [attr.data-source]="filter.source" [attr.aria-pressed]="filter.isActive" tabindex="-1"
