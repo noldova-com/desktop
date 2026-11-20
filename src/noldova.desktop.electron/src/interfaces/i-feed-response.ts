@@ -10,5 +10,6 @@ export interface IFeedResponse {
   readonly ok: boolean;
   readonly status: number;
   readonly url: string;
+  readonly body?: ReadableStream<Uint8Array> | null;
   text(): Promise<string>;
 }

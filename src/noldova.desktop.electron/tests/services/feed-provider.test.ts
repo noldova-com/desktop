@@ -157,6 +157,46 @@ export class FeedProviderTests {
   }
 
   @TestMethod
+  public async cancelsTheBodyOfAnAnswerItRefuses(): Promise<void> {
+    let isCancelled = false;
+    const body = new ReadableStream<Uint8Array>({ cancel: () => {
+      isCancelled = true;
+    } });
+
+    await FeedProviderTests.withAnswerAsync({ ok: false, status: 500, url: FeedProviderTests.RELEASE, body, text: () => Promise.resolve(String.empty) }, async provider => {
+      await Assert.throwsAsync(() => provider.getLatestVersion(), UpdateFeedRefusedException);
+    });
+
+    Assert.isTrue(isCancelled);
+  }
+
+  @TestMethod
+  public async keepsTheRefusalWhenCancellingTheBodyFails(): Promise<void> {
+    const body = new ReadableStream<Uint8Array>({ cancel: () => {
+      throw new TypeError("The stream could not be cancelled.");
+    } });
+
+    await FeedProviderTests.withAnswerAsync({ ok: false, status: 500, url: FeedProviderTests.RELEASE, body, text: () => Promise.resolve(String.empty) }, async provider => {
+      Assert.areEqual("The update feed answered with HTTP status 500.", (await Assert.throwsAsync(() => provider.getLatestVersion(), UpdateFeedRefusedException)).message);
+    });
+  }
+
+  @TestMethod
+  public async cancelsTheBodyOfAnAnswerThatRedirectedToAnotherProtocol(): Promise<void> {
+    let isCancelled = false;
+    const body = new ReadableStream<Uint8Array>({ cancel: () => {
+      isCancelled = true;
+    } });
+    const url = "http://objects.github.test/releases/v1.3.0/latest-linux-x64.yml";
+
+    await FeedProviderTests.withAnswerAsync({ ok: true, status: 200, url, body, text: () => Promise.resolve(FeedProviderTests.INFO) }, async provider => {
+      await Assert.throwsAsync(() => provider.getLatestVersion(), UpdateFeedRedirectedException);
+    });
+
+    Assert.isTrue(isCancelled);
+  }
+
+  @TestMethod
   public async refusesInformationThatIsNotYamlOrLacksAVersionFilesOrAWholePackage(): Promise<void> {
     const texts = [
       "version: [1.3.0",

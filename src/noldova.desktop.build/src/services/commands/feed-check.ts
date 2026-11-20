@@ -16,6 +16,7 @@ import type { IFeedFile } from "../../interfaces/i-feed-file.ts";
 import type { IRetryClock } from "../../interfaces/i-retry-clock.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
+import { ResponseBody } from "../../models/response-body.ts";
 import { UpdateFeed } from "../packages/update-feed.ts";
 import { UpdateMetadata } from "../release/update-metadata.ts";
 import { Resources } from "../../resources.ts";
@@ -77,7 +78,7 @@ export class FeedCheck {
     const response = await this.openAsync(feed, name, end);
     let problem: string;
     if (response.status === Resources.httpNotFoundStatus) {
-      await response.body?.cancel();
+      await ResponseBody.letGoAsync(response);
       problem = Resources.formatFeedHttpProblem(name, feed, response.status);
     }
     else {
@@ -95,7 +96,7 @@ export class FeedCheck {
     const response = await this.openAsync(feed, name, end);
     if (response.status !== Resources.httpNotFoundStatus)
       return await FeedCheck.readBodyAsync(response, feed, name);
-    await response.body?.cancel();
+    await ResponseBody.letGoAsync(response);
     await this.waitAsync(Resources.formatFeedHttpProblem(name, feed, response.status), deadline);
     return await this.readFileAsync(feed, name, deadline, end);
   }
@@ -132,13 +133,17 @@ export class FeedCheck {
       const response = await FeedCheck.requestAsync(url, feed, name, Math.max(Resources.feedMinimumRequestTimeout, end - this.clock.now()));
       const location = response.headers.get(Resources.locationHeader);
       if (!Resources.redirectStatuses.includes(response.status) || Object.isNull(location)) {
-        if (response.ok && (response.headers.get(Resources.contentTypeHeader) ?? String.empty).startsWith(Resources.webPageContentType))
+        if (response.ok && (response.headers.get(Resources.contentTypeHeader) ?? String.empty).startsWith(Resources.webPageContentType)) {
+          await ResponseBody.letGoAsync(response);
           throw new BuildException(Resources.formatFeedWebPage(name, feed, url.origin, url.pathname));
-        if (!response.ok && response.status !== Resources.httpNotFoundStatus)
+        }
+        if (!response.ok && response.status !== Resources.httpNotFoundStatus) {
+          await ResponseBody.letGoAsync(response);
           throw new BuildException(Resources.formatFeedHttpProblem(name, feed, response.status));
+        }
         return response;
       }
-      await response.body?.cancel();
+      await ResponseBody.letGoAsync(response);
       url = new URL(location, url);
       if (url.origin !== origin && !Resources.releaseAssetOrigins.includes(url.origin))
         throw new BuildException(Resources.formatFeedRedirectedAway(name, feed, url.origin));
