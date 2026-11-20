@@ -3551,6 +3551,10 @@ export class Resources {
     return `${version} is not newer than the highest release, ${highest}.`;
   }
 
+  public static formatReleaseOvertaken(version: string, highest: string): string {
+    return `${version} is not newer than the highest release, ${highest}, which another run published after this one's check, so ${version} is not published; release a version newer than ${highest}.`;
+  }
+
   public static formatCompareRoute(revision: string): string {
     return `/compare/${revision}...${Resources.mainBranch}`;
   }
