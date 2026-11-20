@@ -20,12 +20,14 @@ import type { StartedProcess } from "./started-process.ts";
 
 export class DeadlineRunner extends ProcessRunner {
   private readonly inner: ProcessRunner;
+  private readonly names: ReadonlyMap<string, string>;
   private limit: number | null = null;
   private end: number = 0;
 
-  public constructor(inner: ProcessRunner) {
+  public constructor(inner: ProcessRunner, names: ReadonlyMap<string, string> = new Map<string, string>()) {
     super();
     this.inner = inner;
+    this.names = names;
   }
 
   public start(limit: number): void {
@@ -39,25 +41,27 @@ export class DeadlineRunner extends ProcessRunner {
 
   public override async captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv,
     isVerbatim: boolean = false): Promise<ProcessResult> {
-    const remaining = this.readRemaining(command, timeout);
+    const name = this.name(command, commandArguments);
+    const remaining = this.readRemaining(name, timeout);
     try {
       return await this.inner.captureAsync(command, commandArguments, directory, Math.min(timeout, remaining), environment, isVerbatim);
     }
     catch (error) {
-      throw this.explain(error, command, timeout, remaining);
+      throw this.explain(error, name, timeout, remaining);
     }
   }
 
   public override async runAsync(command: string, commandArguments: readonly string[], directory: string, environment?: NodeJS.ProcessEnv, watch?: (text: string) => void,
     timeout?: number): Promise<number | null> {
     const own = timeout ?? Number.POSITIVE_INFINITY;
-    const remaining = this.readRemaining(command, own);
+    const name = this.name(command, commandArguments);
+    const remaining = this.readRemaining(name, own);
     const bound = Math.min(own, remaining);
     try {
       return await this.inner.runAsync(command, commandArguments, directory, environment, watch, Number.isFinite(bound) ? bound : undefined);
     }
     catch (error) {
-      throw this.explain(error, command, own, remaining);
+      throw this.explain(error, name, own, remaining);
     }
   }
 
@@ -73,18 +77,22 @@ export class DeadlineRunner extends ProcessRunner {
     this.inner.kill(processId);
   }
 
-  private readRemaining(command: string, timeout: number): number {
+  private name(command: string, commandArguments: readonly string[]): string {
+    return this.names.get(commandArguments[0] ?? String.empty) ?? path.basename(command);
+  }
+
+  private readRemaining(name: string, timeout: number): number {
     if (Object.isNull(this.limit))
       return timeout;
     const remaining = this.end - Date.now();
     if (remaining <= 0)
-      throw new BuildException(Resources.formatPackagingLimitReached(this.limit, path.basename(command)));
+      throw new BuildException(Resources.formatPackagingLimitReached(this.limit, name));
     return remaining;
   }
 
-  private explain(error: unknown, command: string, timeout: number, remaining: number): unknown {
+  private explain(error: unknown, name: string, timeout: number, remaining: number): unknown {
     if (error instanceof ProcessTimeoutException && !Object.isNull(this.limit) && remaining < timeout)
-      return new BuildException(Resources.formatPackagingLimitReached(this.limit, path.basename(command)), new ExceptionOptions(error));
+      return new BuildException(Resources.formatPackagingLimitReached(this.limit, name), new ExceptionOptions(error));
     return error;
   }
 }

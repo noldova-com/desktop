@@ -9,6 +9,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { mock } from "node:test";
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
@@ -22,6 +23,8 @@ import { CoverageEnvironmentFixture } from "../../fixtures/coverage-environment.
 export class ProcessRunnerTests {
   private static readonly LIMIT: number = 30_000;
   private static readonly MISSING: string = "no-such-program-for-this-test";
+  private static readonly LIFETIME: number = 120_000;
+  private static readonly CHILD: RegExp = /child ([0-9]+)/;
 
   @TestMethod
   public async capturesTheExitCodeAndBothOutputsInTheGivenEnvironment(): Promise<void> {
@@ -80,18 +83,33 @@ export class ProcessRunnerTests {
 
   @TestMethod
   public async stopsAWatchedProcessAtItsTimeoutWhileAChildItStartedStillHoldsItsOutput(): Promise<void> {
-    const child = "console.log('child ' + process.pid); setInterval(() => undefined, 1000)";
-    const script = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(child)}], { stdio: "inherit" }); setInterval(() => undefined, 1000)`;
-    const seen: string[] = [];
+    const child = `console.log("child " + process.pid); setTimeout(() => undefined, ${ProcessRunnerTests.LIFETIME})`;
+    const script = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(child)}], { stdio: "inherit" }); setTimeout(() => undefined, ${ProcessRunnerTests.LIFETIME})`;
+    let output = String.empty;
+    let isTimedOut = false;
+    const { promise: started, resolve: start } = Promise.withResolvers<void>();
+    mock.timers.enable({ apis: ["setTimeout"] });
     try {
-      const error = await Assert.throwsAsync(() => new ProcessRunner().runAsync(process.execPath, ["-e", script], tmpdir(), undefined, t => seen.push(t), 5_000),
-        ProcessTimeoutException);
+      const running = new ProcessRunner().runAsync(process.execPath, ["-e", script], tmpdir(), undefined, t => {
+        output += t;
+        if (ProcessRunnerTests.CHILD.test(output))
+          start();
+      }, ProcessRunnerTests.LIMIT);
+      void running.then(() => start(), () => start());
+      const failure = Assert.throwsAsync(() => running, ProcessTimeoutException);
+      await started;
+      mock.timers.tick(ProcessRunnerTests.LIMIT);
+      isTimedOut = true;
+      const error = await failure;
 
-      Assert.areEqual(`"${process.execPath}" did not finish within 5000 ms.`, error.message);
-      Assert.isTrue(/child [0-9]+/.test(seen.join(String.empty)), seen.join(String.empty));
+      Assert.areEqual(`"${process.execPath}" did not finish within ${ProcessRunnerTests.LIMIT} ms.`, error.message);
+      Assert.isTrue(ProcessRunnerTests.CHILD.test(output), output);
     }
     finally {
-      const id = /child ([0-9]+)/.exec(seen.join(String.empty))?.[1];
+      if (!isTimedOut)
+        mock.timers.tick(ProcessRunnerTests.LIMIT);
+      mock.timers.reset();
+      const id = ProcessRunnerTests.CHILD.exec(output)?.[1];
       if (!Object.isUndefined(id))
         new ProcessRunner().kill(Number(id));
     }

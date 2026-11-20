@@ -21,6 +21,7 @@ export class DeadlineRunnerTests {
   private static readonly COMMAND: string = "xcrun";
   private static readonly HOUR: number = 3_600_000;
   private static readonly LIMIT: number = 60_000;
+  private static readonly SCRIPT: string = "package-builder.ts";
 
   @TestMethod
   public async passesEachTimeoutOnUnchangedWithoutALimit(): Promise<void> {
@@ -49,6 +50,18 @@ export class DeadlineRunnerTests {
       Assert.isInstanceOf(error.cause, ProcessTimeoutException);
     }
     Assert.isTrue(inner.timeouts.every(t => !Object.isUndefined(t) && t > 0 && t <= DeadlineRunnerTests.LIMIT), inner.timeouts.join());
+  }
+
+  @TestMethod
+  public async namesAProcessByTheScriptItRunsWhenItsNameIsGiven(): Promise<void> {
+    const runner = new DeadlineRunner(new TimedRunnerFixture(DeadlineRunnerTests.HOUR), new Map([[DeadlineRunnerTests.SCRIPT, "electron-builder"]]));
+    runner.start(DeadlineRunnerTests.LIMIT);
+
+    const named = await Assert.throwsAsync(() => runner.runAsync(process.execPath, [DeadlineRunnerTests.SCRIPT, "configuration.json"], tmpdir()), BuildException);
+    const other = await Assert.throwsAsync(() => runner.runAsync(DeadlineRunnerTests.COMMAND, ["other.ts"], tmpdir()), BuildException);
+
+    Assert.areEqual(Resources.formatPackagingLimitReached(DeadlineRunnerTests.LIMIT, "electron-builder"), named.message);
+    Assert.areEqual(Resources.formatPackagingLimitReached(DeadlineRunnerTests.LIMIT, DeadlineRunnerTests.COMMAND), other.message);
   }
 
   @TestMethod

@@ -58,7 +58,7 @@ export class Package {
     this.platform = platform;
     this.architecture = architecture;
     this.stage = stage;
-    this.runner = new DeadlineRunner(runner);
+    this.runner = new DeadlineRunner(runner, new Map([[Package.BUILDER, Resources.builderModule]]));
     this.environment = environment;
     this.output = output;
     this.signingPackages = signingPackages;
