@@ -28,9 +28,9 @@ export class ReleaseReportsTests {
   public async acceptsOneReportForEachTargetOfAReleaseWithoutArm64Async(): Promise<void> {
     await using folder = await ReleaseReportsTests.createFolderAsync(ReleaseReportsTests.X64.map(t => t.id));
 
-    const text = await new ReleaseReports([], ReleaseReportsTests.X64).verifyAsync(folder.path);
+    const verified = await new ReleaseReports([], ReleaseReportsTests.X64).verifyAsync(folder.path);
 
-    Assert.areEqual("Every target of the release has one package report, and the signed ones were signed and checked: none.", text);
+    Assert.areEqual("Every target of the release has one package report, and the signed ones were signed and checked: none.", verified.text);
   }
 
   @TestMethod
@@ -41,9 +41,23 @@ export class ReleaseReportsTests {
       ["linux-x64", new PackageReport("linux-x64", false, false)]
     ]);
 
-    const text = await new ReleaseReports(["windows"], targets).verifyAsync(folder.path);
+    const verified = await new ReleaseReports(["windows"], targets).verifyAsync(folder.path);
 
-    Assert.areEqual("Every target of the release has one package report, and the signed ones were signed and checked: windows.", text);
+    Assert.areEqual("Every target of the release has one package report, and the signed ones were signed and checked: windows.", verified.text);
+  }
+
+  @TestMethod
+  public async namesTheTargetsWhosePackagesNeverStartedAsync(): Promise<void> {
+    const targets = [new PackageTarget("linux", "x64"), new PackageTarget("linux", "arm64"), new PackageTarget("macos", "arm64")];
+    await using folder = await ReleaseReportsTests.createEntriesAsync([
+      ["linux-x64", new PackageReport("linux-x64", false, false, true)],
+      ["linux-arm64", new PackageReport("linux-arm64", false, false)],
+      ["macos-arm64", new PackageReport("macos-arm64", false, false, true)]
+    ]);
+
+    const verified = await new ReleaseReports([], targets).verifyAsync(folder.path);
+
+    Assert.areEqual("linux-arm64", verified.unstarted.map(t => t.id).join());
   }
 
   @TestMethod

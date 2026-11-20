@@ -18,6 +18,7 @@ import { JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
+import { PackageReport } from "../../../src/models/packaging/package-report.js";
 import { ProcessResult } from "../../../src/models/processes/process-result.js";
 import { Resources } from "../../../src/resources.js";
 import { PackageSmoke } from "../../../src/services/commands/package-smoke.js";
@@ -237,6 +238,24 @@ export class PackageSmokeTests {
     Assert.isTrue(result.output.endsWith(Resources.formatOutputLine(Resources.formatSmokePowerShellFailed(SmokeRunnerFixture.SLUG, 1,
       "The term 'sample-app' is not recognized."))), result.output);
     Assert.areEqual("SIGKILL", runner.main?.signals.join("|"));
+  }
+
+  @TestMethod
+  public async marksThePackageReportStartedOnlyAfterARunThatPassesAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const report = await app.writeAppFileAsync(`_build/package/${Resources.packageReportFile}`, String.empty);
+    await new PackageReport("macos-x64", false, false).writeAsync(report);
+
+    const failed = await PackageSmokeTests.smokeAsync(app, parent.path, "darwin", PackageSmokeTests.createEndingRunner());
+    const afterFailure = PackageReport.parse(JsonReader.parse(await readFile(report, "utf8")));
+    const passed = await PackageSmokeTests.smokeAsync(app, parent.path, "darwin", new SmokeRunnerFixture());
+    const afterPass = PackageReport.parse(JsonReader.parse(await readFile(report, "utf8")));
+
+    Assert.areEqual(1, failed.exitCode, failed.output);
+    Assert.isFalse(afterFailure?.isStarted ?? true);
+    Assert.areEqual(0, passed.exitCode, passed.output);
+    Assert.isTrue(afterPass?.isStarted ?? false);
   }
 
   @TestMethod
