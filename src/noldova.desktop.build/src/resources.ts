@@ -4465,7 +4465,7 @@ export class Resources {
 
   public static formatAssetMismatch(name: string, size: number, digest: string | null, builtSize: number, expected: string): string {
     return `${name} on GitHub has ${size} bytes and ${digest ?? "no digest"}, but the built file has ${builtSize} bytes and ${expected}. `
-      + "A release's files are never replaced.";
+      + "Only a draft's file from an earlier run is ever replaced.";
   }
 
   public static formatGitHubReleasesContext(index: number): string {
@@ -4518,6 +4518,10 @@ export class Resources {
 
   public static formatIncompleteUploadDeleting(name: string): string {
     return `Deleting the incomplete upload of ${name}.\n`;
+  }
+
+  public static formatDifferentUploadReplacing(name: string): string {
+    return `Replacing ${name}, which the draft holds from an earlier run and which differs from the built file.\n`;
   }
 
   public static formatGitHubReleaseContext(id: number): string {
