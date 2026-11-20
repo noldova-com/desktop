@@ -1219,6 +1219,14 @@ export class Resources {
     return `A page load was refused because its web contents ${contentsId} belong to no web view Noldova Desktop opened: ${address}`;
   }
 
+  public static formatWebViewScrollNotKept(module: string, view: string): string {
+    return `Web view ${view} of ${module} kept no scroll position: its page did not answer where it was scrolled within ${Resources.webViewScrollReadTimeout} ms, or answered no position, so it will not be scrolled back once it moves.`;
+  }
+
+  public static formatWebViewScrollNotRestored(module: string, view: string): string {
+    return `Web view ${view} of ${module} was not scrolled back: its restored page did not answer where it was scrolled.`;
+  }
+
   public static formatWebViewAttachRefused(windowId: number, partition: string): string {
     return `A <webview> in window ${windowId} was refused, because its partition "${partition}" belongs to no web view the window opened.`;
   }
