@@ -16,6 +16,7 @@ import { JsonReader, type JsonObject, type JsonValue } from "@noldova/context.js
 
 import type { PackageManifest } from "../../models/packages/package-manifest.ts";
 import { LockedPackage } from "../../models/packaging/locked-package.ts";
+import { CodePointOrder } from "../../models/packaging/code-point-order.ts";
 import { OmittedOptionals } from "../../models/packaging/omitted-optionals.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { TypeOnlyPeers } from "../../models/packaging/type-only-peers.ts";
@@ -89,7 +90,7 @@ export class ThirdPartyClosure {
       if (!Object.isUndefined(missing))
         throw new BuildException(Resources.formatClosurePeerMissing(id, manifest.directory, missing, typeOnly.listOtherVersions(id)));
     }
-    return [[...shipped.values()].sort((left, right) => left.name.localeCompare(right.name)), leftOut];
+    return [[...shipped.values()].sort((left, right) => CodePointOrder.compare(left.name, right.name)), leftOut];
   }
 
   private static isUnmet(peer: string, shipped: ReadonlyMap<string, LockedPackage>, own: ReadonlySet<string>, typeOnly: TypeOnlyPeers, id: string): boolean {
