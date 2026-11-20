@@ -341,9 +341,11 @@ export class Resources {
   public static readonly builderAppleKeyVariable: string = "APPLE_API_KEY";
   public static readonly macNotarizationKeyFile: string = "notarization-key.p8";
   public static readonly macSigningCheckFolder: string = "check";
-  public static readonly macNotarizationTimeout: number = 3_900_000;
-  public static readonly macNotarizationWait: string = "1h";
+  public static readonly macNotarizationTimeout: number = 2_820_000;
+  public static readonly macNotarizationWait: string = "45m";
   public static readonly macStapleTimeout: number = 300_000;
+  public static readonly macPackagingLimit: number = 4_200_000;
+  public static readonly millisecondsPerMinute: number = 60_000;
   public static readonly macNotarizationAcceptedPattern: RegExp = /"status"\s*:\s*"Accepted"/;
   public static readonly macNotarizationSubmissionPattern: RegExp = /"id"\s*:\s*"([^"]+)"/;
   public static readonly privateFolderMode: number = 0o700;
@@ -4728,6 +4730,10 @@ export class Resources {
       .slice(-Resources.timedOutOutputLines);
     return lines.length === 0 ? `${message} It wrote nothing before it was stopped.`
       : `${message} Its last output before it was stopped:${Resources.lineSeparator}${lines.join(Resources.lineSeparator)}`;
+  }
+
+  public static formatPackagingLimitReached(limit: number, command: string): string {
+    return `Signed macOS packaging did not finish within its limit of ${limit / Resources.millisecondsPerMinute} minutes, so ${command} was stopped; a notarization that waits long in Apple's queue is the usual cause.`;
   }
 
   public static formatProcessNotStarted(command: string): string {

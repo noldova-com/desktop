@@ -36,6 +36,7 @@ import { SigningCredentials } from "../packaging/signing-credentials.ts";
 import { ShippedFiles } from "../packaging/shipped-files.ts";
 import { UnpackedFiles } from "../packaging/unpacked-files.ts";
 import { WindowsSigning } from "../packaging/windows-signing.ts";
+import { DeadlineRunner } from "../processes/deadline-runner.ts";
 import { ProcessRunner } from "../processes/process-runner.ts";
 import { Resources } from "../../resources.ts";
 
@@ -46,7 +47,7 @@ export class Package {
   private readonly platform: string;
   private readonly architecture: string;
   private readonly stage: PackageStage;
-  private readonly runner: ProcessRunner;
+  private readonly runner: DeadlineRunner;
   private readonly environment: NodeJS.ProcessEnv;
   private readonly output: Writable;
   private readonly signingPackages: readonly PinnedPackage[];
@@ -57,7 +58,7 @@ export class Package {
     this.platform = platform;
     this.architecture = architecture;
     this.stage = stage;
-    this.runner = runner;
+    this.runner = new DeadlineRunner(runner, new Map([[Package.BUILDER, Resources.builderModule]]));
     this.environment = environment;
     this.output = output;
     this.signingPackages = signingPackages;
@@ -91,10 +92,13 @@ export class Package {
       await rm(layout.output, { recursive: true, force: true });
       await electron.copyAsync();
       try {
+        if (!Object.isNull(signing) && target.platform === Resources.macosTarget)
+          this.runner.start(Resources.macPackagingLimit);
         await signing?.prepareAsync();
         await this.buildAsync(target, layout, configuration, signing, product);
       }
       finally {
+        this.runner.stop();
         await signing?.disposeAsync();
       }
       return 0;
