@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { PackageTarget } from "../packaging/package-target.ts";
+import type { PackageTarget } from "../models/packaging/package-target.ts";
 
 export interface IVerifiedReports {
   readonly text: string;

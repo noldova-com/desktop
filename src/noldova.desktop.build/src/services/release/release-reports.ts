@@ -17,7 +17,7 @@ import { JsonReader } from "@noldova/context.json";
 import { PackageReport } from "../../models/packaging/package-report.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
-import type { IVerifiedReports } from "../../models/release/verified-reports.ts";
+import type { IVerifiedReports } from "../../interfaces/i-verified-reports.ts";
 import { Resources } from "../../resources.ts";
 
 export class ReleaseReports {
