@@ -21,7 +21,7 @@ export class NetLogTrace {
   private queue: Promise<void> = Promise.resolve();
   private lastSave: number = 0;
 
-  public start(page: unknown): void {
+  public start(page: unknown, print: (line: string) => void): void {
     if (this.session !== null)
       return;
     this.session = (async () => {
@@ -30,6 +30,7 @@ export class NetLogTrace {
         const session = await browser.newBrowserCDPSession();
         await NetLogTrace.beginAsync(session);
         console.log(`Net-log trace started at ${new Date().toISOString()}`);
+        setTimeout(() => void this.save("sample", print), 5_000);
         return session;
       } catch (error) {
         console.log(`Net-log trace failed to start: ${error instanceof Error ? error.message : String(error)}`);

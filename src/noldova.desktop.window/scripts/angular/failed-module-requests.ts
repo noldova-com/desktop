@@ -36,7 +36,7 @@ export class FailedModuleRequests {
   public readonly watch: (context: IBrowserCommandContext) => readonly string[] = context => this.watchPage(context.page, context.project.vitest);
 
   private watchPage(page: IBrowserPage, run: IVitestRun): readonly string[] {
-    this.trace.start(page);
+    this.trace.start(page, line => this.print(line, run));
     if (!this.isWaitedForOnClose) {
       this.isWaitedForOnClose = true;
       run.onClose(() => this.trace.flushedAsync());
