@@ -721,6 +721,20 @@ export class PackageTests {
     Assert.areEqual(["xcrun notarytool submit", "xcrun stapler staple", "codesign --verify", "codesign --display", "spctl", "xcrun stapler validate", "hdiutil attach",
       "codesign --verify", "codesign --display", "spctl", "xcrun stapler validate", "hdiutil detach", "ditto", "codesign --verify", "codesign --display", "spctl",
       "xcrun stapler validate", "ditto"].join("|"), runners[0]?.macCommands.join("|"));
+    Assert.isTrue((runners[0]?.timeouts.length ?? 0) > 0 && (runners[0]?.timeouts.every(t => !Object.isUndefined(t) && t > 0 && t <= Resources.macPackagingLimit) ?? false),
+      runners[0]?.timeouts.join() ?? String.empty);
+  }
+
+  @TestMethod
+  public async namesElectronBuilderWhenSignedMacOsPackagingReachesItsLimitAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const application = path.join(new PackageLayout(app.path).output, "mac", `${PackageTests.PRODUCT_NAME}.app`);
+
+    const result = await PackageTests.buildAsync(app, "darwin", "x64", true, ["--signed"], { ...PackageTests.MAC_CREDENTIALS },
+      (t, u) => new SignedMacBuilderRunnerFixture(t, u, application, true));
+
+    Assert.areEqual(Resources.failureExitCode, result.exitCode, result.output);
+    Assert.isTrue(result.output.includes(Resources.formatPackagingLimitReached(Resources.macPackagingLimit, "electron-builder")), result.output);
   }
 
   @TestMethod
