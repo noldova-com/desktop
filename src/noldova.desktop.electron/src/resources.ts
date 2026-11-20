@@ -296,7 +296,7 @@ export class Resources {
   public static readonly newWindowRequest: string = "newWindow";
   public static readonly personInputTypes: readonly string[] = ["rawKeyDown", "keyDown", "mouseDown", "touchStart"];
   public static readonly personPressTypes: readonly string[] = ["mouseDown", "touchStart"];
-  public static readonly nonActivatingKeys: readonly string[] = ["Escape", "Alt", "AltGraph", "CapsLock", "Control", "Fn", "FnLock", "Hyper", "Meta", "NumLock", "ScrollLock", "Shift", "Super", "Symbol", "SymbolLock"];
+  public static readonly nonActivatingKeys: readonly string[] = ["Escape", "Accel", "Alt", "AltGraph", "CapsLock", "Control", "Fn", "FnLock", "Hyper", "Meta", "NumLock", "ScrollLock", "Shift", "ShiftLevel5", "Super", "Symbol", "SymbolLock"];
   public static readonly relayedPressTypes: ReadonlyMap<string, string> = new Map([["Input.dispatchMouseEvent", "mousePressed"], [Resources.dispatchTouchEventMethod, "touchStart"]]);
   public static readonly touchPointsField: string = "touchPoints";
   public static readonly touchPointIdField: string = "id";

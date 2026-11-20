@@ -664,13 +664,15 @@ export class OpenWebViewTests {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
     const results: string[] = [];
 
-    for (const key of ["Escape", "Shift", "Control", "Alt", "Meta", "CapsLock", "a"]) {
+    const keys = ["Escape", "Accel", "Alt", "AltGraph", "CapsLock", "Control", "Fn", "FnLock", "Hyper", "Meta", "NumLock", "ScrollLock", "Shift", "ShiftLevel5", "Super", "Symbol", "SymbolLock", "a"];
+    for (const key of keys) {
       harness.time += 1000;
       harness.contents.emit("input-event", {}, { type: "rawKeyDown", key });
       results.push(`${key}:${OpenWebViewTests.isFromPress(harness, `https://example.com/${key}`)}`);
     }
 
-    Assert.areEqual("Escape:false,Shift:false,Control:false,Alt:false,Meta:false,CapsLock:false,a:true", results.join(","));
+    Assert.areEqual("Escape:false,Accel:false,Alt:false,AltGraph:false,CapsLock:false,Control:false,Fn:false,FnLock:false,Hyper:false,Meta:false,NumLock:false,"
+      + "ScrollLock:false,Shift:false,ShiftLevel5:false,Super:false,Symbol:false,SymbolLock:false,a:true", results.join(","));
     Assert.isTrue(harness.describe().split("|").at(-2)?.includes("\"hadRecentInput\":true") === true, harness.describe());
   }
 
