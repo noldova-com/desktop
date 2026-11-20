@@ -38,6 +38,8 @@ export class MacInstallTests {
   private static readonly PROGRAM: string = `${MacInstallTests.APPLICATION}/Contents/MacOS/Sample App`;
   private static readonly PLACE: string = `sudo --non-interactive mkdir -p ${MacInstallTests.NEIGHBOUR}`;
   private static readonly INSTALL: string = `sudo --non-interactive installer -pkg ${MacInstallTests.FILE} -target /`;
+  private static readonly REMOVAL: string = [`sudo --non-interactive rm -rf ${MacInstallTests.APPLICATION} ${MacInstallTests.NEIGHBOUR}`,
+    "sudo --non-interactive pkgutil --forget com.example.sample"].join("\n");
   private static readonly FAILURE: ProcessResult = new ProcessResult(1, String.empty, "missing");
 
   @TestMethod
@@ -63,9 +65,19 @@ export class MacInstallTests {
 
     const report = await install.removeAsync();
 
-    Assert.areEqual([`sudo --non-interactive rm -rf ${MacInstallTests.APPLICATION} ${MacInstallTests.NEIGHBOUR}`, "sudo --non-interactive pkgutil --forget com.example.sample"]
-      .join("\n"), runner.captured.slice(-2).join("\n"));
+    Assert.areEqual(MacInstallTests.REMOVAL, runner.captured.slice(-2).join("\n"));
     Assert.areEqual(`Removed ${MacInstallTests.APPLICATION} and ${MacInstallTests.NEIGHBOUR}.`, report);
+  }
+
+  @TestMethod
+  public async removesWhatItPlacedWhenTheInstallerFailsAsync(): Promise<void> {
+    const runner = new ScriptedRunnerFixture((command, commandArguments) =>
+      ScriptedRunnerFixture.format(command, commandArguments) === MacInstallTests.INSTALL ? MacInstallTests.FAILURE : ScriptedRunnerFixture.SUCCESS);
+
+    const error = await Assert.throwsAsync(() => MacInstall.installAsync(runner, MacInstallTests.FILE, MacInstallTests.product(), MacInstallTests.FOLDER), BuildException);
+
+    Assert.isTrue(error.message.includes("missing"), error.message);
+    Assert.areEqual([MacInstallTests.PLACE, MacInstallTests.INSTALL, MacInstallTests.REMOVAL].join("\n"), runner.captured.join("\n"));
   }
 
   @TestMethod
@@ -80,6 +92,7 @@ export class MacInstallTests {
     const replaced = await Assert.throwsAsync(() => install.verifyAsync(), BuildException);
 
     Assert.isTrue(unfound.message.includes(MacInstallTests.PROGRAM), unfound.message);
+    Assert.areEqual(MacInstallTests.REMOVAL, missing.captured.slice(-2).join("\n"));
     Assert.areEqual(`Installing the installer package removed or replaced ${MacInstallTests.NEIGHBOUR}, which it must leave beside the app.`, replaced.message);
   }
 

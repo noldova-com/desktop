@@ -44,11 +44,17 @@ export class MacInstall implements ISystemInstall {
     const neighbour = path.posix.join(location, Resources.smokeNeighbourBundle);
     const application = path.posix.join(location, `${product.name}${Resources.appBundleExtension}`);
     await MacInstall.runAsRootAsync(runner, folder, [Resources.mkdirCommand, Resources.mkdirParentsOption, neighbour]);
-    await MacInstall.runAsRootAsync(runner, folder, [Resources.macInstallerCommand, Resources.macInstallerPackageOption, file, Resources.macInstallerTargetOption,
-      Resources.macInstallerRootTarget]);
     const program = path.posix.join(application, ...Resources.macBundleProgramSegments, product.name);
-    if (!await MacInstall.existsAsync(runner, folder, program))
-      throw new BuildException(Resources.formatInstalledFilesMissing([program]));
+    try {
+      await MacInstall.runAsRootAsync(runner, folder, [Resources.macInstallerCommand, Resources.macInstallerPackageOption, file, Resources.macInstallerTargetOption,
+        Resources.macInstallerRootTarget]);
+      if (!await MacInstall.existsAsync(runner, folder, program))
+        throw new BuildException(Resources.formatInstalledFilesMissing([program]));
+    }
+    catch (error) {
+      await MacInstall.removeLeftAsync(runner, folder, application, neighbour, product.applicationId);
+      throw error;
+    }
     return new MacInstall(runner, folder, file, application, neighbour, product.applicationId,
       new InstalledPackage(program, program, path.posix.join(application, ...Resources.macBundleResourcesSegments), null));
   }
@@ -63,6 +69,11 @@ export class MacInstall implements ISystemInstall {
     await MacInstall.runAsRootAsync(this.runner, this.folder, [Resources.removeCommand, Resources.removeRecursiveOption, this.application, this.neighbour]);
     await MacInstall.runAsRootAsync(this.runner, this.folder, [Resources.pkgutilCommand, Resources.pkgutilForgetOption, this.packageName]);
     return Resources.formatMacRemoved(this.application, this.neighbour);
+  }
+
+  private static async removeLeftAsync(runner: ProcessRunner, folder: string, application: string, neighbour: string, packageName: string): Promise<void> {
+    for (const commandLine of [[Resources.removeCommand, Resources.removeRecursiveOption, application, neighbour], [Resources.pkgutilCommand, Resources.pkgutilForgetOption, packageName]])
+      await runner.captureAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, ...commandLine], folder, Resources.installerTimeout);
   }
 
   private static async existsAsync(runner: ProcessRunner, folder: string, file: string): Promise<boolean> {

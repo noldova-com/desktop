@@ -47,30 +47,38 @@ export class DebianInstall implements ISystemInstall {
     if (!field.isSuccessful || packageName.length === 0)
       throw new BuildException(Resources.formatDebianPackageUnnamed(file, field.exitCode, field.text));
     await DebianInstall.prepareDependenciesAsync(runner, file, packageName, folder);
-    await runner.requireAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetInstallArguments, file], folder,
-      Resources.installerTimeout);
+    try {
+      await runner.requireAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetInstallArguments, file], folder,
+        Resources.installerTimeout);
+    }
+    catch (error) {
+      await DebianInstall.removeLeftAsync(runner, packageName, folder);
+      throw error;
+    }
     const command = path.posix.join(Resources.linuxCommandFolder, slug);
     const link = await runner.captureAsync(Resources.readlinkCommand, [Resources.readlinkCanonicalOption, command], folder, Resources.smokeCommandLimit);
     const target = link.output.trim();
     if (!link.isSuccessful || target.length === 0) {
-      await runner.captureAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetRemoveArguments, packageName], folder,
-        Resources.installerTimeout);
+      await DebianInstall.removeLeftAsync(runner, packageName, folder);
       throw new BuildException(Resources.formatDebianCommandUnresolved(command, link.exitCode, link.text));
     }
     const resources = path.posix.dirname(path.posix.dirname(target));
     if (!target.endsWith(`${path.posix.sep}${path.posix.join(Resources.packagedResourcesFolder, Resources.formatPackagedCommandPath(slug))}`)) {
-      await runner.captureAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetRemoveArguments, packageName], folder,
-        Resources.installerTimeout);
+      await DebianInstall.removeLeftAsync(runner, packageName, folder);
       throw new BuildException(Resources.formatDebianCommandNotCommandLine(command, target));
     }
     const program = path.posix.join(path.posix.dirname(resources), slug);
     const expected = Object.isNull(installFolder) ? Resources.debianInstallPrefix : Resources.formatDebianInstallFolder(installFolder);
     if (!path.posix.dirname(path.posix.dirname(program)).endsWith(expected)) {
-      await runner.captureAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetRemoveArguments, packageName], folder,
-        Resources.installerTimeout);
+      await DebianInstall.removeLeftAsync(runner, packageName, folder);
       throw new BuildException(Resources.formatDebianInstalledElsewhere(program, expected));
     }
     return new DebianInstall(runner, folder, slug, packageName, program);
+  }
+
+  private static async removeLeftAsync(runner: ProcessRunner, packageName: string, folder: string): Promise<void> {
+    await runner.captureAsync(Resources.sudoCommand, [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetRemoveArguments, packageName], folder,
+      Resources.installerTimeout);
   }
 
   private static async prepareDependenciesAsync(runner: ProcessRunner, file: string, packageName: string, folder: string): Promise<void> {

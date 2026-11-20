@@ -115,14 +115,14 @@ export class DebianInstallTests {
   }
 
   @TestMethod
-  public async reportsAnInstallThatFailsAsync(): Promise<void> {
+  public async removesAndReportsAnInstallThatFailsAsync(): Promise<void> {
     const runner = DebianInstallTests.createRunner(new Map([[DebianInstallTests.INSTALL, DebianInstallTests.FAILURE]]));
 
     const error = await Assert.throwsAsync(() => DebianInstall.installAsync(runner, DebianInstallTests.FILE, DebianInstallTests.SLUG, null, DebianInstallTests.FOLDER), BuildException);
 
     Assert.areEqual(Resources.formatProcessFailed("sudo", [Resources.sudoNonInteractiveOption, Resources.aptGetCommand, ...Resources.aptGetInstallArguments, DebianInstallTests.FILE], 1, "refused"),
       error.message);
-    Assert.areEqual([DebianInstallTests.FIELD, DebianInstallTests.SIMULATE, DebianInstallTests.INSTALL].join("\n"), runner.captured.join("\n"));
+    Assert.areEqual([DebianInstallTests.FIELD, DebianInstallTests.SIMULATE, DebianInstallTests.INSTALL, DebianInstallTests.REMOVE].join("\n"), runner.captured.join("\n"));
   }
 
   @TestMethod
