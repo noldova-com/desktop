@@ -5,7 +5,7 @@
  * This source code is licensed under the license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { mkdtempSync, readdirSync, rmSync, writeFileSync, writeSync } from "node:fs";
+import { lstatSync, mkdtempSync, readdirSync, rmSync, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -90,14 +90,32 @@ export class SerialTestRun {
     return Resources.formatSerialTestSlowest(suite, limit, TestTimeRecord.formatSlowest(TestTimeRecord.fromResult(new TestRunResult(results)), Resources.serialTestSlowestCount));
   }
 
-  private static tryRemove(folder: string): string | null {
+  private static tryRemove(folder: string, kept: string[]): string | null {
     try {
-      rmSync(folder, { recursive: true, force: true, maxRetries: Resources.serialTestRemovalRetries });
+      SerialTestRun.removeOnDevice(folder, lstatSync(folder).dev, kept);
       return null;
     }
     catch (error) {
       return String(error);
     }
+  }
+
+  private static removeOnDevice(folder: string, device: number, kept: string[]): boolean {
+    let isKept = false;
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const item = path.join(folder, entry.name);
+      if (!entry.isDirectory())
+        rmSync(item, { recursive: true, force: true, maxRetries: Resources.serialTestRemovalRetries });
+      else if (lstatSync(item).dev !== device) {
+        kept.push(item);
+        isKept = true;
+      }
+      else
+        isKept = !SerialTestRun.removeOnDevice(item, device, kept) || isKept;
+    }
+    if (!isKept)
+      rmSync(folder, { recursive: true, force: true, maxRetries: Resources.serialTestRemovalRetries });
+    return !isKept;
   }
 
   public async runAsync(projectArguments: readonly string[]): Promise<void> {
@@ -176,10 +194,11 @@ export class SerialTestRun {
       summary.writeFailure(message);
     }
     const leftovers = readdirSync(temporary).sort();
-    const removal = SerialTestRun.tryRemove(temporary);
+    const kept: string[] = [];
+    const removal = SerialTestRun.tryRemove(temporary, kept);
     if (!Object.isNull(message))
       process.exit(Resources.failedExitCode);
-    const unclean = leftovers.length > 0 ? Resources.formatSerialTestLeftovers(leftovers) : Object.isNull(removal) ? null : Resources.formatSerialTestUnremoved(removal);
+    const unclean = leftovers.length > 0 ? Resources.formatSerialTestLeftovers(leftovers, kept) : Object.isNull(removal) ? null : Resources.formatSerialTestUnremoved(removal);
     if (!Object.isNull(unclean)) {
       writeSync(Resources.serialTestStandardErrorDescriptor, unclean);
       summary.writeFailure(unclean);
