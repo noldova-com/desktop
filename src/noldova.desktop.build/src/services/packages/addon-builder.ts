@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
+import timers from "node:timers/promises";
 
 import "@noldova/context.core";
 
@@ -28,9 +29,10 @@ export class AddonBuilder {
   private readonly machineArchitecture: string;
   private readonly nodeFolder: string;
   private readonly log: Writable;
+  private readonly pause: number;
 
   public constructor(layout: BuildLayout, nodeGyp: NodeGyp, platform: string, architecture: string, releaseAddons: string = String.empty, machineArchitecture: string = process.arch,
-    nodeFolder: string = path.dirname(path.dirname(process.execPath)), log: Writable = process.stderr) {
+    nodeFolder: string = path.dirname(path.dirname(process.execPath)), log: Writable = process.stderr, pause: number = Resources.downloadRetryPause) {
     this.layout = layout;
     this.nodeGyp = nodeGyp;
     this.platform = platform;
@@ -39,6 +41,7 @@ export class AddonBuilder {
     this.machineArchitecture = machineArchitecture;
     this.nodeFolder = nodeFolder;
     this.log = log;
+    this.pause = pause;
   }
 
   public static listReleaseBuilds(manifest: PackageManifest): readonly string[] {
@@ -78,9 +81,10 @@ export class AddonBuilder {
       const result = await this.nodeGyp.runAsync([...Resources.addonHeadersInstallArguments, ...this.locateHeaders()], this.layout.nodeGypFolder);
       if (result.isSuccessful)
         return;
-      if (attempt === Resources.addonHeadersAttempts)
+      if (attempt === Resources.addonHeadersAttempts || result.exitCode !== Resources.addonHeadersStalledExitCode || !result.text.includes(Resources.addonHeadersStalledText))
         throw new BuildException(Resources.formatAddonHeadersFailed(this.layout.nodeGypFolder, attempt, result.exitCode, result.text));
-      this.log.write(Resources.formatAddonHeadersRetried(this.layout.nodeGypFolder, attempt, result.exitCode, result.text));
+      this.log.write(Resources.formatAddonHeadersRetried(this.layout.nodeGypFolder, attempt, this.pause, result.text));
+      await timers.setTimeout(this.pause);
     }
   }
 

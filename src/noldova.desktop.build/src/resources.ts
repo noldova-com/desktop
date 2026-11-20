@@ -1535,6 +1535,8 @@ export class Resources {
   public static readonly addonHeadersDownloadOption: string = "--devdir";
   public static readonly addonHeadersInstallArguments: readonly string[] = ["install", "--loglevel=error"];
   public static readonly addonHeadersAttempts: number = 3;
+  public static readonly addonHeadersStalledExitCode: number = 6;
+  public static readonly addonHeadersStalledText: string = "Completion callback never invoked!";
   public static readonly addonLocalHeadersOption: string = "--nodedir";
   public static readonly addonLocalHeadersSegments: readonly string[] = ["include", "node", "common.gypi"];
   public static readonly addonNoToolchainText: string = "Could not find any Visual Studio installation to use";
@@ -3883,12 +3885,13 @@ export class Resources {
     return `Building ${packageName}'s Windows addon ${addon} needs ${toolchain}, and node-gyp found no Visual Studio with it. Install it and run npm run build again.`;
   }
 
-  public static formatAddonHeadersRetried(folder: string, attempt: number, exitCode: number | null, text: string): string {
-    return `Downloading Node.js's headers into ${folder} failed with exit code ${exitCode} on try ${attempt} of ${Resources.addonHeadersAttempts}, so the build tries again:\n${text}\n`;
+  public static formatAddonHeadersRetried(folder: string, attempt: number, pause: number, text: string): string {
+    return `Downloading Node.js's headers into ${folder} stalled with exit code ${Resources.addonHeadersStalledExitCode} on try ${attempt} of ${Resources.addonHeadersAttempts}, `
+      + `so the build tries again in ${pause / Resources.millisecondsPerSecond} seconds:\n${text}\n`;
   }
 
-  public static formatAddonHeadersFailed(folder: string, attempts: number, exitCode: number | null, text: string): string {
-    return `Downloading Node.js's headers into ${folder} for the addons failed ${attempts} times, the last with exit code ${exitCode}:\n${text}`;
+  public static formatAddonHeadersFailed(folder: string, attempt: number, exitCode: number | null, text: string): string {
+    return `Downloading Node.js's headers into ${folder} for the addons failed with exit code ${exitCode} on try ${attempt} of ${Resources.addonHeadersAttempts}:\n${text}`;
   }
 
   public static formatAddonBuildFailed(packageName: string, kind: string, addon: string, exitCode: number | null, text: string): string {

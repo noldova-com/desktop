@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
 
-import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackageManifest } from "../../../src/models/packages/package-manifest.js";
@@ -164,11 +164,11 @@ export class AddonBuilderTests {
       const written: string[] = [];
       const output = path.join(root, "out");
 
-      await new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, runner), "win32", "x64", String.empty, "x64", path.join(root, "node"), AddonBuilderTests.createLog(written))
+      await new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, runner), "win32", "x64", String.empty, "x64", path.join(root, "node"), AddonBuilderTests.createLog(written), 0)
         .buildAsync(AddonBuilderTests.MANIFEST, output);
 
       Assert.areEqual("install install rebuild", runner.calls.map(t => t[2]).join(" "));
-      Assert.areEqual(Resources.formatAddonHeadersRetried(layout.nodeGypFolder, 1, 6, "gyp ERR! Completion callback never invoked!"), written.join(String.empty));
+      Assert.areEqual(Resources.formatAddonHeadersRetried(layout.nodeGypFolder, 1, 0, "gyp ERR! Completion callback never invoked!"), written.join(String.empty));
       Assert.areEqual("built", await readFile(path.join(output, "native", "win32-x64", "pty-win.node"), "utf8"));
     }
     finally {
@@ -185,11 +185,33 @@ export class AddonBuilderTests {
       const written: string[] = [];
 
       const error = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, runner), "linux", "x64", String.empty, "x64", path.join(root, "node"),
-        AddonBuilderTests.createLog(written)).buildAsync(AddonBuilderTests.MANIFEST, path.join(root, "out")), BuildException);
+        AddonBuilderTests.createLog(written), 0).buildAsync(AddonBuilderTests.MANIFEST, path.join(root, "out")), BuildException);
 
       Assert.areEqual(Resources.formatAddonHeadersFailed(layout.nodeGypFolder, 3, 6, "gyp ERR! Completion callback never invoked!"), error.message);
       Assert.areEqual("install install install", runner.calls.map(t => t[2]).join(" "));
       Assert.areEqual(2, written.length);
+    }
+    finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  @TestData(1, "gyp ERR! stack Error: 404 response downloading https://nodejs.org/download/release/v0.0.0/node-v0.0.0-headers.tar.gz")
+  @TestData(6, "gyp ERR! stack Error: EACCES: permission denied, mkdir")
+  public async failsTheHeadersDownloadAtOnceWhenATryFailsWithoutStallingAsync(exitCode: number, text: string): Promise<void> {
+    const root = await AddonBuilderTests.createRootAsync();
+    try {
+      const layout = new BuildLayout(root);
+      const runner = new RecordingRunnerFixture(new ProcessResult(exitCode, text, String.empty));
+      const written: string[] = [];
+
+      const error = await Assert.throwsAsync(() => new AddonBuilder(layout, AddonBuilderTests.createNodeGyp(root, runner), "win32", "x64", String.empty, "x64", path.join(root, "node"),
+        AddonBuilderTests.createLog(written), 0).buildAsync(AddonBuilderTests.MANIFEST, path.join(root, "out")), BuildException);
+
+      Assert.areEqual(Resources.formatAddonHeadersFailed(layout.nodeGypFolder, 1, exitCode, text), error.message);
+      Assert.areEqual("install", runner.calls.map(t => t[2]).join(" "));
+      Assert.areEqual(0, written.length);
     }
     finally {
       await rm(root, { recursive: true, force: true });
