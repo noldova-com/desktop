@@ -626,27 +626,51 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async givesEachOfThePersonsPressesInItsViewOneNewWindowForFiveSecondsAndNoneToAnotherView(): Promise<void> {
+  public async givesThePersonsLatestPressInItsViewOneNewWindowForFiveSecondsAndNoneToAnotherView(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
     const other = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
-    const fromPress = (open: OpenWebViewHarness, address: string): boolean => {
-      open.contents.openWindow(address);
-      return open.describe().split("|").at(-1)?.includes("\"fromPress\":true") === true;
-    };
 
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
-    harness.contents.emit("input-event", {}, { type: "rawKeyDown" });
+    harness.contents.emit("input-event", {}, { type: "rawKeyDown", key: "a" });
     harness.time = 100;
-    const twoPresses = [fromPress(harness, "https://example.com/a"), fromPress(harness, "https://example.com/b"), fromPress(harness, "https://example.com/c")];
+    const twoPresses = [OpenWebViewTests.isFromPress(harness, "https://example.com/a"), OpenWebViewTests.isFromPress(harness, "https://example.com/b")];
     harness.contents.emit("input-event", {}, { type: "touchStart" });
-    const inOtherView = fromPress(other, "https://example.com/d");
+    const inOtherView = OpenWebViewTests.isFromPress(other, "https://example.com/c");
     harness.time = 5101;
-    const late = fromPress(harness, "https://example.com/e");
+    const late = OpenWebViewTests.isFromPress(harness, "https://example.com/d");
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
     harness.time = 10101;
-    const atTheEdge = fromPress(harness, "https://example.com/f");
+    const atTheEdge = OpenWebViewTests.isFromPress(harness, "https://example.com/e");
 
-    Assert.areEqual("true,true,false|false|false|true", [twoPresses.join(","), inOtherView, late, atTheEdge].join("|"));
+    Assert.areEqual("true,false|false|false|true", [twoPresses.join(","), inOtherView, late, atTheEdge].join("|"));
+  }
+
+  @TestMethod
+  public async givesEachPressOneNewWindowWhenEachPressIsFollowedByItsRequest(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    const results: boolean[] = [];
+
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    results.push(OpenWebViewTests.isFromPress(harness, "https://example.com/a"));
+    harness.contents.emit("input-event", {}, { type: "keyDown", key: "b" });
+    results.push(OpenWebViewTests.isFromPress(harness, "https://example.com/b"));
+    results.push(OpenWebViewTests.isFromPress(harness, "https://example.com/c"));
+
+    Assert.areEqual("true,true,false", results.join(","));
+  }
+
+  @TestMethod
+  public async givesNoNewWindowForEscapeOrAModifierKeyAlone(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    const results: string[] = [];
+
+    for (const key of ["Escape", "Shift", "Control", "Alt", "Meta", "CapsLock", "a"]) {
+      harness.contents.emit("input-event", {}, { type: "rawKeyDown", key });
+      results.push(`${key}:${OpenWebViewTests.isFromPress(harness, `https://example.com/${key}`)}`);
+    }
+
+    Assert.areEqual("Escape:false,Shift:false,Control:false,Alt:false,Meta:false,CapsLock:false,a:true", results.join(","));
+    Assert.isTrue(harness.describe().split("|").at(-2)?.includes("\"hadRecentInput\":true") === true, harness.describe());
   }
 
   @TestMethod
@@ -1593,6 +1617,11 @@ export class OpenWebViewTests {
 
   private static scrolled(contents: FakeWebViewContents, x: number, y: number): void {
     contents.debugger.replies.set("Page.getLayoutMetrics", () => Promise.resolve({ cssLayoutViewport: { pageX: x, pageY: y } }));
+  }
+
+  private static isFromPress(harness: OpenWebViewHarness, address: string): boolean {
+    harness.contents.openWindow(address);
+    return harness.describe().split("|").at(-1)?.includes("\"fromPress\":true") === true;
   }
 
   private static drainAsync(): Promise<void> {

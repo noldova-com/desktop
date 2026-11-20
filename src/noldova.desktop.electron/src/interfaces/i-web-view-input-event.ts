@@ -8,4 +8,5 @@
 
 export interface IWebViewInputEvent {
   readonly type: string;
+  readonly key?: string;
 }

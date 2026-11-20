@@ -547,11 +547,13 @@ export declare enum WebViewEventKind {
    * the disposition from the event the page is handling, so a page's own
    * `click` or `auxclick` handler running during the person's middle or Ctrl or
    * Cmd click gets `background-tab` for each `window.open` it makes. Last,
-   * `fromPress`: `true` for the one request that uses up the window a real
-   * press of the person's own mouse button, key or touch in the view gives for
-   * 5 seconds, as a browser's popup rule does, and `false` for every other
-   * request, the second from the same press included; relayed input never
-   * counts. An event without it is accepted until 0.1.0.
+   * `fromPress`: `true` for the request that uses up the view's one
+   * activation, which each real press of the person's own mouse button, key
+   * or touch in the view renews for 5 seconds, as a browser's popup rule does,
+   * and `false` for every other request, the second from the same press
+   * included; presses don't add up, Escape and a modifier key alone give
+   * none, and relayed input never counts. An event without it is accepted
+   * until 0.1.0.
    */
   NewWindowRequested = "NewWindowRequested",
 

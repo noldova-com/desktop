@@ -32,7 +32,7 @@ const manualFormPage = formPage.replace("<script>", "<script>history.scrollResto
 const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><a href=\"/focus?linked\" style=\"position:absolute;left:10px;top:60px;width:150px;height:30px;display:block\">Next</a><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
-const pressPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:200px;height:100px\">D</div><script>const d = document.getElementById(\"d\"); d.addEventListener(\"pointerdown\", e => { if (e.button === 1) { window.open(\"/a\"); window.open(\"/b\"); } }); d.addEventListener(\"pointerup\", e => { if (e.pointerType === \"mouse\" && e.button === 0) window.open(\"/r\"); }); addEventListener(\"touchend\", () => window.open(\"/t\")); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Presses\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
+const pressPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:200px;height:100px\">D</div><script>const d = document.getElementById(\"d\"); d.addEventListener(\"pointerdown\", e => { if (e.button === 1) { e.preventDefault(); window.open(\"/a\"); window.open(\"/b\"); } else if (e.pointerType === \"mouse\" && e.button === 0) window.open(\"/r\"); }); addEventListener(\"touchend\", () => window.open(\"/t\")); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Presses\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
 function png(side: number): Buffer {
@@ -1193,11 +1193,17 @@ test.describe("web views", () => {
       await expect(view(window, 1)).toHaveText("Second page");
       expect(await runInFirstViewAsync(mainProcess, "window.open('/second', '_blank', 'popup')")).toBe(true);
       await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}`);
-      expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}`);
-      await expect(view(window, 1)).toHaveText("First page");
-      expect(await clickInFirstViewAsync(mainProcess, 20, 20, "middle")).toBe(true);
-      await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}${origin}/first true ${origin} background-tab true\n`);
+      await holdClockAsync(mainProcess, true);
+      try {
+        expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
+        await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}`);
+        await expect(view(window, 1)).toHaveText("First page");
+        expect(await clickInFirstViewAsync(mainProcess, 20, 20, "middle")).toBe(true);
+        await expect(view(window, 0)).toHaveAttribute("data-requests", `${script}${popup}${link}${origin}/first true ${origin} background-tab true\n`);
+      }
+      finally {
+        await holdClockAsync(mainProcess, false);
+      }
       expect(await readPlacesAsync(window)).toHaveLength(2);
 
       await holdClockAsync(mainProcess, true);
@@ -1231,12 +1237,19 @@ test.describe("web views", () => {
       await expect(view(window, 0)).toHaveText("Presses");
       const line = (path: string, disposition: string, isFromPress: boolean): string => `${origin}${path} true ${origin} ${disposition} ${String(isFromPress)}\n`;
 
-      expect(await clickInFirstViewAsync(mainProcess, 50, 20, "middle")).toBe(true);
       const middle = `${line("/a", "foreground-tab", true)}${line("/b", "foreground-tab", false)}`;
-      await expect(view(window, 0)).toHaveAttribute("data-requests", middle);
+      await holdClockAsync(mainProcess, true);
+      try {
+        expect(await clickInFirstViewAsync(mainProcess, 50, 20, "middle")).toBe(true);
+        await expect(view(window, 0)).toHaveAttribute("data-requests", middle);
+      }
+      finally {
+        await holdClockAsync(mainProcess, false);
+      }
       await requestAsync(window, "pages.click", { view: 0, x: 50, y: 20 });
       const relayed = `${middle}${line("/r", "foreground-tab", false)}`;
       await expect(view(window, 0)).toHaveAttribute("data-requests", relayed);
+      await holdClockAsync(mainProcess, true);
       const touched = await mainProcess.application.evaluate(async ({ webContents }) => {
         const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
         if (first === undefined)
@@ -1245,8 +1258,13 @@ test.describe("web views", () => {
         await first.debugger.sendCommand("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
         return true;
       });
-      expect(touched).toBe(true);
-      await expect.poll(async () => ((await view(window, 0).getAttribute("data-requests")) ?? String.empty).slice(relayed.length)).toMatch(new RegExp(`^${origin}/t true ${origin} [a-z-]+ true\n$`));
+      try {
+        expect(touched).toBe(true);
+        await expect.poll(async () => ((await view(window, 0).getAttribute("data-requests")) ?? String.empty).slice(relayed.length)).toMatch(new RegExp(`^${origin}/t true ${origin} [a-z-]+ true\n$`));
+      }
+      finally {
+        await holdClockAsync(mainProcess, false);
+      }
       expect(await runInFirstViewAsync(mainProcess, "window.open('/s')")).toBe(true);
       await expect.poll(async () => (await view(window, 0).getAttribute("data-requests"))?.split("\n").find(t => t.startsWith(`${origin}/s `))).toBe(`${origin}/s true ${origin} foreground-tab false`);
     }
