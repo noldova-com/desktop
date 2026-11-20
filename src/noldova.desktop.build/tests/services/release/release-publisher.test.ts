@@ -52,6 +52,32 @@ export class ReleasePublisherTests {
   }
 
   @TestMethod
+  public async refusesAVersionThatANewerReleaseOvertookAfterItsCheckAsync(): Promise<void> {
+    const before = new GitHubReleasesFixture();
+    before.addRelease("v1.2.4", ReleasePublisherTests.OTHER, false);
+    const during = new GitHubReleasesFixture();
+    let added = false;
+    during.intercept = t => {
+      if (!added && t[0] === "release" && t[1] === "upload") {
+        added = true;
+        during.addRelease("v1.2.4", ReleasePublisherTests.OTHER, false);
+      }
+      return null;
+    };
+
+    const early = await Assert.throwsAsync(() => ReleasePublisherTests.publishAsync(before), BuildException);
+    const late = await Assert.throwsAsync(() => ReleasePublisherTests.publishAsync(during), BuildException);
+
+    const message = "1.2.3 is not newer than the highest release, 1.2.4, which another run published after this one's check, so 1.2.3 is not published; release a version newer than 1.2.4.";
+    Assert.areEqual(message, early.message);
+    Assert.areEqual(message, late.message);
+    Assert.areEqual("v1.2.4", before.releases.map(t => t.tag).join());
+    Assert.isTrue(during.releases.find(t => t.tag === ReleasePublisherTests.TAG)?.isDraft ?? false, JSON.stringify(during.releases.map(t => [t.tag, t.isDraft])));
+    Assert.isFalse(before.tags.has(ReleasePublisherTests.TAG) || during.tags.has(ReleasePublisherTests.TAG));
+    Assert.isFalse(during.requests.some(t => t.includes("--field draft=false")), during.requests.join("\n"));
+  }
+
+  @TestMethod
   public async leavesAReleaseThatIsAlreadyPublishedWithEveryFileAsync(): Promise<void> {
     const github = new GitHubReleasesFixture();
     github.addRelease(ReleasePublisherTests.TAG, ReleasePublisherTests.REVISION, false, ReleasePublisherTests.FILES.map(([name, bytes]) => github.createAsset(name, bytes)));

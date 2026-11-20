@@ -21,6 +21,7 @@ import type { GitHubReleaseAsset } from "../../models/release/github-release-ass
 import type { PackageDigest } from "../../models/release/package-digest.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { ReleaseFile } from "../../models/release/release-file.ts";
+import { ReleaseOrder } from "./release-order.ts";
 import { ReleaseTag } from "./release-tag.ts";
 import type { ReleaseRequest } from "../../models/release/release-request.ts";
 import { Resources } from "../../resources.ts";
@@ -37,7 +38,8 @@ export class ReleasePublisher {
   public async publishAsync(request: ReleaseRequest, folder: string, files: readonly ReleaseFile[], notes: string): Promise<void> {
     const { tag, revision } = request;
     const digests = new Map(files.map(t => [t.name, t.digest]));
-    const releases = (await this.api.readPagesAsync(Resources.githubReleasesPath)).map((t, index) => GitHubRelease.read(t, Resources.formatGitHubReleasesContext(index))).filter(t => t.tag === tag);
+    const all = await this.readReleasesAsync();
+    const releases = all.filter(t => t.tag === tag);
     if (releases.length > 1)
       throw new BuildException(Resources.formatReleaseTagShared(releases.length, tag));
     const existing = releases.at(0);
@@ -48,12 +50,14 @@ export class ReleasePublisher {
       return;
     }
 
+    ReleasePublisher.requireNewest(all, request);
     const draft = existing ?? await this.createDraftAsync(request, notes);
     if (!request.isSeparate && draft.target !== revision)
       throw new BuildException(Resources.formatDraftForOtherRevision(tag, draft.target, revision));
     for (const [name, digest] of digests)
       await this.uploadAsync(draft, name, path.join(folder, name), digest);
     ReleasePublisher.requireComplete(await this.readAsync(draft.id), digests);
+    ReleasePublisher.requireNewest(await this.readReleasesAsync(), request);
     if (!request.isSeparate)
       await this.createTagAsync(tag, revision);
     const published = GitHubRelease.read(await this.api.sendAsync(Resources.httpPatchMethod, Resources.formatGitHubReleasePath(draft.id), [[Resources.githubMakeLatestField, Resources.releaseMakeLatestValue]], [[Resources.githubDraftField, false]]),
@@ -69,6 +73,12 @@ export class ReleasePublisher {
         new ExceptionOptions(error));
     }
     this.output.write(Resources.formatReleasePublished(tag, revision, digests.size));
+  }
+
+  private static requireNewest(releases: readonly GitHubRelease[], request: ReleaseRequest): void {
+    const highest = ReleaseOrder.readHighest(releases, request);
+    if (!Object.isNull(highest) && !request.version.isNewerThan(highest))
+      throw new BuildException(Resources.formatReleaseOvertaken(request.version.text, highest.text));
   }
 
   private static isTransient(error: unknown): error is GitHubRequestException | ProcessTimeoutException {
@@ -94,6 +104,10 @@ export class ReleasePublisher {
     const unexpected = release.assets.filter(t => !digests.has(t.name)).map(t => t.name);
     if (missing.length > 0 || unexpected.length > 0)
       throw new BuildException(Resources.formatReleaseAssetsDiffer(release.tag, missing, unexpected));
+  }
+
+  private async readReleasesAsync(): Promise<GitHubRelease[]> {
+    return (await this.api.readPagesAsync(Resources.githubReleasesPath)).map((t, index) => GitHubRelease.read(t, Resources.formatGitHubReleasesContext(index)));
   }
 
   private async createDraftAsync(request: ReleaseRequest, notes: string): Promise<GitHubRelease> {
