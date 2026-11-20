@@ -173,7 +173,18 @@ export class PackageStageTests {
 
     const [, lines] = await PackageStageTests.stallAsync(script, 500, t => [process.execPath, ["-e", waits, t]]);
 
-    Assert.isTrue(lines.includes(process.platform === "win32" ? "It ended at SIGTERM." : "It outlived SIGTERM by 3000 ms and ended at SIGKILL."), lines.join("\n"));
+    Assert.isTrue(lines.includes(process.platform === "win32" ? "It ended at SIGTERM." : "It outlived SIGTERM until 3000 ms before the test's end, and ended at SIGKILL."), lines.join("\n"));
+  }
+
+  @TestMethod
+  public async reportsAStalledInstallWhoseExitComesSecondsAfterSigtermAsEndedAtSigterm(): Promise<void> {
+    const marker = "const ready = require(\"node:path\").join(process.argv[1], \"handled\");";
+    const script = `${marker} process.on("SIGTERM", () => setTimeout(() => process.exit(0), 4_000)); require("node:fs").writeFileSync(ready, ""); setInterval(() => {}, 1_000)`;
+    const waits = `${marker} const watch = setInterval(() => { if (require("node:fs").existsSync(ready)) clearInterval(watch); }, 25);`;
+
+    const [, lines] = await PackageStageTests.stallAsync(script, 500, t => [process.execPath, ["-e", waits, t]]);
+
+    Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
   }
 
   @TestMethod

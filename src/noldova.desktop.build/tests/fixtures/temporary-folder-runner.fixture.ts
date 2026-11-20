@@ -29,7 +29,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   private static readonly TIMING_LENGTH: number = 6000;
   private static readonly LIST_LIMIT: number = 5000;
   private static readonly SAMPLE_LIMIT: number = 6000;
-  private static readonly SETTLE_LIMIT: number = 3000;
+  private static readonly KILL_RESERVE: number = 3000;
   private static readonly KILL_LIMIT: number = 1000;
   private static readonly STOP_RESERVE: number = 6000;
   private static readonly WINDOWS_PROCESSES: string = "Get-Process | ForEach-Object { '{0} {1} - {2:HH:mm:ss} {3}' -f $_.Id, $_.Parent.Id, $_.StartTime, $_.Path }";
@@ -104,7 +104,7 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
         report.push(await this.sampleAsync(id));
     }
     finally {
-      report.push(await TemporaryFolderRunnerFixture.stopAsync(child, exited));
+      report.push(await this.stopAsync(child, exited));
     }
     report.push(...await TemporaryFolderRunnerFixture.readLogsAsync(logs));
     return report.join("\n");
@@ -115,7 +115,8 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
   }
 
   private async listProcessesAsync(): Promise<readonly { id: number, parent: number, line: string }[]> {
-    const limit = Math.min(process.platform === "win32" ? TemporaryFolderRunnerFixture.LIST_LIMIT + TemporaryFolderRunnerFixture.SAMPLE_LIMIT : TemporaryFolderRunnerFixture.LIST_LIMIT, this.left());
+    const limit = !Object.isNull(this.listing) ? this.left()
+      : Math.min(process.platform === "win32" ? TemporaryFolderRunnerFixture.LIST_LIMIT + TemporaryFolderRunnerFixture.SAMPLE_LIMIT : TemporaryFolderRunnerFixture.LIST_LIMIT, this.left());
     if (limit <= 0)
       return [{ id: Number.NaN, parent: Number.NaN, line: "The listing was skipped: no time was left." }];
     try {
@@ -150,16 +151,24 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     }
   }
 
-  private static async stopAsync(child: ChildProcess, exited: Promise<boolean>): Promise<string> {
+  // SIGTERM, then the exit itself, with SIGKILL only once the test is about to run out of time; how it ended comes from the
+  // exit, so an exit seen late on a loaded machine still reads as the SIGTERM it was.
+  private async stopAsync(child: ChildProcess, exited: Promise<boolean>): Promise<string> {
     if (!Object.isNull(child.exitCode) || !Object.isNull(child.signalCode))
       return "It had ended before SIGTERM.";
     child.kill("SIGTERM");
-    if (await TemporaryFolderRunnerFixture.withinAsync(exited, TemporaryFolderRunnerFixture.SETTLE_LIMIT))
-      return "It ended at SIGTERM.";
-    child.kill("SIGKILL");
-    if (await TemporaryFolderRunnerFixture.withinAsync(exited, TemporaryFolderRunnerFixture.KILL_LIMIT))
-      return `It outlived SIGTERM by ${TemporaryFolderRunnerFixture.SETTLE_LIMIT} ms and ended at SIGKILL.`;
-    return `It outlived SIGKILL by ${TemporaryFolderRunnerFixture.KILL_LIMIT} ms.`;
+    if (!await TemporaryFolderRunnerFixture.withinAsync(exited, this.untilKill())) {
+      child.kill("SIGKILL");
+      if (!await TemporaryFolderRunnerFixture.withinAsync(exited, TemporaryFolderRunnerFixture.KILL_LIMIT))
+        return `It outlived SIGTERM until ${TemporaryFolderRunnerFixture.KILL_RESERVE} ms before the test's end, and SIGKILL by ${TemporaryFolderRunnerFixture.KILL_LIMIT} ms.`;
+    }
+    return child.signalCode === "SIGKILL"
+      ? `It outlived SIGTERM until ${TemporaryFolderRunnerFixture.KILL_RESERVE} ms before the test's end, and ended at SIGKILL.`
+      : "It ended at SIGTERM.";
+  }
+
+  private untilKill(): number {
+    return Object.isNull(this.end) ? 0 : Math.max(0, Math.floor(this.end - performance.now() - TemporaryFolderRunnerFixture.KILL_RESERVE));
   }
 
   private static async withinAsync(settled: Promise<boolean>, milliseconds: number): Promise<boolean> {
