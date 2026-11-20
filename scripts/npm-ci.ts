@@ -19,7 +19,7 @@ export class NpmCi {
     if (first.status === Resources.successExitCode || !NpmCi.isStalledRead(first.log))
       return first.status;
 
-    report(Resources.npmCiStalledRead(first.log.split(/\r?\n/).filter(t => Resources.npmCiRequestPattern.test(t)).slice(-Resources.npmCiRequestLines)));
+    report(Resources.npmCiDropped(first.log.split(/\r?\n/).filter(t => Resources.npmCiRequestPattern.test(t)).slice(-Resources.npmCiRequestLines)));
     return NpmCi.attempt(npm, commandArguments, root).status;
   }
 

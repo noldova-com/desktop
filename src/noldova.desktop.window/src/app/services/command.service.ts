@@ -16,6 +16,7 @@ import type { KeyChord } from "@noldova/desktop.protocol";
 
 import { UnconfirmedAction } from "../enums/unconfirmed-action.js";
 import { ActionNotConfirmedException } from "../exceptions/action-not-confirmed.exception.js";
+import { CommandNotEnabledException } from "../exceptions/command-not-enabled.exception.js";
 import { CommandNotFoundException } from "../exceptions/command-not-found.exception.js";
 import type { ICommandKey } from "../interfaces/i-command-key.js";
 import type { CommandContribution } from "../models/command-contribution.js";
@@ -75,6 +76,13 @@ export class CommandService {
   public async runAsync(name: string, commandArguments: JsonValue = null): Promise<JsonValue> {
     const command = this.find(name);
     return this.isHeldByReconnect(command.name) ? null : CommandService.runCommandAsync(command, commandArguments);
+  }
+
+  public async runEnabledAsync(name: string, commandArguments: JsonValue): Promise<JsonValue> {
+    const command = this.find(name);
+    if (!this.canRun(command, commandArguments))
+      throw new CommandNotEnabledException(command.name);
+    return CommandService.runCommandAsync(command, commandArguments);
   }
 
   public run(name: string, commandArguments: JsonValue = null): void {

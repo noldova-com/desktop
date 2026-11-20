@@ -24,6 +24,8 @@ export class Resources {
   public static readonly noldovaDesktopRangeCommand: string = "noldova-desktop-range";
   public static readonly releaseAssetsCommand: string = "release-assets";
   public static readonly releasePublishCommand: string = "release-publish";
+  public static readonly releaseLockCommand: string = "release-lock";
+  public static readonly releaseUnlockCommand: string = "release-unlock";
   public static readonly commands: readonly string[] = [
     Resources.installCommand,
     Resources.buildCommand,
@@ -44,6 +46,8 @@ export class Resources {
     Resources.releaseCheckCommand,
     Resources.chooseFeedCommand,
     Resources.releasePublishCommand,
+    Resources.releaseLockCommand,
+    Resources.releaseUnlockCommand,
     Resources.feedCheckCommand,
     Resources.moduleRangeCommand,
     Resources.noldovaDesktopRangeCommand
@@ -341,9 +345,11 @@ export class Resources {
   public static readonly builderAppleKeyVariable: string = "APPLE_API_KEY";
   public static readonly macNotarizationKeyFile: string = "notarization-key.p8";
   public static readonly macSigningCheckFolder: string = "check";
-  public static readonly macNotarizationTimeout: number = 3_900_000;
-  public static readonly macNotarizationWait: string = "1h";
+  public static readonly macNotarizationTimeout: number = 2_820_000;
+  public static readonly macNotarizationWait: string = "45m";
   public static readonly macStapleTimeout: number = 300_000;
+  public static readonly macPackagingLimit: number = 4_200_000;
+  public static readonly millisecondsPerMinute: number = 60_000;
   public static readonly macNotarizationAcceptedPattern: RegExp = /"status"\s*:\s*"Accepted"/;
   public static readonly macNotarizationSubmissionPattern: RegExp = /"id"\s*:\s*"([^"]+)"/;
   public static readonly privateFolderMode: number = 0o700;
@@ -1215,6 +1221,23 @@ export class Resources {
   public static readonly releaseFolderVariable: string = "RELEASE_FOLDER";
   public static readonly releaseReportsVariable: string = "RELEASE_REPORTS";
   public static readonly releaseRunVariable: string = "RELEASE_RUN_URL";
+  public static readonly releaseLockRunVariable: string = "RELEASE_LOCK_RUN";
+  public static readonly releaseLockRevisionVariable: string = "RELEASE_LOCK_REVISION";
+  public static readonly releaseLockRunPattern: RegExp = /^[1-9][0-9]{0,19}$/u;
+  public static readonly releaseLockReference: string = "refs/locks/release";
+  public static readonly releaseLockPath: string = "/git/refs/locks/release";
+  public static readonly releaseLockReadPath: string = "/git/ref/locks/release";
+  public static readonly releaseLockMessagePattern: RegExp = /^Release lock for run ([1-9][0-9]{0,19})$/u;
+  public static readonly releaseLockRetryInterval: number = 15_000;
+  public static readonly releaseLockContext: string = "the release lock";
+  public static readonly releaseLockRunContext: string = "the run holding the release lock";
+  public static readonly githubCommitsPath: string = "/git/commits";
+  public static readonly githubMessageField: string = "message";
+  public static readonly githubTreeField: string = "tree";
+  public static readonly githubParentsField: string = "parents[]";
+  public static readonly githubForceField: string = "force";
+  public static readonly githubStatusField: string = "status";
+  public static readonly githubCompletedStatus: string = "completed";
   public static readonly releaseUpdateFeedVariable: string = "RELEASE_UPDATE_FEED";
   public static readonly releaseInternalVariable: string = "RELEASE_INTERNAL_VERSION";
   public static readonly uploadLabelMark: string = "#";
@@ -1533,6 +1556,10 @@ export class Resources {
   public static readonly addonNodeApiDefine: string = `NAPI_VERSION=${Resources.addonNodeApiVersion}`;
   public static readonly addonRebuildArguments: readonly string[] = ["rebuild", "--loglevel=error", "--enable-lto=false", "--enable-thin-lto=false"];
   public static readonly addonHeadersDownloadOption: string = "--devdir";
+  public static readonly addonHeadersInstallArguments: readonly string[] = ["install", "--loglevel=error"];
+  public static readonly addonHeadersAttempts: number = 3;
+  public static readonly addonHeadersStalledExitCode: number = 6;
+  public static readonly addonHeadersStalledText: string = "Completion callback never invoked!";
   public static readonly addonLocalHeadersOption: string = "--nodedir";
   public static readonly addonLocalHeadersSegments: readonly string[] = ["include", "node", "common.gypi"];
   public static readonly addonNoToolchainText: string = "Could not find any Visual Studio installation to use";
@@ -1746,6 +1773,7 @@ export class Resources {
   public static readonly tarModeField: string = "mode";
   public static readonly tarHeaderEncoding: BufferEncoding = "latin1";
   public static readonly thirdPartyDownloadTimeout: number = 120_000;
+  public static readonly downloadRetriedStatuses: readonly number[] = [408, 429];
   public static readonly licenseFilePattern: RegExp = /^(?:(?:licen[cs]e|copying|unlicense)(?:[-_][a-z0-9+-]+(?:\.\d+)*)?|[a-z0-9+-]+(?:\.\d+)*[-_]licen[cs]e)(?:\.(?:md|txt|markdown))?$/i;
   public static readonly scriptFilePattern: RegExp = /\.[cm]?js$/;
   public static readonly regexSpecialCharacters: RegExp = /[.*+?^${}()|[\]\\]/g;
@@ -3594,6 +3622,66 @@ export class Resources {
       + `${Resources.formatReleaseSourceOptions()} ${Resources.releaseReportsVariable}=<folder> ${Resources.releaseRunVariable}=<url> [${Resources.releaseUpdateFeedVariable}=<loopback URL> | ${Resources.releaseInternalVariable}=<N.N.N-internal.N>] ${command} ${Resources.releasePublishCommand}\n`;
   }
 
+  public static formatReleaseLockUsage(command: string): string {
+    return `Usage: ${Resources.releaseBuildRepositoryVariable}=<owner/name> ${Resources.releaseLockRunVariable}=<run id> ${Resources.releaseLockRevisionVariable}=<commit> ${command} ${Resources.releaseLockCommand}\n`;
+  }
+
+  public static formatReleaseUnlockUsage(command: string): string {
+    return `Usage: ${Resources.releaseBuildRepositoryVariable}=<owner/name> ${Resources.releaseLockRunVariable}=<run id> ${command} ${Resources.releaseUnlockCommand}\n`;
+  }
+
+  public static formatReleaseLockVariableInvalid(variable: string, value: string): string {
+    return `${variable} must be set as the release lock needs it, not "${value}".`;
+  }
+
+  public static formatReleaseLockMessage(run: string): string {
+    return `Release lock for run ${run}`;
+  }
+
+  public static formatGitHubCommitPath(commit: string): string {
+    return `${Resources.githubCommitsPath}/${commit}`;
+  }
+
+  public static formatGitHubRunPath(run: string): string {
+    return `/actions/runs/${run}`;
+  }
+
+  public static formatReleaseLockTaken(repository: string, run: string): string {
+    return `Run ${run} took the release lock of ${repository}.\n`;
+  }
+
+  public static formatReleaseLockTakenAgain(repository: string, run: string): string {
+    return `Run ${run} already held the release lock of ${repository} from an earlier attempt, and holds it again.\n`;
+  }
+
+  public static formatReleaseLockBroken(repository: string, run: string, holder: string | null): string {
+    return `${Resources.formatReleaseLockHolder(holder)} held the release lock of ${repository} and has ended without letting go of it, so run ${run} took it over.\n`;
+  }
+
+  public static formatReleaseLockWaiting(repository: string, holder: string | null): string {
+    return `${Resources.formatReleaseLockHolder(holder)} holds the release lock of ${repository}, so this run tries again every ${Resources.releaseLockRetryInterval / Resources.millisecondsPerSecond} s until that run lets go of it or ends.\n`;
+  }
+
+  public static formatReleaseLockLost(repository: string): string {
+    return `Another run changed the release lock of ${repository} first, so this run reads it again in ${Resources.releaseLockRetryInterval / Resources.millisecondsPerSecond} s.\n`;
+  }
+
+  public static formatReleaseLockFree(repository: string): string {
+    return `Nothing holds the release lock of ${repository}, so there is nothing to let go of.\n`;
+  }
+
+  public static formatReleaseLockHeldByAnother(repository: string, run: string, holder: string | null): string {
+    return `${Resources.formatReleaseLockHolder(holder)} holds the release lock of ${repository}, not run ${run}, so it stays.\n`;
+  }
+
+  public static formatReleaseLockLetGo(repository: string, run: string): string {
+    return `Run ${run} let go of the release lock of ${repository}.\n`;
+  }
+
+  public static formatReleaseLockHolder(holder: string | null): string {
+    return Object.isNull(holder) ? "A commit that names no run" : `Run ${holder}`;
+  }
+
   public static formatTestFeedPublishesNothing(feed: string): string {
     return `This run tests updating with the feed ${feed}, so it publishes nothing.\n`;
   }
@@ -3879,6 +3967,15 @@ export class Resources {
 
   public static formatAddonToolchainMissing(packageName: string, addon: string, toolchain: string): string {
     return `Building ${packageName}'s Windows addon ${addon} needs ${toolchain}, and node-gyp found no Visual Studio with it. Install it and run npm run build again.`;
+  }
+
+  public static formatAddonHeadersRetried(folder: string, attempt: number, pause: number, text: string): string {
+    return `Downloading Node.js's headers into ${folder} stalled with exit code ${Resources.addonHeadersStalledExitCode} on try ${attempt} of ${Resources.addonHeadersAttempts}, `
+      + `so the build tries again in ${pause / Resources.millisecondsPerSecond} seconds:\n${text}\n`;
+  }
+
+  public static formatAddonHeadersFailed(folder: string, attempt: number, exitCode: number | null, text: string): string {
+    return `Downloading Node.js's headers into ${folder} for the addons failed with exit code ${exitCode} on try ${attempt} of ${Resources.addonHeadersAttempts}:\n${text}`;
   }
 
   public static formatAddonBuildFailed(packageName: string, kind: string, addon: string, exitCode: number | null, text: string): string {
@@ -4407,6 +4504,18 @@ export class Resources {
     return `${id} could not be downloaded from ${resolved}: ${error}`;
   }
 
+  public static formatDownloadSubject(id: string, resolved: string): string {
+    return `${id} from ${resolved}`;
+  }
+
+  public static formatHttpStatus(status: number): string {
+    return `HTTP ${status}`;
+  }
+
+  public static formatNetworkFailure(error: string, code: string): string {
+    return `${error} (${code})`;
+  }
+
   public static formatDownloadStatus(id: string, resolved: string, status: number): string {
     return `${id} could not be downloaded from ${resolved}: HTTP ${status}.`;
   }
@@ -4715,6 +4824,10 @@ export class Resources {
       .slice(-Resources.timedOutOutputLines);
     return lines.length === 0 ? `${message} It wrote nothing before it was stopped.`
       : `${message} Its last output before it was stopped:${Resources.lineSeparator}${lines.join(Resources.lineSeparator)}`;
+  }
+
+  public static formatPackagingLimitReached(limit: number, command: string): string {
+    return `Signed macOS packaging did not finish within its limit of ${limit / Resources.millisecondsPerMinute} minutes, so ${command} was stopped; a notarization that waits long in Apple's queue is the usual cause.`;
   }
 
   public static formatProcessNotStarted(command: string): string {

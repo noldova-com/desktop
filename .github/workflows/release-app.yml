@@ -139,7 +139,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@a78d658164b4bbfde91c2735eee477138517b403 # v2.40.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@c18622b1479d896f22483f8091bd862526cb4df4 # v2.41.0
     permissions: {}
 
   fetch:
@@ -371,6 +371,17 @@ jobs:
             tar --extract --gzip --file "$RUNNER_TEMP/desktop.build/$name.tgz" --directory "$folder" --strip-components=1
           done
 
+      - name: Check that desktop.build can take the release lock
+        if: inputs.internal-feed != 'build' && inputs.update-feed == ''
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          usage="$(node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" 2>&1 || true)"
+          if [[ "$usage" != *" release-lock,"* ]]; then
+            echo "::error::The desktop.build the app's lockfile locks has no release-lock command, which this release-app.yml's publish job runs; lock the desktop.build of the Noldova Desktop version this release-app.yml comes from."
+            exit 1
+          fi
+
       - name: Check the version and the revision
         id: check
         timeout-minutes: 5
@@ -493,15 +504,13 @@ jobs:
     needs: [versions, check, build, build-signed]
     if: ${{ !cancelled() && needs.check.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-signed.result == 'success' || needs.build-signed.result == 'skipped') && inputs.internal-feed != 'build' && inputs.update-feed == '' }}
     runs-on: ${{ fromJSON(inputs.runs-on-linux-x64 == 'default' && needs.versions.outputs.runs-on-linux-x64 || inputs.runs-on-linux-x64) }}
-    timeout-minutes: 30
+    timeout-minutes: 120
     env:
       PEER_PACKAGES: ${{ needs.check.outputs.peers }}
     environment: ${{ inputs.publish-environment }}
     permissions:
+      actions: read
       contents: write
-    concurrency:
-      group: release-publish-${{ github.repository }}
-      cancel-in-progress: false
     steps:
       - *check-out
       - *node
@@ -512,6 +521,15 @@ jobs:
       - *take
       - *verify
       - *unpack
+
+      - name: Take the release lock
+        timeout-minutes: 90
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BUILD_REPOSITORY: ${{ github.repository }}
+          RELEASE_LOCK_RUN: ${{ github.run_id }}
+          RELEASE_LOCK_REVISION: ${{ github.sha }}
+        run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" release-lock
 
       - name: Take this run's release files
         timeout-minutes: 10
@@ -674,11 +692,9 @@ jobs:
     env:
       PEER_PACKAGES: ${{ needs.fetch.outputs.peers }}
     permissions: {}
-    concurrency:
-      group: release-publish-${{ github.repository }}
-      cancel-in-progress: false
     steps:
-      - name: Set up Node.js
+      - &node-tokenless
+        name: Set up Node.js
         id: node
         continue-on-error: true
         timeout-minutes: 5
@@ -690,7 +706,8 @@ jobs:
 
       - *node-wait
 
-      - name: Set up Node.js again
+      - &node-tokenless-again
+        name: Set up Node.js again
         id: node-again
         if: steps.node.outcome == 'failure'
         continue-on-error: true
@@ -703,7 +720,8 @@ jobs:
 
       - *node-wait-again
 
-      - name: Set up Node.js a last time
+      - &node-tokenless-last
+        name: Set up Node.js a last time
         if: steps.node-again.outcome == 'failure'
         timeout-minutes: 5
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -714,7 +732,8 @@ jobs:
 
       - *take
 
-      - name: Check desktop.build and its @noldova peers against the archives the fetch job checked
+      - &fetched
+        name: Check desktop.build and its @noldova peers against the archives the fetch job checked
         timeout-minutes: 1
         env:
           INTEGRITY: ${{ needs.fetch.outputs.integrity }}
@@ -747,3 +766,31 @@ jobs:
           FEED_VERSION: ${{ inputs.version }}
           RELEASE_TARGETS: ${{ needs.check.outputs.release-targets }}
         run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" feed-check
+
+  unlock:
+    name: Let go of the release lock
+    needs: [versions, fetch, publish, feed]
+    if: ${{ always() && needs.publish.result != 'skipped' && needs.fetch.result == 'success' }}
+    runs-on: ${{ fromJSON(inputs.runs-on-linux-x64 == 'default' && needs.versions.outputs.runs-on-linux-x64 || inputs.runs-on-linux-x64) }}
+    timeout-minutes: 15
+    env:
+      PEER_PACKAGES: ${{ needs.fetch.outputs.peers }}
+    permissions:
+      contents: write
+    steps:
+      - *node-tokenless
+      - *node-wait
+      - *node-tokenless-again
+      - *node-wait-again
+      - *node-tokenless-last
+      - *take
+      - *fetched
+      - *unpack
+
+      - name: Let go of the release lock
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BUILD_REPOSITORY: ${{ github.repository }}
+          RELEASE_LOCK_RUN: ${{ github.run_id }}
+        run: node "$RUNNER_TEMP/desktop.build/package/services/release-command-line.js" release-unlock
