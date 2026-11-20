@@ -30,9 +30,6 @@ export default defineConfig({
   },
   test: {
     attachmentsDir: fileURLToPath(new URL("../../.vitest/attachments", import.meta.url)),
-    // Angular's test builder gives this setting to its root server and to its browser project, which keeps no browser.api of its own: both listen on
-    // 127.0.0.1, the root on 24325 and the browser project, finding that in use, on 24326, where the test page loads from, so the browser resolves no
-    // name. On "localhost" they listened on ::1 alone, as Node resolves it on Windows, and a browser request was at times refused there.
     api: { port: 24325, host: "127.0.0.1" },
     browser: { commands: { watchFailedModuleRequests: new FailedModuleRequests().watch } },
     coverage: {
