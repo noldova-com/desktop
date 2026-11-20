@@ -34,6 +34,7 @@ export class MacFolderProtectorTests {
   private static readonly DETACH_ATTEMPTS: number = 5;
   private static readonly DETACH_PAUSE_MILLISECONDS: number = 1000;
   private static readonly COMMAND_LIMIT_MILLISECONDS: number = 20_000;
+  private static readonly CREATE_LIMIT_MILLISECONDS: number = 12_000;
   private static readonly ATTACH_LIMIT_MILLISECONDS: number = 12_000;
   private static readonly MOUNT_LIMIT_MILLISECONDS: number = 3_000;
   private static readonly REFUSAL_LIMIT_MILLISECONDS: number = 3_000;
@@ -60,14 +61,48 @@ export class MacFolderProtectorTests {
     }
   }
 
-  private static async attachAsync(image: string, mountPoint: string): Promise<string> {
+  private static async createAsync(image: string): Promise<void> {
     const created = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["create", "-quiet", "-size", "8m", "-fs", "HFS+", "-volname", "Shared", image]);
     if (created.status !== 0)
       throw new Error(`hdiutil could not create ${image}: ${created.text}`);
+  }
+
+  private static async attachAsync(image: string, mountPoint: string): Promise<string> {
     const attached = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["attach", "-nobrowse", "-owners", "off", "-mountpoint", mountPoint, image]);
     if (attached.status !== 0)
       throw new Error(`hdiutil could not attach ${image}: ${attached.text}`);
-    return attached.output;
+    const disk = MacFolderProtectorTests.WHOLE_DISK.exec(attached.output)?.[1];
+    if (Object.isUndefined(disk))
+      throw new Error(`hdiutil attach printed no whole disk's device:\n${attached.output}`);
+    return disk;
+  }
+
+  private static async findDiskAsync(image: string): Promise<string | undefined> {
+    const real = await realpath(image).catch(() => image);
+    const images = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["info"]);
+    if (images.status !== 0)
+      throw new Error(`hdiutil info could not list the attached images: ${images.text}`);
+    const entry = images.output.split(MacFolderProtectorTests.IMAGE_ENTRIES).find(t => t.split("\n").some(u => u.startsWith("image-path") && u.endsWith(` ${real}`)));
+    return Object.isUndefined(entry) ? undefined : MacFolderProtectorTests.WHOLE_DISK.exec(entry)?.[1];
+  }
+
+  private static async cleanUpAsync(steps: string[], attaching: Promise<string> | undefined, image: string, mountPoint: string, folder: TemporaryFolderFixture): Promise<string | null> {
+    const failures: string[] = [];
+    try {
+      if (!Object.isUndefined(attaching)) {
+        const disk = await attaching.catch(() => MacFolderProtectorTests.findDiskAsync(image));
+        if (!Object.isUndefined(disk))
+          await MacFolderProtectorTests.stepAsync(steps, "detaching the image", MacFolderProtectorTests.DETACH_LIMIT_MILLISECONDS,
+            () => MacFolderProtectorTests.detachAsync(disk, mountPoint, failures), failures);
+      }
+      if ((await stat(mountPoint)).dev !== (await stat(folder.path)).dev)
+        throw new Error(`a volume is still mounted at ${mountPoint}`);
+    }
+    catch (error) {
+      return `${error instanceof Error ? error.message : String(error)}\nThe image may still be attached at ${mountPoint}, so the test left ${folder.path} in place.`;
+    }
+    await folder[Symbol.asyncDispose]();
+    return null;
   }
 
   private static async detachAsync(disk: string, mountPoint: string, failures: string[]): Promise<void> {
@@ -247,14 +282,13 @@ export class MacFolderProtectorTests {
     const mountPoint = path.join(folder.path, "shared");
     await mkdir(mountPoint);
     const steps: string[] = [];
-    const failures: string[] = [];
-    let disk: string | undefined;
+    let attaching: Promise<string> | undefined;
+    let failure: { readonly error: unknown } | null = null;
     try {
-      const attached = await MacFolderProtectorTests.stepAsync(steps, "attaching the image", MacFolderProtectorTests.ATTACH_LIMIT_MILLISECONDS,
-        () => MacFolderProtectorTests.attachAsync(image, mountPoint));
-      disk = MacFolderProtectorTests.WHOLE_DISK.exec(attached)?.[1];
-      if (Object.isUndefined(disk))
-        throw new Error(`hdiutil attach printed no whole disk's device:\n${attached}`);
+      await MacFolderProtectorTests.stepAsync(steps, "creating the image", MacFolderProtectorTests.CREATE_LIMIT_MILLISECONDS, () => MacFolderProtectorTests.createAsync(image));
+      attaching = MacFolderProtectorTests.attachAsync(image, mountPoint);
+      const pending = attaching;
+      await MacFolderProtectorTests.stepAsync(steps, "attaching the image", MacFolderProtectorTests.ATTACH_LIMIT_MILLISECONDS, () => pending);
       const discovery = path.join(mountPoint, "discovery");
       await MacFolderProtectorTests.stepAsync(steps, "making a folder on the volume", MacFolderProtectorTests.MOUNT_LIMIT_MILLISECONDS, () => mkdir(discovery));
 
@@ -262,10 +296,18 @@ export class MacFolderProtectorTests {
         () => Assert.throwsAsync(() => FolderProtectorFactory.create("darwin", new SystemCommand(), {}).protectAsync(discovery), FolderNotPrivateException));
 
       Assert.areEqual(`the volume ${await realpath(mountPoint)} is mounted with ownership ignored, so every account acts as the owner of its files`, exception.access);
-    } finally {
-      await MacFolderProtectorTests.stepAsync(steps, "detaching the image", MacFolderProtectorTests.DETACH_LIMIT_MILLISECONDS,
-        () => MacFolderProtectorTests.detachAsync(disk ?? mountPoint, mountPoint, failures), failures);
-      await folder[Symbol.asyncDispose]();
     }
+    catch (error) {
+      failure = { error };
+    }
+    const cleanUp = await MacFolderProtectorTests.cleanUpAsync(steps, attaching, image, mountPoint, folder);
+    if (!Object.isNull(failure)) {
+      const error = failure.error instanceof Error ? failure.error : new Error(String(failure.error));
+      if (Object.isNull(cleanUp))
+        throw error;
+      throw new Error(`${error.message}\nThe clean-up failed too: ${cleanUp}`, { cause: error });
+    }
+    if (!Object.isNull(cleanUp))
+      throw new Error(cleanUp);
   }
 }
