@@ -52,6 +52,7 @@ export class OpenWebView {
   private readonly now: () => number;
   private readonly lost: () => void;
   private readonly input: (kind: string) => void;
+  private readonly log: (text: string) => void;
   private readonly endings: Set<(kind: WebViewFailureKind) => void> = new Set();
   private readonly attachWaits: Map<(guest: IWebViewContents) => void, (kind: WebViewFailureKind) => void> = new Map();
   private readonly lookupsSettled: (() => void)[] = [];
@@ -113,7 +114,8 @@ export class OpenWebView {
     waitAsync: (milliseconds: number, signal: AbortSignal) => Promise<void>,
     now: () => number,
     lost: () => void,
-    input: (kind: string) => void) {
+    input: (kind: string) => void,
+    log: (text: string) => void) {
     this.info = info;
     this.windowId = windowId;
     this.partition = partition;
@@ -128,6 +130,7 @@ export class OpenWebView {
     this.now = now;
     this.lost = lost;
     this.input = input;
+    this.log = log;
     this.lastInput = undefined;
     this.lastPress = undefined;
     this.pendingUrl = undefined;
@@ -156,8 +159,11 @@ export class OpenWebView {
     this.kept = kept;
     this.keptScroll = null;
     const scroll = await this.readScrollAsync(guest);
-    if (this.kept === kept)
-      this.keptScroll = scroll;
+    if (this.kept !== kept)
+      return;
+    if (Object.isNull(scroll))
+      this.log(Resources.formatWebViewScrollNotKept(this.info.module, this.info.id));
+    this.keptScroll = scroll;
   }
 
   public async bindAsync(guest: IWebViewContents, isPristine: boolean = false): Promise<boolean> {
@@ -686,19 +692,43 @@ export class OpenWebView {
   private async scrollBackAsync(guest: IWebViewContents, kept: WebViewHistory, count: number, inputs: number, scroll: readonly [number, number] | null): Promise<void> {
     if (Object.isNull(scroll) || (scroll[0] === 0 && scroll[1] === 0))
       return;
-    const shown = await this.readScrollAsync(guest);
-    if (Object.isNull(shown) || shown[0] !== 0 || shown[1] !== 0 || this.navigationCount !== count || this.inputCount !== inputs || this.guest !== guest || guest.getURL() !== kept.currentUrl)
+    const shown = await this.readLayoutScrollAsync(guest);
+    if (!Object.isNull(shown) && shown[0] === scroll[0] && shown[1] === scroll[1])
       return;
-    await guest.executeJavaScriptInIsolatedWorld(Resources.scrollBackWorld, [{ code: Resources.formatScrollBackScript(scroll[0], scroll[1]) }]).catch(() => undefined);
+    const stop = this.findScrollBackStop(guest, kept, count, inputs, shown);
+    if (!Object.isNull(stop)) {
+      this.log(Resources.formatWebViewScrollNotRestored(this.info.module, this.info.id, scroll[0], scroll[1], stop));
+      return;
+    }
+    await guest.executeJavaScriptInIsolatedWorld(Resources.scrollBackWorld, [{ code: Resources.formatScrollBackScript(scroll[0], scroll[1]) }]).catch((error: unknown) =>
+      this.log(Resources.formatWebViewScrollNotRestored(this.info.module, this.info.id, scroll[0], scroll[1], Resources.formatWebViewScrollScriptFailed(String(error)))));
+  }
+
+  private findScrollBackStop(guest: IWebViewContents, kept: WebViewHistory, count: number, inputs: number, shown: readonly [number, number] | null): string | null {
+    if (this.guest !== guest)
+      return Resources.webViewScrollUnbound;
+    if (Object.isNull(shown))
+      return Resources.webViewScrollUnread;
+    if (this.navigationCount !== count)
+      return Resources.webViewScrollNavigated;
+    if (guest.getURL() !== kept.currentUrl)
+      return Resources.webViewScrollRedirected;
+    if (this.inputCount !== inputs)
+      return Resources.webViewScrollInput;
+    return shown[0] !== 0 || shown[1] !== 0 ? Resources.formatWebViewScrollShown(shown[0], shown[1]) : null;
   }
 
   private async readScrollAsync(guest: IWebViewContents): Promise<readonly [number, number] | null> {
     const abort = new AbortController();
-    const read = guest.debugger.sendCommand(Resources.layoutMetricsMethod, {}).then(t => OpenWebView.readScroll(t), () => null);
+    const read = this.readLayoutScrollAsync(guest);
     const late = this.waitAsync(Resources.webViewScrollReadTimeout, abort.signal).then(() => null, () => null);
     const scroll = await Promise.race([read, late]);
     abort.abort();
     return scroll;
+  }
+
+  private readLayoutScrollAsync(guest: IWebViewContents): Promise<readonly [number, number] | null> {
+    return guest.debugger.sendCommand(Resources.layoutMetricsMethod, {}).then(t => OpenWebView.readScroll(t), () => null);
   }
 
   private static readScroll(reply: unknown): readonly [number, number] | null {

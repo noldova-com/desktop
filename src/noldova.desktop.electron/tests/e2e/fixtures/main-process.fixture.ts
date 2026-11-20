@@ -116,6 +116,7 @@ export class MainProcessFixture {
   private isTraced: boolean = true;
 
   public readonly failures: string[] = [];
+  public readonly diagnostics: string[] = [];
   public closeMilliseconds: number | null = null;
   public readonly root: string;
   public readonly dataDirectory: string;
@@ -858,6 +859,8 @@ export class MainProcessFixture {
     for (const line of lines)
       if (line.kind === "platform-log")
         this.testInfo.annotations.push({ type: MainProcessFixture.PLATFORM_LOG_ANNOTATION, description: line.text });
+      else if (line.kind === "diagnostic")
+        this.diagnostics.push(line.text);
       else if (line.kind === "crash")
         this.crashOutput.push(line.text);
       else {
