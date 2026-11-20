@@ -15,7 +15,7 @@ import { NpmLogsFixture } from "./fixtures/npm-logs.fixture.ts";
 import { WorkflowStepFixture } from "./fixtures/workflow-step.fixture.ts";
 
 const ARGUMENTS = ["ci", "--no-audit", "--no-fund"];
-const HEADER = Resources.npmCiStalledRead([]).trimEnd();
+const HEADER = Resources.npmCiDropped([]).trimEnd();
 
 async function runAsync(plan: readonly (readonly [number, readonly string[]])[], ending: string = "\n"): Promise<{ status: number | null, calls: readonly string[], output: string }> {
   await using npm = await NpmFakeFixture.createAsync(plan, ending);
@@ -29,7 +29,7 @@ describe("package-app.yml's install step", () => {
 
     assert.equal(result.status, 0);
     assert.deepEqual(result.calls, [JSON.stringify(ARGUMENTS), JSON.stringify(ARGUMENTS)]);
-    assert.equal(result.output, Resources.npmCiStalledRead(NpmLogsFixture.REQUESTS.slice(-5)));
+    assert.equal(result.output, Resources.npmCiDropped(NpmLogsFixture.REQUESTS.slice(-5)));
   });
 
   it("runs npm ci once more after a read the connection reset", async () => {

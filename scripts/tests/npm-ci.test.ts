@@ -29,7 +29,7 @@ describe("NpmCi", () => {
 
     assert.equal(result.status, 0);
     assert.deepEqual(result.calls, [JSON.stringify(ARGUMENTS), JSON.stringify(ARGUMENTS)]);
-    assert.deepEqual(result.reports, [Resources.npmCiStalledRead(NpmLogsFixture.REQUESTS.slice(-5))]);
+    assert.deepEqual(result.reports, [Resources.npmCiDropped(NpmLogsFixture.REQUESTS.slice(-5))]);
   });
 
   it("runs npm ci once more after a read the connection reset", async () => {
