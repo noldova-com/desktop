@@ -13,6 +13,7 @@ import type { IBrowserPage } from "./interfaces/i-browser-page.ts";
 import type { IBrowserRequest } from "./interfaces/i-browser-request.ts";
 import type { IBrowserResponse } from "./interfaces/i-browser-response.ts";
 import type { IVitestRun } from "./interfaces/i-vitest-run.ts";
+import { NetLogTrace } from "./net-log-trace.ts";
 
 export class FailedModuleRequests {
   private static readonly MODULE: string = "script";
@@ -29,10 +30,17 @@ export class FailedModuleRequests {
   private readonly pages: WeakSet<IBrowserPage> = new WeakSet();
   private readonly lines: string[] = [];
   private readonly printedResponses: WeakSet<IBrowserRequest> = new WeakSet();
+  private readonly trace: NetLogTrace = new NetLogTrace();
+  private isWaitedForOnClose: boolean = false;
 
   public readonly watch: (context: IBrowserCommandContext) => readonly string[] = context => this.watchPage(context.page, context.project.vitest);
 
   private watchPage(page: IBrowserPage, run: IVitestRun): readonly string[] {
+    this.trace.start(page);
+    if (!this.isWaitedForOnClose) {
+      this.isWaitedForOnClose = true;
+      run.onClose(() => this.trace.flushedAsync());
+    }
     if (!this.pages.has(page)) {
       this.pages.add(page);
       page.on("requestfailed", request => this.recordRequest(request, run));
@@ -47,6 +55,8 @@ export class FailedModuleRequests {
     const failure = request.failure();
     const error = Object.isNull(failure) ? FailedModuleRequests.NO_ERROR : failure.errorText;
     this.print(`Failed module request at ${new Date().toISOString()}: ${error} ${request.url()}`, run);
+    if (error.startsWith("net::ERR_CONNECTION_") || error === "net::ERR_UNSAFE_PORT")
+      void this.trace.save(new URL(request.url()).port, line => this.print(line, run));
   }
 
   private recordResponse(response: IBrowserResponse, run: IVitestRun): void {
