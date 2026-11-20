@@ -37,7 +37,7 @@ export class ForeignAddons {
   }
 
   private static isForeignAddon(name: string, target: PackageTarget): boolean {
-    return Resources.addonTargets.includes(name) && name !== target.addonTarget;
+    return Resources.addonTargetPattern.test(name) && name !== target.addonTarget;
   }
 
   private static isForeignConpty(name: string, target: PackageTarget): boolean {
