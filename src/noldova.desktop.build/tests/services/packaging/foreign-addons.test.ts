@@ -105,9 +105,34 @@ export class ForeignAddonsTests {
   }
 
   @TestMethod
+  public async keepsAMultiProcessorBuildForTheTargetOnlyWhenThePackageHasNoBuildOfTheTargetAlone(): Promise<void> {
+    await using stage = await ForeignAddonsTests.createStageAsync({
+      "node_modules/both/package.json": "{}",
+      "node_modules/both/prebuilds/darwin-arm64/both.node": String.empty,
+      "node_modules/both/prebuilds/darwin-x64+arm64/both.node": String.empty,
+      "node_modules/only/package.json": "{}",
+      "node_modules/only/prebuilds/darwin-x64+arm64/only.node": String.empty,
+      "node_modules/only/prebuilds/linux-x64/only.node": String.empty
+    });
+
+    const removed = await ForeignAddons.removeAsync(stage.path, new PackageTarget("macos", "arm64"));
+
+    Assert.areEqual(JSON.stringify(["node_modules/both/prebuilds/darwin-x64+arm64", "node_modules/only/prebuilds/linux-x64"]), JSON.stringify(removed));
+    Assert.areEqual(JSON.stringify([
+      "node_modules/both/package.json",
+      "node_modules/both/prebuilds/darwin-arm64/both.node",
+      "node_modules/only/package.json",
+      "node_modules/only/prebuilds/darwin-x64+arm64/only.node"
+    ]), JSON.stringify(await ForeignAddonsTests.listAsync(stage.path)));
+  }
+
+  @TestMethod
   @TestData("prebuilds/win32-ia32/pty.node", "windows", "x64", true)
   @TestData("prebuilds/linux-arm/pty.node", "linux", "arm64", true)
-  @TestData("prebuilds/darwin-x64+arm64/pty.node", "macos", "arm64", true)
+  @TestData("prebuilds/darwin-x64+arm64/pty.node", "linux", "arm64", true)
+  @TestData("prebuilds/darwin-x64+arm64/pty.node", "macos", "arm64", false)
+  @TestData("prebuilds/darwin-x64+arm64/pty.node", "macos", "x64", false)
+  @TestData("prebuilds/darwin-ia32+x64/pty.node", "macos", "arm64", true)
   @TestData("native/freebsd-x64/pty.node", "linux", "x64", true)
   @TestData("prebuilds/win32-arm64/pty.node", "windows", "x64", true)
   @TestData("prebuilds/win32-x64/pty.node", "windows", "x64", false)
