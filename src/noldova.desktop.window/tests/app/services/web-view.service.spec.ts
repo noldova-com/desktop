@@ -107,7 +107,7 @@ describe("WebViewService", () => {
   });
 
   function openAsync(injector: Injector = TestBed.inject(Injector)): Promise<WebViewHandle> {
-    return service.openAsync("notes", pane, plan, "workspace-1", injector);
+    return service.openAsync("notes", pane, plan, "workspace-1", null, injector);
   }
 
   function attach(handle: WebViewHandle, contentsId: number): void {
@@ -136,7 +136,7 @@ describe("WebViewService", () => {
     const handle = await openAsync();
     TestBed.inject(LayoutService).close(todo);
     TestBed.tick();
-    const closedPane = await service.openAsync("notes", new WebViewPane(QualifiedName.parse("notes.note"), "todo"), todo, "workspace-1", TestBed.inject(Injector)).catch((error: unknown) => error);
+    const closedPane = await service.openAsync("notes", new WebViewPane(QualifiedName.parse("notes.note"), "todo"), todo, "workspace-1", null, TestBed.inject(Injector)).catch((error: unknown) => error);
     bridge.isWebViewOpened = false;
     const refused = await openAsync().catch((error: unknown) => error);
 
@@ -289,7 +289,7 @@ describe("WebViewService", () => {
   it("keeps a controlled view under the view of its pane that shows, paints a tab's content while any of its views is controlled, and ends control as each view closes", async () => {
     const first = await openAsync();
     const second = await openAsync();
-    const other = await service.openAsync("notes", pane, todo, "workspace-1", TestBed.inject(Injector));
+    const other = await service.openAsync("notes", pane, todo, "workspace-1", null, TestBed.inject(Injector));
     first.mount(host);
     second.mount(host);
     first.show();

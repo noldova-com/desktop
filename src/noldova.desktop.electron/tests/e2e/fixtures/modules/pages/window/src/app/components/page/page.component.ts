@@ -53,7 +53,7 @@ export class PageComponent {
   private async openAsync(): Promise<void> {
     const pane = new WebViewPane(QualifiedName.parse(this.paneName), this.instance());
     for (let index = 0; index < PageComponent.VIEW_COUNT; index++) {
-      const handle = await this.context.webViews.openAsync(pane, PageComponent.PROFILE_KEY);
+      const handle = await this.context.webViews.openAsync(pane, PageComponent.PROFILE_KEY, { name: "Pages" });
       if (this.isClosed) {
         handle.close();
         return;

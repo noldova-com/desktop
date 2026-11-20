@@ -11,11 +11,14 @@ import type { JsonObject } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { WebViewAction, type WebViewAnswered, WebViewDeclaration, type WebViewEvent, WebViewInfo, WebViewPane } from "@noldova/desktop.protocol";
 
+import { WebViewRefusedPage } from "../../src/models/web-view-refused-page.js";
+import { WindowAppearance } from "../../src/models/window-appearance.js";
 import { OpenWebView } from "../../src/services/open-web-view.js";
 import { WebViewOriginCheck } from "../../src/services/web-view-origin-check.js";
 import { Condition } from "../fixtures/condition.fixture.js";
 import type { FakeWebViewContents } from "../fixtures/fake-web-view-contents.fixture.js";
 import { FakeWebView } from "../fixtures/fake-web-view.fixture.js";
+import { FakeWebViewFrame } from "../fixtures/fake-web-view-frame.fixture.js";
 import { FakeWebViewSession } from "../fixtures/fake-web-view-session.fixture.js";
 
 class FakeWaits {
@@ -60,6 +63,7 @@ class OpenWebViewHarness {
   public readonly open: OpenWebView;
   public time: number = 0;
   public isLost: boolean = false;
+  public appearance: WindowAppearance | null = new WindowAppearance("#202020", "#303030", "#F0F0F0", 32);
   public onInput: () => void = () => undefined;
 
   private markLost: () => void = () => undefined;
@@ -76,7 +80,7 @@ class OpenWebViewHarness {
       (t, signal) => this.waits.waitAsync(t, signal), () => this.time, () => this.markLost(), t => {
         this.inputs.push(t);
         this.onInput();
-      });
+      }, new WebViewRefusedPage("Browser", () => this.appearance));
   }
 
   public get contents(): FakeWebView["contents"] {
@@ -533,6 +537,150 @@ export class OpenWebViewTests {
       "NavigationRefused {\"address\":\"https://other.example.net/\",\"origin\":\"https://other.example.net\",\"isRedirect\":false}",
       "NavigationRefused {\"address\":\"about:srcdoc\",\"origin\":\"null\",\"isRedirect\":false}"
     ].join("|"), harness.describe());
+  }
+
+  @TestMethod
+  public async reportsAFramesRefusedNavigationWithTheFrameAndSendsThatFrameToTheRefusedPage(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    const frame = new FakeWebViewFrame(7);
+
+    const prevented = harness.contents.navigateFrame("https://other.example.net/frame", false, frame);
+    const gone = harness.contents.navigateFrame("https://other.example.net/gone", false, null);
+
+    Assert.areEqual("true,true", [prevented, gone].join(","));
+    Assert.areEqual("FrameNavigationRefused {\"address\":\"https://other.example.net/frame\",\"origin\":\"https://other.example.net\",\"isRedirect\":false,\"frameId\":7}", harness.describe());
+    Assert.areEqual(1, frame.scripts.length);
+    Assert.isTrue((frame.scripts[0] ?? String.empty).startsWith("location.replace(\"data:text/html;base64,"));
+    const html = OpenWebViewTests.readPage(frame.pages[0] ?? String.empty);
+    Assert.isTrue(html.includes("<h1>Browser doesn't open https://other.example.net</h1>"));
+    Assert.isTrue(html.includes("background:#202020;color:#F0F0F0;"));
+  }
+
+  @TestMethod
+  public async reportsAFramesRefusedRequestAndRedirectAndSendsTheFrameThePageButNotForAFrameThatIsGone(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    const frame = new FakeWebViewFrame(9);
+
+    const asked = harness.open.allowsRequest({ id: 1, url: "https://other.example.net/f", resourceType: "subFrame", frame });
+    harness.open.noteRedirect({ id: 2, url: "https://example.com/f", redirectURL: "https://other.example.net/r" });
+    const redirected = harness.open.allowsRequest({ id: 2, url: "https://other.example.net/r", resourceType: "subFrame", frame });
+    const gone = harness.open.allowsRequest({ id: 3, url: "https://other.example.net/g", resourceType: "subFrame", frame: null });
+    const allowed = harness.open.allowsRequest({ id: 4, url: "https://example.com/f", resourceType: "subFrame", frame });
+
+    Assert.areEqual("false,false,false,true", [asked, redirected, gone, allowed].join(","));
+    Assert.areEqual([
+      "FrameNavigationRefused {\"address\":\"https://other.example.net/f\",\"origin\":\"https://other.example.net\",\"isRedirect\":false,\"frameId\":9}",
+      "FrameNavigationRefused {\"address\":\"https://other.example.net/r\",\"origin\":\"https://other.example.net\",\"isRedirect\":true,\"frameId\":9}"
+    ].join("|"), harness.describe());
+    Assert.areEqual(2, frame.pages.length);
+  }
+
+  @TestMethod
+  public async letsOnlyTheRefusedFrameItselfShowItsPageAndOnlyOnceBeforeItsNextNavigation(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    const [frame, other, parent] = [new FakeWebViewFrame(7), new FakeWebViewFrame(8), new FakeWebViewFrame(1)];
+    const refuse = (): string => {
+      harness.contents.navigateFrame("https://other.example.net/frame", false, frame);
+      return frame.pages.at(-1) ?? String.empty;
+    };
+
+    const first = refuse();
+    const shown = harness.contents.navigateFrame(first, false, frame);
+    const again = harness.contents.navigateFrame(first, false, frame);
+    const second = refuse();
+    const inOther = harness.contents.navigateFrame(second, false, other, other);
+    const fromParent = harness.contents.navigateFrame(second, false, frame, parent);
+    const afterParent = harness.contents.navigateFrame(second, false, frame);
+    const third = refuse();
+    const onward = harness.contents.navigateFrame("https://example.com/next", false, frame);
+    const afterOnward = harness.contents.navigateFrame(third, false, frame);
+    const fourth = refuse();
+    const otherPage = harness.contents.navigateFrame(first, false, frame);
+    const afterOtherPage = harness.contents.navigateFrame(fourth, false, frame);
+    const fifth = refuse();
+    harness.contents.emit("did-start-navigation", { url: "https://example.com/#part", isMainFrame: true, isSameDocument: true });
+    harness.contents.emit("did-start-navigation", { url: "https://example.com/frame", isMainFrame: false, isSameDocument: false });
+    const afterSameDocument = harness.contents.navigateFrame(fifth, false, frame);
+    const sixth = refuse();
+    harness.contents.emit("did-start-navigation", { url: "https://example.com/next", isMainFrame: true, isSameDocument: false });
+    const afterNextPage = harness.contents.navigateFrame(sixth, false, frame);
+
+    Assert.areEqual("false,true,true,true,true,false,true,true,true,false,true",
+      [shown, again, inOther, fromParent, afterParent, onward, afterOnward, otherPage, afterOtherPage, afterSameDocument, afterNextPage].join(","));
+    Assert.areEqual(6, new Set([first, second, third, fourth, fifth, sixth]).size);
+  }
+
+  @TestMethod
+  public async letsTheRefusedPageItLetThroughLoadOnceInItsFrameButNeverByARedirectOrBeforeItsNavigation(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    const [frame, other] = [new FakeWebViewFrame(7), new FakeWebViewFrame(8)];
+    const refuse = (): string => {
+      harness.contents.navigateFrame("https://other.example.net/frame", false, frame);
+      return frame.pages.at(-1) ?? String.empty;
+    };
+
+    const unannounced = harness.open.allowsRequest({ id: 1, url: refuse(), resourceType: "subFrame", frame });
+    const first = refuse();
+    const shown = harness.contents.navigateFrame(first, false, frame);
+    const inOther = harness.open.allowsRequest({ id: 2, url: first, resourceType: "subFrame", frame: other });
+    harness.open.noteRedirect({ id: 3, url: "https://example.com/f", redirectURL: first });
+    const redirected = harness.open.allowsRequest({ id: 3, url: first, resourceType: "subFrame", frame });
+    const loaded = harness.open.allowsRequest({ id: 4, url: first, resourceType: "subFrame", frame });
+    const again = harness.open.allowsRequest({ id: 5, url: first, resourceType: "subFrame", frame });
+    const second = refuse();
+    harness.contents.navigateFrame(second, false, frame);
+    const elsewhere = harness.open.allowsRequest({ id: 6, url: "https://example.com/f", resourceType: "subFrame", frame });
+    const afterElsewhere = harness.open.allowsRequest({ id: 7, url: second, resourceType: "subFrame", frame });
+
+    Assert.areEqual("false,false,false,false,true,false,true,false",
+      [unannounced, shown, inOther, redirected, loaded, again, elsewhere, afterElsewhere].join(","));
+  }
+
+  @TestMethod
+  public async keepsTheRefusedPagesOfOnlyTheLast64FramesItRefused(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    const frames = Array.from({ length: 65 }, (_, i) => new FakeWebViewFrame(i + 1));
+    for (const frame of frames)
+      harness.contents.navigateFrame("https://other.example.net/frame", false, frame);
+
+    const prevented = frames.slice(0, 2).reverse().map(t => harness.contents.navigateFrame(t.pages[0] ?? String.empty, false, t));
+
+    Assert.areEqual("false,true", prevented.join(","));
+  }
+
+  @TestMethod
+  public async reportsTheRefusalOfAFrameThatCanNoLongerRunTheRefusedPage(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    const frame = new FakeWebViewFrame(7);
+    frame.failure = new Error("Render frame was disposed before WebFrameMain could be accessed");
+
+    const prevented = harness.contents.navigateFrame("https://other.example.net/frame", false, frame);
+    await OpenWebViewTests.drainAsync();
+
+    Assert.isTrue(prevented);
+    Assert.areEqual(1, frame.scripts.length);
+    Assert.areEqual("FrameNavigationRefused {\"address\":\"https://other.example.net/frame\",\"origin\":\"https://other.example.net\",\"isRedirect\":false,\"frameId\":7}", harness.describe());
+  }
+
+  @TestMethod
+  public async showsTheAddressEscapedInTheRefusedPageWhenItHasNoOrigin(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.appearance = null;
+    const frame = new FakeWebViewFrame(7);
+
+    harness.contents.navigateFrame("data:text/html,<script>a()</script>", false, frame);
+    const html = OpenWebViewTests.readPage(frame.pages[0] ?? String.empty);
+
+    Assert.isTrue(html.includes("<h1>Browser doesn't open data:text/html,&lt;script&gt;a()&lt;/script&gt;</h1>"));
+    Assert.isTrue(html.includes("background:Canvas;color:CanvasText;"));
+    Assert.isTrue(harness.describe().includes("\"origin\":\"null\""));
   }
 
   @TestMethod
@@ -1625,6 +1773,10 @@ export class OpenWebViewTests {
   private static isFromPress(harness: OpenWebViewHarness, address: string): boolean {
     harness.contents.openWindow(address);
     return harness.describe().split("|").at(-1)?.includes("\"fromPress\":true") === true;
+  }
+
+  private static readPage(page: string): string {
+    return Buffer.from(page.slice("data:text/html;base64,".length), "base64").toString("utf8");
   }
 
   private static drainAsync(): Promise<void> {

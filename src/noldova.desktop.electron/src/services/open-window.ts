@@ -15,6 +15,7 @@ import type { IMainProcessWindow } from "../interfaces/i-main-process-window.js"
 import type { IDisplayHost } from "../interfaces/i-display-host.js";
 import type { IQuitPrompt } from "../interfaces/i-quit-prompt.js";
 import type { QuitQuestion } from "../models/quit-question.js";
+import type { WindowAppearance } from "../models/window-appearance.js";
 import { Resources } from "../resources.js";
 import { CloseCoordinator } from "./close-coordinator.js";
 import { UpdateSaveCoordinator } from "./update-save-coordinator.js";
@@ -41,6 +42,7 @@ export class OpenWindow implements IQuitPrompt {
   public readonly updateSaves: UpdateSaveCoordinator;
   public readonly bounds: WindowBoundsKeeper;
   public readonly errors: WindowErrorLimit = new WindowErrorLimit(Resources.windowErrorBurst, Resources.windowErrorPeriod);
+  public appearance: WindowAppearance | null = null;
 
   public constructor(window: IMainProcessWindow, displays: IDisplayHost, log: IMainProcessLog, guard: ICloseGuard, platform: string, isPlacedByCompositor: boolean = false) {
     this.window = window;

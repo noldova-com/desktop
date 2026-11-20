@@ -637,16 +637,16 @@ describe("PreloadBridgeService", () => {
     const pane = new WebViewPane(QualifiedName.parse("notes.note"), "plan");
     const events: string[] = [];
 
-    const opened = await service.openWebViewAsync("notes", pane, "workspace-1");
+    const opened = await service.openWebViewAsync("notes", pane, "workspace-1", "Notes' browser");
     bridge.openedViewKeys = ["Mod+L", "F6"];
-    const withKeys = await service.openWebViewAsync("notes", pane, "workspace-1");
+    const withKeys = await service.openWebViewAsync("notes", pane, "workspace-1", null);
     bridge.openedViewKeys = undefined;
     bridge.webViewPartition = "";
-    const blank = await service.openWebViewAsync("notes", pane, "workspace-1");
+    const blank = await service.openWebViewAsync("notes", pane, "workspace-1", null);
     bridge.webViewPartition = 7;
-    const notText = await service.openWebViewAsync("notes", pane, "workspace-1").catch((error: unknown) => error);
+    const notText = await service.openWebViewAsync("notes", pane, "workspace-1", null).catch((error: unknown) => error);
     bridge.isWebViewOpened = false;
-    const refused = await service.openWebViewAsync("notes", pane, "workspace-1");
+    const refused = await service.openWebViewAsync("notes", pane, "workspace-1", null);
     const opens = bridge.webViewCalls.splice(0);
     const attached: boolean[] = [];
     for (const answer of [{ isAttached: true }, { isAttached: false }, { isAttached: "yes" }, {}, null]) {
@@ -667,6 +667,7 @@ describe("PreloadBridgeService", () => {
     expect([opened?.keys, withKeys?.keys.map(t => t.text)]).toEqual([[], ["Mod+L", "F6"]]);
     expect([blank, notText instanceof Error, refused]).toEqual([null, true, null]);
     expect(opens.filter(t => !t.startsWith("open"))).toEqual(["close notes 3"]);
+    expect(opens.slice(0, 2)).toEqual(["open notes {\"name\":\"notes.note\",\"instance\":\"plan\"} workspace-1 as Notes' browser", "open notes {\"name\":\"notes.note\",\"instance\":\"plan\"} workspace-1"]);
     expect(attached).toEqual([true, false, false, false, false]);
     expect([navigation?.kind, ...unknown]).toEqual([WebViewNavigationKind.Started, null, null]);
     expect(bridge.webViewKeys).toEqual([["Mod+K", "Mod+Shift+P"]]);

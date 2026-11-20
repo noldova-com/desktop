@@ -12,6 +12,7 @@ export enum WebViewEventKind {
   State = "State",
   LoadFailed = "LoadFailed",
   NavigationRefused = "NavigationRefused",
+  FrameNavigationRefused = "FrameNavigationRefused",
   Crashed = "Crashed",
   ProfileCleared = "ProfileCleared",
   RequestRefused = "RequestRefused",
