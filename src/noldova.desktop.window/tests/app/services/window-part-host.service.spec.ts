@@ -638,21 +638,47 @@ describe("WindowPartHostService", () => {
 
   it("refuses a part's run of a command that is not enabled for its arguments, without running it", async () => {
     const runs: string[] = [];
+    let archiveAsync = (commandArguments: JsonValue): Promise<JsonValue> => Promise.reject(new Error(`notes isn't active for ${JSON.stringify(commandArguments)}.`));
     const notes = new WindowPartFixture("notes", log, t => {
       t.registerCommand(new CommandContribution("notes.archive", "Archive", null, null, u => {
         runs.push(`notes.archive ${JSON.stringify(u)}`);
         return Promise.resolve("archived");
       }, u => !Object.isNull(u)));
+      archiveAsync = u => t.runCommandAsync("notes.archive", u);
     });
     const { host } = start([source("notes", notes, [], [], ["notes.archive"])], [status("notes")]);
     await vi.waitFor(() => expect(host.generation()).toBe(1));
 
-    const refused = await host.runCommandAsync("notes.archive", null).catch((error: unknown) => error);
-    const ran = await host.runCommandAsync("notes.archive", { note: 1 });
+    const refused = await archiveAsync(null).catch((error: unknown) => error);
+    const ran = await archiveAsync({ note: 1 });
 
     expect(refused).toBeInstanceOf(CommandNotEnabledException);
     expect(ran).toBe("archived");
     expect(runs).toEqual(["notes.archive {\"note\":1}"]);
+  });
+
+  it("keeps a part that runs a runtime command while it continues after the runtime starts again", async () => {
+    const synced: JsonValue[] = [];
+    let syncAsync = (): Promise<JsonValue> => Promise.reject(new Error("notes isn't active."));
+    const notes = new WindowPartFixture("notes", log, t => {
+      syncAsync = () => t.runCommandAsync("notes.sync", { by: 1 });
+    });
+    notes.onReconnect = async () => {
+      synced.push(await syncAsync());
+      return true;
+    };
+    bridge.responses.set("desktop.commands", { payload: { commands: [{ name: "notes.sync", title: "Sync" }], sequence: 2 } });
+    bridge.responses.set("desktop.runCommand", { payload: 3 });
+    const { host } = start([source("notes", notes)], [status("notes")]);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+
+    bridge.publishStartup({ kind: "Connecting", details: [] });
+    bridge.publishStartup({ kind: "Ready", details: [] });
+    await vi.waitFor(() => expect(host.generation()).toBe(2));
+
+    expect(errors).toEqual([]);
+    expect(log).toEqual(["activate notes", "reconnect notes"]);
+    expect(synced).toEqual([3]);
   });
 
   it("gives a part a command's key that follows the person's bindings", () => {

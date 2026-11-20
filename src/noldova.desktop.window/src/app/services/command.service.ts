@@ -80,9 +80,7 @@ export class CommandService {
 
   public async runEnabledAsync(name: string, commandArguments: JsonValue): Promise<JsonValue> {
     const command = this.find(name);
-    if (this.isHeldByReconnect(command.name))
-      return null;
-    if (!this.ask(() => command.isEnabled(commandArguments)))
+    if (!this.canRun(command, commandArguments))
       throw new CommandNotEnabledException(command.name);
     return CommandService.runCommandAsync(command, commandArguments);
   }

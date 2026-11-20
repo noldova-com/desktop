@@ -150,7 +150,7 @@ describe("CommandService", () => {
     expect(runs).toEqual([]);
   });
 
-  it("runs a command only while it is enabled for its arguments, refuses it otherwise or when asking fails, and runs none while the runtime starts again", async () => {
+  it("runs a command only while it is enabled for its arguments, refuses it otherwise, when asking fails or while the runtime starts again", async () => {
     const service = start("win32");
     service.setCommands([
       new CommandContribution("notes.archive", "Archive", null, null, t => {
@@ -167,11 +167,11 @@ describe("CommandService", () => {
     const refused = await service.runEnabledAsync("notes.archive", null).catch((error: unknown) => error);
     const failed = await service.runEnabledAsync("notes.sorting", null).catch((error: unknown) => error);
     bridge.publishStartup({ kind: "Connecting", details: [] });
-    const whileStarting = await service.runEnabledAsync("notes.archive", { note: 2 });
+    const whileStarting = await service.runEnabledAsync("notes.archive", { note: 2 }).catch((error: unknown) => error);
     bridge.publishStartup({ kind: "Ready", details: [] });
 
-    expect([ran, whileStarting]).toEqual(["archived", null]);
-    expect([refused instanceof CommandNotEnabledException, failed instanceof CommandNotEnabledException]).toEqual([true, true]);
+    expect(ran).toBe("archived");
+    expect([refused, failed, whileStarting].map(u => u instanceof CommandNotEnabledException)).toEqual([true, true, true]);
     expect(runs).toEqual(["notes.archive {\"note\":1}"]);
     expect(errors.map(t => FailureFixture.of(t, Error).message)).toEqual(["No sorting."]);
   });
