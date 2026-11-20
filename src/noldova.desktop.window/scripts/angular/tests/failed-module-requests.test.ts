@@ -210,6 +210,46 @@ describe("FailedModuleRequests", () => {
     assert.deepEqual(logged, [`Stalled request at ${at(10_000)}: stylesheet ${STYLES} open 10.0 s since ${AT}; 22 other requests open, oldest first: ${listed}, and 2 more`]);
   });
 
+  it("gives back only its failure lines, not the stall lines it printed", () => {
+    const { recorder, page, logged } = watch();
+
+    page.open("stylesheet", STYLES);
+    mock.timers.tick(10_000);
+    page.fail("script", "net::ERR_CONNECTION_REFUSED", CHUNK);
+
+    const failed = `Failed module request at ${at(10_000)}: net::ERR_CONNECTION_REFUSED ${CHUNK}`;
+    assert.equal(logged.length, 2);
+    assert.deepEqual(recorder.watch(contextOf(page, [])), [failed]);
+  });
+
+  it("prints the run's first 20 stalls, their ends alone, and once the run closes how many more it didn't print", () => {
+    const { page, logged, closes } = watch();
+
+    const requests = Array.from({ length: 23 }, (_, i) => page.open("script", `${CHUNK}?v=${i}`));
+    mock.timers.tick(10_000);
+    mock.timers.tick(1_000);
+    for (const request of requests)
+      page.finish(request);
+    for (const close of closes)
+      close();
+
+    const stalls = logged.filter(t => t.startsWith("Stalled request at "));
+    assert.deepEqual(stalls.map(t => t.split(" ")[5]), Array.from({ length: 20 }, (_, i) => `${CHUNK}?v=${i}`));
+    assert.equal(logged.filter(t => t.startsWith("Stalled request ended at ")).length, 20);
+    assert.equal(logged.at(-1), "Stalled requests not printed, past the first 20: 3");
+  });
+
+  it("says nothing of unprinted stalls when the run closes after 20 or fewer", () => {
+    const { page, logged, closes } = watch();
+
+    page.open("stylesheet", STYLES);
+    mock.timers.tick(10_000);
+    for (const close of closes)
+      close();
+
+    assert.equal(logged.length, 1);
+  });
+
   it("says no other request is open when the stalled one is alone", () => {
     const { page, logged } = watch();
 

@@ -27,6 +27,7 @@ export class FailedModuleRequests {
   private static readonly STALL_CHECK: number = 1_000;
   private static readonly MILLISECONDS_PER_SECOND: number = 1_000;
   private static readonly LISTED_OTHERS: number = 20;
+  private static readonly PRINTED_STALLS: number = 20;
   private static readonly JAVASCRIPT: ReadonlySet<string> = new Set(["application/ecmascript", "application/javascript", "application/x-ecmascript",
     "application/x-javascript", "text/ecmascript", "text/javascript", "text/javascript1.0", "text/javascript1.1", "text/javascript1.2",
     "text/javascript1.3", "text/javascript1.4", "text/javascript1.5", "text/jscript", "text/livescript", "text/x-ecmascript", "text/x-javascript"]);
@@ -36,6 +37,9 @@ export class FailedModuleRequests {
   private readonly printedResponses: WeakSet<IBrowserRequest> = new WeakSet();
   private readonly openRequests: Map<IBrowserRequest, number> = new Map();
   private readonly printedStalls: WeakSet<IBrowserRequest> = new WeakSet();
+  private readonly countedStalls: WeakSet<IBrowserRequest> = new WeakSet();
+  private stallsPrinted: number = 0;
+  private unprintedStalls: number = 0;
   private stallCheck: ReturnType<typeof setInterval> | null = null;
 
   public readonly watch: (context: IBrowserCommandContext) => readonly string[] = context => this.watchPage(context.page, context.project.vitest);
@@ -51,7 +55,11 @@ export class FailedModuleRequests {
     if (Object.isNull(this.stallCheck)) {
       const check = setInterval(() => this.printStalls(run), FailedModuleRequests.STALL_CHECK).unref();
       this.stallCheck = check;
-      run.onClose(() => clearInterval(check));
+      run.onClose(() => {
+        clearInterval(check);
+        if (this.unprintedStalls > 0)
+          this.log(`Stalled requests not printed, past the first ${FailedModuleRequests.PRINTED_STALLS}: ${this.unprintedStalls}`, run);
+      });
     }
     return [...this.lines];
   }
@@ -81,14 +89,20 @@ export class FailedModuleRequests {
     const now = Date.now();
     const open = [...this.openRequests].sort((a, b) => a[1] - b[1]);
     for (const [request, start] of open) {
-      if (now - start < FailedModuleRequests.STALL_LIMIT || this.printedStalls.has(request))
+      if (now - start < FailedModuleRequests.STALL_LIMIT || this.countedStalls.has(request))
         continue;
+      this.countedStalls.add(request);
+      if (this.stallsPrinted === FailedModuleRequests.PRINTED_STALLS) {
+        this.unprintedStalls++;
+        continue;
+      }
+      this.stallsPrinted++;
       this.printedStalls.add(request);
       const others = open.filter(t => t[0] !== request);
       const listed = others.slice(0, FailedModuleRequests.LISTED_OTHERS).map(([t, u]) => `${t.resourceType()} ${t.url()} open ${FailedModuleRequests.seconds(now - u)} s`);
       const unlisted = others.length - listed.length;
       const list = listed.length === 0 ? String.empty : `, oldest first: ${listed.join(", ")}${unlisted === 0 ? String.empty : `, and ${unlisted} more`}`;
-      this.print(`Stalled request at ${new Date(now).toISOString()}: ${request.resourceType()} ${request.url()} open ${FailedModuleRequests.seconds(now - start)} s since ${new Date(start).toISOString()}; ${others.length} other requests open${list}`, run);
+      this.log(`Stalled request at ${new Date(now).toISOString()}: ${request.resourceType()} ${request.url()} open ${FailedModuleRequests.seconds(now - start)} s since ${new Date(start).toISOString()}; ${others.length} other requests open${list}`, run);
     }
   }
 
@@ -96,7 +110,7 @@ export class FailedModuleRequests {
     const start = this.openRequests.get(request);
     this.openRequests.delete(request);
     if (!Object.isUndefined(start) && this.printedStalls.has(request))
-      this.print(`Stalled request ended at ${new Date().toISOString()}: ${end} after ${FailedModuleRequests.seconds(Date.now() - start)} s, ${request.resourceType()} ${request.url()}`, run);
+      this.log(`Stalled request ended at ${new Date().toISOString()}: ${end} after ${FailedModuleRequests.seconds(Date.now() - start)} s, ${request.resourceType()} ${request.url()}`, run);
   }
 
   private static seconds(milliseconds: number): string {
@@ -105,6 +119,10 @@ export class FailedModuleRequests {
 
   private print(line: string, run: IVitestRun): void {
     this.lines.push(line);
+    this.log(line, run);
+  }
+
+  private log(line: string, run: IVitestRun): void {
     run.logger.log(line);
   }
 }
