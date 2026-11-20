@@ -78,6 +78,17 @@ export class ProductIdentityTests {
   }
 
   @TestMethod
+  public refusesANameOrPublisherWithACharacterTheGeneratedScriptsWouldRead(): void {
+    for (const field of ["name", "publisher"])
+      for (const value of ["Te\"st", "Te\\st", "Te\nst", "Te\rst", "100% Done", "Done!", "Te$t", "Te`st`", " ", String.empty]) {
+        const refusal = Assert.throws(() => ProductIdentityTests.read({ [field]: value }), BuildException);
+        Assert.areEqual(`The root package.json's desktop.product.${field} must be a name without quotes, backslashes, % ! $ \` or line breaks.`, refusal.message,
+          JSON.stringify([field, value]));
+      }
+    Assert.areEqual("Sample & App (2)", ProductIdentityTests.read({ name: "Sample & App (2)" }).name);
+  }
+
+  @TestMethod
   public refusesAnInstallFolderThatIsNotOneSafeFolderName(): void {
     for (const installFolder of ["Noldova/Apps", "Noldova\\Apps", "C:", " Noldova", "Noldova ", ".", "..", ".Noldova", "Noldova.", "No?va", "No'va", "No$va", "No`va",
       "No\tva", String.empty, 42]) {
