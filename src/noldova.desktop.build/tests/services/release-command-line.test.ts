@@ -35,7 +35,7 @@ export class ReleaseCommandLineTests {
 
   @TestMethod
   public async namesItsOwnBinInEachCommandsUsageAsync(): Promise<void> {
-    const commands = ["list-targets", "release-check", "choose-feed", "release-publish", "feed-check", "module-range", "noldova-desktop-range"];
+    const commands = ["list-targets", "release-check", "choose-feed", "release-publish", "release-lock", "release-unlock", "feed-check", "module-range", "noldova-desktop-range"];
     const results: string[] = [];
 
     for (const command of commands) {
