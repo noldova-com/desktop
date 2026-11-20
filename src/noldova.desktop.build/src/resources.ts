@@ -1621,7 +1621,8 @@ export class Resources {
   public static readonly productSlugPattern: RegExp = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
   public static readonly productVariablePattern: RegExp = /^[A-Z][A-Z0-9_]*$/;
   public static readonly productRepositoryPattern: RegExp = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
-  public static readonly productUnsafeNamePattern: RegExp = /["\\\n\r]/;
+  public static readonly productUnsafeNamePattern: RegExp = /["\\%!$`/?<>:*|[\]{}\p{Cc}]|[. ]$|^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?$/iu;
+  public static readonly productUnsafePublisherPattern: RegExp = /["\\\n\r%!$`]/;
   public static readonly productLineBreakPattern: RegExp = /[\n\r]/;
   public static readonly productWhitespacePattern: RegExp = /\s/u;
   public static readonly productMacCategoryPattern: RegExp = /^public\.app-category\.[a-z]+(?:-[a-z]+)*$/;
@@ -1629,7 +1630,9 @@ export class Resources {
   public static readonly productUnsafeSegmentPattern: RegExp = /[\\:*?"<>|]/;
   public static readonly checkoutHashLength: number = 8;
   public static readonly checkoutVariableSuffix: string = "_CHECKOUT";
-  public static readonly productNameExpected: string = "a name without quotes, backslashes or line breaks";
+  public static readonly productNameExpected: string = "a name without quotes, backslashes, % ! $ ` / ? < > : * | [ ] { } or control characters, with no dot or space at its end, "
+    + "and not a name Windows reserves, such as CON";
+  public static readonly productPublisherExpected: string = "a name without quotes, backslashes, % ! $ ` or line breaks";
   public static readonly productSlugExpected: string = "lowercase kebab-case";
   public static readonly productApplicationIdExpected: string = "a lowercase reverse-DNS ID";
   public static readonly productDevelopmentApplicationIdExpected: string = "a lowercase reverse-DNS ID other than applicationId";
