@@ -36,6 +36,7 @@ export class SearchPaletteComponent {
   protected readonly query: WritableSignal<string> = signal(this.palette.request.query);
   protected readonly filters: Signal<readonly SearchFilter[]> = this.session.filters;
   protected readonly isSearching: Signal<boolean> = this.session.isSearching;
+  protected readonly itemsQuery: Signal<string> = this.session.answeredText;
   protected readonly emptyText: Signal<string> = computed(() => this.session.query().isEmpty ? String.empty : Resources.nothingFound);
   protected readonly items: Signal<readonly QuickInputItem[]> = computed(() => this.session.groups().flatMap(group => group.rows.map((t, index) =>
     new QuickInputItem(t.id, t.result.title, t.source.icon, t.result.detail, t.result.keyLabel, SearchPaletteComponent.indicesOf(t.result.titleMatch),
