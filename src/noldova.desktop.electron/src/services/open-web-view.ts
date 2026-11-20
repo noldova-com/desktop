@@ -693,6 +693,8 @@ export class OpenWebView {
     if (Object.isNull(scroll) || (scroll[0] === 0 && scroll[1] === 0))
       return;
     const shown = await this.readLayoutScrollAsync(guest);
+    if (!Object.isNull(shown) && shown[0] === scroll[0] && shown[1] === scroll[1])
+      return;
     const stop = this.findScrollBackStop(guest, kept, count, inputs, shown);
     if (!Object.isNull(stop)) {
       this.log(Resources.formatWebViewScrollNotRestored(this.info.module, this.info.id, scroll[0], scroll[1], stop));
@@ -703,10 +705,10 @@ export class OpenWebView {
   }
 
   private findScrollBackStop(guest: IWebViewContents, kept: WebViewHistory, count: number, inputs: number, shown: readonly [number, number] | null): string | null {
-    if (Object.isNull(shown))
-      return Resources.webViewScrollUnread;
     if (this.guest !== guest)
       return Resources.webViewScrollUnbound;
+    if (Object.isNull(shown))
+      return Resources.webViewScrollUnread;
     if (this.navigationCount !== count)
       return Resources.webViewScrollNavigated;
     if (guest.getURL() !== kept.currentUrl)

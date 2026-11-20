@@ -1117,13 +1117,13 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async scrollsARestoredPageThatCameBackAtTheTopOnceToWhereItWasButNotOneThatCameBackElsewhereOrWasKeptAtTheTop(): Promise<void> {
+  public async scrollsARestoredPageThatCameBackAtTheTopOnceToWhereItWasButNotOneThatCameBackElsewhereOrWhereItWasOrWasKeptAtTheTop(): Promise<void> {
     const results: string[] = [];
-    for (const [kept, shown] of [[1200, 0], [1200, 300], [0, 0]] as const) {
+    for (const [kept, shownX, shownY] of [[1200, 0, 0], [1200, 0, 300], [1200, 40, 1200], [0, 0, 0]] as const) {
       const harness = await OpenWebViewTests.showAsync();
       const fresh = OpenWebViewTests.rendererless();
       OpenWebViewTests.scrolled(harness.contents, kept === 0 ? 0 : 40, kept);
-      OpenWebViewTests.scrolled(fresh, 0, shown);
+      OpenWebViewTests.scrolled(fresh, shownX, shownY);
       fresh.onIsolated = () => Promise.reject(new Error("The page went away."));
       await harness.open.keepAsync();
       OpenWebViewTests.destroy(harness);
@@ -1136,6 +1136,7 @@ export class OpenWebViewTests {
     Assert.areEqual([
       "1 1998 scrollTo(40, 1200):Web view 1 of browser was not scrolled back to (40, 1200): its scroll script failed (Error: The page went away.).",
       "1 :Web view 1 of browser was not scrolled back to (40, 1200): its restored page already showed (0, 300).",
+      "1 :",
       "0 :"
     ].join("|"), results.join("|"));
   }
@@ -1181,7 +1182,7 @@ export class OpenWebViewTests {
       stopped("its page went to another address while it loaded"),
       stopped("its restored page did not answer where it was scrolled"),
       stopped("its page was replaced or closed while it loaded"),
-      stopped("its restored page did not answer where it was scrolled"),
+      stopped("its page was replaced or closed while it loaded"),
       stopped("its page was replaced or closed while it loaded")
     ].join("|"), results.join("|"));
   }
