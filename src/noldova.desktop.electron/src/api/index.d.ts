@@ -8451,6 +8451,13 @@ export interface IFeedResponse {
   readonly url: string;
 
   /**
+   * The body as a stream, as `fetch` gives it; optional. The feed provider
+   * cancels it when it refuses the answer without reading it, so a server
+   * that keeps the body open doesn't hold the connection until the timeout.
+   */
+  readonly body?: ReadableStream<Uint8Array> | null;
+
+  /**
    * Reads the body as text.
    *
    * @returns A promise of the body.
