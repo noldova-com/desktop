@@ -1746,6 +1746,7 @@ export class Resources {
   public static readonly tarModeField: string = "mode";
   public static readonly tarHeaderEncoding: BufferEncoding = "latin1";
   public static readonly thirdPartyDownloadTimeout: number = 120_000;
+  public static readonly downloadRetriedStatuses: readonly number[] = [408, 429];
   public static readonly licenseFilePattern: RegExp = /^(?:(?:licen[cs]e|copying|unlicense)(?:[-_][a-z0-9+-]+(?:\.\d+)*)?|[a-z0-9+-]+(?:\.\d+)*[-_]licen[cs]e)(?:\.(?:md|txt|markdown))?$/i;
   public static readonly scriptFilePattern: RegExp = /\.[cm]?js$/;
   public static readonly regexSpecialCharacters: RegExp = /[.*+?^${}()|[\]\\]/g;
@@ -4405,6 +4406,18 @@ export class Resources {
 
   public static formatDownloadFailed(id: string, resolved: string, error: string): string {
     return `${id} could not be downloaded from ${resolved}: ${error}`;
+  }
+
+  public static formatDownloadSubject(id: string, resolved: string): string {
+    return `${id} from ${resolved}`;
+  }
+
+  public static formatHttpStatus(status: number): string {
+    return `HTTP ${status}`;
+  }
+
+  public static formatNetworkFailure(error: string, code: string): string {
+    return `${error} (${code})`;
   }
 
   public static formatDownloadStatus(id: string, resolved: string, status: number): string {
