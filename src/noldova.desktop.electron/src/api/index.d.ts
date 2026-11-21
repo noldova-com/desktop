@@ -7072,8 +7072,9 @@ export declare class MainProcessRecord {
 }
 
 /**
- * Quits a main process that has no runtime connection once another main process's update reaches `Closing`, so it does not
- * keep running the installation's files through the handoff.
+ * Quits a main process that has no runtime connection once another main process's update reaches `Closing`, or has handed
+ * off to install a version other than this build's (`HandedOff`), so it does not keep running the installation's files while
+ * they are replaced.
  */
 export declare class UpdateBarrierWatch {
   /**
@@ -7129,8 +7130,8 @@ export declare class UpdateBarrierWatch {
 
   /**
    * Checks the barrier once, unless the main process is connected; a check asked for while one is running makes that one
-   * check again when it ends. It quits the main process, and stops, when the barrier is `Closing` for another main process
-   * whose update has not ended; a barrier it cannot read, or an update it cannot tell has ended, keeps the main process running.
+   * check again when it ends. It quits the main process, and stops, when the barrier is `Closing`, or `HandedOff` for a version
+   * other than this build's, for another main process whose update has not ended; a barrier it cannot read, or an update it cannot tell has ended, keeps the main process running.
    *
    * @returns A promise of whether it quit the main process.
    * @example
@@ -7541,7 +7542,8 @@ export declare class RuntimeStartup {
    * once whether the update has ended, again at once on each {@link barrierChanged}, a change it keeps when it comes
    * during a check, and again every second, since the barrier's holder can end without changing the barrier and Node
    * can't wait for the exit of a process it didn't start; it reconnects once the update has ended, and
-   * {@link UpdateBarrierWatch} quits the main process once the barrier is `Closing` and held by another main process.
+   * {@link UpdateBarrierWatch} quits the main process once the barrier is `Closing`, or `HandedOff` for a version other than this
+   * build's, and held by another main process.
    *
    * @returns A promise that settles once the state is ready or shows why not.
    * @example
