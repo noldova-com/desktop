@@ -45,7 +45,7 @@ export class DebianHandoffTests {
   }
 
   @TestMethod
-  public async refusesADownloadThatChangedOrIsGoneWithoutInstallingAnything(): Promise<void> {
+  public async refusesADownloadThatChangedIsGoneOrIsAFolderWithoutInstallingAnything(): Promise<void> {
     await DebianHandoffTests.withDownloadAsync(async download => {
       const ran: string[] = [];
       const handoff = new DebianHandoff("/usr/bin/pkexec", DebianHandoffTests.INSTALLER, program => {
@@ -55,9 +55,12 @@ export class DebianHandoffTests {
 
       const changed = await Assert.throwsAsync(() => handoff.handOffAsync(new UpdateReadyRecord("1.3.0", download, "b3RoZXI=", true, null)), UpdateChangedBeforeHandoffException);
       const gone = await Assert.throwsAsync(() => handoff.handOffAsync(new UpdateReadyRecord("1.3.0", `${download}.gone`, DebianHandoffTests.HASH, true, null)), UpdateChangedBeforeHandoffException);
+      const folder = await Assert.throwsAsync(() => handoff.handOffAsync(new UpdateReadyRecord("1.3.0", dirname(download), DebianHandoffTests.HASH, true, null)),
+        UpdateChangedBeforeHandoffException);
 
       Assert.areEqual("The downloaded update has changed since it was checked, so it wasn't installed.", changed.message);
       Assert.areEqual(changed.message, gone.message);
+      Assert.areEqual(changed.message, folder.message);
       Assert.areEqual(0, ran.length);
     });
   }
