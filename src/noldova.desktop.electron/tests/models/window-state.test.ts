@@ -99,10 +99,10 @@ export class WindowStateTests {
 
   @TestMethod
   public keepsAPositionThatShowsOnADisplay(): void {
-    const state = new WindowState(1800, 900, 1280, 800, false);
+    const state = new WindowState(1700, 900, 1280, 800, false);
 
-    Assert.areEqual("1800,900,1280,800", WindowStateTests.describe(state.placeOn([new ScreenArea(0, 0, 1920, 1040), new ScreenArea(1920, 0, 1920, 1040)], WindowStateTests.PRIMARY)));
-    Assert.areEqual("1800,900,1280,800", WindowStateTests.describe(state.placeOn([new ScreenArea(-1920, 0, 1920, 1040), new ScreenArea(0, 0, 1920, 1040)], WindowStateTests.PRIMARY)));
+    Assert.areEqual("1700,900,1280,800", WindowStateTests.describe(state.placeOn([new ScreenArea(0, 0, 1920, 1040), new ScreenArea(1920, 0, 1920, 1040)], WindowStateTests.PRIMARY)));
+    Assert.areEqual("1700,900,1280,800", WindowStateTests.describe(state.placeOn([new ScreenArea(-1920, 0, 1920, 1040), new ScreenArea(0, 0, 1920, 1040)], WindowStateTests.PRIMARY)));
   }
 
   @TestMethod
