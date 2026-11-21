@@ -137,6 +137,24 @@ export class ProcessTreeTests {
   }
 
   @TestMethod
+  public async leavesTheChildrenOfAnIdReusedAfterItsProcessEndedOnWindows(): Promise<void> {
+    const start = ProcessTreeTests.LAUNCHED;
+    const answers = [
+      ProcessTreeTests.windows([[4321, 100, start + 5], [4400, 4321, start + 50]]),
+      ProcessTreeTests.windows([[4400, 900, start + 9_000], [4700, 4400, start + 9_500]])
+    ];
+    const lists: string[] = [];
+    const tree = new ProcessTree("win32", () => undefined, async (_, commandArguments) => {
+      lists.push(commandArguments.at(-1) ?? String.empty);
+      return answers[lists.length - 1] ?? String.empty;
+    }, async () => undefined);
+
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+
+    Assert.areEqual(JSON.stringify([Resources.processListScript, Resources.formatProcessEndScript([4321, 4400], [start + 5, start + 50])]), JSON.stringify(lists));
+  }
+
+  @TestMethod
   public async endsOnlyTheChildrenAnExitedCommandStartedOnWindows(): Promise<void> {
     const start = ProcessTreeTests.LAUNCHED;
     const lists: string[] = [];

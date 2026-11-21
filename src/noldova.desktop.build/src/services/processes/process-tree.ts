@@ -8,6 +8,7 @@
 
 import { execFile } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 
 import "@noldova/context.core";
 
@@ -88,11 +89,10 @@ export class ProcessTree {
     }
   }
 
-  private static listAsync(command: string, commandArguments: readonly string[]): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-      execFile(command, [...commandArguments], { env: { ...process.env, ...Resources.processListEnvironment }, timeout: Resources.processListTimeout,
-        maxBuffer: Resources.processListOutputLimit, windowsHide: true }, (error, output) => Object.isNull(error) ? resolve(output) : reject(error));
-    });
+  private static async listAsync(command: string, commandArguments: readonly string[]): Promise<string> {
+    const listed = await promisify(execFile)(command, [...commandArguments], { env: { ...process.env, ...Resources.processListEnvironment },
+      timeout: Resources.processListTimeout, maxBuffer: Resources.processListOutputLimit, windowsHide: true });
+    return listed.stdout;
   }
 
   private static treeOf(listing: ReadonlyMap<number, { readonly parent: number; readonly start: number }>, known: ReadonlyMap<number, number>): Map<number, number> {
