@@ -19,18 +19,19 @@ import { DomFixture } from "../../fixtures/dom.fixture";
 @Component({
   imports: [TabScrollerDirective],
   template: `
-    <div class="scroller" style="display: flex; width: 200px; overflow-x: scroll;" [nolTabScroller]="actionBar" [nolTabScrollerFrame]="frame()">
-      <div class="strip" style="display: flex; flex: none;" [style.width.px]="stripWidth()">
-        <span class="tab" style="flex: none; width: 60px; height: 24px;"></span>
-        <span class="tab nol-tab-selected" style="flex: none; width: 60px; height: 24px;" [style.margin-inline-start.px]="offset()"></span>
+    <div class="scroller" style="display: flex; width: 200px; overflow: hidden;" [nolTabScroller]="actionBar" [nolTabScrollerFrame]="frame()">
+      <div class="strip" style="display: flex; flex: 1 0 auto;">
+        @for (key of keys(); track key) {
+          <span style="flex: none; width: 60px; height: 24px;" [attr.data-tab-key]="key" [class.nol-tab-selected]="key === selected()"></span>
+        }
       </div>
-      <div #actionBar class="actions" style="position: sticky; right: 0; flex: none; width: 48px; height: 24px;"></div>
+      <div #actionBar class="actions" style="flex: none; width: 48px; height: 24px;"></div>
     </div>
   `
 })
 class ScrollerHostComponent {
-  public readonly stripWidth = signal(600);
-  public readonly offset = signal(360);
+  public readonly keys = signal(["a", "b", "c", "d", "e"]);
+  public readonly selected = signal("d");
   public readonly frame = signal(new GroupFrame(new TabGroup(1, [LayoutFixture.files], LayoutFixture.files), new Bounds(0, 0, 40, 20), null));
   public readonly scroller = viewChild.required(TabScrollerDirective);
 }
@@ -45,69 +46,67 @@ describe("TabScrollerDirective", () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
     fixture.destroy();
   });
 
-  function scroller(): HTMLElement {
-    return DomFixture.one(DomFixture.host(fixture), ".scroller");
+  function hidden(): readonly string[] {
+    return [...fixture.componentInstance.scroller().hidden()].sort();
   }
 
-  function element(selector: string): HTMLElement {
-    return DomFixture.one(DomFixture.host(fixture), selector);
-  }
-
-  function wheel(init: WheelEventInit): WheelEvent {
-    const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, ...init });
-    scroller().dispatchEvent(event);
-    return event;
-  }
-
-  it("keeps the selected tab clear of the action bar, reveals it and reports that the tabs overflow", () => {
-    expect(scroller().style.scrollPaddingInlineEnd).toBe("48px");
-    expect(scroller().scrollLeft).toBeGreaterThan(0);
-    expect(fixture.componentInstance.scroller().isOverflowing()).toBe(true);
-  });
-
-  it("measures the action bar again when it resizes by itself, keeping the selected tab clear of it, and leaves the row alone while its size holds", async () => {
-    const bar = element(".actions");
-    const selected = element(".nol-tab-selected");
-    const held = scroller().scrollLeft;
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    const unmoved = scroller().scrollLeft;
-
-    bar.style.width = "96px";
-
-    await vi.waitFor(() => expect(scroller().style.scrollPaddingInlineEnd).toBe("96px"));
-    expect([unmoved, scroller().style.getPropertyValue("--nol-tab-group-actions-width")]).toEqual([held, "96px"]);
-    expect(selected.getBoundingClientRect().right).toBeLessThanOrEqual(bar.getBoundingClientRect().left);
-  });
-
-  it("measures again for a new frame and reports when the tabs fit", async () => {
-    const reveal = vi.spyOn(Element.prototype, "scrollIntoView");
+  async function changeAsync(change: (host: ScrollerHostComponent) => void): Promise<void> {
     const host = fixture.componentInstance;
-    host.stripWidth.set(120);
-    host.offset.set(0);
-    host.frame.set(new GroupFrame(host.frame().group, new Bounds(0, 0, 60, 20), null));
+    change(host);
+    host.frame.set(new GroupFrame(host.frame().group, new Bounds(0, 0, 40, 20), null));
     fixture.detectChanges();
     await fixture.whenStable();
+  }
 
-    expect(reveal).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
-    expect(host.scroller().isOverflowing()).toBe(false);
+  it("shows the whole tabs that fit before the actions in order, hides the rest and reports that the tabs overflow", async () => {
+    await changeAsync(host => host.selected.set("a"));
+
+    expect([fixture.componentInstance.scroller().isOverflowing(), hidden()]).toEqual([true, ["c", "d", "e"]]);
+    expect(DomFixture.one(DomFixture.host(fixture), ".scroller").style.getPropertyValue("--nol-tab-group-actions-width")).toBe("48px");
   });
 
-  it("scrolls sideways with a vertical wheel only while the tabs overflow", async () => {
-    scroller().scrollLeft = 0;
+  it("keeps a selected tab past the room shown, in place of the last tabs before it that fit", () => {
+    expect(hidden()).toEqual(["b", "c", "e"]);
+  });
 
-    expect(wheel({ deltaX: 40, deltaY: 40 }).defaultPrevented).toBe(false);
-    expect(wheel({ deltaY: 0 }).defaultPrevented).toBe(false);
-    expect(scroller().scrollLeft).toBe(0);
-    expect(wheel({ deltaY: 80 }).defaultPrevented).toBe(true);
-    expect(scroller().scrollLeft).toBe(80);
-    fixture.componentInstance.stripWidth.set(120);
-    fixture.componentInstance.offset.set(0);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(wheel({ deltaY: 80 }).defaultPrevented).toBe(false);
+  it("keeps the selected tab shown alone when the actions grow and leave room for one tab", async () => {
+    DomFixture.one(DomFixture.host(fixture), ".actions").style.width = "96px";
+
+    await vi.waitFor(() => expect(hidden()).toEqual(["a", "b", "c", "e"]));
+  });
+
+  it("fits again when the selected tab grows by itself, and reports when every tab fits", async () => {
+    DomFixture.one(DomFixture.host(fixture), "[data-tab-key='d']").style.width = "100px";
+    await vi.waitFor(() => expect(hidden()).toEqual(["a", "b", "c", "e"]));
+    await changeAsync(host => {
+      host.keys.set(["a", "b"]);
+      host.selected.set("b");
+    });
+
+    await vi.waitFor(() => expect([fixture.componentInstance.scroller().isOverflowing(), hidden()]).toEqual([false, []]));
+  });
+
+  it("shows every tab again once its row widens enough, with no other change", async () => {
+    expect(hidden()).toEqual(["b", "c", "e"]);
+
+    DomFixture.one(DomFixture.host(fixture), ".scroller").style.width = "400px";
+
+    await vi.waitFor(() => expect([fixture.componentInstance.scroller().isOverflowing(), hidden()]).toEqual([false, []]));
+  });
+
+  it("stops watching a tab's size once the tab closes, and watches a tab that opens", async () => {
+    const unobserved = vi.spyOn(ResizeObserver.prototype, "unobserve");
+    const observed = vi.spyOn(ResizeObserver.prototype, "observe");
+    const closing = DomFixture.one(DomFixture.host(fixture), "[data-tab-key='e']");
+
+    await changeAsync(host => host.keys.set(["a", "b", "c", "d", "f"]));
+
+    expect([unobserved.mock.calls.map(t => t[0]), observed.mock.calls.map(t => t[0])])
+      .toEqual([[closing], [DomFixture.one(DomFixture.host(fixture), "[data-tab-key='f']")]]);
+    unobserved.mockRestore();
+    observed.mockRestore();
   });
 });
