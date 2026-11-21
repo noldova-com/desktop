@@ -1151,7 +1151,7 @@ export class Resources {
   }
 
   public static formatLayoutReadAfterFailedWrite(message: string): string {
-    return `The window's layout was read after its last write failed, so it is the layout kept before that write: ${message}`;
+    return `The window's layout was read after its last write failed or went unanswered, so it may be the layout kept before that write: ${message}`;
   }
 
   public static formatBarrierNotCleared(message: string): string {

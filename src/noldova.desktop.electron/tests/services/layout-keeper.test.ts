@@ -148,13 +148,13 @@ export class LayoutKeeperTests {
     await thrown;
     Assert.areEqual(JSON.stringify([{ payload: { version: 1 } }, { payload: { version: 1 } }, { payload: { version: 1 } }]), JSON.stringify([afterRefused, afterThrown, again]));
     Assert.areEqual(JSON.stringify([
-      "The window's layout was read after its last write failed, so it is the layout kept before that write: The database is busy.",
-      "The window's layout was read after its last write failed, so it is the layout kept before that write: TypeError: A defect."
+      "The window's layout was read after its last write failed or went unanswered, so it may be the layout kept before that write: The database is busy.",
+      "The window's layout was read after its last write failed or went unanswered, so it may be the layout kept before that write: TypeError: A defect."
     ]), JSON.stringify(MainProcessStartFixture.readErrors(process, "The window's layout")));
   }
 
   @TestMethod
-  public async givesALayoutWriteFiveSecondsSoAWriteThatNeverAnswersHoldsAReadOnlyThatLong(): Promise<void> {
+  public async givesALayoutWriteFiveSecondsAndTheConnectionsAnswerGraceSoAWriteThatNeverAnswersHoldsAReadOnlyThatLong(): Promise<void> {
     const connection = new FakeRuntimeConnection();
     const process = new FakeMainProcessEnvironment("linux");
     const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(connection), new FakeElectron(), new FakeDeviceIdentity(), process);
@@ -167,7 +167,7 @@ export class LayoutKeeperTests {
     Assert.areEqual(5000, connection.timeouts[connection.calls.lastIndexOf(ShellMethods.writeWindowLayout.text)]);
     Assert.areEqual(JSON.stringify({ code: "Unavailable", message: "The runtime did not answer desktop.writeWindowLayout in time." }), JSON.stringify(written["failure"]));
     Assert.areEqual(JSON.stringify({ payload: null }), JSON.stringify(read));
-    Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The window's layout was read after its last write failed").length);
+    Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The window's layout was read after its last write failed or went unanswered").length);
   }
 
   private static async invokeAsync(electron: FakeElectron, channel: string, event: IIpcEvent, ...values: unknown[]): Promise<JsonObject> {
