@@ -162,6 +162,22 @@ const RELEASING = (fails: boolean): string => [
   "TestClass(ReleasingTests);"
 ].join("\n");
 
+const FAILING = [
+  "import \"@noldova/context.core\";",
+  "import { Assert, TestClass, TestMethod } from \"@noldova/context.testing\";",
+  "export class FailingTests {",
+  "  failsAnAssertion() {",
+  "    Assert.areEqual(1, 2);",
+  "  }",
+  "  throwsADatabaseError() {",
+  "    throw Object.assign(new Error(\"disk I/O error\"), { code: \"ERR_SQLITE_ERROR\", errcode: 266, errstr: \"disk I/O error\" });",
+  "  }",
+  "}",
+  "TestMethod(FailingTests.prototype.failsAnAssertion);",
+  "TestMethod(FailingTests.prototype.throwsADatabaseError);",
+  "TestClass(FailingTests);"
+].join("\n");
+
 const runAsync = async (source: string, variables: Readonly<Record<string, string>> = {}): Promise<SerialTestRunOutcomeFixture> => {
   await mkdir(path.join(ROOT, "_build"), { recursive: true });
   const folder = await mkdtemp(path.join(ROOT, "_build", "serial-test-run-"));
@@ -301,6 +317,14 @@ describe("SerialTestRun", () => {
     finally {
       await rm(folder, { recursive: true, force: true });
     }
+  });
+
+  it("prints after the summary the stack and fields of each error a test threw, but not of a failed assertion", async () => {
+    const { code, output } = await runAsync(FAILING);
+
+    assert.equal(code, Resources.failedExitCode);
+    assert.match(output, /Failed:\s+2\b[\s\S]*\nHanging\/hanging\.test\.js — FailingTests\.throwsADatabaseError failed with:\nError: disk I\/O error\n {4}at FailingTests\.throwsADatabaseError \([^\n]*hanging\.test\.js:8:\d+\)\n[\s\S]*errcode: 266,[\s\S]*\nGeneral suite, limit 200 ms:/u);
+    assert.doesNotMatch(output, /failsAnAssertion failed with/u);
   });
 
   it("prints each suite's slowest tests under its limit after the summary", async () => {

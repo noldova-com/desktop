@@ -9,11 +9,12 @@ import { subscribe, unsubscribe } from "node:diagnostics_channel";
 import { lstatSync, mkdtempSync, readdirSync, rmSync, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { inspect } from "node:util";
 
 import "@noldova/context.core";
 import {
   type DiscoveredTestClass, type ITestProgressListener, type TestClassResult, TestConsoleReporter, TestDiscovery, TestExecutor, TestOutcome, TestProject, TestRunResult, TestRunner,
-  TestSelection, TestTimeRecord
+  TestSelection, TestTimeRecord, TestingException
 } from "@noldova/context.testing";
 
 import { Resources } from "../resources.ts";
@@ -86,6 +87,13 @@ export class SerialTestRun {
         .map(u => ({ identity: u.displayName, file: `${t.packageName}${Resources.pathSeparator}${t.filePath}`, failure: String(u.failure) }))),
       runFailures
     };
+  }
+
+  public static formatFailureDetails(results: readonly TestClassResult[]): string {
+    return results.flatMap(t => t.methodResults
+      .filter(u => u.outcome === TestOutcome.Failed && u.failure instanceof Error && !(u.failure instanceof TestingException))
+      .map(u => Resources.formatSerialTestFailureDetails(`${t.packageName}${Resources.pathSeparator}${t.filePath}`, u.displayName, inspect(u.failure))))
+      .join(String.empty);
   }
 
   public static formatSlowest(suite: string, limit: number, results: readonly TestClassResult[]): string {
@@ -175,6 +183,7 @@ export class SerialTestRun {
       const unreached = result.selection.selected - result.total;
 
       reporter.writeSummary(result, result.selection);
+      process.stdout.write(SerialTestRun.formatFailureDetails(classResults));
       process.stdout.write(SerialTestRun.formatSlowest(Resources.serialTestGeneralSuite, timeout, general));
       process.stdout.write(SerialTestRun.formatSlowest(Resources.serialTestPackagingCategory, packagingTimeout, packaging));
       summary.writeTests(result, unreached);

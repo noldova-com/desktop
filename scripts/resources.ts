@@ -642,6 +642,10 @@ export class Resources {
     return `Tests finished but a release a test left to the run's end failed: ${error}. Failing the run.\n`;
   }
 
+  public static formatSerialTestFailureDetails(file: string, test: string, details: string): string {
+    return `${file} — ${test} failed with:\n${details}\n`;
+  }
+
   public static formatSerialTestUnremoved(error: string): string {
     return `Tests finished but the run's temporary folder could not be removed: ${error}. Failing the run.\n`;
   }
