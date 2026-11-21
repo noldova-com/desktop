@@ -299,21 +299,32 @@ export class PackageStageTests {
   @TestMethod
   public async writesTheDependenciesInCodePointOrder(): Promise<void> {
     const end = TemporaryFolderRunnerFixture.startTest();
-    const runtime = "@noldova/desktop.clock.runtime";
-    const format = "@noldova/desktop.clock_format";
-    await using app = await PackageStageTests.createInRepoModuleAppAsync();
-    await app.writeAppFileAsync("src/modules/clock/runtime/package.json", JSON.stringify({ name: runtime, version: "__VERSION__", dependencies: { [format]: "__VERSION__" } }));
-    await app.writeAppFileAsync("src/noldova.desktop.clock_format/package.json", JSON.stringify({ name: format, version: "__VERSION__" }));
-    const archives = new BuildLayout(app.path).archivesFolder;
-    await mkdir(archives, { recursive: true });
-    for (const [name, version] of [[runtime, "0.0.1"], [format, "1.2.3"]] as const)
-      await writeFile(path.join(archives, BuildLayout.nameArchive(name, version)), TarballFixture.create({ "package.json": JSON.stringify({ name, version, license: "MIT" }) }));
+    const clock = "@noldova/desktop_clock";
+    await using app = await InstalledAppFixture.createAsync();
+    await app.installAsync(InstalledAppFixture.CLI);
+    await app.installAsync(InstalledAppFixture.ELECTRON);
+    await app.installAsync(clock);
+    const text = await readFile(path.join(app.path, "package.json"), "utf8");
+    const manifest = JsonReader.parse(text).toJson();
+    const desktop = JsonReader.parse(text).readObject("desktop").toJson();
+    await app.writeAppFileAsync("package.json", JSON.stringify({ ...manifest, desktop: { ...desktop, modules: [{ id: "clock", package: clock }] }, dependencies: { [clock]: InstalledAppFixture.VERSION } }));
+    await app.writeAppFileAsync(`node_modules/${clock}/package.json`, JSON.stringify({ name: clock, version: InstalledAppFixture.VERSION, exports: { "./runtime": "./runtime.js" } }));
+    await app.writeAppFileAsync(`node_modules/${clock}/runtime.js`, String.empty);
+    await app.writeAppFileAsync(`node_modules/${clock}/module.json`, JSON.stringify({
+      id: "clock",
+      version: InstalledAppFixture.VERSION,
+      displayName: "Clock",
+      description: "A module the app installs from a package.",
+      parts: ["runtime"],
+      dependencies: {},
+      contributes: {}
+    }));
     const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
 
     await PackageStageTests.stageAsync(stage, "linux", null);
     const names = Object.keys(JsonReader.parse(await readFile(path.join(stage.folder, "package.json"), "utf8")).readObject("dependencies").toJson());
 
-    Assert.areEqual(JSON.stringify([runtime, format]), JSON.stringify(names.filter(t => t === runtime || t === format)));
+    Assert.areEqual(JSON.stringify([InstalledAppFixture.CLI, InstalledAppFixture.ELECTRON, clock]), JSON.stringify(names));
   }
 
   @TestMethod
