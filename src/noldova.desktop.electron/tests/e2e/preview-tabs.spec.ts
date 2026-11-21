@@ -34,7 +34,8 @@ function previewTabsSetting(window: Page): Locator {
 }
 
 async function turnPreviewTabsOffAsync(window: Page): Promise<void> {
-  await previewTabsSetting(window).uncheck();
+  await previewTabsSetting(window).click();
+  await expect(previewTabsSetting(window)).not.toBeChecked();
   await expect(previewTabsRow(window).locator(".nol-setting-row-marker")).toHaveCount(1);
 }
 
