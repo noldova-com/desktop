@@ -1504,6 +1504,65 @@ export class ToolPermissionsTests {
   }
 
   @TestMethod
+  public async withdrawsARequestStillWaitingWhenItsReturnedCallsSessionEndsOrStops(): Promise<void> {
+    const results: string[] = [];
+    const finishes: ((registry: ToolRegistry, session: ToolSession) => void)[] = [
+      (_registry, session) => session.end(),
+      (registry, session) => registry.stopSession("app", session.id, "The person stopped it.")
+    ];
+    for (const finish of finishes) {
+      const answerer = new PermissionAnswererFixture(() => PermissionAnswererFixture.never());
+      await ToolPermissionsTests.withRegistryAsync(answerer, async registry => {
+        const waiting: Promise<PermissionOutcome>[] = [];
+        const handler = new ToolHandlerFixture(async t => {
+          waiting.push(t.requestPermissionAsync(ToolPermissionsTests.REQUEST));
+          await answerer.waitForQuestionAsync(1);
+          return new ToolResult([]);
+        });
+        registry.register("notes", new ToolDescriptor(ToolPermissionsTests.DELETE, ToolPermissionsTests.TOOLS), handler, ToolPermissionsTests.TOOLS, new ModuleLogFixture());
+        const session = registry.openSession("conversation-1", {});
+
+        await session.callAsync("notes_delete", {});
+        const isWaiting = answerer.signals[0]?.aborted === false;
+        finish(registry, session);
+        const [late] = await Promise.all(waiting);
+
+        results.push(`${isWaiting} ${late?.decision} ${answerer.signals[0]?.aborted}`);
+      });
+    }
+
+    Assert.areEqual(`true ${PermissionDecision.Withdrawn} true|true ${PermissionDecision.Withdrawn} true`, results.join("|"));
+  }
+
+  @TestMethod
+  public keepsTheResourcesTurnWhileAReturnedCallsRequestWaits(): Promise<void> {
+    let grant: (decision: PermissionDecision) => void = () => undefined;
+    const answerer = new PermissionAnswererFixture(() => new Promise(resolve => grant = resolve));
+    return ToolPermissionsTests.withRegistryAsync(answerer, async registry => {
+      const steps: string[] = [];
+      const handler = new ToolHandlerFixture(async t => {
+        steps.push(`started ${String(t.arguments["note"])}`);
+        if (steps.length === 1)
+          void t.requestPermissionAsync(ToolPermissionsTests.REQUEST);
+        await answerer.waitForQuestionAsync(1);
+        return new ToolResult([]);
+      });
+      const descriptor = { ...ToolPermissionsTests.DELETE, inputSchema: { type: "object", properties: { note: { type: "string" } } }, resource: "/note" };
+      registry.register("notes", new ToolDescriptor(descriptor, ToolPermissionsTests.TOOLS), handler, ToolPermissionsTests.TOOLS, new ModuleLogFixture());
+      const session = registry.openSession("conversation-1", {});
+
+      await session.callAsync("notes_delete", { note: "first" });
+      const second = session.callAsync("notes_delete", { note: "first" }, { deadlineMilliseconds: 5_000 });
+      await setImmediate();
+      steps.push("granted");
+      grant(PermissionDecision.AllowedOnce);
+      await second;
+
+      Assert.areEqual("started first,granted,started first", steps.join(","));
+    });
+  }
+
+  @TestMethod
   public listsARememberedOnlyRequestWithNothingRememberedAsDenied(): Promise<void> {
     const answerer = new PermissionAnswererFixture();
     return ToolPermissionsTests.withRegistryAsync(answerer, async registry => {
