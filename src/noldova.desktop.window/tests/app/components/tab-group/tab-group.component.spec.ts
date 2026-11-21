@@ -1218,6 +1218,7 @@ describe("TabGroupComponent", () => {
     await renderAsync(many.reduce((current, t) => current.openDocument(t), Layout.createDefault(registry)), 60);
     update();
     expect(group(0).querySelector(".nol-tab-group-overflow")).not.toBeNull();
+    await vi.waitFor(() => expect(group(0).querySelector(".nol-tab-overflowed")).not.toBeNull());
 
     layout.setViewport(240, 60);
     update();
@@ -1225,5 +1226,13 @@ describe("TabGroupComponent", () => {
     update();
 
     expect(group(0).querySelector(".nol-tab-group-overflow")).toBeNull();
+    await vi.waitFor(() => expect(group(0).querySelector(".nol-tab-overflowed")).toBeNull());
+    const scroller = DomFixture.oneOf(group(0), ".nol-tab-group-scroller", HTMLElement).getBoundingClientRect();
+    const actions = DomFixture.oneOf(group(0), ".nol-tab-group-actions", HTMLElement).getBoundingClientRect();
+    expect(tabs(0).length).toBe(many.length);
+    expect(tabs(0).filter(t => {
+      const box = t.getBoundingClientRect();
+      return getComputedStyle(t).visibility === "hidden" || box.left < scroller.left - 0.5 || box.right > actions.left + 0.5;
+    })).toEqual([]);
   });
 });

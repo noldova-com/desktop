@@ -57,4 +57,39 @@ test.describe("a side group's tab row at the default window size", () => {
         expect(await TabRowFixture.clearanceOf(other), `${await other.getAttribute("data-tab-key")} shows whole after choosing, ${scheme}`).toBe(TabRowFixture.CLEAR);
     }
   });
+
+  test("with three views, shows the two that fit whole and lists the third in Show all tabs, in light and dark", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    await mainProcess.useViewportAsync(1280, 800);
+    const group = window.locator("nol-tab-group[data-side=Right]").first();
+    const tabs = group.locator(".nol-tab-group-strip > nol-tab");
+    const menu = window.locator(".cdk-overlay-container nol-menu");
+    const byTitle = (title: string): Locator => group.locator(`.nol-tab-group-strip > nol-tab[aria-label="${title}"]`);
+    const closeAsync = async (title: string, label: string): Promise<void> => {
+      await TabRowFixture.showAsync(window, byTitle(title));
+      await byTitle(title).click({ button: "right" });
+      await menu.getByRole("menuitem").filter({ has: window.locator(".nol-menu-item-label").getByText(label, { exact: true }) }).click();
+      await expect(menu).toHaveCount(0);
+    };
+    await closeAsync("References and call hierarchy", "Close to the right");
+    await closeAsync("Timeline", "Close");
+    await closeAsync("Clock", "Close");
+    await expect.poll(() => tabs.evaluateAll(t => t.map(u => u.getAttribute("aria-label")))).toEqual(["Teammates", "Conversation", "References and call hierarchy"]);
+    await byTitle("Teammates").click();
+
+    for (const scheme of ["light", "dark"] as const) {
+      await MediaFixture.emulateAsync(window, { colorScheme: scheme });
+      await expect.poll(() => window.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe(scheme);
+      await expect(byTitle("References and call hierarchy")).toHaveClass(/nol-tab-overflowed/);
+      for (const title of ["Teammates", "Conversation"]) {
+        await expect(byTitle(title)).not.toHaveClass(/nol-tab-overflowed/);
+        expect(await TabRowFixture.clearanceOf(byTitle(title)), `${title} shows whole, ${scheme}`).toBe(TabRowFixture.CLEAR);
+      }
+      await mainProcess.checkpointAsync(`whole-tabs-three-${scheme}`);
+      await group.locator(".nol-tab-group-overflow").click();
+      await expect(menu.locator(".nol-tab-group-overflow-tab .nol-menu-item-label")).toHaveText(["Teammates", "Conversation", "References and call hierarchy"]);
+      await window.keyboard.press("Escape");
+      await expect(menu).toHaveCount(0);
+    }
+  });
 });

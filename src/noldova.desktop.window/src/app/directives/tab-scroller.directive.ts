@@ -22,6 +22,7 @@ export class TabScrollerDirective {
   private readonly isOverflowingValue: WritableSignal<boolean> = signal(false);
   private readonly hiddenValue: WritableSignal<ReadonlySet<string>> = signal(new Set());
   private readonly observer: ResizeObserver;
+  private observed: readonly HTMLElement[] = [];
   private measured: readonly unknown[] = [];
   private fitted: readonly unknown[] = [];
   private actionsWidth: number = Number.NaN;
@@ -40,7 +41,10 @@ export class TabScrollerDirective {
       this.fit();
     });
     inject(DestroyRef).onDestroy(() => this.observer.disconnect());
-    afterNextRender(() => this.observer.observe(this.actionBar()));
+    afterNextRender(() => {
+      this.observer.observe(this.host);
+      this.observer.observe(this.actionBar());
+    });
     afterRenderEffect(() => {
       const view = [this.frame(), appearance.typography()];
       const buttons = [this.rowCount(), appearance.typography()];
@@ -64,7 +68,9 @@ export class TabScrollerDirective {
 
   private fit(): void {
     const tabs = [...this.host.querySelectorAll<HTMLElement>(Resources.tabKeySelector)];
-    tabs.forEach(t => this.observer.observe(t));
+    this.observed.filter(t => !tabs.includes(t)).forEach(t => this.observer.unobserve(t));
+    tabs.filter(t => !this.observed.includes(t)).forEach(t => this.observer.observe(t));
+    this.observed = tabs;
     const widths = tabs.map(t => TabScrollerDirective.widthOf(t));
     const start = parseFloat(getComputedStyle(this.host).paddingInlineStart) || 0;
     const room = this.host.clientWidth - start;

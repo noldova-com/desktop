@@ -88,4 +88,25 @@ describe("TabScrollerDirective", () => {
 
     await vi.waitFor(() => expect([fixture.componentInstance.scroller().isOverflowing(), hidden()]).toEqual([false, []]));
   });
+
+  it("shows every tab again once its row widens enough, with no other change", async () => {
+    expect(hidden()).toEqual(["b", "c", "e"]);
+
+    DomFixture.one(DomFixture.host(fixture), ".scroller").style.width = "400px";
+
+    await vi.waitFor(() => expect([fixture.componentInstance.scroller().isOverflowing(), hidden()]).toEqual([false, []]));
+  });
+
+  it("stops watching a tab's size once the tab closes, and watches a tab that opens", async () => {
+    const unobserved = vi.spyOn(ResizeObserver.prototype, "unobserve");
+    const observed = vi.spyOn(ResizeObserver.prototype, "observe");
+    const closing = DomFixture.one(DomFixture.host(fixture), "[data-tab-key='e']");
+
+    await changeAsync(host => host.keys.set(["a", "b", "c", "d", "f"]));
+
+    expect([unobserved.mock.calls.map(t => t[0]), observed.mock.calls.map(t => t[0])])
+      .toEqual([[closing], [DomFixture.one(DomFixture.host(fixture), "[data-tab-key='f']")]]);
+    unobserved.mockRestore();
+    observed.mockRestore();
+  });
 });
