@@ -545,6 +545,7 @@ export class Resources {
   public static readonly publisherNoneVerified: string = `The installed package has no Windows publisher, and ${Resources.windowsPublisherVariable} is not set.`;
   public static readonly publisherMatchVerified: string = `The installed package's Windows publisher matches ${Resources.windowsPublisherVariable}.`;
   public static readonly errorCodeField: "code" = "code";
+  public static readonly errorOutputField: "stdout" = "stdout";
   public static readonly chromiumNoSandboxOption: string = "--no-sandbox";
   public static readonly chromiumTypePrefix: string = "--type=";
   public static readonly chromiumRendererType: string = "renderer";
@@ -1407,7 +1408,7 @@ export class Resources {
   public static readonly psProcessGroupArguments: readonly string[] = ["-A", "-o", "pid=,pgid=,lstart="];
   public static readonly psStartTolerance: number = 2_000;
   public static readonly processListEnvironment: Readonly<Record<string, string>> = { LC_ALL: "C" };
-  public static readonly processListTimeout: number = 30_000;
+  public static readonly processListTimeout: number = 60_000;
   public static readonly processListOutputLimit: number = 16 * 1024 * 1024;
   public static readonly processListArguments: readonly string[] = ["-NoProfile", "-NonInteractive", "-Command"];
   public static readonly processListScript: string = "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, " +

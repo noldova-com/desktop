@@ -19,6 +19,7 @@ import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { Resources } from "../../../src/resources.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
 import { CoverageEnvironmentFixture } from "../../fixtures/coverage-environment.fixture.js";
+import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { RefusingProcessTreeFixture } from "../../fixtures/refusing-process-tree.fixture.js";
 
 @TestClass
@@ -122,12 +123,13 @@ export class ProcessRunnerTests {
 
   @TestMethod
   public async stopsACapturedProcessAndTheGrandchildHoldingItsOutputAtItsTimeout(): Promise<void> {
-    await ProcessRunnerTests.stopsAGrandchildHoldingTheOutputAsync(`setTimeout(() => undefined, ${ProcessRunnerTests.GRANDCHILD_LIFETIME})`);
+    await ProcessRunnerTests.stopsAGrandchildHoldingTheOutputAsync(false);
   }
 
   @TestMethod
+  @PlatformFixture.posixOnly()
   public async stopsACapturedProcessWhoseChildEndedWhileAGrandchildStillHoldsItsOutput(): Promise<void> {
-    await ProcessRunnerTests.stopsAGrandchildHoldingTheOutputAsync(String.empty);
+    await ProcessRunnerTests.stopsAGrandchildHoldingTheOutputAsync(true);
   }
 
   @TestMethod
@@ -229,10 +231,14 @@ export class ProcessRunnerTests {
     }
   }
 
-  private static async stopsAGrandchildHoldingTheOutputAsync(childRest: string): Promise<void> {
+  private static async stopsAGrandchildHoldingTheOutputAsync(isChildEnded: boolean): Promise<void> {
     const folder = await mkdtemp(path.join(tmpdir(), "process-runner-"));
     const started = path.join(folder, "grandchild.pid");
+    const ended = path.join(folder, "child.pid");
     const grandchild = `require("node:fs").writeFileSync(${JSON.stringify(started)}, String(process.pid)); setTimeout(() => undefined, ${ProcessRunnerTests.GRANDCHILD_LIFETIME})`;
+    const childRest = isChildEnded
+      ? `require("node:fs").writeFileSync(${JSON.stringify(ended)}, String(process.pid)); process.exit(0)`
+      : `setTimeout(() => undefined, ${ProcessRunnerTests.GRANDCHILD_LIFETIME})`;
     const child = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(grandchild)}], { stdio: ["ignore", "inherit", "inherit"] }); ${childRest}`;
     let isTimedOut = false;
     let id = 0;
@@ -241,6 +247,8 @@ export class ProcessRunnerTests {
       const failure = Assert.throwsAsync(() => new ProcessRunner().captureAsync(process.execPath, ["-e", child], folder, ProcessRunnerTests.LIMIT),
         ProcessTimeoutException);
       id = await ProcessRunnerTests.readIdAsync(started);
+      if (isChildEnded)
+        await ProcessRunnerTests.waitUntilEndedAsync(await ProcessRunnerTests.readIdAsync(ended));
       ProcessRunnerTests.passTheLimit();
       isTimedOut = true;
       const error = await failure;
@@ -266,6 +274,13 @@ export class ProcessRunnerTests {
       text = existsSync(file) ? readFileSync(file, "utf8") : String.empty;
     }
     return Number(text);
+  }
+
+  private static async waitUntilEndedAsync(processId: number): Promise<void> {
+    const deadline = performance.now() + ProcessRunnerTests.LIFETIME;
+    while (processId > 0 && new ProcessRunner().isRunning(processId) && performance.now() < deadline)
+      await new Promise<void>(resolve => setImmediate(resolve));
+    Assert.isFalse(processId > 0 && new ProcessRunner().isRunning(processId), "The child never ended.");
   }
 
   private static passTheLimit(): void {

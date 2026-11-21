@@ -46,8 +46,7 @@ export class ProcessTree {
 
   private async endGroupAsync(groupId: number, launched: number, exited: number | null): Promise<void> {
     const listing = await this.readAsync(Resources.psCommand, Resources.psProcessGroupArguments);
-    if (Object.isNull(listing) || (!Object.isNull(exited) && listing.has(groupId))
-      || ![...listing.values()].some(t => t.parent === groupId && t.start + Resources.psStartTolerance > launched))
+    if ((!Object.isNull(exited) && listing.has(groupId)) || ![...listing.values()].some(t => t.parent === groupId && t.start + Resources.psStartTolerance > launched))
       return;
     if (this.signal(-groupId, Resources.killSignal))
       await this.waitUntilGoneAsync([-groupId]);
@@ -59,21 +58,22 @@ export class ProcessTree {
   }
 
   private async endOnWindowsAsync(processId: number, launched: number, exited: number | null): Promise<void> {
+    let ended: number[] = [];
     if (Object.isNull(exited)) {
-      const ended = this.endHeldTree(processId);
-      if (!Object.isNull(ended)) {
-        await this.waitUntilGoneAsync([processId, ...[...ended.matchAll(Resources.taskkillEndedPattern)].map(t => Number(t[1]))]);
+      const taskkill = this.endHeldTree(processId);
+      ended = [...taskkill.output.matchAll(Resources.taskkillEndedPattern)].map(t => Number(t[1]));
+      if (taskkill.isEnded) {
+        await this.waitUntilGoneAsync([processId, ...ended]);
         return;
       }
     }
     let listing = await this.readAsync(Resources.windowsPowershellCommand, [...Resources.processListArguments, Resources.processListScript]);
-    if (Object.isNull(listing))
-      return;
     const start = listing.get(processId)?.start;
     const children = [...listing].filter(([, t]) => t.parent === processId && t.start + Resources.psStartTolerance > launched && (Object.isNull(exited) || t.start <= exited))
       .map(([id, t]): [number, number] => [id, t.start]);
-    let tree = new Map(Object.isNull(exited) && !Object.isUndefined(start) && start + Resources.psStartTolerance > launched ? [[processId, start], ...children] : children);
-    for (let round = 0; !Object.isNull(listing) && round < Resources.processTreeRounds; round++) {
+    const command: [number, number][] = Object.isNull(exited) && !Object.isUndefined(start) && start + Resources.psStartTolerance > launched ? [[processId, start]] : [];
+    let tree = new Map([...ended.map((t): [number, number] => [t, launched - Resources.psStartTolerance]), ...command, ...children]);
+    for (let round = 0; round < Resources.processTreeRounds; round++) {
       tree = ProcessTree.treeOf(listing, tree);
       const found = ProcessTree.listed(listing, tree);
       if (found.length === 0)
@@ -83,19 +83,20 @@ export class ProcessTree {
     }
   }
 
-  private endHeldTree(processId: number): string | null {
+  private endHeldTree(processId: number): { readonly output: string; readonly isEnded: boolean } {
     try {
-      return this.endTree(processId);
+      return { output: this.endTree(processId), isEnded: true };
     }
-    catch {
-      return null;
+    catch (error) {
+      const output = error instanceof Error && Resources.errorOutputField in error ? error[Resources.errorOutputField] : null;
+      return { output: typeof output === "string" ? output : String.empty, isEnded: false };
     }
   }
 
-  private async readAsync(command: string, commandArguments: readonly string[]): Promise<ReadonlyMap<number, { readonly parent: number; readonly start: number }> | null> {
+  private async readAsync(command: string, commandArguments: readonly string[]): Promise<ReadonlyMap<number, { readonly parent: number; readonly start: number }>> {
     const windows = this.platform === Resources.windowsPlatform;
-    const output = await this.list(command, commandArguments).catch(() => null);
-    return Object.isNull(output) ? null : new Map([...output.matchAll(Resources.processParentPattern)]
+    const output = await this.list(command, commandArguments);
+    return new Map([...output.matchAll(Resources.processParentPattern)]
       .map(t => [Number(t[1]), { parent: Number(t[2]), start: windows ? Number(t[3]) : Date.parse(String(t[3])) }]));
   }
 

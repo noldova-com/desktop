@@ -6,10 +6,16 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { Resources } from "../../../src/resources.js";
+import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
 import { ProcessTree } from "../../../src/services/processes/process-tree.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 
@@ -17,7 +23,7 @@ import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 export class ProcessTreeTests {
   private static readonly LAUNCHED: number = Date.parse("2026-11-21T08:00:00.000Z");
   private static readonly EXITED: number = ProcessTreeTests.LAUNCHED + 3_000;
-  private static readonly LISTING_MARGIN: number = 5_000;
+  private static readonly CHILD_LIFETIME: number = 60_000;
 
   @TestMethod
   public groupsAProcessTreeEverywhereButWindows(): void {
@@ -67,8 +73,7 @@ export class ProcessTreeTests {
   @TestMethod
   public async signalsNoGroupItCannotTellIsTheCommands(): Promise<void> {
     const signals: number[] = [];
-    const listings: [string | null, number | null][] = [
-      [null, null],
+    const listings: [string, number | null][] = [
       [ProcessTreeTests.posix([[900, 900, 10]]), null],
       [ProcessTreeTests.posix([[4321, 4321, -60_000], [4400, 4321, -30_000]]), null],
       [ProcessTreeTests.posix([[4321, 4321, 5_000], [4400, 4321, 500]]), ProcessTreeTests.EXITED],
@@ -77,8 +82,24 @@ export class ProcessTreeTests {
     for (const [listing, exited] of listings) {
       const tree = new ProcessTree("linux", processId => {
         signals.push(processId);
-      }, async () => listing ?? Promise.reject(new Error("ps failed")), async () => undefined);
+      }, async () => listing, async () => undefined);
       await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, exited);
+    }
+
+    Assert.areEqual(0, signals.length);
+  }
+
+  @TestMethod
+  public async rejectsWithTheListingsFailureAndEndsNothing(): Promise<void> {
+    const failure = new Error("listing failed");
+    const signals: number[] = [];
+
+    for (const platform of ["linux", "win32"]) {
+      const tree = new ProcessTree(platform, processId => {
+        signals.push(processId);
+      }, async () => Promise.reject(failure), async () => undefined, ProcessTreeTests.refuseTaskkill);
+      const error = await Assert.throwsAsync(() => tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null), Error);
+      Assert.areEqual(failure, error);
     }
 
     Assert.areEqual(0, signals.length);
@@ -209,30 +230,69 @@ export class ProcessTreeTests {
   }
 
   @TestMethod
-  @PlatformFixture.windowsOnly()
-  public async endsNothingOnWindowsForAnExitedCommandItsRealListingDoesNotShowWithinTheListingsLimit(): Promise<void> {
-    const signals: number[] = [];
-    const tree = new ProcessTree("win32", processId => {
-      signals.push(processId);
+  public async endsTheChildrenListedUnderTheIdsTaskkillEndedBeforeItFailed(): Promise<void> {
+    const start = ProcessTreeTests.LAUNCHED;
+    const lists: string[] = [];
+    const tree = new ProcessTree("win32", () => undefined, async (_, commandArguments) => {
+      lists.push(commandArguments.at(-1) ?? String.empty);
+      return lists.length === 1
+        ? ProcessTreeTests.windows([[4500, 4400, start + 80], [4600, 4500, start + 90], [4501, 4400, start - 10_000], [700, 1, start - 60_000]])
+        : String.empty;
+    }, async () => undefined, () => {
+      throw Object.assign(new Error("taskkill failed"), {
+        stdout: "SUCCESS: The process with PID 4400 (child process of PID 4321) has been terminated.\r\n" +
+          "SUCCESS: The process with PID 4321 (child process of PID 100) has been terminated.\r\n",
+      });
     });
-    const started = performance.now();
 
-    await tree.endAsync(2_147_483_646, ProcessTreeTests.LAUNCHED, ProcessTreeTests.EXITED);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
 
-    Assert.areEqual(0, signals.length);
-    Assert.isTrue(performance.now() - started < Resources.processListTimeout + ProcessTreeTests.LISTING_MARGIN, "The listing outlasted its limit.");
+    Assert.areEqual(JSON.stringify([Resources.processListScript, Resources.formatProcessEndScript([4500, 4600], [start + 80, start + 90])]), JSON.stringify(lists));
   }
 
   @TestMethod
-  public async endsNothingOnWindowsWhenNeitherTheRealTaskkillNorTheListingSucceeds(): Promise<void> {
+  @PlatformFixture.windowsOnly()
+  public async endsTheChildAnExitedCommandLeftRunningOnWindowsThroughTheRealListing(): Promise<void> {
+    const folder = await mkdtemp(path.join(tmpdir(), "process-tree-"));
+    const file = path.join(folder, "child.pid");
+    const child = `setTimeout(() => undefined, ${String(ProcessTreeTests.CHILD_LIFETIME)})`;
+    const script = `const child = require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(child)}], { detached: true, stdio: "ignore", windowsHide: true }); ` +
+      `require("node:fs").writeFileSync(${JSON.stringify(file)}, String(child.pid)); child.unref();`;
+    const runner = new ProcessRunner();
+    let id = 0;
+    try {
+      const launched = Date.now();
+      const command = spawn(process.execPath, ["-e", script], { stdio: "ignore", windowsHide: true });
+      const exited = await new Promise<number>((resolve, reject) => {
+        command.once("error", reject);
+        command.once("exit", () => resolve(Date.now()));
+      });
+      id = Number(await readFile(file, "utf8"));
+      Assert.isTrue(id > 0 && runner.isRunning(id), "The child did not outlive the command.");
+
+      await new ProcessTree().endAsync(command.pid, launched, exited);
+
+      Assert.isFalse(runner.isRunning(id), "The child the command left still runs.");
+    }
+    finally {
+      if (id > 0 && runner.isRunning(id))
+        runner.kill(id);
+      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
+    }
+  }
+
+  @TestMethod
+  public async rejectsWhenNeitherTheRealTaskkillNorTheListingSucceeds(): Promise<void> {
     let lists = 0;
+    const failure = new Error("powershell failed");
     const tree = new ProcessTree("win32", () => undefined, async () => {
       lists += 1;
-      return Promise.reject(new Error("powershell failed"));
+      return Promise.reject(failure);
     }, async () => undefined);
 
-    await tree.endAsync(2_147_483_646, ProcessTreeTests.LAUNCHED, null);
+    const error = await Assert.throwsAsync(() => tree.endAsync(2_147_483_646, ProcessTreeTests.LAUNCHED, null), Error);
 
+    Assert.areEqual(failure, error);
     Assert.areEqual(1, lists);
   }
 
@@ -297,8 +357,7 @@ export class ProcessTreeTests {
   @TestMethod
   public async endsNothingOnWindowsItCannotTellIsTheCommandsAndStopsAtItsRounds(): Promise<void> {
     const start = ProcessTreeTests.LAUNCHED;
-    const cases: [string | null, number][] = [
-      [null, 1],
+    const cases: [string, number][] = [
       [ProcessTreeTests.windows([[4321, 1, start - 60_000]]), 1],
       [ProcessTreeTests.windows([[700, 1, start]]), 1],
       [ProcessTreeTests.windows([[4321, 1, start + 5]]), 1 + Resources.processTreeRounds],
@@ -309,7 +368,7 @@ export class ProcessTreeTests {
       let count = 0;
       const tree = new ProcessTree("win32", () => undefined, async () => {
         count += 1;
-        return listing ?? Promise.reject(new Error("powershell failed"));
+        return listing;
       }, async () => undefined, ProcessTreeTests.refuseTaskkill);
       await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
       counts.push(count);
@@ -319,15 +378,17 @@ export class ProcessTreeTests {
   }
 
   @TestMethod
-  public async stopsEndingOnWindowsWhenAnEndScriptFails(): Promise<void> {
+  public async rejectsOnWindowsWithTheFailureOfAnEndScript(): Promise<void> {
     let count = 0;
+    const failure = new Error("powershell failed");
     const tree = new ProcessTree("win32", () => undefined, async () => {
       count += 1;
-      return count === 1 ? ProcessTreeTests.windows([[4321, 1, ProcessTreeTests.LAUNCHED + 5]]) : Promise.reject(new Error("powershell failed"));
+      return count === 1 ? ProcessTreeTests.windows([[4321, 1, ProcessTreeTests.LAUNCHED + 5]]) : Promise.reject(failure);
     }, async () => undefined, ProcessTreeTests.refuseTaskkill);
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    const error = await Assert.throwsAsync(() => tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null), Error);
 
+    Assert.areEqual(failure, error);
     Assert.areEqual(2, count);
   }
 
