@@ -62,6 +62,7 @@ export class Resources {
   };
   public static readonly leadingEdges: readonly PanelEdge[] = [PanelEdge.Left, PanelEdge.Top];
   public static readonly layoutSaveDelay: number = 500;
+  public static readonly pageHideEvent: string = "pagehide";
   public static readonly primaryButton: number = 0;
   public static readonly middleButton: number = 1;
   public static readonly escapeKey: string = "Escape";

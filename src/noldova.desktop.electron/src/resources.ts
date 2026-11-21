@@ -823,6 +823,7 @@ export class Resources {
   public static readonly windowHeight: number = 800;
   public static readonly windowAreaShare: number = 0.9;
   public static readonly closeAnswerTimeout: number = 5000;
+  public static readonly layoutWriteTimeout: number = 5000;
   public static readonly updateBarrierInterval: number = 1000;
   public static readonly updatePrepareTimeout: number = 15000;
   public static readonly updateExitWait: number = 10000;
@@ -1147,6 +1148,10 @@ export class Resources {
 
   public static formatScrollBackScript(x: number, y: number): string {
     return `scrollTo(${x}, ${y})`;
+  }
+
+  public static formatLayoutReadAfterFailedWrite(message: string): string {
+    return `The window's layout was read after its last write failed or went unanswered, so it may be the layout kept before that write: ${message}`;
   }
 
   public static formatBarrierNotCleared(message: string): string {
