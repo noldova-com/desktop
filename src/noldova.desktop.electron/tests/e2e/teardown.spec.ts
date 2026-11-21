@@ -611,6 +611,28 @@ test.describe("the harness's teardown", () => {
     const main = await mainProcess.application.evaluate(() => process.pid);
     const outliving = await OutlivingProcess.startAsync(mainProcess, testInfo);
     const answer = path.join(mainProcess.root, "answer");
+    const forwarded = path.join(mainProcess.root, "forwarded");
+    await mainProcess.application.evaluate((_, file) => {
+      const { Socket } = process.getBuiltinModule("node:net");
+      const { writeFileSync } = process.getBuiltinModule("node:fs");
+      const write = Socket.prototype.write;
+      Object.defineProperty(Socket.prototype, "write", {
+        configurable: true,
+        writable: true,
+        value(this: InstanceType<typeof Socket>, ...values: unknown[]): unknown {
+          const written: unknown = Reflect.apply(write, this, values);
+          if (String(values.at(0)).includes("desktop.writeWindowLayout")) {
+            Socket.prototype.write = write;
+            this.pause();
+            setTimeout(() => this.resume(), 15_000);
+            writeFileSync(file, "forwarded");
+          }
+          return written;
+        }
+      });
+    }, forwarded);
+    await mainProcess.window.keyboard.press("ControlOrMeta+Alt+N");
+    await expect.poll(() => existsSync(forwarded)).toBe(true);
     const blocked = mainProcess.application.evaluate((_, file) => {
       const { existsSync: exists } = process.getBuiltinModule("node:fs");
       const pause = new Int32Array(new SharedArrayBuffer(4));
@@ -625,6 +647,9 @@ test.describe("the harness's teardown", () => {
     const report = testInfo.attachments.find(t => t.name === "main-process.txt")?.body?.toString() ?? String.empty;
 
     expect(failure).toMatch(/^The main process did not answer within 10 s when asked to say whether a window is visible\.\nThe last of the harness's own calls it answered was to .+, \d+ ms before this one was asked; the workflow's own calls are not counted\.\nThe main process log shows no main-process failure\.\nBefore the move, the cursor was at -?\d+,-?\d+, /);
+    expect(mainProcess.acceptFailures(/^renderer: ERROR RuntimeRequestException: The runtime did not answer desktop\.writeWindowLayout in time\.(?:\n +at .+)*$/)).toHaveLength(1);
+    expect(mainProcess.acceptFailures(/^main: \S+ Window error: RuntimeRequestException: The runtime did not answer desktop\.writeWindowLayout in time\.$/)).toHaveLength(1);
+    mainProcess.acceptFailures(/^main: Window error: +at .+$/);
     expect(mainProcess.acceptFailures(new RegExp(`^The main process ${main} did not answer for \\d+ s after it was asked to say whether a window is visible, so the test killed it\\.$`))).toHaveLength(1);
     expect(report).toMatch(new RegExp(`^The main process ${main} stopped answering when it was asked to say whether a window is visible, \\d+ s before this report\\.\\n`));
     expect(report).toMatch(/\nIts processor time was \d+ ms when it stopped answering and \d+ ms now\.\n/);
