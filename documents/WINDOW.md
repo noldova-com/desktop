@@ -54,7 +54,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   The main process takes either only from the window's current page, follows a link to the file it names, refuses a folder, a FIFO, a socket and a device, and grants each other file to the part's module for that page, as [RUNTIME.md](RUNTIME.md#file-grants) says; it never opens the file.
   A dropped file is granted by the path the preload reads with Electron's `webUtils.getPathForFile`, and a pasted one without a path by its bytes, which the main process stages, at most 64 MiB in one call and 256 MiB staged in all.
   The part gets each file's grant, name, media type and size, never its path, and a sentence for each file it didn't get, naming it and why; it passes the grants to its runtime part, which redeems them at once.
-  The context ends the part's grants when the part discards them or is withdrawn, and the main process ends a page's grants when the next page names itself.
+  The context ends the part's grants when the part discards them or is withdrawn, and the main process ends a page's grants when the next page names itself or its renderer goes away.
 - A window part loads a file its runtime part shares with it by address, with no bytes passing as text: the runtime part answers the share's grant, and the context's `fileAddressOf` turns it into `desktop-file://<grant>/`, which the page loads as an image's source.
   The context holds the share as it holds a grant, so `discardFileGrants` ends it, and withdrawing the part ends it at once.
   The window's content security policy lets images, and nothing else, load from that scheme.
