@@ -43,7 +43,7 @@ export class Installation {
     this.mainProcessFolder = path.join(folder, Resources.mainProcessesFolderName);
     this.isRunningAsync = isRunningAsync;
     const presence = ProcessPresence.create(process.platform);
-    this.removal = new StaleFileRemoval(this.barrierFile, async () => (await presence.stampAsync([[process.pid, Resources.removerRole]])).at(0), t => this.isRunningAsync(t));
+    this.removal = new StaleFileRemoval(this.barrierFile, async () => (await presence.stampAsync([[process.pid, Resources.removerRole]])).at(0), isRunningAsync);
   }
 
   public static locate(deviceFolder: string, programPath: string, platform: string): string {

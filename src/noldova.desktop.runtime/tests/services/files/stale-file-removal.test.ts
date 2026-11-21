@@ -68,7 +68,7 @@ export class StaleFileRemovalTests {
   }
 
   @TestMethod
-  public async deletesTheIntentsOfRemoversThatEndedAndLeavesOtherFilesAlone(): Promise<void> {
+  public async deletesTheIntentsOfRemoversThatEndedSkipsOneThatEndedWhileListedAndLeavesOtherFilesAlone(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
     const file = path.join(folder.path, "lock.json");
     const asked: number[] = [];
@@ -78,8 +78,23 @@ export class StaleFileRemovalTests {
     await writeFile(path.join(folder.path, "lock.json.broken.removing"), "{\"processId\":");
     await writeFile(path.join(folder.path, "other.json.live.removing"), JSON.stringify(StaleFileRemovalTests.SELF.toJson()));
     await writeFile(path.join(folder.path, "lock.json.written.tmp"), "half");
-
-    const removed = await removal.removeAsync("stale");
+    const vanishing = path.join(folder.path, "lock.json.vanishing.removing");
+    await writeFile(vanishing, JSON.stringify(StaleFileRemovalTests.SELF.toJson()));
+    const read = fs.promises.readFile;
+    const reading = mock.method(fs.promises, "readFile", async (...values: Parameters<typeof fs.promises.readFile>): Promise<string | Buffer> => {
+      if (values[0] === vanishing)
+        await rm(vanishing);
+      return await read(...values);
+    });
+    syncBuiltinESMExports();
+    let removed: boolean;
+    try {
+      removed = await removal.removeAsync("stale");
+    }
+    finally {
+      reading.mock.restore();
+      syncBuiltinESMExports();
+    }
 
     Assert.isTrue(removed);
     Assert.areEqual("4121", asked.join(","));
