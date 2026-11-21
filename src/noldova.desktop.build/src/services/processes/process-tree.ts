@@ -6,7 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+import { writeSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 
@@ -60,9 +61,11 @@ export class ProcessTree {
     let tree = Object.isNull(exited)
       ? new Map(!Object.isUndefined(start) && start + Resources.psStartTolerance > launched ? [[processId, start]] : [])
       : new Map([...listing].filter(([, t]) => t.parent === processId && t.start + Resources.psStartTolerance > launched && t.start <= exited).map(([id, t]) => [id, t.start]));
+    writeSync(2, `[diag] end ${processId} launched ${launched} exited ${String(exited)} listed ${JSON.stringify(listing.get(processId) ?? null)} tree ${JSON.stringify([...tree])}\n`);
     for (let round = 0; !Object.isNull(listing) && round < Resources.processTreeRounds; round++) {
       tree = ProcessTree.treeOf(listing, tree);
       const found = ProcessTree.listed(listing, tree);
+      writeSync(2, `[diag] round ${round} found ${JSON.stringify(found)} at ${Math.round(performance.now())}\n`);
       if (found.length === 0)
         return;
       listing = await this.readAsync(Resources.windowsPowershellCommand,
@@ -101,9 +104,42 @@ export class ProcessTree {
   }
 
   private static async listAsync(command: string, commandArguments: readonly string[]): Promise<string> {
-    const listed = await promisify(execFile)(command, [...commandArguments], { env: { ...process.env, ...Resources.processListEnvironment },
-      timeout: Resources.processListTimeout, maxBuffer: Resources.processListOutputLimit, windowsHide: true });
-    return listed.stdout;
+    if (process.platform !== "win32") {
+      const listed = await promisify(execFile)(command, [...commandArguments], { env: { ...process.env, ...Resources.processListEnvironment },
+        timeout: Resources.processListTimeout, maxBuffer: Resources.processListOutputLimit, windowsHide: true });
+      return listed.stdout;
+    }
+    const started = performance.now();
+    return await new Promise<string>((resolve, reject) => {
+      let id = 0;
+      const say = (t: string): void => {
+        writeSync(2, `[diag ${id}] ${t} at ${Math.round(performance.now() - started)} ms\n`);
+      };
+      const child = execFile(command, [...commandArguments], { env: { ...process.env, ...Resources.processListEnvironment },
+        timeout: Resources.processListTimeout, maxBuffer: Resources.processListOutputLimit, windowsHide: true }, (error, stdout, stderr) => {
+        say(`callback ${Object.isNull(error) ? "ok" : String(error)} stdout ${stdout.length} chars, stderr ${stderr.slice(0, 400)}`);
+        for (const line of stdout.split(/\r?\n/).filter(t => /^(kill|skip|fail) /.test(t)))
+          say(line);
+        if (Object.isNull(error))
+          resolve(stdout);
+        else
+          reject(error);
+      });
+      id = child.pid ?? -1;
+      say(`spawned ${String(commandArguments.at(-1)).slice(0, 50)}`);
+      child.once("exit", (code, signal) => {
+        say(`exit ${String(code)} ${String(signal)}`);
+        const held = setTimeout(() => {
+          say("no close 1 s after exit; listing what the process left");
+          const left = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+            `Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq ${id} -or $_.ProcessId -eq ${id} } | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CommandLine }`],
+          { encoding: "utf8", timeout: 20_000, windowsHide: true });
+          say(`left: ${left.stdout} ${left.stderr} ${String(left.error)}`);
+        }, 1_000);
+        child.once("close", () => clearTimeout(held));
+      });
+      child.once("close", code => say(`close ${String(code)}`));
+    });
   }
 
   private static treeOf(listing: ReadonlyMap<number, { readonly parent: number; readonly start: number }>, known: ReadonlyMap<number, number>): Map<number, number> {
