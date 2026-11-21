@@ -330,6 +330,7 @@ The main process owns updates: it checks, downloads, validates and installs, and
   Only a packaged build names the production feed; a test build may name a local feed given to its build.
 - **Versions:** only a version higher than the installed one is offered, and only `X.Y.Z` or an internal build's `X.Y.Z-internal.N`, which sorts after the release before it and before `X.Y.Z`; any other suffix is never offered.
 - **Checks:** the device setting `desktop.updateChecks` chooses Automatically, the default, Only at start or Only when I ask; one main process of an installation checks at a time.
+  A main process that finds the check's lock held by a process that no longer runs removes it the way a launch barrier is removed, below, through its own intent file and only while the lock still names that process, so main processes racing to take it over end with one holder.
   Automatically checks 30 seconds after the main process starts and then every 10 minutes, and a check the person asks for moves the next automatic one 10 minutes on; Only at start checks once, 30 seconds after the start.
 - **Validation:** before downloading, the main process checks the release's information; after downloading, the file's size and SHA-512, and on Windows a valid signature by the app's publisher and no one else, read from the app's own product file; an unsigned build has no publisher there, so it installs no Windows update.
   A file that fails is deleted and the reason shown.

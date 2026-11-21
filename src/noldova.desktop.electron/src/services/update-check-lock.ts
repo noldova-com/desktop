@@ -7,12 +7,13 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
 import { UpdateProcess } from "@noldova/desktop.protocol";
+import { StaleFileRemoval } from "@noldova/desktop.runtime";
 
 import { UpdateCheckerUnknownException } from "../exceptions/update-checker-unknown.exception.js";
 import type { IUpdateCheckLock } from "../interfaces/i-update-check-lock.js";
@@ -25,6 +26,8 @@ export class UpdateCheckLock implements IUpdateCheckLock {
   private readonly stampAsync: () => Promise<UpdateProcess | null>;
   private readonly isRunningAsync: (holder: UpdateProcess) => Promise<boolean>;
   private readonly log: (text: string) => void;
+  private readonly removal: StaleFileRemoval;
+  private process: UpdateProcess | undefined;
   private holder: string | undefined;
   private held: string | undefined;
 
@@ -34,6 +37,8 @@ export class UpdateCheckLock implements IUpdateCheckLock {
     this.stampAsync = stampAsync;
     this.isRunningAsync = isRunningAsync;
     this.log = log;
+    this.removal = new StaleFileRemoval(this.file, () => Promise.resolve(this.process), t => this.isRunningAsync(t));
+    this.process = undefined;
     this.holder = undefined;
     this.held = undefined;
   }
@@ -46,7 +51,7 @@ export class UpdateCheckLock implements IUpdateCheckLock {
     const current = await readFile(this.file, Resources.textEncoding).catch(() => null);
     if (current === text)
       return this.hold(text);
-    if (Object.isNull(current) || await this.isHeldAsync(current) || !await this.removeAsync(current))
+    if (Object.isNull(current) || await this.isHeldAsync(current) || !await this.removal.removeAsync(current))
       return false;
     return await this.createAsync(text) && this.hold(text);
   }
@@ -57,7 +62,7 @@ export class UpdateCheckLock implements IUpdateCheckLock {
     if (Object.isUndefined(held))
       return;
     try {
-      await this.removeAsync(held);
+      await this.removal.removeAsync(held);
     }
     catch (error) {
       this.log(Resources.formatUpdateLockLeft(String(error)));
@@ -69,6 +74,7 @@ export class UpdateCheckLock implements IUpdateCheckLock {
       const holder = await this.stampAsync();
       if (Object.isNull(holder))
         throw new UpdateCheckerUnknownException();
+      this.process = holder;
       this.holder = JSON.stringify(holder.toJson());
     }
     return this.holder;
@@ -98,33 +104,6 @@ export class UpdateCheckLock implements IUpdateCheckLock {
     }
     finally {
       await rm(temporary, { force: true });
-    }
-  }
-
-  private async removeAsync(text: string): Promise<boolean> {
-    const claimed = this.temporaryName();
-    try {
-      await rename(this.file, claimed);
-    }
-    catch (error) {
-      if (!UpdateCheckLock.hasCode(error, Resources.missingErrorCode))
-        throw error;
-      return false;
-    }
-    const isJudged = await readFile(claimed, Resources.textEncoding) === text;
-    if (!isJudged)
-      await UpdateCheckLock.putBackAsync(claimed, this.file);
-    await rm(claimed, { force: true });
-    return isJudged;
-  }
-
-  private static async putBackAsync(claimed: string, file: string): Promise<void> {
-    try {
-      await link(claimed, file);
-    }
-    catch (error) {
-      if (!UpdateCheckLock.hasCode(error, Resources.existingErrorCode))
-        throw error;
     }
   }
 
