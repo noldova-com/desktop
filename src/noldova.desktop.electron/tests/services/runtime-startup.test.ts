@@ -99,7 +99,48 @@ export class RuntimeStartupTests {
     Assert.areEqual(JSON.stringify([2000, 2000]), JSON.stringify(this.clock.waits));
     Assert.areEqual(4, launcher.calls.length);
     Assert.isTrue(launcher.calls.every(t => t === "attach main IfIdle"));
-    Assert.areEqual(JSON.stringify(["Connecting", "WorkInProgress", "WaitingForWork", "WaitingForWork", "Ready"]), JSON.stringify(this.published));
+    Assert.areEqual(JSON.stringify(["Connecting", "WorkInProgress", "Connecting", "WaitingForWork", "WaitingForWork", "Ready"]), JSON.stringify(this.published));
+  }
+
+  @TestMethod
+  public async attachesOnceWhenThePersonAnswersAgainWhileWaitingAttaches(): Promise<void> {
+    const attached = Promise.withResolvers<FakeRuntimeConnection>();
+    const launcher = new FakeRuntimeLauncher(new WorkInProgressException(new RunningWork(["A reply"])), attached.promise);
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    const waiting = startup.actAsync("wait");
+    const waitsAgain = await startup.actAsync("wait");
+    const stops = await startup.actAsync("stopWork");
+    attached.resolve(new FakeRuntimeConnection());
+
+    Assert.isTrue(await waiting);
+    Assert.isFalse(waitsAgain);
+    Assert.isFalse(stops);
+    Assert.areEqual(JSON.stringify(["attach main IfIdle", "attach main IfIdle"]), JSON.stringify(launcher.calls));
+    Assert.areEqual("Ready", startup.current.kind);
+  }
+
+  @TestMethod
+  public async closesAConnectionItReplacesAndIgnoresThatConnectionsEnd(): Promise<void> {
+    const replaced = new FakeRuntimeConnection();
+    const live = new FakeRuntimeConnection();
+    const launcher = new FakeRuntimeLauncher(replaced, live);
+    const startup = this.create(launcher);
+
+    await startup.startAsync();
+    await startup.startAsync();
+    launcher.listeners[0]?.onDisconnected(null);
+    await setImmediate();
+
+    Assert.isTrue(replaced.isClosed);
+    Assert.isFalse(live.isClosed);
+    Assert.isTrue(startup.connection === live);
+    Assert.areEqual(2, launcher.calls.length);
+    Assert.areEqual("Ready", startup.current.kind);
+    launcher.listeners[1]?.onDisconnected(null);
+    await setImmediate();
+    Assert.areEqual(3, launcher.calls.length);
   }
 
   @TestMethod
