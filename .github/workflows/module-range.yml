@@ -214,6 +214,39 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Choose the folder and cache key of Playwright's browsers
+        id: browser
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          versions=$(git ls-files -z -- '*package-lock.json' | node --input-type=module --eval '
+            import { readFileSync } from "node:fs";
+            const files = readFileSync(0, "utf8").split(String.fromCharCode(0)).filter(t => t.length > 0);
+            const versions = new Set();
+            for (const file of files)
+              for (const [key, entry] of Object.entries(JSON.parse(readFileSync(file, "utf8")).packages ?? {}))
+                if ((key === "node_modules/playwright-core" || key.endsWith("/node_modules/playwright-core")) && typeof entry.version === "string")
+                  versions.add(entry.version);
+            process.stdout.write([...versions].sort().join("_"));
+          ')
+          if [ -z "$versions" ]; then
+            echo "No package-lock.json locks playwright-core, so there is no browser to keep."
+            exit 0
+          fi
+          folder="$RUNNER_TEMP/ms-playwright"
+          echo "PLAYWRIGHT_BROWSERS_PATH=$folder" >> "$GITHUB_ENV"
+          echo "folder=$folder" >> "$GITHUB_OUTPUT"
+          echo "key=playwright-chromium-headless-shell-$RUNNER_OS-$RUNNER_ARCH-$versions" >> "$GITHUB_OUTPUT"
+          echo "Playwright's browsers go in $folder, kept as playwright-chromium-headless-shell-$RUNNER_OS-$RUNNER_ARCH-$versions."
+
+      - name: Restore Playwright's browsers, kept by their Playwright versions
+        if: steps.browser.outputs.key != ''
+        timeout-minutes: 5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser.outputs.folder }}
+          key: ${{ steps.browser.outputs.key }}
+
       - name: Build
         id: build
         run: ${{ inputs.build }}
