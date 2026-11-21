@@ -65,6 +65,7 @@ export class ProcessRunnerTests {
       () => new ProcessRunner().captureAsync(process.execPath, ["-e", "setInterval(() => undefined, 1000)"], tmpdir(), 200), ProcessTimeoutException);
 
     Assert.areEqual(`"${process.execPath}" did not finish within 200 ms. It wrote nothing before it was stopped.`, error.message);
+    Assert.isTrue(Number.isInteger(error.processId) && (error.processId ?? 0) > 0, String(error.processId));
   }
 
   @TestMethod
