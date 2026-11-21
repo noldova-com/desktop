@@ -293,7 +293,7 @@ A member starts it by hand, and each job builds once and then runs the tests in 
 gh workflow run flake-proof.yml --ref <branch> -f "filter=--filter <text>" -f runs=10 -f jobs=2 -f "targets=linux-x64 windows-x64"
 ```
 
-An end-to-end spec runs through `test:ui:ci`, which starts the same screen as the end-to-end job, and no session bus, so the proof keeps `display` off; its filter is the spec's file and line as Playwright takes it:
+An end-to-end spec runs through `test:ui:ci`, which starts the same screen and a session bus of its own, as the end-to-end job does, so the proof keeps `display` off; its filter is the spec's file and line as Playwright takes it:
 
 ```bash
 gh workflow run flake-proof.yml --ref <branch> -f script=test:ui:ci -f "filter=<file>.spec.ts:<line>" -f runs=10 -f "targets=linux-x64 windows-x64 macos-arm64"
@@ -305,7 +305,7 @@ gh workflow run flake-proof.yml --ref <branch> -f script=test:ui:ci -f "filter=<
 | `filter` | The arguments the script takes, separated by spaces, such as `--filter <text>` for `npm test`; empty runs the whole suite. | Empty. |
 | `script` | The npm script each run runs, such as `test:ui:ci` for the end-to-end specs. | `test` |
 | `prepare` | npm scripts each job runs once, after `npm run build` and before the runs, separated by spaces. `test:ui:ci` builds the test build itself, so it needs none. | Empty. |
-| `display` | On Linux, runs each run under `xvfb-run` on a 1920×1080 screen and `dbus-run-session`, for a script that opens windows and starts no display of its own. An end-to-end proof keeps it off: `test:ui:ci` starts its own, as the end-to-end job does, and with `display` on it would run inside a second `xvfb-run` and `dbus-run-session`, nested in the ones `test:ui:ci` starts. Windows and macOS runners have a display of their own. | `false` |
+| `display` | On Linux, runs each run on a new Xvfb screen of 1920×1080 inside a session bus of its own, a `dbus-daemon --session`, with an unlocked keyring, all ended and waited for once the run ends, for a script that opens windows and starts no display of its own. An end-to-end proof keeps it off: `test:ui:ci` starts its own screen and session bus, as the end-to-end job does, and with `display` on it would run inside a second screen and bus, nested in the ones `test:ui:ci` starts. Windows and macOS runners have a display of their own; on GitHub's hosted ones, `display` sets the screen to 1920×1080 before the runs, and the job fails when it can't. | `false` |
 | `runs` | The runs per target, 1 to 200, shared among the jobs, each of which stops after 120 minutes. | 10 |
 | `jobs` | The parallel jobs per target, 1 to 4, so that CI keeps runners free. | 2 |
 | `targets` | The targets, separated by spaces, from `linux-x64`, `linux-arm64`, `windows-x64`, `windows-arm64`, `macos-x64` and `macos-arm64`. | `linux-x64 windows-x64` |
