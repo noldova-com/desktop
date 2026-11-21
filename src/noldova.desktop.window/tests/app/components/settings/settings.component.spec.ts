@@ -123,6 +123,13 @@ class FakeAccountComponent {
   }
 }
 
+@Component({
+  selector: "nol-fake-notice",
+  template: `<p>Nothing to change here.</p>`
+})
+class FakeNoticeComponent {
+}
+
 describe("SettingsComponent", () => {
   let fixture: ComponentFixture<SettingsComponent>;
   let bridge: PreloadBridgeFixture;
@@ -1249,6 +1256,98 @@ describe("SettingsComponent", () => {
     fixture.detectChanges();
 
     expect(element().querySelector<HTMLButtonElement>("[data-setting=\"clock.alarms\"] .nol-setting-row-control button")?.disabled).toBe(true);
+  });
+
+  it("moves the focus from a Reset that goes away to its row's control, the selected one of its pills", async () => {
+    render();
+
+    await page.getByRole("button", { name: "Reset Mode" }).click();
+
+    expect(DomFixture.one(element(), "[data-setting='desktop.mode'] .nol-setting-row-control").contains(document.activeElement)).toBe(true);
+    expect([document.activeElement?.getAttribute("role"), document.activeElement?.textContent?.trim()]).toEqual(["radio", "Dark"]);
+  });
+
+  it("moves the focus from Open page to the opened page's first control once it loads, and to the page list when that page has none", async () => {
+    const notice = new SettingsPageEntry("clock.notice", "Notice", "clock", new SettingsPageContribution("clock.notice", () => Promise.resolve(FakeNoticeComponent)), pageContext, null);
+    ownPages.set([accountEntry(), notice]);
+    render();
+    const focused = (): string | null => {
+      const active = document.activeElement;
+      if (Object.isNull(active))
+        return null;
+      if (!Object.isNull(active.closest("nol-settings-page-host")))
+        return active.tagName.toLowerCase();
+      return DomFixture.one(element(), ".nol-settings-pages").contains(active) ? "pages" : null;
+    };
+    const openAsync = async (query: string): Promise<readonly [readonly string[], string | null]> => {
+      await searchAsync(query);
+      await page.getByRole("button", { name: "Open page" }).click();
+      await expect.poll(focused).not.toBeNull();
+      return [texts("[aria-selected=true]"), focused()];
+    };
+
+    const opened = await openAsync("accou");
+    const empty = await openAsync("notic");
+
+    expect(opened).toEqual([["Account"], "input"]);
+    expect(empty).toEqual([["Notice"], "pages"]);
+  });
+
+  describe("while a page opened from the results loads", () => {
+    let gates: (() => void)[];
+    let field: HTMLInputElement;
+
+    const loadAsync = async (): Promise<string> => {
+      await expect.poll(() => {
+        gates.splice(0).forEach(t => t());
+        fixture.detectChanges();
+        return element().querySelector("nol-settings-page-host input");
+      }).not.toBeNull();
+      await fixture.whenStable();
+      const active = document.activeElement;
+      return active === field ? "search" : active === document.body ? "body" : active?.tagName.toLowerCase() ?? "none";
+    };
+    const blur = (): void => {
+      if (document.activeElement instanceof HTMLElement)
+        document.activeElement.blur();
+    };
+
+    beforeEach(async () => {
+      gates = [];
+      ownPages.set([accountEntry(() => new Promise(resolve => {
+        gates.push(() => resolve(FakeAccountComponent));
+      }))]);
+      render();
+      field = DomFixture.oneOf(element(), ".nol-settings-search-field", HTMLInputElement);
+      await searchAsync("accou");
+      await page.getByRole("button", { name: "Open page" }).click();
+    });
+
+    it("leaves the focus where the person moved it", async () => {
+      field.focus();
+
+      expect(await loadAsync()).toBe("search");
+    });
+
+    it("moves the focus nowhere once the person picked another page", async () => {
+      await page.getByRole("treeitem", { name: "Appearance", exact: true }).click();
+      blur();
+      TestBed.inject(SettingsPageService).open("clock.account");
+      TestBed.tick();
+
+      expect(await loadAsync()).toBe("body");
+    });
+
+    it("moves the focus nowhere once the person searched", async () => {
+      for (const text of ["x", String.empty]) {
+        field.value = text;
+        field.dispatchEvent(new Event("input"));
+        fixture.detectChanges();
+      }
+      blur();
+
+      expect(await loadAsync()).toBe("body");
+    });
   });
 
   it("changes and resets a setting through the settings service, and reports a change or reset that fails", async () => {
