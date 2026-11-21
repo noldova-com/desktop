@@ -49,7 +49,7 @@ Every exception the package throws extends `ElectronException`, so a caller catc
 
 The package's tests mirror its sources under `tests/`, and run with the repository's `npm test`, as the [repository's checks](../../README.md#checks) say.
 Six files are left out of coverage, each with its reason in `package.json`'s `noldova.coverageExclusions`, since they load only inside Electron: `main.ts`, `services/electron-web-view-engine.ts`, `services/electron-web-view-contents.ts`, `services/electron-web-view-session.ts`, `services/product-app-adapter.ts` and `utility-entry.ts`.
-The end-to-end workflows under `tests/e2e/` start the test build in Electron through Playwright, with `npm run test:ui`, and in CI with `npm run test:ui:ci`, which on Linux runs them under `dbus-run-session` and `xvfb-run`, so they have a session bus and a display of their own.
+The end-to-end workflows under `tests/e2e/` start the test build in Electron through Playwright, with `npm run test:ui`, and in CI with `npm run test:ui:ci`, which on Linux runs them under `xvfb-run` inside a `dbus-daemon --session` of their own, ended and waited for once they end, so they have a session bus and a display of their own and leave no bus behind.
 
 - **One worker:** the workflows run one at a time, since they share what a machine has one of: the system clipboard, foreground focus and the pointer, and Windows' notification history, which the tray workflow counts.
 - **Tray host:** the two tray-quit workflows that close the last window into the tray need a tray, which a Linux session has only with a StatusNotifier host; each skips itself, with its reason, when the session bus has none, as the CI session bus on Linux has none.

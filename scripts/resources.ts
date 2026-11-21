@@ -98,8 +98,8 @@ export class Resources {
   public static readonly npmCiRequestLines: number = 5;
   public static readonly npmCiRetryPause: number = 5000;
   public static readonly uiWorkflowsCiScript: readonly string[] = ["scripts", "ui-workflows.ts"];
-  public static readonly uiWorkflowsCiSessionBus: string = "dbus-run-session";
-  public static readonly uiWorkflowsCiSessionBusArguments: readonly string[] = ["--"];
+  public static readonly uiWorkflowsCiSessionBus: string = "sh";
+  public static readonly uiWorkflowsCiSessionBusArguments: readonly string[] = ["-c", "stop() { kill \"$bus\" 2>/dev/null; for tick in 1 2 3 4 5 6 7 8 9 10; do ps -o stat= -p \"$bus\" | grep -qv '^Z' || break; sleep 0.5; done; kill -KILL \"$bus\" 2>/dev/null; wait \"$bus\"; }; folder=$(mktemp -d) || exit 1; mkfifo \"$folder/bus\" || { rm -rf \"$folder\"; exit 1; }; dbus-daemon --session --nofork --print-address=3 3> \"$folder/bus\" & bus=$!; if ! read -r DBUS_SESSION_BUS_ADDRESS < \"$folder/bus\"; then echo \"The session bus did not start.\" >&2; wait \"$bus\"; rm -rf \"$folder\"; exit 1; fi; export DBUS_SESSION_BUS_ADDRESS; status=0; \"$@\" || status=$?; stop; rm -rf \"$folder\"; exit \"$status\"", "sh"];
   public static readonly uiWorkflowsCiVirtualDisplay: string = "xvfb-run";
   public static readonly uiWorkflowsCiVirtualDisplayArguments: readonly string[] = ["--auto-servernum", "--server-args=-screen 0 2560x1440x24"];
   public static readonly carryDocsUsage: string = "Usage: node scripts/carry-docs.ts <Angular project file> <compiled package folder> <entry file>..., run from the repository's root\n";

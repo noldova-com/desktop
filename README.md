@@ -203,7 +203,7 @@ Declarations without types runs last: for each of the build, command-line, Elect
 ### End-to-end specs
 
 `npm run test:ui -- [<Playwright argument>...]` builds the test build and its variants when they changed, then runs the end-to-end specs in `src/noldova.desktop.electron/tests/e2e` through Playwright; on Linux without a display, run it under `xvfb-run`.
-`npm run test:ui:ci -- [<Playwright argument>...]` runs them as the workflows do: on Linux, under `xvfb-run` on a 2560×1440 screen and `dbus-run-session`, so the specs have a session bus of their own; that bus has no tray host, so the two tray-quit specs skip themselves there, as the [Electron package's README](src/noldova.desktop.electron/README.md) says.
+`npm run test:ui:ci -- [<Playwright argument>...]` runs them as the workflows do: on Linux, under `xvfb-run` on a 2560×1440 screen inside a session bus of their own, a `dbus-daemon --session` in the foreground as the run's child, ended and waited for once the specs end, and killed when it still runs five seconds after it is asked to stop, so no bus outlives the run; a bus that doesn't start fails the run with "The session bus did not start."; that bus has no tray host, so the two tray-quit specs skip themselves there, as the [Electron package's README](src/noldova.desktop.electron/README.md) says.
 `npm test` doesn't run them.
 They run one at a time, with one Playwright worker, since every spec shares the machine's clipboard, focus, pointer and, on Windows, its notification history, which two specs at once would take from each other.
 Each run keeps its test folders in a temporary folder of its own, a `ui-run-*` folder that holds the run's id, so the specs of two runs on one machine at the same time never see each other's folders.
