@@ -7,8 +7,8 @@
  */
 
 import { NgComponentOutlet, NgTemplateOutlet } from "@angular/common";
-import { Component, DestroyRef, ElementRef, ErrorHandler, Injector, PendingTasks, type Signal, type Type, type WritableSignal, afterNextRender, computed, effect, inject, signal,
-  untracked, viewChild } from "@angular/core";
+import { Component, DestroyRef, ElementRef, ErrorHandler, Injector, PendingTasks, type Signal, type Type, type WritableSignal, afterNextRender, afterRenderEffect, computed, effect, inject,
+  signal, untracked, viewChild } from "@angular/core";
 
 import "@noldova/context.core";
 import { ButtonComponent, ButtonVariant, SelectComponent, SelectOption, TextFieldComponent, TreeComponent, TreeNode } from "@noldova/ui.components.angular";
@@ -68,6 +68,8 @@ export class SettingsComponent {
   private readonly pageTree: Signal<TreeComponent> = viewChild.required(TreeComponent);
   private readonly pageSelect: Signal<ElementRef<HTMLElement>> = viewChild.required("pageSelect", { read: ElementRef<HTMLElement> });
   private readonly pageChooser: Signal<SelectComponent> = viewChild.required("pageSelect", { read: SelectComponent });
+  private readonly pageHost: Signal<SettingsPageHostComponent | undefined> = viewChild(SettingsPageHostComponent);
+  private readonly isOpening: WritableSignal<boolean> = signal(false);
   private readonly isTrayAvailable: WritableSignal<boolean> = signal(true);
   private readonly drafts: WritableSignal<ReadonlyMap<string, readonly [string, string]>> = signal(new Map());
   private readonly now: Date = new Date();
@@ -150,6 +152,13 @@ export class SettingsComponent {
     destroyRef.onDestroy(this.bridge.onTrayAvailable(t => this.isTrayAvailable.set(t)));
     destroyRef.onDestroy(() => this.unmark());
     void inject(PendingTasks).run(() => this.bridge.readTrayAvailableAsync().then(t => this.isTrayAvailable.set(t), (error: unknown) => this.errors.handleError(error)));
+    afterRenderEffect(() => {
+      if (this.isOpening() && this.pageHost()?.isSettled() === true)
+        untracked(() => {
+          this.isOpening.set(false);
+          this.focusControl(this.column().nativeElement.querySelector<HTMLElement>(Resources.settingControlSelector));
+        });
+    });
     afterNextRender(() => {
       const switched = new ResizeObserver(() => this.keepFocus());
       switched.observe(this.pageList().nativeElement);
@@ -188,7 +197,7 @@ export class SettingsComponent {
 
   protected openPage(page: string): void {
     this.select(page);
-    afterNextRender(() => this.focusControl(this.column().nativeElement.querySelector<HTMLElement>(Resources.settingControlSelector)), { injector: this.injector });
+    this.isOpening.set(true);
   }
 
   protected openRow(page: string, id: string): void {

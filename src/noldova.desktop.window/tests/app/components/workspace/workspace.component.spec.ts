@@ -491,7 +491,7 @@ describe("WorkspaceComponent", () => {
 
     expect(layout.geometry().isCollapsed(DockSide.Left)).toBe(false);
     expect(button.isConnected).toBe(false);
-    expect(document.activeElement).toBe(DomFixture.one(document, `nol-dock[data-side="Left"] nol-tab[data-tab-key="${terminal.key}"]`));
+    expect(document.activeElement).toBe(DomFixture.one(document, `nol-tab[data-tab-key="${terminal.key}"]`));
   });
 
   it.each([
