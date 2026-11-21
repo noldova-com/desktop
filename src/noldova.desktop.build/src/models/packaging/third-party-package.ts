@@ -14,9 +14,9 @@ import type { Writable } from "node:stream";
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 import { JsonReader, type JsonObject } from "@noldova/context.json";
+import { CodePointComparer } from "@noldova/context.text";
 
 import type { AcceptedLicenses } from "./accepted-licenses.ts";
-import { CodePointOrder } from "./code-point-order.ts";
 import { LicenseExpression } from "./license-expression.ts";
 import type { LockedPackage } from "./locked-package.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
@@ -64,7 +64,7 @@ export class ThirdPartyPackage {
     const named = license.isAccepted ? Resources.namedLicenseFile.exec(license.expression)?.[1] : undefined;
     if (!Object.isUndefined(named) && !archive.topLevelFiles.has(named))
       throw new BuildException(Resources.formatNamedLicenseMissing(locked.id, named));
-    const texts = [...archive.topLevelFiles].filter(([name]) => Object.isUndefined(named) ? Resources.licenseFilePattern.test(name) : name === named).sort(([left], [right]) => CodePointOrder.compare(left, right))
+    const texts = [...archive.topLevelFiles].filter(([name]) => Object.isUndefined(named) ? Resources.licenseFilePattern.test(name) : name === named).sort(([left], [right]) => CodePointComparer.compare(left, right))
       .map(([, content]) => content.toString(Resources.textEncoding).trim());
     const licenseText = texts.length > 0 ? texts.join(Resources.paragraphSeparator) : await ThirdPartyPackage.readReviewedAsync(locked, reviewedLicenses);
     const skipped = archive.skipped.map(t => Resources.formatSkippedEntry(Resources.tarPackagePath.exec(t.name)?.[1] ?? t.name, TarArchive.describeEntry(t)));

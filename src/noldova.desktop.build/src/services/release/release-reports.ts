@@ -13,8 +13,8 @@ import path from "node:path";
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 import { JsonReader } from "@noldova/context.json";
+import { CodePointComparer } from "@noldova/context.text";
 
-import { CodePointOrder } from "../../models/packaging/code-point-order.ts";
 import { PackageReport } from "../../models/packaging/package-report.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
@@ -40,7 +40,7 @@ export class ReleaseReports {
     }
     const problems: string[] = [];
     const reports: PackageReport[] = [];
-    for (const entry of entries.sort((left, right) => CodePointOrder.compare(left.name, right.name))) {
+    for (const entry of entries.sort((left, right) => CodePointComparer.compare(left.name, right.name))) {
       const report = await ReleaseReports.readAsync(folder, entry);
       if (Object.isString(report))
         problems.push(report);

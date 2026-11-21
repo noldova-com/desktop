@@ -12,6 +12,7 @@ import path from "node:path";
 import type { Writable } from "node:stream";
 
 import "@noldova/context.core";
+import { CodePointComparer } from "@noldova/context.text";
 
 import { ModuleCatalog } from "../modules/module-catalog.ts";
 import { BuildLayout } from "../packages/build-layout.ts";
@@ -34,7 +35,6 @@ import type { PackageTarget } from "../../models/packaging/package-target.ts";
 import type { PackagedBuild } from "./packaged-build.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { ThirdPartyClosure } from "./third-party-closure.ts";
-import { CodePointOrder } from "../../models/packaging/code-point-order.ts";
 import { ThirdPartyPackage } from "../../models/packaging/third-party-package.ts";
 import { TypeOnlyPeers } from "../../models/packaging/type-only-peers.ts";
 import { Resources } from "../../resources.ts";
@@ -124,9 +124,9 @@ export class PackageStage {
       private: true,
       main: path.posix.join(...Resources.electronMainSegments),
       dependencies: Object.fromEntries([...packages.map(t => [t.name, versions.of(t.name)] as const), ...roots, ...company.filter(t => PackageNaming.isContext(t.locked.name))
-        .map(t => [t.locked.name, t.locked.version] as const)].sort(([left], [right]) => CodePointOrder.compare(left, right))),
+        .map(t => [t.locked.name, t.locked.version] as const)].sort(([left], [right]) => CodePointComparer.compare(left, right))),
       optionalDependencies: Object.fromEntries([...company, ...thirdParty].map(t => t.locked).filter(t => t.isPlatformBound).map(t => [t.name, t.version] as const)
-        .sort(([left], [right]) => CodePointOrder.compare(left, right)))
+        .sort(([left], [right]) => CodePointComparer.compare(left, right)))
     }, this.layout.npmCache, new Map([...packages.map(t => [t.name, archives.locateArchive(t, versions.of(t.name))] as const), ...company.map(t => [t.locked.name, t.file] as const),
       ...thirdParty.map(t => [t.locked.name, t.file] as const)]), target);
     const foreign = await ForeignAddons.removeAsync(this.folder, target);
