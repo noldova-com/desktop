@@ -1149,6 +1149,10 @@ export class Resources {
     return `scrollTo(${x}, ${y})`;
   }
 
+  public static formatLayoutReadAfterFailedWrite(message: string): string {
+    return `The window's layout was read after its last write failed, so it is the layout kept before that write: ${message}`;
+  }
+
   public static formatBarrierNotCleared(message: string): string {
     return `The launch barrier of an unfinished update could not be removed: ${message}`;
   }

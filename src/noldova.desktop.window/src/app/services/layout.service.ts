@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { DOCUMENT } from "@angular/common";
 import { DestroyRef, ErrorHandler, Injectable, type Signal, type WritableSignal, computed, effect, inject, linkedSignal, signal, untracked } from "@angular/core";
 
 import "@noldova/context.core";
@@ -91,7 +92,13 @@ export class LayoutService {
   });
 
   public constructor() {
-    inject(DestroyRef).onDestroy(() => this.clearSaveTimer());
+    const view = inject(DOCUMENT).defaultView;
+    const hidden = (): void => this.sendOnHide();
+    view?.addEventListener(Resources.pageHideEvent, hidden);
+    inject(DestroyRef).onDestroy(() => {
+      this.clearSaveTimer();
+      view?.removeEventListener(Resources.pageHideEvent, hidden);
+    });
     effect(() => {
       if (this.startup.state().kind === StartupStateKind.Ready)
         this.startSave();
@@ -331,6 +338,11 @@ export class LayoutService {
     this.clearSaveTimer();
     if (!Object.isNull(this.saved))
       this.saveTimer = setTimeout(() => this.startSave(), Resources.layoutSaveDelay);
+  }
+
+  private sendOnHide(): void {
+    this.clearSaveTimer();
+    void this.writeLatestAsync().catch((error: unknown) => this.errors.handleError(error));
   }
 
   private startSave(): void {

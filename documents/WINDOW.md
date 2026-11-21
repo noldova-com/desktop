@@ -8,6 +8,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 ## The boundary
 
 - The window shows confirmed state and keeps only transient state itself; durable state goes to its owner in [RUNTIME.md](RUNTIME.md#state) after a pause in changes and when the window closes.
+  A layout change still waiting on its pause when the page hides, as a reload does, is sent at once, and the main process answers the reloaded page's read of the layout only once every write sent before it has landed; a write that failed leaves the layout kept before it, and the read writes a line to the main process log saying so.
 - Every privileged request crosses the preload bridge and the main process's authenticated connection to the runtime.
   Window parts get no token, socket, process or file handle.
 - The main process sends each window's requests with the window's id, which a reload keeps, passes it only the events for it or for every window, and tells the runtime when the window closes, as [RUNTIME.md](RUNTIME.md#messages) says; a closed window's late requests go nowhere.

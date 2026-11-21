@@ -551,6 +551,30 @@ describe("LayoutService", () => {
     expect(await store.readAsync()).toEqual(saved);
   });
 
+  it("sends a pending layout at once when the page hides, also while an earlier write is still in flight, and nothing when none is pending", async () => {
+    await loadAsync(prepared());
+    const written: unknown[] = [];
+    vi.spyOn(store, "writeAsync").mockImplementation(layout => {
+      written.push(layout);
+      return written.length === 1 ? new Promise<boolean>(() => undefined) : Promise.resolve(true);
+    });
+
+    window.dispatchEvent(new Event("pagehide"));
+    const unchanged = written.length;
+    service.activate(LayoutFixture.plan);
+    void service.saveAsync();
+    await vi.waitFor(() => expect(written.length).toBe(1));
+    service.toggleDock(DockSide.Left);
+    window.dispatchEvent(new Event("pagehide"));
+    const hidden = written.length;
+    vi.advanceTimersByTime(500);
+
+    expect(unchanged).toBe(0);
+    expect(hidden).toBe(2);
+    expect(written.length).toBe(2);
+    expect(written[1]).toEqual(service.layout().toJson());
+  });
+
   it("saves nothing before a layout was loaded, so a window that never loaded cannot replace the kept layout", async () => {
     const write = vi.spyOn(store, "writeAsync");
 
