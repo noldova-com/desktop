@@ -48,7 +48,7 @@ export class ProcessTree {
       return;
     if (!this.signalGroup(groupId, Resources.killSignal))
       return;
-    for (let waited = 0; waited < Resources.processTreeGrace && this.signalGroup(groupId, Resources.probeSignal); waited += Resources.processTreeGracePoll)
+    for (let waited = 0; waited < Resources.processTreeGrace && this.isGroupLeft(groupId); waited += Resources.processTreeGracePoll)
       await this.delayAsync(Resources.processTreeGracePoll);
   }
 
@@ -75,6 +75,17 @@ export class ProcessTree {
     const output = await this.list(command, commandArguments).catch(() => null);
     return Object.isNull(output) ? null : new Map([...output.matchAll(Resources.processParentPattern)]
       .map(t => [Number(t[1]), { parent: Number(t[2]), start: windows ? Number(t[3]) : Date.parse(String(t[3])) }]));
+  }
+
+  private isGroupLeft(groupId: number): boolean {
+    try {
+      return this.signalGroup(groupId, Resources.probeSignal);
+    }
+    catch (error) {
+      if (error instanceof Error && Resources.errorCodeField in error && error[Resources.errorCodeField] === Resources.refusedSignalCode)
+        return true;
+      throw error;
+    }
   }
 
   private signalGroup(groupId: number, signal: NodeJS.Signals | 0): boolean {

@@ -83,6 +83,31 @@ export class ProcessTreeTests {
   }
 
   @TestMethod
+  public async waitsOnAGroupWhoseProcessesTheSystemStillHoldsAndRejectsAnyOtherProbeFailure(): Promise<void> {
+    const delays: number[] = [];
+    let probes = 0;
+    const holding = new ProcessTree("darwin", (_, signal) => {
+      if (signal !== 0)
+        return;
+      probes += 1;
+      throw ProcessTreeTests.failure(probes < 3 ? "EPERM" : "ESRCH");
+    }, async () => ProcessTreeTests.posix([[4321, 4321, 10]]), async t => {
+      delays.push(t);
+    });
+    const failing = new ProcessTree("darwin", (_, signal) => {
+      if (signal === 0)
+        throw new Error("probe failed");
+    }, async () => ProcessTreeTests.posix([[4321, 4321, 10]]), async () => undefined);
+
+    await holding.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    const error = await Assert.throwsAsync(() => failing.endAsync(4321, ProcessTreeTests.LAUNCHED, null), Error);
+
+    Assert.areEqual(3, probes);
+    Assert.areEqual(JSON.stringify([100, 100]), JSON.stringify(delays));
+    Assert.areEqual("probe failed", error.message);
+  }
+
+  @TestMethod
   public async stopsWaitingForTheGroupAtItsGrace(): Promise<void> {
     const delays: number[] = [];
     const tree = new ProcessTree("linux", () => undefined, async () => ProcessTreeTests.posix([[4321, 4321, 10]]), async t => {

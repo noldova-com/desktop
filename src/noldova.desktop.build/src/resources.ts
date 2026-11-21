@@ -1398,6 +1398,7 @@ export class Resources {
   public static readonly githubStepSummaryVariable: string = "GITHUB_STEP_SUMMARY";
   public static readonly killSignal: NodeJS.Signals = "SIGKILL";
   public static readonly probeSignal: 0 = 0;
+  public static readonly refusedSignalCode: string = "EPERM";
   public static readonly psCommand: string = "ps";
   public static readonly psProcessGroupArguments: readonly string[] = ["-A", "-o", "pid=,pgid=,lstart="];
   public static readonly psStartTolerance: number = 2_000;

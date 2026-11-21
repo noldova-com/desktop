@@ -28,6 +28,7 @@ export class ProcessRunnerTests {
   private static readonly LIFETIME: number = 20_000;
   private static readonly CHILD: RegExp = /child ([0-9]+)\n/;
   private static readonly GRANDCHILD_LIFETIME: number = 60_000;
+  private static readonly REFUSED_LIFETIME: number = 3_000;
 
   @TestMethod
   public async capturesTheExitCodeAndBothOutputsInTheGivenEnvironment(): Promise<void> {
@@ -132,7 +133,7 @@ export class ProcessRunnerTests {
   @TestMethod
   public async settlesARunWithTheFailureToEndItsTree(): Promise<void> {
     const runner = new ProcessRunner(new RefusingProcessTreeFixture());
-    const hang = ["-e", "setInterval(() => undefined, 1000)"];
+    const hang = ["-e", `setTimeout(() => undefined, ${ProcessRunnerTests.REFUSED_LIFETIME})`];
 
     const captured = await Assert.throwsAsync(() => runner.captureAsync(process.execPath, hang, tmpdir(), 200), BuildException);
     const run = await Assert.throwsAsync(() => runner.runAsync(process.execPath, hang, tmpdir(), undefined, undefined, 200), BuildException);

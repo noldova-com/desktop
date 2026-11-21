@@ -13,8 +13,7 @@ import { ProcessTree } from "../../src/services/processes/process-tree.js";
 export class RefusingProcessTreeFixture extends ProcessTree {
   public static readonly MESSAGE: string = "kill EPERM";
 
-  public override async endAsync(processId: number | undefined, launched: number, exited: number | null): Promise<void> {
-    await super.endAsync(processId, launched, exited);
-    throw Object.assign(new Error(RefusingProcessTreeFixture.MESSAGE), { code: "EPERM" });
+  public override endAsync(): Promise<void> {
+    return Promise.reject(Object.assign(new Error(RefusingProcessTreeFixture.MESSAGE), { code: "EPERM" }));
   }
 }
