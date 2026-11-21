@@ -158,8 +158,7 @@ export class SettingsComponent {
       if (this.isOpening() && this.pageHost()?.isSettled() === true)
         untracked(() => {
           this.isOpening.set(false);
-          const column = this.column().nativeElement;
-          if (document.activeElement === document.body || document.activeElement === column)
+          if (document.activeElement === document.body)
             this.focusControl(this.firstControl(Resources.tabbableSelector));
         });
     });
