@@ -317,7 +317,25 @@ export class FeedUpdaterTests {
     });
   }
 
-  private static create(app: FakeAppUpdater, folder: string = FeedUpdaterTests.INSTALLATION): FeedUpdater {
+  @TestMethod
+  public givesTheSignatureTheLastChecksInformationCarriesForAFile(): Promise<void> {
+    return FeedUpdaterTests.withFolderAsync(async folder => {
+      const app = new FakeAppUpdater();
+      const updater = FeedUpdaterTests.create(app, folder);
+      const packagePath = updater.formatPackagePath("1.3.0");
+      const before = updater.readSignature(packagePath);
+      const entry = { url: basename(packagePath), sha512: "c2hh", size: 28, signature: "c2ln" };
+      app.check = () => Promise.resolve({ isUpdateAvailable: true, updateInfo: { ...FakeAppUpdater.info("1.3.0"), files: [entry] } });
+
+      await updater.checkAsync();
+
+      Assert.isNull(before);
+      Assert.areEqual("c2ln", updater.readSignature(packagePath));
+      Assert.isNull(updater.readSignature(updater.formatPackagePath("1.4.0")));
+    });
+  }
+
+  private static create(app: FakeAppUpdater,folder: string = FeedUpdaterTests.INSTALLATION): FeedUpdater {
     return new FeedUpdater(app, FeedUpdaterTests.SOURCE, folder === FeedUpdaterTests.INSTALLATION ? folder : join(folder, "0123456789abcdef"), "/cache", "noldova-desktop", null, () => undefined);
   }
 
