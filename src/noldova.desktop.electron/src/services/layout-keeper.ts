@@ -62,7 +62,8 @@ export class LayoutKeeper {
   private async keepAsync(value: JsonObject): Promise<JsonObject> {
     const device = await this.device.readAsync();
     const response = Object.isNull(device) ? Response.failure(null, new Failure(FailureCode.Unavailable, Resources.deviceNotIdentified))
-      : await this.runtime.callAsync(ShellMethods.writeWindowLayout, new WindowStateWrite(new WindowStateKey(device, Resources.mainWindow), value).toJson());
+      : await this.runtime.callAsync(ShellMethods.writeWindowLayout, new WindowStateWrite(new WindowStateKey(device, Resources.mainWindow), value).toJson(), undefined, undefined, undefined,
+        Resources.layoutWriteTimeout);
     this.failure = response.failure?.message ?? null;
     return response.hasFailed ? response.toJson() : { [Resources.payloadField]: null };
   }

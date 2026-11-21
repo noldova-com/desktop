@@ -153,6 +153,23 @@ export class LayoutKeeperTests {
     ]), JSON.stringify(MainProcessStartFixture.readErrors(process, "The window's layout")));
   }
 
+  @TestMethod
+  public async givesALayoutWriteFiveSecondsSoAWriteThatNeverAnswersHoldsAReadOnlyThatLong(): Promise<void> {
+    const connection = new FakeRuntimeConnection();
+    const process = new FakeMainProcessEnvironment("linux");
+    const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(connection), new FakeElectron(), new FakeDeviceIdentity(), process);
+    const event = MainProcessStartFixture.trustedEvent("linux");
+    connection.deferred.set(ShellMethods.writeWindowLayout.text, () => Promise.reject(new CallUnansweredException("desktop.writeWindowLayout")));
+
+    const written = await LayoutKeeperTests.invokeAsync(electron, "desktop:writeLayout", event, { version: 1 });
+    const read = await LayoutKeeperTests.invokeAsync(electron, "desktop:readLayout", event);
+
+    Assert.areEqual(5000, connection.timeouts[connection.calls.lastIndexOf(ShellMethods.writeWindowLayout.text)]);
+    Assert.areEqual(JSON.stringify({ code: "Unavailable", message: "The runtime did not answer desktop.writeWindowLayout in time." }), JSON.stringify(written["failure"]));
+    Assert.areEqual(JSON.stringify({ payload: null }), JSON.stringify(read));
+    Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The window's layout was read after its last write failed").length);
+  }
+
   private static async invokeAsync(electron: FakeElectron, channel: string, event: IIpcEvent, ...values: unknown[]): Promise<JsonObject> {
     return JsonReader.fromValue(await electron.ipcMain.invoke(channel, event, ...values)).toJson();
   }
