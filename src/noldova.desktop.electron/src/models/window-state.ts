@@ -66,7 +66,12 @@ export class WindowState {
     const shown = this.displayOf(workAreas, x, y);
     if (Object.isNull(shown))
       return this.centerOn(primary);
-    return shown.fits(this.width, this.height) ? new ScreenArea(x, y, this.width, this.height) : this.centerOn(shown);
+    if (!shown.fits(this.width, this.height))
+      return this.centerOn(shown);
+    if (workAreas.some(t => t.overlapArea(x, y, this.width, 1) >= Resources.windowRowReach))
+      return new ScreenArea(x, y, this.width, this.height);
+    return new ScreenArea(WindowState.within(x, shown.x, shown.x + shown.width - this.width), WindowState.within(y, shown.y, shown.y + shown.height - this.height),
+      this.width, this.height);
   }
 
   public toJson(): JsonObject {
@@ -77,6 +82,10 @@ export class WindowState {
       [Resources.heightField]: this.height,
       [Resources.maximizedField]: this.isMaximized
     };
+  }
+
+  private static within(value: number, lowest: number, highest: number): number {
+    return Math.min(Math.max(value, lowest), highest);
   }
 
   private static shareOf(size: number, available: number, minimum: number): number {

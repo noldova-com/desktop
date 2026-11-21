@@ -822,7 +822,9 @@ export class Resources {
   public static readonly windowWidth: number = 1280;
   public static readonly windowHeight: number = 800;
   public static readonly windowAreaShare: number = 0.9;
+  public static readonly windowRowReach: number = 160;
   public static readonly closeAnswerTimeout: number = 5000;
+  public static readonly layoutWriteTimeout: number = 5000;
   public static readonly updateBarrierInterval: number = 1000;
   public static readonly updatePrepareTimeout: number = 15000;
   public static readonly updateExitWait: number = 10000;
@@ -1149,6 +1151,10 @@ export class Resources {
     return `scrollTo(${x}, ${y})`;
   }
 
+  public static formatLayoutReadAfterFailedWrite(message: string): string {
+    return `The window's layout was read after its last write failed or went unanswered, so it may be the layout kept before that write: ${message}`;
+  }
+
   public static formatBarrierNotCleared(message: string): string {
     return `The launch barrier of an unfinished update could not be removed: ${message}`;
   }
@@ -1239,6 +1245,14 @@ export class Resources {
 
   public static formatWebViewScrollNotRestored(module: string, view: string, x: number, y: number, reason: string): string {
     return `Web view ${view} of ${module} was not scrolled back to (${x}, ${y}): ${reason}.`;
+  }
+
+  public static formatWebViewScrollKeptPending(module: string, view: string, x: number, y: number): string {
+    return `Web view ${view} of ${module} kept the scroll position (${x}, ${y}) its restored page had not been scrolled back to yet, rather than where that page showed.`;
+  }
+
+  public static formatWebViewRestoreFailedShown(module: string, view: string, error: string): string {
+    return `Web view ${view} of ${module} restored its page with an error (${error}) but shows the kept address, so it is still scrolled back.`;
   }
 
   public static formatWebViewScrollShown(x: number, y: number): string {

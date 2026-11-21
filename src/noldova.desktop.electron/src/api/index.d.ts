@@ -6246,7 +6246,8 @@ export declare class WindowState {
 
   /**
    * Places the state's bounds on the connected displays. Bounds that a display shows and that fit its work area are kept,
-   * on the display that shows most of them. Otherwise the window is centered on that display, or on the primary display
+   * on the display that shows most of them, when at least 160 pixels of their top row lie on one work area; otherwise
+   * they move by the least into that display's work area, so the window's title row stays in reach. Otherwise the window is centered on that display, or on the primary display
    * when no display shows it or it has no position; a size that fits the work area is kept, and a larger one shrinks to no
    * more than nine tenths of the work area on each side.
    *
@@ -7072,8 +7073,9 @@ export declare class MainProcessRecord {
 }
 
 /**
- * Quits a main process that has no runtime connection once another main process's update reaches `Closing`, so it does not
- * keep running the installation's files through the handoff.
+ * Quits a main process that has no runtime connection once another main process's update reaches `Closing`, or has handed
+ * off to install a version other than this build's (`HandedOff`), so it does not keep running the installation's files while
+ * they are replaced.
  */
 export declare class UpdateBarrierWatch {
   /**
@@ -7129,8 +7131,8 @@ export declare class UpdateBarrierWatch {
 
   /**
    * Checks the barrier once, unless the main process is connected; a check asked for while one is running makes that one
-   * check again when it ends. It quits the main process, and stops, when the barrier is `Closing` for another main process
-   * whose update has not ended; a barrier it cannot read, or an update it cannot tell has ended, keeps the main process running.
+   * check again when it ends. It quits the main process, and stops, when the barrier is `Closing`, or `HandedOff` for a version
+   * other than this build's, for another main process whose update has not ended; a barrier it cannot read, or an update it cannot tell has ended, keeps the main process running.
    *
    * @returns A promise of whether it quit the main process.
    * @example
@@ -7533,7 +7535,8 @@ export declare class RuntimeStartup {
    * the first such end in a row it reconnects at once, then after 1, 2, 4 and 8 seconds, and the sixth is logged and
    * shown as a failure with its cause and an offer to try again, which counts afresh. A start or reconnection that
    * fails for any reason other than data from before the shell, an older build's work or a newer build is logged, an
-   * unexpected failure in full, and shows the failure with an offer to try again.
+   * unexpected failure in full, and shows the failure with an offer to try again. A connection that replaces the
+   * current one, as when it starts again while ready, closes the one it replaces, whose end then reconnects nothing.
    *
    * When the runtime announces `desktop.updating`, the state becomes {@link StartupStateKind.Updating} with the version
    * the launch barrier names, the windows save, and the runtime is told what did not save with `desktop.updateSaved`;
@@ -7541,7 +7544,8 @@ export declare class RuntimeStartup {
    * once whether the update has ended, again at once on each {@link barrierChanged}, a change it keeps when it comes
    * during a check, and again every second, since the barrier's holder can end without changing the barrier and Node
    * can't wait for the exit of a process it didn't start; it reconnects once the update has ended, and
-   * {@link UpdateBarrierWatch} quits the main process once the barrier is `Closing` and held by another main process.
+   * {@link UpdateBarrierWatch} quits the main process once the barrier is `Closing`, or `HandedOff` for a version other than this
+   * build's, and held by another main process.
    *
    * @returns A promise that settles once the state is ready or shows why not.
    * @example
@@ -7557,7 +7561,9 @@ export declare class RuntimeStartup {
 
   /**
    * Carries out the person's choice when it fits the current state: `moveAside` for data from before the shell,
-   * `stopWork` or `wait` for an older build's work, and `retry` after a failure.
+   * `stopWork` or `wait` for an older build's work, and `retry` after a failure. The state is
+   * {@link StartupStateKind.Connecting} while a choice attaches, so a second choice made meanwhile, such as `wait`
+   * twice, does not fit and attaches nothing.
    *
    * @param action The choice, as the window sends it.
    * @returns A promise of `true` once the choice is carried out, or `false` when it does not fit the state.

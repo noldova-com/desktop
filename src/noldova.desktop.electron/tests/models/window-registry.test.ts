@@ -150,6 +150,23 @@ export class WindowRegistryTests {
   }
 
   @TestMethod
+  public endsACrashedPagesGrantsAndSharesOnceAndNoneWhenItsWindowHasNoPage(): Promise<void> {
+    return WindowRegistryTests.runAsync(async t => {
+      const file = join(t.folder, "notes.txt");
+      await writeFile(file, "notes");
+      await t.electron.ipcMain.invoke("desktop:grantFiles", t.event, "notes", [{ name: "notes.txt", type: String.empty, path: file, size: 5 }], {}, "first");
+      const granted = WindowRegistryTests.grants(t.connection)[0]?.page ?? 0;
+      const before = WindowRegistryTests.payloads(t.connection, "desktop.endFileGrants").length;
+
+      t.window.webContents.goAway("crashed", 139);
+      t.window.webContents.goAway("crashed", 139);
+
+      Assert.areEqual(JSON.stringify([{ window: t.window.webContents.id, page: granted }]),
+        JSON.stringify(WindowRegistryTests.payloads(t.connection, "desktop.endFileGrants").slice(before)));
+    });
+  }
+
+  @TestMethod
   public servesAShareOnTheWindowsOwnSessionOnlyWhileItsPageIsCurrent(): Promise<void> {
     return WindowRegistryTests.runAsync(async t => {
       const grant = "8c1f0a3e9b2d4c6f8e0a1b3c5d7e9f21";

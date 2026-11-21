@@ -8,6 +8,8 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 ## The boundary
 
 - The window shows confirmed state and keeps only transient state itself; durable state goes to its owner in [RUNTIME.md](RUNTIME.md#state) after a pause in changes and when the window closes.
+  A layout change still waiting on its pause when the page hides, as a reload does, is sent at once, and the main process answers the reloaded page's read of the layout only once every write sent before it has landed or failed.
+  A write that doesn't answer fails after its five-second limit and the connection's five-second grace for a late answer, so it holds the read for about ten seconds at most; a write that failed or went unanswered may leave the layout kept before it, though one that went unanswered can still land before the read, and the read writes a line to the main process log saying so.
 - Every privileged request crosses the preload bridge and the main process's authenticated connection to the runtime.
   Window parts get no token, socket, process or file handle.
 - The main process sends each window's requests with the window's id, which a reload keeps, passes it only the events for it or for every window, and tells the runtime when the window closes, as [RUNTIME.md](RUNTIME.md#messages) says; a closed window's late requests go nowhere.
@@ -52,7 +54,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   The main process takes either only from the window's current page, follows a link to the file it names, refuses a folder, a FIFO, a socket and a device, and grants each other file to the part's module for that page, as [RUNTIME.md](RUNTIME.md#file-grants) says; it never opens the file.
   A dropped file is granted by the path the preload reads with Electron's `webUtils.getPathForFile`, and a pasted one without a path by its bytes, which the main process stages, at most 64 MiB in one call and 256 MiB staged in all.
   The part gets each file's grant, name, media type and size, never its path, and a sentence for each file it didn't get, naming it and why; it passes the grants to its runtime part, which redeems them at once.
-  The context ends the part's grants when the part discards them or is withdrawn, and the main process ends a page's grants when the next page names itself.
+  The context ends the part's grants when the part discards them or is withdrawn, and the main process ends a page's grants when the next page names itself or its renderer goes away.
 - A window part loads a file its runtime part shares with it by address, with no bytes passing as text: the runtime part answers the share's grant, and the context's `fileAddressOf` turns it into `desktop-file://<grant>/`, which the page loads as an image's source.
   The context holds the share as it holds a grant, so `discardFileGrants` ends it, and withdrawing the part ends it at once.
   The window's content security policy lets images, and nothing else, load from that scheme.
@@ -327,6 +329,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   Until the window is open, the main process holds the start's state and the runtime's events; the window then reads the current state as it loads, as any window does, and gets the held events in order, so it works the same whether the runtime is ready before it or after, and its saved bounds are restored once.
 - A new window is 1280 by 800 pixels, at most nine tenths of the primary display's work area on each side, and centred; saved bounds keep their size where they fit, and the window is never smaller than 640 by 480 pixels.
   A window manager that sizes it smaller anyway, such as a tiling one, gets it saved at that minimum.
+  Saved bounds whose top row has less than 160 pixels on any display's work area, such as above the top of the only display or all but a sliver past its side, move by the least into the work area of the display that shows most of them, so the window row stays in reach.
   Under Wayland the compositor places each window it shows, so the window opens at its saved size wherever the compositor puts it.
   There its saves keep the saved position, with the window's size and maximized state, since the window's position is the compositor's: a later X11 session still opens it where the person left it.
   So a move the person makes under Wayland isn't kept, and until the saved bounds have been read nothing is saved, so a failed read never erases the saved position.

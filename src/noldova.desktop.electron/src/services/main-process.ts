@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import "@noldova/context.core";
 import type { JsonValue } from "@noldova/context.json";
-import { type Event, type RuntimeHandover, ShellMethods, WindowClosed } from "@noldova/desktop.protocol";
+import { type Event, FileGrantsEnded, type RuntimeHandover, ShellMethods, WindowClosed } from "@noldova/desktop.protocol";
 import {
   AppImageSource,
   type DataDirectory,
@@ -197,7 +197,7 @@ export class MainProcess {
       controls: this.controls,
       textLog: new WindowTextLog(t => log.write(t)),
       startup: this.startup,
-      layout: new LayoutKeeper(this.windows, this.runtime, this.device),
+      layout: new LayoutKeeper(this.windows, this.runtime, this.device, t => log.write(t)),
       requests: new RuntimeRequests(this.windows, this.runtime, this.device, this.notifier, t => log.write(t)),
       runtime: this.runtime,
       clipboard: this.services.clipboard,
@@ -459,7 +459,11 @@ export class MainProcess {
       this.notifier.hold();
       this.webViews.host.closeWindow(contentsId);
     });
-    window.webContents.on(Resources.renderProcessGoneEvent, () => this.windows.endPage(contentsId));
+    window.webContents.on(Resources.renderProcessGoneEvent, () => {
+      const ended = this.windows.endPage(contentsId);
+      if (!Object.isNull(ended))
+        void this.runtime.callAsync(ShellMethods.endFileGrants, new FileGrantsEnded(contentsId, ended.serial).toJson());
+    });
     window.webContents.on(Resources.contextMenuEvent, (_event, params) => this.controls.forwardFieldMenu(open, params));
     new WindowRecovery(open, electron.dialog, log, process, () => electron.app.quit(), () => this.services.shellOpener.openLogFolderAsync(), Resources.reloadCrashLimit, Resources.rendererEndLimit);
     this.windows.add(contentsId, open);
