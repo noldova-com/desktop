@@ -204,9 +204,17 @@ export class UpdateCheckLockTests {
       }, UpdateCheckLockTests.IGNORE);
 
       let failure: unknown = null;
-      {
-        using _link = new FailingFileCallFixture("link", file, "EACCES");
+      const links: FailingFileCallFixture[] = [];
+      try {
+        using _rename = new FileRenameHookFixture(file, () => {
+          links.push(new FailingFileCallFixture("link", file, "EACCES"));
+          return Promise.resolve();
+        });
         await lock.tryAcquireAsync().catch((error: unknown) => { failure = error; });
+      }
+      finally {
+        for (const link of links)
+          link[Symbol.dispose]();
       }
       const left = await readdir(folder);
 
