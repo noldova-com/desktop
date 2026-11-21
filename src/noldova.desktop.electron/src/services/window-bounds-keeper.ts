@@ -69,9 +69,9 @@ export class WindowBoundsKeeper {
   public async restoreAsync(store: IWindowStateStore): Promise<void> {
     this.isHeld = false;
     if (this.hasUnsaved) {
-      this.store = store;
       if (this.keepsStoredPosition && !this.isRead)
         this.keepRead(await store.readAsync());
+      this.store = store;
       await this.saveAsync();
       return;
     }
@@ -104,8 +104,6 @@ export class WindowBoundsKeeper {
         throw new WindowStateNotConnectedException();
       return;
     }
-    if (this.keepsStoredPosition && !this.isRead)
-      return;
     const bounds = this.window.getNormalBounds();
     const [x, y] = this.keepsStoredPosition ? [this.restored?.x ?? null, this.restored?.y ?? null] : [bounds.x, bounds.y];
     this.hasUnsaved = true;
