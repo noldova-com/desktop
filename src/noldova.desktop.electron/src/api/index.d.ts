@@ -11172,6 +11172,9 @@ export declare class WindowBoundsKeeper {
    * Creates the keeper and listens for the window's changes, which it saves once it has a store. A move or resize the
    * person makes before then is held where the window reports only the person's own as "will-move" and "will-resize", which
    * is Windows; on macOS the system's own moves report as "will-move" too, and Linux reports neither, so nothing is held there.
+   * After a read of the saved bounds fails, the same holds on Windows, and elsewhere a change is held once the window's normal
+   * bounds differ from those it had when {@link WindowBoundsKeeper.show} showed it, so the system's placement before then and a
+   * maximize are not.
    *
    * @param window The window.
    * @param displays The displays, for placing restored bounds.
@@ -11233,8 +11236,8 @@ export declare class WindowBoundsKeeper {
    * Keeps the bounds in the store from now on, ending a hold, and applies the store's bounds: the saved position when a display
    * shows it, otherwise the saved size centered, then maximized when it was. A window not shown yet is maximized
    * only as {@link WindowBoundsKeeper.show} shows it, since maximizing shows a hidden window without focusing it,
-   * and saves count it as maximized meanwhile. When the person already moved or resized the window, those bounds
-   * stay and are saved instead of the saved ones being applied.
+   * and saves count it as maximized meanwhile. When the person already moved or resized the window, before any store or
+   * after a read that failed, those bounds stay and are saved instead of the saved ones being applied.
    *
    * @param store Where the bounds are kept.
    * @returns A promise that settles once the saved bounds are applied, or at once when none are saved.
