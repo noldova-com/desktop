@@ -12,7 +12,6 @@ import path from "node:path";
 import type { Writable } from "node:stream";
 
 import "@noldova/context.core";
-import { JsonReader } from "@noldova/context.json";
 
 import { BuildLayout } from "../../src/noldova.desktop.build/src/services/packages/build-layout.ts";
 import type { PackageBuild } from "../../src/noldova.desktop.build/src/services/packages/package-build.ts";
@@ -26,10 +25,13 @@ import { CheckSelection } from "./check-selection.ts";
 import type { FlakyRecord } from "./flaky-record.ts";
 import { FlakyTest } from "./flaky-test.ts";
 import { LoggedProcess } from "./logged-process.ts";
+import type { IPackageCoverage } from "./interfaces/i-package-coverage.ts";
 import type { ISelectableCheck } from "./interfaces/i-selectable-check.ts";
 import { PackageCoverage } from "./package-coverage.ts";
 import { PrefixedOutput } from "./prefixed-output.ts";
+import { RecordedTestRun } from "./recorded-test-run.ts";
 import { TestProcessPart } from "./test-process-part.ts";
+import { TestedPackage } from "./tested-package.ts";
 
 export class PackageTestCheck implements ISelectableCheck {
   private static readonly PROCESSES: readonly (readonly TestProcessPart[])[] = [
@@ -52,10 +54,10 @@ export class PackageTestCheck implements ISelectableCheck {
     this.flaky = flaky;
   }
 
-  public static group<T extends { readonly name: string }>(packages: readonly T[]): { readonly tested: T; readonly part: TestProcessPart }[][] {
+  public static group(packages: readonly PackageManifest[]): readonly (readonly TestedPackage[])[] {
     const named = new Set(PackageTestCheck.PROCESSES.flat().map(t => t.name));
-    const listed = PackageTestCheck.PROCESSES.map(t => t.flatMap(part => packages.filter(u => u.name === part.name).map(u => ({ tested: u, part }))));
-    const rest = packages.filter(t => !named.has(t.name)).map(t => ({ tested: t, part: new TestProcessPart(t.name) }));
+    const listed = PackageTestCheck.PROCESSES.map(t => t.flatMap(part => packages.filter(u => u.name === part.name).map(u => new TestedPackage(u, part))));
+    const rest = packages.filter(t => !named.has(t.name)).map(t => new TestedPackage(t, new TestProcessPart(t.name)));
     return [...listed, rest].filter(t => t.length > 0);
   }
 
@@ -74,6 +76,15 @@ export class PackageTestCheck implements ISelectableCheck {
 
   private static locateCompiledTests(layout: BuildLayout, manifest: PackageManifest): string {
     return path.join(layout.locateTestOutput(manifest), Resources.packageTestCompiledTestsFolder);
+  }
+
+  private static async readResultsAsync(file: string): Promise<RecordedTestRun | null> {
+    try {
+      return RecordedTestRun.parse(await readFile(file, Resources.encoding));
+    }
+    catch {
+      return null;
+    }
   }
 
   private async isCurrentReportedAsync(output: Writable): Promise<boolean> {
@@ -121,7 +132,7 @@ export class PackageTestCheck implements ISelectableCheck {
       output.write(Resources.formatPackageTestGroups(names));
       const flaky: FlakyTest[] = [];
       const runs = await Promise.allSettled(groups.map((t, i) =>
-        this.runGroupAsync(i, [Resources.packageTestSourceMapsOption, entry, ...t.flatMap(u => [u.tested.name, PackageTestCheck.locateCompiledTests(layout, u.tested)])],
+        this.runGroupAsync(i, [Resources.packageTestSourceMapsOption, entry, ...t.flatMap(u => [u.manifest.name, PackageTestCheck.locateCompiledTests(layout, u.manifest)])],
           { ...environment, [Resources.serialTestGroupVariable]: Resources.formatPackageTestGroup(i, names), [Resources.serialTestPartsVariable]: JSON.stringify(t.map(u => u.part)) },
           isFiltered, flaky, output)));
       await this.flaky?.addAsync(flaky, output);
@@ -135,7 +146,7 @@ export class PackageTestCheck implements ISelectableCheck {
           output.write(Resources.packageTestNoneDiscovered);
         return new CheckSelection(testsPassed && result.discovered > 0, Resources.packageTestUnit, result.discovered, result.selected);
       }
-      const projects = packages.map(t => ({ name: t.name, productionDirectory: layout.locateInstalled(t), sourceDirectory: layout.locateSource(t, Resources.sourceFolder), exclusions: t.coverageExclusions }));
+      const projects: readonly IPackageCoverage[] = packages.map(t => ({ name: t.name, productionDirectory: layout.locateInstalled(t), sourceDirectory: layout.locateSource(t, Resources.sourceFolder), exclusions: t.coverageExclusions }));
       const coverageResult = await new PackageCoverage().measureAsync(coverage, projects, output);
       const recorded = await result.toTotals(Resources.packageTestRunner, Resources.packageTestTotalsTitle, PackageCoverage.count(coverageResult), result.files, null).recordAsync(this.root, output);
       return new CheckSelection(testsPassed && coverageResult.isComplete && recorded, Resources.packageTestUnit, 0, 0);
@@ -153,18 +164,19 @@ export class PackageTestCheck implements ISelectableCheck {
     await rm(resultFile, { force: true });
     const grouped = { ...environment, [Resources.serialTestResultFileVariable]: resultFile };
     const prefix = Resources.formatPackageTestPrefix(index);
-    const outputs = [new PrefixedOutput(prefix, output), new PrefixedOutput(prefix, output)] as const;
+    const standard = new PrefixedOutput(prefix, output);
+    const errors = new PrefixedOutput(prefix, output);
     try {
       return Object.isNull(this.flaky) || isFiltered
-        ? await this.runLoggedAsync(commandArguments, grouped, this.locate(Resources.packageTestLogName, index, Resources.packageTestLogExtension), outputs) === Resources.successExitCode
-        : await this.runRerunningFailedAsync(commandArguments, grouped, flaky, index, outputs);
+        ? await this.runLoggedAsync(commandArguments, grouped, this.locate(Resources.packageTestLogName, index, Resources.packageTestLogExtension), standard, errors) === Resources.successExitCode
+        : await this.runRerunningFailedAsync(commandArguments, grouped, flaky, index, standard, errors);
     }
     finally {
-      PackageTestCheck.flush(outputs);
+      PackageTestCheck.flush([standard, errors]);
     }
   }
 
-  private runLoggedAsync(commandArguments: readonly string[], environment: NodeJS.ProcessEnv, log: string, [output, errorOutput]: readonly [Writable, Writable]): Promise<number | null> {
+  private runLoggedAsync(commandArguments: readonly string[], environment: NodeJS.ProcessEnv, log: string, output: Writable, errorOutput: Writable): Promise<number | null> {
     return LoggedProcess.runAsync(process.execPath, commandArguments, this.root, log, output, errorOutput, environment);
   }
 
@@ -190,40 +202,27 @@ export class PackageTestCheck implements ISelectableCheck {
     return path.join(this.root, Resources.buildFolder, `${name}${Object.isNull(index) ? String.empty : `${Resources.dash}${index + 1}`}${extension}`);
   }
 
-  private async runRerunningFailedAsync(commandArguments: readonly string[], environment: NodeJS.ProcessEnv, flaky: FlakyTest[], index: number, outputs: readonly [PrefixedOutput, PrefixedOutput]): Promise<boolean> {
+  private async runRerunningFailedAsync(commandArguments: readonly string[], environment: NodeJS.ProcessEnv, flaky: FlakyTest[], index: number, output: PrefixedOutput, errors: PrefixedOutput): Promise<boolean> {
     const results = this.locate(Resources.packageTestResultsName, index, Resources.packageTestResultExtension);
     const recording = { ...environment, [Resources.serialTestResultsFileVariable]: results };
     await rm(results, { force: true });
-    if (await this.runLoggedAsync(commandArguments, recording, this.locate(Resources.packageTestLogName, index, Resources.packageTestLogExtension), outputs) === Resources.successExitCode)
+    if (await this.runLoggedAsync(commandArguments, recording, this.locate(Resources.packageTestLogName, index, Resources.packageTestLogExtension), output, errors) === Resources.successExitCode)
       return true;
-    const first = await this.readResultsAsync(results);
-    if (Object.isNull(first) || !first.isComplete || first.failed.length === 0)
+    const first = await PackageTestCheck.readResultsAsync(results);
+    if (Object.isNull(first) || !first.isRerunnable)
       return false;
-    PackageTestCheck.flush(outputs);
-    outputs[0].write(Resources.packageTestRerunning);
+    PackageTestCheck.flush([output, errors]);
+    output.write(Resources.packageTestRerunning);
     await rm(results, { force: true });
     const rerunResult = this.locate(Resources.packageTestRerunResultName, index, Resources.packageTestResultExtension);
     const rerun = { ...recording, [Resources.serialTestFiltersVariable]: JSON.stringify(first.failed.map(t => t.identity)), [Resources.serialTestResultFileVariable]: rerunResult,
       [Resources.serialTestGroupVariable]: `${environment[Resources.serialTestGroupVariable] ?? String.empty}${Resources.packageTestRerunLabel}` };
-    const isPassing = await this.runLoggedAsync(commandArguments, rerun, this.locate(Resources.packageTestRerunLogName, index, Resources.packageTestLogExtension), outputs) === Resources.successExitCode;
-    const second = await this.readResultsAsync(results);
+    const isPassing = await this.runLoggedAsync(commandArguments, rerun, this.locate(Resources.packageTestRerunLogName, index, Resources.packageTestLogExtension), output, errors) === Resources.successExitCode;
+    const second = await PackageTestCheck.readResultsAsync(results);
     if (Object.isNull(second) || !second.isComplete)
       return false;
     const failedAgain = new Set(second.failed.map(t => t.identity));
     flaky.push(...first.failed.filter(t => !failedAgain.has(t.identity)).map(t => new FlakyTest(Resources.packageTestTotalsTitle, t.file, t.identity, t.failure)));
     return isPassing && failedAgain.size === 0;
-  }
-
-  private async readResultsAsync(file: string): Promise<{ isComplete: boolean; failed: readonly { identity: string; file: string; failure: string }[] } | null> {
-    try {
-      const results = JsonReader.parse(await readFile(file, Resources.encoding));
-      return {
-        isComplete: results.readBoolean(Resources.testResultsIsCompleteField),
-        failed: results.readObjectArray(Resources.testResultsFailedField).map(t => ({ identity: t.readString(Resources.testResultsIdentityField), file: t.readString(Resources.fileField), failure: t.readString(Resources.testResultsFailureField) }))
-      };
-    }
-    catch {
-      return null;
-    }
   }
 }

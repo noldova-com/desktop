@@ -7,6 +7,7 @@
  */
 
 import { execFile, execFileSync } from "node:child_process";
+import { channel } from "node:diagnostics_channel";
 import { chmod, mkdir, realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -22,6 +23,7 @@ import {
 import type { IPosixProcessAddon } from "../../../src/interfaces/i-posix-process-addon.js";
 import { NativeAddon } from "../../../src/services/native/native-addon.js";
 import { AddonModuleFixture } from "../../fixtures/addon-module.fixture.js";
+import { CommandOutcomeFixture } from "../../fixtures/command-outcome.fixture.js";
 import { MacListingFixture } from "../../fixtures/mac-listing.fixture.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { SystemCommandFixture } from "../../fixtures/system-command.fixture.js";
@@ -31,15 +33,17 @@ import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.
 export class MacFolderProtectorTests {
   private static readonly KEPT_VOLUME: string = "{ calls: [], readVolume(...values) { this.calls.push(values); return ['/System/Volumes/Data', false]; } }";
   private static readonly IGNORED: string = "the volume /Volumes/Shared is mounted with ownership ignored, so every account acts as the owner of its files";
-  private static readonly DETACH_ATTEMPTS: number = 5;
-  private static readonly DETACH_PAUSE_MILLISECONDS: number = 1000;
+  private static readonly RELEASE_CHANNEL: string = "noldova.test-run.release";
+  private static readonly RELEASE_ATTEMPTS: number = 30;
+  private static readonly RELEASE_PAUSE_MILLISECONDS: number = 2000;
   private static readonly COMMAND_LIMIT_MILLISECONDS: number = 20_000;
   private static readonly CREATE_LIMIT_MILLISECONDS: number = 12_000;
   private static readonly ATTACH_LIMIT_MILLISECONDS: number = 12_000;
   private static readonly MOUNT_LIMIT_MILLISECONDS: number = 3_000;
   private static readonly REFUSAL_LIMIT_MILLISECONDS: number = 3_000;
   private static readonly DETACH_LIMIT_MILLISECONDS: number = 18_000;
-  private static readonly HOLDER_PROCESS: RegExp = /diskimage|mds|mdworker|fseventsd|fsck|diskarbitration|hdiutil|diskutil/u;
+  private static readonly HOLDERS_LIMIT_MILLISECONDS: number = 8_000;
+  private static readonly HOLDER_PROCESS: RegExp = /diskimage|mds|mdworker|fseventsd|fsck|diskarbitration|hdiutil|diskutil|xprotect|syspolicyd/iu;
   private static readonly IMAGE_ENTRIES: RegExp = /^=+$/mu;
   private static readonly WHOLE_DISK: RegExp = /^(\/dev\/disk\d+)\s/mu;
 
@@ -88,59 +92,101 @@ export class MacFolderProtectorTests {
 
   private static async cleanUpAsync(steps: string[], attaching: Promise<string> | undefined, image: string, mountPoint: string, folder: TemporaryFolderFixture): Promise<string | null> {
     const failures: string[] = [];
+    const holders: Promise<string>[] = [];
+    let disk: string | undefined;
     try {
       if (!Object.isUndefined(attaching)) {
-        const disk = await attaching.catch(() => MacFolderProtectorTests.findDiskAsync(image));
-        if (!Object.isUndefined(disk))
+        disk = await attaching.catch(() => MacFolderProtectorTests.findDiskAsync(image));
+        const attached = disk;
+        if (!Object.isUndefined(attached))
           await MacFolderProtectorTests.stepAsync(steps, "detaching the image", MacFolderProtectorTests.DETACH_LIMIT_MILLISECONDS,
-            () => MacFolderProtectorTests.detachAsync(disk, mountPoint, failures), failures);
+            () => MacFolderProtectorTests.detachAsync(attached, mountPoint, failures, holders), failures);
       }
       if ((await stat(mountPoint)).dev !== (await stat(folder.path)).dev)
         throw new Error(`a volume is still mounted at ${mountPoint}`);
     }
     catch (error) {
-      return `${error instanceof Error ? error.message : String(error)}\nThe image may still be attached at ${mountPoint}, so the test left ${folder.path} in place.`;
+      const held = (await Promise.all(holders)).map(t => `\n${t}`).join(String.empty);
+      return `${error instanceof Error ? error.message : String(error)}${held}\nThe image may still be attached at ${mountPoint}, so the test left ${folder.path} in place.`;
     }
-    await folder[Symbol.asyncDispose]();
+    if (failures.length === 0 || Object.isUndefined(disk))
+      await folder[Symbol.asyncDispose]();
+    else
+      channel(MacFolderProtectorTests.RELEASE_CHANNEL).publish(MacFolderProtectorTests.releaseAsync(image, disk, folder, failures, holders));
     return null;
   }
 
-  private static async detachAsync(disk: string, mountPoint: string, failures: string[]): Promise<void> {
-    for (let attempt = 1; attempt <= MacFolderProtectorTests.DETACH_ATTEMPTS; attempt++) {
-      if (attempt > 1)
-        await setTimeout(MacFolderProtectorTests.DETACH_PAUSE_MILLISECONDS);
-      const result = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["detach", "-force", disk]);
-      if (result.status === 0)
+  private static async detachAsync(disk: string, mountPoint: string, failures: string[], holders: Promise<string>[]): Promise<void> {
+    const result = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["detach", "-force", disk]);
+    if (result.status === 0)
+      return;
+    failures.push(`attempt 1: ${result.text}`);
+    holders.push(MacFolderProtectorTests.readHoldersAsync(disk, mountPoint));
+  }
+
+  private static async releaseAsync(image: string, disk: string, folder: TemporaryFolderFixture, failures: string[], holders: readonly Promise<string>[]): Promise<void> {
+    for (let attempt = 2; attempt <= MacFolderProtectorTests.RELEASE_ATTEMPTS; attempt++) {
+      await setTimeout(MacFolderProtectorTests.RELEASE_PAUSE_MILLISECONDS);
+      let attached: string | undefined;
+      try {
+        attached = await MacFolderProtectorTests.findDiskAsync(image);
+      }
+      catch (error) {
+        failures.push(`attempt ${attempt}: ${String(error)}`);
+        continue;
+      }
+      const result = Object.isUndefined(attached) ? undefined : await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["detach", "-force", attached]);
+      if (Object.isUndefined(result) || result.status === 0) {
+        await Promise.all(holders);
+        await folder[Symbol.asyncDispose]();
         return;
+      }
       failures.push(`attempt ${attempt}: ${result.text}`);
-      if (attempt === 1)
-        failures.push(`What held ${disk} or ${mountPoint} after it:\n${await MacFolderProtectorTests.readHoldersAsync(disk, mountPoint)}`);
     }
-    throw new Error(`hdiutil could not detach ${disk} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}`);
+    const held = (await Promise.all(holders)).map(t => `\n${t}`).join(String.empty);
+    throw new Error(`The volume test unmounted its volume, but hdiutil could not eject ${disk} in ${MacFolderProtectorTests.RELEASE_ATTEMPTS} attempts, the first at the test's end and the rest ${MacFolderProtectorTests.RELEASE_PAUSE_MILLISECONDS} ms apart:\n${failures.join("\n")}${held}\nThe test left ${folder.path} in place.`);
   }
 
   private static async readHoldersAsync(disk: string, mountPoint: string): Promise<string> {
-    const targets = disk === mountPoint ? [mountPoint] : [mountPoint, disk];
-    const asRoot = await MacFolderProtectorTests.runAsync("/usr/bin/sudo", ["-n", "/usr/sbin/lsof", "-n", ...targets]);
-    const open = asRoot.text.includes("sudo:") ? await MacFolderProtectorTests.runAsync("/usr/sbin/lsof", ["-n", ...targets]) : asRoot;
-    const processes = await MacFolderProtectorTests.runAsync("/bin/ps", ["-axo", "pid,ppid,etime,stat,comm"]);
-    const images = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["info"]);
+    const started = performance.now();
+    const name = path.basename(disk);
+    const targets = [mountPoint, disk, `${disk}s1`, `/dev/r${name}`, `/dev/r${name}s1`];
+    const limit = MacFolderProtectorTests.HOLDERS_LIMIT_MILLISECONDS;
+    const lsofAsync = async (): Promise<CommandOutcomeFixture> => {
+      const asRoot = await MacFolderProtectorTests.runAsync("/usr/bin/sudo", ["-n", "/usr/sbin/lsof", "-n", "-P", "-w", ...targets], limit);
+      return asRoot.text.includes("sudo:") ? MacFolderProtectorTests.runAsync("/usr/sbin/lsof", ["-n", "-P", "-w", ...targets], limit) : asRoot;
+    };
+    const opening = lsofAsync();
+    const listing = MacFolderProtectorTests.runAsync("/bin/ps", ["-axww", "-o", "pid,ppid,etime,stat,%cpu,command"], limit);
+    const imaging = MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["info"], limit);
+    const open = await opening;
+    const processes = await listing;
+    const images = await imaging;
     const device = new RegExp(`^${disk}(?:s\\d+)?\\s`, "mu");
     return [
+      `What held ${disk} or ${mountPoint} after the first attempt, read in ${Math.round(performance.now() - started)} ms:`,
       `lsof ${targets.join(" ")}: ${open.text}`,
-      processes.status === 0 ? processes.output.split("\n").filter(t => MacFolderProtectorTests.HOLDER_PROCESS.test(t)).join("\n") : `ps: ${processes.text}`,
+      processes.status === 0 ? MacFolderProtectorTests.selectHolders(processes.output) : `ps: ${processes.text}`,
       images.status === 0 ? images.output.split(MacFolderProtectorTests.IMAGE_ENTRIES).filter(t => t.includes(mountPoint) || device.test(t)).join("\n") : `hdiutil info: ${images.text}`
     ].join("\n");
   }
 
-  private static runAsync(file: string, commandArguments: readonly string[]): Promise<{ readonly status: number | null; readonly output: string; readonly text: string }> {
+  private static selectHolders(listing: string): string {
+    const rows = listing.split("\n");
+    const fields = (row: string): readonly string[] => row.trim().split(/\s+/u);
+    const matched = rows.filter(t => MacFolderProtectorTests.HOLDER_PROCESS.test(t));
+    const parents = new Set(matched.map(t => fields(t)[1]));
+    return rows.filter(t => matched.includes(t) || parents.has(fields(t)[0])).join("\n");
+  }
+
+  private static runAsync(file: string, commandArguments: readonly string[], limit: number = MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS): Promise<CommandOutcomeFixture> {
     return new Promise(resolve => {
-      execFile(file, commandArguments, { encoding: "utf8", timeout: MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS, killSignal: "SIGKILL" }, (error, stdout, stderr) => {
-        const status = error === null ? 0 : typeof error.code === "number" ? error.code : null;
-        const ending = error === null || typeof error.code === "number"
+      execFile(file, commandArguments, { encoding: "utf8", timeout: limit, killSignal: "SIGKILL" }, (error, stdout, stderr) => {
+        const status = Object.isNull(error) ? 0 : Object.isNumber(error.code) ? error.code : null;
+        const ending = Object.isNull(error) || Object.isNumber(error.code)
           ? `exit ${String(status)}, signal ${String(error?.signal ?? null)}`
-          : `${error.message}${error.killed === true ? `, ended by ${String(error.signal)} at the ${MacFolderProtectorTests.COMMAND_LIMIT_MILLISECONDS} ms limit` : ""}`;
-        resolve({ status, output: stdout, text: `${ending}\n${stdout}${stderr}` });
+          : `${error.message}${error.killed === true ? `, ended by ${String(error.signal)} at the ${limit} ms limit` : ""}`;
+        resolve(new CommandOutcomeFixture(status, stdout, `${ending}\n${stdout}${stderr}`));
       });
     });
   }
@@ -283,7 +329,7 @@ export class MacFolderProtectorTests {
     await mkdir(mountPoint);
     const steps: string[] = [];
     let attaching: Promise<string> | undefined;
-    let failure: { readonly error: unknown } | null = null;
+    let failure: Error | undefined;
     try {
       await MacFolderProtectorTests.stepAsync(steps, "creating the image", MacFolderProtectorTests.CREATE_LIMIT_MILLISECONDS, () => MacFolderProtectorTests.createAsync(image));
       attaching = MacFolderProtectorTests.attachAsync(image, mountPoint);
@@ -298,14 +344,13 @@ export class MacFolderProtectorTests {
       Assert.areEqual(`the volume ${await realpath(mountPoint)} is mounted with ownership ignored, so every account acts as the owner of its files`, exception.access);
     }
     catch (error) {
-      failure = { error };
+      failure = error instanceof Error ? error : new Error(String(error));
     }
     const cleanUp = await MacFolderProtectorTests.cleanUpAsync(steps, attaching, image, mountPoint, folder);
-    if (!Object.isNull(failure)) {
-      const error = failure.error instanceof Error ? failure.error : new Error(String(failure.error));
+    if (!Object.isUndefined(failure)) {
       if (Object.isNull(cleanUp))
-        throw error;
-      throw new Error(`${error.message}\nThe clean-up failed too: ${cleanUp}`, { cause: error });
+        throw failure;
+      throw new Error(`${failure.message}\nThe clean-up failed too: ${cleanUp}`, { cause: failure });
     }
     if (!Object.isNull(cleanUp))
       throw new Error(cleanUp);

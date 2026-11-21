@@ -5,6 +5,7 @@
  * This source code is licensed under the license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import { subscribe, unsubscribe } from "node:diagnostics_channel";
 import { lstatSync, mkdtempSync, readdirSync, rmSync, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -78,11 +79,12 @@ export class SerialTestRun {
     };
   }
 
-  public static describeResults(result: TestRunResult, isInterrupted: boolean, unreached: number): object {
+  public static describeResults(result: TestRunResult, isInterrupted: boolean, unreached: number, runFailures: readonly string[]): object {
     return {
       isComplete: !isInterrupted && unreached === 0,
       failed: result.classResults.flatMap(t => t.methodResults.filter(u => u.outcome === TestOutcome.Failed)
-        .map(u => ({ identity: u.displayName, file: `${t.packageName}${Resources.pathSeparator}${t.filePath}`, failure: String(u.failure) })))
+        .map(u => ({ identity: u.displayName, file: `${t.packageName}${Resources.pathSeparator}${t.filePath}`, failure: String(u.failure) }))),
+      runFailures
     };
   }
 
@@ -129,6 +131,13 @@ export class SerialTestRun {
     for (const variable of Resources.serialTestTemporaryVariables)
       this.environment[variable] = temporary;
     const interruption = new TestInterruption();
+    const releases: Promise<string | null>[] = [];
+    const release = (message: unknown): void => {
+      releases.push(Promise.resolve(message).then(() => null, (t: unknown) => String(t)));
+    };
+    subscribe(Resources.serialTestReleaseChannel, release);
+    let finished: TestRunResult | undefined;
+    let unreachedCount = 0;
 
     try {
       const filters = SerialTestRun.parseFilters(this.environment[Resources.serialTestFiltersVariable]);
@@ -177,9 +186,8 @@ export class SerialTestRun {
       }
       if (!ownsEmptySelection)
         writeFileSync(resultFile, JSON.stringify(SerialTestRun.describe(result, unreached)));
-      const resultsFile = this.environment[Resources.serialTestResultsFileVariable];
-      if (!Object.isUndefined(resultsFile))
-        writeFileSync(resultsFile, JSON.stringify(SerialTestRun.describeResults(result, interruption.isInterrupted, unreached)));
+      finished = result;
+      unreachedCount = unreached;
       process.exitCode = Math.min(result.failed + unreached + Number(ownsEmptySelection && result.total === 0), Resources.failedExitCode);
     }
     catch (error) {
@@ -193,12 +201,26 @@ export class SerialTestRun {
       writeSync(Resources.serialTestStandardErrorDescriptor, message);
       summary.writeFailure(message);
     }
+    const runFailures: string[] = [];
+    for (const failure of (await Promise.all(releases)).filter(t => !Object.isNull(t))) {
+      const released = Resources.formatSerialTestReleaseFailed(failure);
+      writeSync(Resources.serialTestStandardErrorDescriptor, released);
+      summary.writeFailure(released);
+      runFailures.push(released);
+      process.exitCode = Resources.failedExitCode;
+    }
+    unsubscribe(Resources.serialTestReleaseChannel, release);
     const leftovers = readdirSync(temporary).sort();
     const kept: string[] = [];
     const removal = SerialTestRun.tryRemove(temporary, kept);
+    const unclean = leftovers.length > 0 ? Resources.formatSerialTestLeftovers(leftovers, kept) : Object.isNull(removal) ? null : Resources.formatSerialTestUnremoved(removal);
+    if (!Object.isNull(unclean))
+      runFailures.push(unclean);
+    const resultsFile = this.environment[Resources.serialTestResultsFileVariable];
+    if (!Object.isUndefined(resultsFile) && !Object.isUndefined(finished))
+      writeFileSync(resultsFile, JSON.stringify(SerialTestRun.describeResults(finished, interruption.isInterrupted, unreachedCount, runFailures)));
     if (!Object.isNull(message))
       process.exit(Resources.failedExitCode);
-    const unclean = leftovers.length > 0 ? Resources.formatSerialTestLeftovers(leftovers, kept) : Object.isNull(removal) ? null : Resources.formatSerialTestUnremoved(removal);
     if (!Object.isNull(unclean)) {
       writeSync(Resources.serialTestStandardErrorDescriptor, unclean);
       summary.writeFailure(unclean);

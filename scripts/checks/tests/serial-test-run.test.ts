@@ -9,13 +9,15 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, it } from "node:test";
 
 import "@noldova/context.core";
 
 import { Resources } from "../../resources.ts";
+import { RecordedTestRun } from "../recorded-test-run.ts";
+import { SerialTestRunOutcomeFixture } from "../../tests/fixtures/serial-test-run-outcome.fixture.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..", "..");
 
@@ -139,14 +141,28 @@ const MOUNTING = [
   "TestClass(MountingTests);"
 ].join("\n");
 
-interface ISerialTestRunOutcome {
-  readonly code: unknown;
-  readonly output: string;
-  readonly errors: string;
-  readonly left: readonly string[];
-}
+const RELEASING = (fails: boolean): string => [
+  "import \"@noldova/context.core\";",
+  "import { channel } from \"node:diagnostics_channel\";",
+  "import fs from \"node:fs\";",
+  "import os from \"node:os\";",
+  "import path from \"node:path\";",
+  "import { setTimeout } from \"node:timers/promises\";",
+  "import { TestClass, TestMethod } from \"@noldova/context.testing\";",
+  "export class ReleasingTests {",
+  "  leavesItsReleaseToTheRunsEnd() {",
+  "    const image = path.join(os.tmpdir(), \"held-image\");",
+  "    fs.writeFileSync(image, \"\");",
+  `    channel(${JSON.stringify(Resources.serialTestReleaseChannel)}).publish(setTimeout(500).then(() => {`,
+  fails ? "      throw new Error(\"The image stayed busy\");" : "      fs.rmSync(image);",
+  "    }));",
+  "  }",
+  "}",
+  "TestMethod(ReleasingTests.prototype.leavesItsReleaseToTheRunsEnd);",
+  "TestClass(ReleasingTests);"
+].join("\n");
 
-const runAsync = async (source: string, variables: Readonly<Record<string, string>> = {}): Promise<ISerialTestRunOutcome> => {
+const runAsync = async (source: string, variables: Readonly<Record<string, string>> = {}): Promise<SerialTestRunOutcomeFixture> => {
   await mkdir(path.join(ROOT, "_build"), { recursive: true });
   const folder = await mkdtemp(path.join(ROOT, "_build", "serial-test-run-"));
   const tests = path.join(folder, "tests");
@@ -178,7 +194,7 @@ const runAsync = async (source: string, variables: Readonly<Record<string, strin
       const [code] = await closed;
       const runs = await readdir(temporary);
       const left = (await Promise.all(runs.map(t => readdir(path.join(temporary, t), { recursive: true })))).flat().sort();
-      return { code, output, errors, left };
+      return new SerialTestRunOutcomeFixture(code, output, errors, left);
     }
     finally {
       run.kill();
@@ -251,6 +267,40 @@ describe("SerialTestRun", () => {
     assert.equal(code, Resources.failedExitCode, errors);
     assert.match(errors, /Tests finished but left emptied, mounted-volume in the run's temporary folder; a test must remove what it creates\. The run left unremoved, without entering them, what is on another file system, such as a volume still mounted: .+mounted-volume\. Failing the run\.\n/u);
     assert.deepEqual(left, ["mounted-volume", path.join("mounted-volume", "discovery")]);
+  });
+
+  it("waits for a release a test left to the run's end before it checks the run's temporary folder", async () => {
+    const { code, output, errors, left } = await runAsync(RELEASING(false));
+
+    assert.equal(code, 0, errors);
+    assert.match(output, /Passed:\s+1\b/u);
+    assert.deepEqual(left, []);
+  });
+
+  it("fails the run, naming the error, when a release a test left to the run's end fails", async () => {
+    const { code, output, errors } = await runAsync(RELEASING(true));
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(output, /Passed:\s+1\b/u);
+    assert.match(errors, /Tests finished but a release a test left to the run's end failed: Error: The image stayed busy\. Failing the run\.\n/u);
+    assert.match(errors, /Tests finished but left held-image in the run's temporary folder;/u);
+  });
+
+  it("records a failed release and what the run left in its results file, so a rerun of the failed tests can't hide them", async () => {
+    await mkdir(path.join(ROOT, "_build"), { recursive: true });
+    const folder = await mkdtemp(path.join(ROOT, "_build", "serial-test-results-"));
+    try {
+      const results = path.join(folder, "results.json");
+      const { code, errors } = await runAsync(RELEASING(true), { [Resources.serialTestResultsFileVariable]: results });
+      const recorded = RecordedTestRun.parse(await readFile(results, Resources.encoding));
+
+      assert.equal(code, Resources.failedExitCode, errors);
+      assert.equal(recorded.runFailures.length, 2);
+      assert.match(recorded.runFailures.join(String.empty), /^Tests finished but a release a test left to the run's end failed: Error: The image stayed busy\.[^\n]*\nTests finished but left held-image in the run's temporary folder;/u);
+    }
+    finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   });
 
   it("prints each suite's slowest tests under its limit after the summary", async () => {

@@ -197,6 +197,7 @@ export class Resources {
   public static readonly testResultsFailedField: string = "failed";
   public static readonly testResultsIdentityField: string = "identity";
   public static readonly testResultsFailureField: string = "failure";
+  public static readonly testResultsRunFailuresField: string = "runFailures";
   public static readonly packageTestCheckTitle: string = "Package tests and coverage";
   public static readonly serialTestDefaultTimeout: number = 40_000;
   public static readonly serialTestPackagingTimeout: number = 150_000;
@@ -204,6 +205,7 @@ export class Resources {
   public static readonly serialTestGeneralSuite: string = "General";
   public static readonly serialTestSlowestCount: number = 10;
   public static readonly serialTestShutdownGrace: number = 1000;
+  public static readonly serialTestReleaseChannel: string = "noldova.test-run.release";
   public static readonly serialTestStandardErrorDescriptor: number = 2;
   public static readonly serialTestRemovalRetries: number = 5;
   public static readonly serialTestMethodWithoutClass: string = "A test method completed before its class started.";
@@ -634,6 +636,10 @@ export class Resources {
     const mounted = kept.length === 0 ? String.empty
       : ` The run left unremoved, without entering them, what is on another file system, such as a volume still mounted: ${kept.join(Resources.listSeparator)}.`;
     return `Tests finished but left ${leftovers.join(Resources.listSeparator)} in the run's temporary folder; a test must remove what it creates.${mounted} Failing the run.\n`;
+  }
+
+  public static formatSerialTestReleaseFailed(error: string): string {
+    return `Tests finished but a release a test left to the run's end failed: ${error}. Failing the run.\n`;
   }
 
   public static formatSerialTestUnremoved(error: string): string {
