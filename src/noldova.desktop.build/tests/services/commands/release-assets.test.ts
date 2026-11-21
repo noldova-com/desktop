@@ -6,8 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { createHash, generateKeyPairSync, type KeyObject, sign } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 
@@ -31,6 +32,7 @@ export class ReleaseAssetsTests {
   private static readonly PRODUCT_FILE: string = "_build/package/app/_build/product.json";
   private static readonly PACKAGE_FILE: string = "_build/package/out/Sample App-1.2.3-linux-x64.AppImage";
   private static readonly DEBIAN_FILE: string = "_build/package/out/Sample App-1.2.3-linux-x64.deb";
+  private static readonly SIGNATURES_FILE: string = "_build/package/update-signatures.json";
 
   @TestMethod
   public async writesTheReleaseFilesOfAPackageForATestFeedOnlyWhenGivenThatFeedAsync(): Promise<void> {
@@ -147,6 +149,57 @@ export class ReleaseAssetsTests {
     const error = await Assert.throwsAsync(() => new ReleaseAssets(app.path, "linux", "x64", new PassThrough()).runAsync([]), Error);
 
     Assert.isFalse(error instanceof BuildException, error.message);
+  }
+
+  @TestMethod
+  public async writesEachPackagesSignatureIntoTheUpdateInformationOfAProductThatShipsKeysAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    const signer = generateKeyPairSync("ed25519");
+    const key = signer.publicKey.export({ type: "spki", format: "der" }).toString("base64");
+    await app.writeAppFileAsync(ReleaseAssetsTests.PRODUCT_FILE, JSON.stringify({ updateFeed: ReleaseAssetsTests.PRODUCT_FEED, linuxUpdateKeys: [key] }));
+    await app.writeAppFileAsync(ReleaseAssetsTests.PACKAGE_FILE, "package");
+    await app.writeAppFileAsync(ReleaseAssetsTests.DEBIAN_FILE, "debian package");
+    const image = ReleaseAssetsTests.sign(signer.privateKey, "Sample App-1.2.3-linux-x64.AppImage", "package");
+    const debian = ReleaseAssetsTests.sign(signer.privateKey, "Sample App-1.2.3-linux-x64.deb", "debian package");
+
+    const unread = await ReleaseAssetsTests.runAsync(app);
+    await app.writeAppFileAsync(ReleaseAssetsTests.SIGNATURES_FILE, JSON.stringify({ "Sample App-1.2.3-linux-x64.AppImage": image }));
+    const unsigned = await ReleaseAssetsTests.runAsync(app);
+    await app.writeAppFileAsync(ReleaseAssetsTests.SIGNATURES_FILE, JSON.stringify({ "Sample App-1.2.3-linux-x64.AppImage": image, "Sample App-1.2.3-linux-x64.deb": debian }));
+    const signed = await ReleaseAssetsTests.runAsync(app);
+    const metadata = await readFile(path.join(app.path, "_build", "package", "out", "latest-linux-x64.yml"), "utf8");
+
+    Assert.isTrue(unread.startsWith(`1 The update signatures ${path.join(app.path, "_build", "package", "update-signatures.json")} could not be read as JSON: `), unread);
+    Assert.areEqual("1 Sample App-1.2.3-linux-x64.deb carries no valid signature by a key the app ships.\n", unsigned);
+    Assert.areEqual(ReleaseAssetsTests.WRITTEN, signed);
+    Assert.isTrue(metadata.includes(`  - url: 'Sample App-1.2.3-linux-x64.AppImage'\n    sha512: ${ReleaseAssetsTests.sha512("package")}\n    size: 7\n    signature: ${image}\n`), metadata);
+    Assert.isTrue(metadata.includes(`  - url: 'Sample App-1.2.3-linux-x64.deb'\n    sha512: ${ReleaseAssetsTests.sha512("debian package")}\n    size: 14\n    signature: ${debian}\n`), metadata);
+  }
+
+  @TestMethod
+  public async refusesShippedKeysThatAreNoListOfKeysAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    await app.writeAppFileAsync(ReleaseAssetsTests.PACKAGE_FILE, "package");
+    await app.writeAppFileAsync(ReleaseAssetsTests.DEBIAN_FILE, "debian package");
+    const results: string[] = [];
+    for (const keys of ["key", [5], ["key"]]) {
+      await app.writeAppFileAsync(ReleaseAssetsTests.PRODUCT_FILE, JSON.stringify({ updateFeed: ReleaseAssetsTests.PRODUCT_FEED, linuxUpdateKeys: keys }));
+      results.push(await ReleaseAssetsTests.runAsync(app));
+    }
+
+    Assert.areEqual(JSON.stringify([
+      "1 The packaged product file's linuxUpdateKeys must be a list of public keys, so its packages cannot be released.\n",
+      "1 The packaged product file's linuxUpdateKeys must be a list of public keys, so its packages cannot be released.\n",
+      "1 LINUX_UPDATE_PUBLIC_KEYS must list distinct Ed25519 public keys, each the base64 of its DER SubjectPublicKeyInfo, separated by spaces or lines.\n"
+    ]), JSON.stringify(results));
+  }
+
+  private static sign(key: KeyObject, name: string, content: string): string {
+    return sign(null, Buffer.from(`noldova-desktop-update/1\n1.2.3\nlinux-x64\n${name}\n${ReleaseAssetsTests.sha512(content)}\n`), key).toString("base64");
+  }
+
+  private static sha512(content: string): string {
+    return createHash("sha512").update(content).digest("base64");
   }
 
   private static async runAsync(app: InstalledAppFixture): Promise<string> {

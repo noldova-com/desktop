@@ -9572,8 +9572,9 @@ export declare class FeedUpdater implements IUpdater {
    * `update-config.json` and whose name, the installation's id, names its cache folder.
    * @param cacheRoot The user's cache folder, where electron-updater keeps `<slug>-updater-<installation id>`.
    * @param productSlug The product's slug.
-   * @param verifyAsync Checks a downloaded file's publisher, resolving to `null` when it is the product's publisher and
-   * otherwise to why not, or `null` on a platform whose updates carry no publisher to check.
+   * @param verifyAsync Checks a downloaded file, given the update information of the last check, resolving to `null`
+   * when it is the product's publisher's on Windows, or signed by a key the product ships on Linux, and otherwise to
+   * why not; or `null` on macOS, whose updates Squirrel.Mac checks.
    * @param log Records the updater's warnings and errors, and a download that failed its publisher check but could not be
    * deleted.
    * @example
@@ -9592,7 +9593,7 @@ export declare class FeedUpdater implements IUpdater {
     installationFolder: string,
     cacheRoot: string,
     productSlug: string,
-    verifyAsync: ((file: string) => Promise<string | null>) | null,
+    verifyAsync: ((file: string, info: UpdateInfo | null) => Promise<string | null>) | null,
     log: (text: string) => void);
 
   /**
@@ -9766,6 +9767,52 @@ export declare class PublisherCheck {
    * ```
    */
   public checkAsync(file: string): Promise<string | null>;
+}
+
+/**
+ * Checks that a Linux update carries a valid Ed25519 signature by one of the keys the product ships. The signature is
+ * the file's entry's `signature` in the update information, over the text `noldova-desktop-update/1`, the version, the
+ * target such as `linux-x64`, the file's name and its SHA-512 in base64, each followed by a line feed; the check hashes
+ * the downloaded file again. A build that ships no key, a file the information doesn't list, a missing or invalid
+ * signature, a hash that differs or a failed check counts as failed, with one line saying why.
+ */
+export declare class UpdateSignatureCheck {
+  /**
+   * Creates the check.
+   *
+   * @param keys The product's `linuxUpdateKeys`; none fails every check.
+   * @param platform The platform, `process.platform`.
+   * @param architecture The processor, `process.arch`.
+   * @param log Records each check, its duration and whether it passed, in one line; the reason of a failure is left to
+   * the caller, so it is logged once.
+   * @param now Gives the time in milliseconds.
+   * @example
+   * ```ts
+   * import { ProductInfo } from "@noldova/desktop.runtime";
+   * import { UpdateSignatureCheck } from "@noldova/desktop.electron";
+   *
+   * export const check: UpdateSignatureCheck = new UpdateSignatureCheck(ProductInfo.current.linuxUpdateKeys, process.platform, process.arch, console.log, Date.now);
+   * ```
+   */
+  public constructor(keys: readonly string[], platform: string, architecture: string, log: (text: string) => void, now: () => number);
+
+  /**
+   * Checks a file.
+   *
+   * @param file The downloaded package.
+   * @param info The update information that offered it, or `null` when none was read.
+   * @returns A promise of `null` when a key the product ships signed it, otherwise of why not.
+   * @example
+   * ```ts
+   * import type { UpdateInfo } from "electron-updater";
+   * import type { UpdateSignatureCheck } from "@noldova/desktop.electron";
+   *
+   * export async function isSignedAsync(check: UpdateSignatureCheck, file: string, info: UpdateInfo): Promise<boolean> {
+   *   return await check.checkAsync(file, info) === null;
+   * }
+   * ```
+   */
+  public checkAsync(file: string, info: UpdateInfo | null): Promise<string | null>;
 }
 
 /**

@@ -9,7 +9,7 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { CancellationToken, type ProgressInfo } from "electron-updater";
+import { CancellationToken, type ProgressInfo, type UpdateInfo } from "electron-updater";
 
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
@@ -33,11 +33,12 @@ export class FeedUpdater implements IUpdater {
   private readonly source: FeedSource;
   private readonly configFile: string;
   private readonly configuration: string;
-  private readonly verifyAsync: ((file: string) => Promise<string | null>) | null;
+  private readonly verifyAsync: ((file: string, info: UpdateInfo | null) => Promise<string | null>) | null;
   private readonly log: (text: string) => void;
   private cancellation: CancellationToken | undefined;
   private isConfigured: boolean = false;
   private downloaded: string | null = null;
+  private checked: UpdateInfo | null = null;
   private readonly pendingFolder: string;
 
   public constructor(
@@ -46,7 +47,7 @@ export class FeedUpdater implements IUpdater {
     installationFolder: string,
     cacheRoot: string,
     productSlug: string,
-    verifyAsync: ((file: string) => Promise<string | null>) | null,
+    verifyAsync: ((file: string, info: UpdateInfo | null) => Promise<string | null>) | null,
     log: (text: string) => void) {
     const cacheFolder = Resources.formatUpdateCacheFolder(productSlug, basename(installationFolder));
     this.updater = updater;
@@ -75,6 +76,7 @@ export class FeedUpdater implements IUpdater {
     try {
       await this.configureAsync();
       const result = await this.updater.checkForUpdates();
+      this.checked = result?.updateInfo ?? null;
       return Object.isNull(result) || !result.isUpdateAvailable ? null : result.updateInfo.version;
     }
     catch (error) {
@@ -116,7 +118,7 @@ export class FeedUpdater implements IUpdater {
   }
 
   private async verifyPublisherAsync(file: string): Promise<void> {
-    if (Object.isNull(this.verifyAsync) || Object.isNull(await this.verifyAsync(file)))
+    if (Object.isNull(this.verifyAsync) || Object.isNull(await this.verifyAsync(file, this.checked)))
       return;
     await rm(file, { force: true }).catch((error: unknown) => this.log(Resources.formatUpdateNotDeleted(String(error))));
     throw new UpdateNotSignedException();

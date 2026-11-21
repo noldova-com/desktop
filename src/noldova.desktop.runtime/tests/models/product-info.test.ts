@@ -27,6 +27,7 @@ export class ProductInfoTests {
     dataDirectoryVariable: "FIXTURE_STUDIO_DATA_DIR",
     icons: "assets/fixture-icons",
     windowsPublisher: "CN=Fixture Works, O=Fixture Works, C=US",
+    linuxUpdateKeys: ["first", "second"],
     updateFeed: "https://example.com/feed/",
     permissionsModule: "studio",
     installFolder: "Fixture Works",
@@ -47,10 +48,13 @@ export class ProductInfoTests {
         [product.name, product.slug, product.applicationId, product.developmentApplicationId, product.dataFolder, product.windowsDeviceFolder,
           product.macosDeviceFolder, product.linuxDeviceFolder, product.dataDirectoryVariable, product.checkoutVariable, product.icons, product.windowsPublisher, product.updateFeed,
           product.permissionsModule, product.installFolder, product.version, product.build].join("|"));
+      Assert.areEqual("first,second", product.linuxUpdateKeys.join());
       await writeFile(file, JSON.stringify({ ...ProductInfoTests.PRODUCT, updateFeed: null, windowsPublisher: null }));
       const unsigned = ProductInfo.read(file);
       Assert.isNull(unsigned.updateFeed);
       Assert.isNull(unsigned.windowsPublisher);
+      await writeFile(file, JSON.stringify(Object.fromEntries(Object.entries(ProductInfoTests.PRODUCT).filter(([key]) => key !== "linuxUpdateKeys"))));
+      Assert.areEqual(0, ProductInfo.read(file).linuxUpdateKeys.length);
       await writeFile(file, JSON.stringify(Object.fromEntries(Object.entries(ProductInfoTests.PRODUCT).filter(([key]) => key !== "permissionsModule" && key !== "installFolder"))));
       Assert.isNull(ProductInfo.read(file).permissionsModule);
       Assert.isNull(ProductInfo.read(file).installFolder);
@@ -77,7 +81,8 @@ export class ProductInfoTests {
         [JSON.stringify(withoutBuild), "build"],
         [JSON.stringify({ ...ProductInfoTests.PRODUCT, version: " " }), "version"],
         [JSON.stringify({ ...ProductInfoTests.PRODUCT, deviceFolders: { windows: "Studio" } }), "macos"],
-        [JSON.stringify(Object.fromEntries(Object.entries(ProductInfoTests.PRODUCT).filter(([key]) => key !== "updateFeed"))), "updateFeed"]
+        [JSON.stringify(Object.fromEntries(Object.entries(ProductInfoTests.PRODUCT).filter(([key]) => key !== "updateFeed"))), "updateFeed"],
+        [JSON.stringify({ ...ProductInfoTests.PRODUCT, linuxUpdateKeys: ["first", 2] }), "linuxUpdateKeys"]
       ];
 
       Assert.isTrue(missing.message.startsWith(`The build's product file ${file} is not valid: Error: ENOENT`), missing.message);

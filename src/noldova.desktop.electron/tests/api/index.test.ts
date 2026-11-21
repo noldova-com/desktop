@@ -127,6 +127,7 @@ export class MainProcessApiTests {
         "UpdateRuntimeNotReachedException",
         "UpdateRuntimeStillStartingException",
         "UpdateSaveCoordinator",
+        "UpdateSignatureCheck",
         "UpdateStateKind",
         "UpdateStatus",
         "UpdateStop",

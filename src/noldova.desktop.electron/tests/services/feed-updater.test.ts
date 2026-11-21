@@ -284,6 +284,32 @@ export class FeedUpdaterTests {
     });
   }
 
+  @TestMethod
+  public givesTheCheckTheUpdateInformationOfTheLastCheckOrNoneBeforeOne(): Promise<void> {
+    return FeedUpdaterTests.withFolderAsync(async folder => {
+      const app = new FakeAppUpdater();
+      const seen: (string | null)[] = [];
+      const updater = new FeedUpdater(app, FeedUpdaterTests.SOURCE, join(folder, "0123456789abcdef"), folder, "noldova-desktop", (_, info) => {
+        seen.push(info?.version ?? null);
+        return Promise.resolve(null);
+      }, () => undefined);
+      const packagePath = updater.formatPackagePath("1.3.0");
+      await mkdir(join(packagePath, ".."), { recursive: true });
+      await writeFile(packagePath, "Noldova Desktop Sample 1.3.0");
+      app.download = () => Promise.resolve([packagePath]);
+
+      await updater.downloadAsync("1.3.0", () => undefined);
+      app.check = () => Promise.resolve({ isUpdateAvailable: true, updateInfo: FakeAppUpdater.info("1.3.0") });
+      await updater.checkAsync();
+      await updater.downloadAsync("1.3.0", () => undefined);
+      app.check = () => Promise.resolve(null);
+      await updater.checkAsync();
+      await updater.downloadAsync("1.3.0", () => undefined);
+
+      Assert.areEqual(JSON.stringify([null, "1.3.0", null]), JSON.stringify(seen));
+    });
+  }
+
   private static create(app: FakeAppUpdater, folder: string = FeedUpdaterTests.INSTALLATION): FeedUpdater {
     return new FeedUpdater(app, FeedUpdaterTests.SOURCE, folder === FeedUpdaterTests.INSTALLATION ? folder : join(folder, "0123456789abcdef"), "/cache", "noldova-desktop", null, () => undefined);
   }

@@ -54,6 +54,12 @@ export class BuildProduct {
     await writeFile(file, Resources.formatJsonFile({ ...document, windowsPublisher: publisher }));
   }
 
+  public static async setLinuxUpdateKeysAsync(outputFolder: string, keys: readonly string[]): Promise<void> {
+    const file = path.join(outputFolder, Resources.productFile);
+    const document = JsonReader.parse(await readFile(file, Resources.textEncoding)).toJson();
+    await writeFile(file, Resources.formatJsonFile({ ...document, [Resources.productLinuxUpdateKeysField]: keys }));
+  }
+
   private locate(outputFolder: string | null): string {
     return Object.isNull(outputFolder) ? path.join(this.root, ...Resources.productBuildFileSegments) : path.join(outputFolder, Resources.productFile);
   }

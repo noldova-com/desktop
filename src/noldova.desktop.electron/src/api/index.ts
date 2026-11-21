@@ -188,6 +188,7 @@ export { MainProcessRecovery } from "../services/main-process-recovery.js";
 export { OpenWindow } from "../services/open-window.js";
 export { PathCommand } from "../services/path-command.js";
 export { PublisherCheck } from "../services/publisher-check.js";
+export { UpdateSignatureCheck } from "../services/update-signature-check.js";
 export { QuitCoordinator } from "../services/quit-coordinator.js";
 export { QuitFlow } from "../services/quit-flow.js";
 export { UpdateController } from "../services/update-controller.js";

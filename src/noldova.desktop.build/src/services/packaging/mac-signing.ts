@@ -28,6 +28,7 @@ export class MacSigning implements IPackageSigning {
 
   public readonly builderEnvironment: NodeJS.ProcessEnv;
   public readonly windowsPublisher: string | null = null;
+  public readonly updateKeys: readonly string[] = [];
 
   public constructor(runner: ProcessRunner, folder: string, environment: NodeJS.ProcessEnv, credentials: NodeJS.ProcessEnv, hasInstaller: boolean = false) {
     const missing = Resources.macSigningCredentials.filter(t => (credentials[t] ?? String.empty).length === 0);

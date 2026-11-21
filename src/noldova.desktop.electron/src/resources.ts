@@ -961,6 +961,15 @@ export class Resources {
   public static readonly validSignatureStatus: number = 0;
   public static readonly signerUnreadable: string = "Windows verified its signature but could not read its signer's name";
   public static readonly publisherUnknown: string = "this build is unsigned, so it has no publisher to check the update's signer against";
+  public static readonly updateKeysUnknown: string = "this build is unsigned, so it has no key to check the update's signature against";
+  public static readonly updateEntryMissing: string = "the update's information lists no such file";
+  public static readonly updateSignatureMissing: string = "the update's information carries no signature for it";
+  public static readonly updateHashDiffers: string = "its SHA-512 differs from the update's information";
+  public static readonly updateSignatureInvalid: string = "its signature is not by a key this build ships";
+  public static readonly updateSignatureField: string = "signature";
+  public static readonly updateSignatureLength: number = 64;
+  public static readonly publicKeyEncoding: "spki" = "spki";
+  public static readonly keyDerFormat: "der" = "der";
   public static readonly nameEscape: string = "\\";
   public static readonly nameQuote: string = "\"";
   public static readonly nameSeparator: string = ",";
@@ -1933,6 +1942,22 @@ export class Resources {
 
   public static formatSignedByAnother(signer: string, publisher: string): string {
     return `it is signed by ${signer}, not by ${publisher}`;
+  }
+
+  public static formatUpdateSignatureCheck(milliseconds: number, hasPassed: boolean): string {
+    return hasPassed ? `The update's signature check passed in ${milliseconds} ms.` : `The update's signature check failed in ${milliseconds} ms.`;
+  }
+
+  public static formatUpdateSignatureUnchecked(error: string): string {
+    return `its signature could not be checked: ${error}`;
+  }
+
+  public static formatUpdateTarget(platform: string, architecture: string): string {
+    return `${platform}-${architecture}`;
+  }
+
+  public static formatUpdateSignatureMessage(version: string, target: string, name: string, sha512: string): string {
+    return `noldova-desktop-update/1\n${version}\n${target}\n${name}\n${sha512}\n`;
   }
 
   public static formatPublisherCheck(milliseconds: number, hasPassed: boolean): string {

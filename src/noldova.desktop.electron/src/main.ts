@@ -48,6 +48,7 @@ import { MainProcess } from "./services/main-process.js";
 import { PathCommand } from "./services/path-command.js";
 import { ProductAppAdapter } from "./services/product-app-adapter.js";
 import { PublisherCheck } from "./services/publisher-check.js";
+import { UpdateSignatureCheck } from "./services/update-signature-check.js";
 import { ReadyProcessStarter } from "./services/ready-process-starter.js";
 import { ShipItProcess } from "./services/ship-it-process.js";
 import { SquirrelHandoff } from "./services/squirrel-handoff.js";
@@ -185,7 +186,9 @@ else
       const updater = process.platform === Resources.windowsPlatform ? new NsisUpdater()
         : process.platform === Resources.macPlatform ? new MacUpdater() : isDebianPackage ? new DebUpdater() : new AppImageUpdater();
       const check = new PublisherCheck(product.windowsPublisher, WindowsProcessApi.create(), log, Date.now);
-      const feed = new FeedUpdater(updater, source, installation.folder, ProductAppAdapter.cacheFolder, product.slug, updater instanceof NsisUpdater ? t => check.checkAsync(t) : null, log);
+      const signature = new UpdateSignatureCheck(product.linuxUpdateKeys, process.platform, process.arch, log, Date.now);
+      const feed = new FeedUpdater(updater, source, installation.folder, ProductAppAdapter.cacheFolder, product.slug,
+        updater instanceof NsisUpdater ? t => check.checkAsync(t) : updater instanceof MacUpdater ? null : (t, u) => signature.checkAsync(t, u), log);
       return { updater: feed, handoff: createHandoff(installation, feed, t => check.checkAsync(t), logsFolder, log) };
     },
     (installation, log) => new UpdateCheckLock(installation.folder, async () => (await presence.stampAsync([[process.pid, Resources.clientName]]))[0] ?? null, t => presence.isRunningAsync(t), log));

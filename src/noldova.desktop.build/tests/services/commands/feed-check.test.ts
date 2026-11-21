@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync, type KeyObject, sign } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { PassThrough } from "node:stream";
 
@@ -424,6 +424,38 @@ export class FeedCheckTests {
       "Usage: [SKIP_FEED_CHECK=<true or false>] FEED_VERSION=<version> RELEASE_TARGETS=<target ids> "
         + "{RELEASE_REPOSITORY=<owner/name> | FEED_URL=<URL>} [FEED_WAIT_SECONDS=<seconds>] noldova-desktop-release feed-check\n",
       result.output);
+  }
+
+  @TestMethod
+  public async checksEachLinuxFilesSignatureByAShippedKeyWhenGivenTheKeysAsync(): Promise<void> {
+    const [shipped, other] = [generateKeyPairSync("ed25519"), generateKeyPairSync("ed25519")];
+    const keys = [other, shipped].map(t => t.publicKey.export({ type: "spki", format: "der" }).toString("base64")).join("\n");
+    const message = `noldova-desktop-update/1\n1.2.3\nlinux-x64\nApp-1.2.3.AppImage\n${FeedCheckTests.sha512(FeedCheckTests.LINUX)}\n`;
+    const signed = (key: KeyObject): Map<string, Route> => FeedCheckTests.signedRelease(sign(null, Buffer.from(message), key).toString("base64"));
+
+    const passed = await FeedCheckTests.withFeedAsync(signed(shipped.privateKey), async feed => await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), LINUX_UPDATE_PUBLIC_KEYS: keys }));
+    const unshipped = await FeedCheckTests.withFeedAsync(signed(generateKeyPairSync("ed25519").privateKey),
+      async feed => [feed, await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), LINUX_UPDATE_PUBLIC_KEYS: keys })] as const);
+    const unsigned = await FeedCheckTests.withFeedAsync(FeedCheckTests.release("1.2.3"),
+      async feed => [feed, await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), LINUX_UPDATE_PUBLIC_KEYS: keys })] as const);
+    const malformed = await FeedCheckTests.withFeedAsync(signed(shipped.privateKey), async feed => await FeedCheckTests.runAsync({ ...FeedCheckTests.check(feed), LINUX_UPDATE_PUBLIC_KEYS: "key" }));
+
+    Assert.areEqual(0, passed.exitCode, passed.output);
+    Assert.isTrue(passed.output.startsWith("linux-x64: latest-linux-x64.yml names 1.2.3, and App-1.2.3.AppImage match its SHA-512 and size and carry a valid signature by a key the app ships.\n"
+      + "windows-x64: latest-windows-x64.yml names 1.2.3, and App Setup 1.2.3.exe, App's notes.txt match its SHA-512 and size.\n"), passed.output);
+    Assert.areEqual(1, unshipped[1].exitCode);
+    Assert.areEqual(`App-1.2.3.AppImage at ${unshipped[0]} carries no valid signature by a key in LINUX_UPDATE_PUBLIC_KEYS in latest-linux-x64.yml, so the app would refuse it.\n`, unshipped[1].output);
+    Assert.areEqual(`App-1.2.3.AppImage at ${unsigned[0]} carries no valid signature by a key in LINUX_UPDATE_PUBLIC_KEYS in latest-linux-x64.yml, so the app would refuse it.\n`, unsigned[1].output);
+    Assert.areEqual(1, malformed.exitCode);
+    Assert.areEqual("LINUX_UPDATE_PUBLIC_KEYS must list distinct Ed25519 public keys, each the base64 of its DER SubjectPublicKeyInfo, separated by spaces or lines.\n", malformed.output);
+  }
+
+  private static signedRelease(signature: string): Map<string, Route> {
+    const routes = FeedCheckTests.release("1.2.3");
+    const text = FeedCheckTests.metadata("1.2.3", [["'App-1.2.3.AppImage'", FeedCheckTests.LINUX, FeedCheckTests.LINUX.length]]).toString()
+      .replace(`    size: ${FeedCheckTests.LINUX.length}\n`, `    size: ${FeedCheckTests.LINUX.length}\n    signature: ${signature}\n`);
+    routes.set("/latest-linux-x64.yml", FeedCheckTests.file(Buffer.from(text)));
+    return routes;
   }
 
   private static check(feed: string): Readonly<Record<string, string>> {

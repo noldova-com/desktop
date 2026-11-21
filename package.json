@@ -24,7 +24,8 @@
     "supportedTargets": [],
     "signedPlatforms": [
       "windows",
-      "macos"
+      "macos",
+      "linux"
     ]
   },
   "private": true,
