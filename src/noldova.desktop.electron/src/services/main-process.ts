@@ -197,7 +197,7 @@ export class MainProcess {
       controls: this.controls,
       textLog: new WindowTextLog(t => log.write(t)),
       startup: this.startup,
-      layout: new LayoutKeeper(this.windows, this.runtime, this.device),
+      layout: new LayoutKeeper(this.windows, this.runtime, this.device, t => log.write(t)),
       requests: new RuntimeRequests(this.windows, this.runtime, this.device, this.notifier, t => log.write(t)),
       runtime: this.runtime,
       clipboard: this.services.clipboard,
