@@ -822,6 +822,7 @@ export class Resources {
   public static readonly windowWidth: number = 1280;
   public static readonly windowHeight: number = 800;
   public static readonly windowAreaShare: number = 0.9;
+  public static readonly windowRowReach: number = 160;
   public static readonly closeAnswerTimeout: number = 5000;
   public static readonly layoutWriteTimeout: number = 5000;
   public static readonly updateBarrierInterval: number = 1000;

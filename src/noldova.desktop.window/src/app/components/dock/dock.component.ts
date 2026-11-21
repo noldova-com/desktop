@@ -103,6 +103,8 @@ export class DockComponent {
       this.layout.keepOpen(this.side());
       if (event.detail > 0)
         this.tabFocus.focusContent(tab);
+      else if (!this.isRail())
+        this.tabFocus.focus(tab);
     }
   }
 

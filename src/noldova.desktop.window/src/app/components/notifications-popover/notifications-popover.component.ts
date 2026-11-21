@@ -7,7 +7,7 @@
  */
 
 import {
-  Component, ErrorHandler, type OutputEmitterRef, type Signal, computed, inject, output
+  Component, ElementRef, ErrorHandler, type OutputEmitterRef, type Signal, computed, inject, output
 } from "@angular/core";
 
 import "@noldova/context.core";
@@ -32,6 +32,7 @@ export class NotificationsPopoverComponent {
   private readonly service: NotificationService = inject(NotificationService);
   private readonly errors: ErrorHandler = inject(ErrorHandler);
   private readonly statuses: ModuleStatusService = inject(ModuleStatusService);
+  private readonly element: HTMLElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly time: Intl.DateTimeFormat = new Intl.DateTimeFormat(undefined, Resources.timeFormat);
 
   protected readonly resources: typeof Resources = Resources;
@@ -76,6 +77,12 @@ export class NotificationsPopoverComponent {
   }
 
   protected dismiss(notification: Notification): void {
+    const rows = this.notifications();
+    const index = rows.indexOf(notification);
+    const neighbour = rows[index + 1] ?? rows[index - 1];
+    const next = Object.isUndefined(neighbour) ? null
+      : this.element.querySelector<HTMLElement>(Resources.formatNotificationDismissSelector(neighbour.id));
+    (next ?? this.element).focus();
     this.service.dismiss(notification.id);
   }
 

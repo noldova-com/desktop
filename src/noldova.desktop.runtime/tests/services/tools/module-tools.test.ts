@@ -14,12 +14,22 @@ import { ModuleDeactivatedException } from "../../../src/exceptions/module-deact
 import { NotContributedException } from "../../../src/exceptions/not-contributed.exception.js";
 import type { IToolDescriptor } from "../../../src/interfaces/i-tool-descriptor.js";
 import { ModuleDeclaration } from "../../../src/models/module-declaration.js";
+import type { ToolSession } from "../../../src/models/tool-session.js";
 import { ModuleTools } from "../../../src/services/tools/module-tools.js";
 import { ToolRegistry } from "../../../src/services/tools/tool-registry.js";
 import { WebViewCenter } from "../../../src/services/web-views/web-view-center.js";
 import { ModuleLogFixture } from "../../fixtures/module-log.fixture.js";
 import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
 import { ToolHandlerFixture } from "../../fixtures/tool-handler.fixture.js";
+
+class EndRecordingToolRegistry extends ToolRegistry {
+  public readonly ends: string[] = [];
+
+  public override end(session: ToolSession): void {
+    this.ends.push(session.id);
+    super.end(session);
+  }
+}
 
 @TestClass
 export class ModuleToolsTests {
@@ -73,22 +83,22 @@ export class ModuleToolsTests {
 
   @TestMethod
   public keepsNoRegistrationForTheSessionsItOpenedOnceTheyEnd(): void {
-    const registry = new ToolRegistry();
+    const registry = new EndRecordingToolRegistry();
     const registrations: Disposable[] = [];
     const tools = ModuleToolsTests.create(registry, registrations);
-    const ended: string[] = [];
-    registry.onSessionEnded(t => ended.push(t), new ModuleLogFixture());
 
     for (let index = 0; index < 100; index++)
       tools.openSession(`conversation-${index}`, {}).end();
     const open = tools.openSession("conversation-open", {});
     const kept = registrations.length;
+    const asked = registry.ends.length;
     for (const registration of registrations)
       registration[Symbol.dispose]();
 
     Assert.areEqual(1, kept);
-    Assert.areEqual(101, ended.length);
-    Assert.areEqual(open.id, ended[100]);
+    Assert.areEqual(100, asked);
+    Assert.areEqual(open.id, registry.ends.slice(asked).join(","));
+    Assert.isFalse(registry.isOpen(open));
   }
 
   @TestMethod
