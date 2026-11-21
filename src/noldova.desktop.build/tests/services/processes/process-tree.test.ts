@@ -11,11 +11,13 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { Resources } from "../../../src/resources.js";
 import { ProcessTree } from "../../../src/services/processes/process-tree.js";
+import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 
 @TestClass
 export class ProcessTreeTests {
   private static readonly LAUNCHED: number = Date.parse("2026-11-21T08:00:00.000Z");
   private static readonly EXITED: number = ProcessTreeTests.LAUNCHED + 3_000;
+  private static readonly LISTING_MARGIN: number = 5_000;
 
   @TestMethod
   public groupsAProcessTreeEverywhereButWindows(): void {
@@ -204,6 +206,21 @@ export class ProcessTreeTests {
     await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
 
     Assert.areEqual(JSON.stringify([Resources.processListScript, Resources.formatProcessEndScript([4400, 4500], [start + 50, start + 80])]), JSON.stringify(lists));
+  }
+
+  @TestMethod
+  @PlatformFixture.windowsOnly()
+  public async endsNothingOnWindowsForAnExitedCommandItsRealListingDoesNotShowWithinTheListingsLimit(): Promise<void> {
+    const signals: number[] = [];
+    const tree = new ProcessTree("win32", processId => {
+      signals.push(processId);
+    });
+    const started = performance.now();
+
+    await tree.endAsync(2_147_483_646, ProcessTreeTests.LAUNCHED, ProcessTreeTests.EXITED);
+
+    Assert.areEqual(0, signals.length);
+    Assert.isTrue(performance.now() - started < Resources.processListTimeout + ProcessTreeTests.LISTING_MARGIN, "The listing outlasted its limit.");
   }
 
   @TestMethod

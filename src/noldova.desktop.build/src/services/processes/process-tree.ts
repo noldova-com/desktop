@@ -128,9 +128,8 @@ export class ProcessTree {
   }
 
   private static async listAsync(command: string, commandArguments: readonly string[]): Promise<string> {
-    const listed = await promisify(execFile)(command, [...commandArguments], { env: { ...process.env, ...Resources.processListEnvironment },
-      timeout: Resources.processListTimeout, maxBuffer: Resources.processListOutputLimit, windowsHide: true });
-    return listed.stdout;
+    return (await promisify(execFile)(command, [...commandArguments], { env: { ...process.env, ...Resources.processListEnvironment },
+      timeout: Resources.processListTimeout, maxBuffer: Resources.processListOutputLimit, windowsHide: true })).stdout;
   }
 
   private static treeOf(listing: ReadonlyMap<number, { readonly parent: number; readonly start: number }>, known: ReadonlyMap<number, number>): Map<number, number> {
