@@ -1411,7 +1411,7 @@ export class Resources {
   public static readonly processListTimeout: number = 60_000;
   public static readonly processListOutputLimit: number = 16 * 1024 * 1024;
   public static readonly processListArguments: readonly string[] = ["-NoProfile", "-NonInteractive", "-Command"];
-  public static readonly processListScript: string = "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, " +
+  public static readonly processListScript: string = "Get-CimInstance -Query 'SELECT ProcessId, ParentProcessId, CreationDate FROM Win32_Process' | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, " +
     "$_.ParentProcessId, $(if ($_.CreationDate) { ([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() } else { 'unknown' }) }";
   public static readonly processParentPattern: RegExp = /^[ \t]*(\d+)[ \t]+(\d+)[ \t]+(\S[^\r\n]*?)[ \t]*\r?$/gm;
   public static readonly processExitWait: number = 2_000;
