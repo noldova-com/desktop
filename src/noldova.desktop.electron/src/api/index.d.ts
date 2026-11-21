@@ -8610,6 +8610,23 @@ export interface IUpdater {
   formatPackagePath(version: string): string;
 
   /**
+   * Gives the signature the update information of the last check carries for a file, which the ready update's record
+   * keeps, so a handoff after a restart can check it again.
+   *
+   * @param file The downloaded package.
+   * @returns The signature, in base64, or `null` when the information carries none for the file.
+   * @example
+   * ```ts
+   * import type { IUpdater } from "@noldova/desktop.electron";
+   *
+   * export function isSigned(updater: IUpdater, file: string): boolean {
+   *   return updater.readSignature(file) !== null;
+   * }
+   * ```
+   */
+  readSignature(file: string): string | null;
+
+  /**
    * Cancels the download in progress, if any.
    *
    * @example
@@ -9681,23 +9698,6 @@ export declare class FeedUpdater implements IUpdater {
    * ```
    */
   public readSignature(file: string): string | null;
-
-  /**
-   * Gives the signature the update information of the last check carries for a file, which the ready update's record
-   * keeps, so a handoff after a restart can check it again.
-   *
-   * @param file The downloaded package.
-   * @returns The signature, in base64, or `null` when the information carries none for the file.
-   * @example
-   * ```ts
-   * import type { IUpdater } from "@noldova/desktop.electron";
-   *
-   * export function isSigned(updater: IUpdater, file: string): boolean {
-   *   return updater.readSignature(file) !== null;
-   * }
-   * ```
-   */
-  readSignature(file: string): string | null;
 
   /**
    * Cancels the download in progress, if any.
