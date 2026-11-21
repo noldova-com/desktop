@@ -7533,7 +7533,8 @@ export declare class RuntimeStartup {
    * the first such end in a row it reconnects at once, then after 1, 2, 4 and 8 seconds, and the sixth is logged and
    * shown as a failure with its cause and an offer to try again, which counts afresh. A start or reconnection that
    * fails for any reason other than data from before the shell, an older build's work or a newer build is logged, an
-   * unexpected failure in full, and shows the failure with an offer to try again.
+   * unexpected failure in full, and shows the failure with an offer to try again. A connection that replaces the
+   * current one, as when it starts again while ready, closes the one it replaces, whose end then reconnects nothing.
    *
    * When the runtime announces `desktop.updating`, the state becomes {@link StartupStateKind.Updating} with the version
    * the launch barrier names, the windows save, and the runtime is told what did not save with `desktop.updateSaved`;
@@ -7557,7 +7558,9 @@ export declare class RuntimeStartup {
 
   /**
    * Carries out the person's choice when it fits the current state: `moveAside` for data from before the shell,
-   * `stopWork` or `wait` for an older build's work, and `retry` after a failure.
+   * `stopWork` or `wait` for an older build's work, and `retry` after a failure. The state is
+   * {@link StartupStateKind.Connecting} while a choice attaches, so a second choice made meanwhile, such as `wait`
+   * twice, does not fit and attaches nothing.
    *
    * @param action The choice, as the window sends it.
    * @returns A promise of `true` once the choice is carried out, or `false` when it does not fit the state.
