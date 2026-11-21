@@ -193,6 +193,30 @@ export class UpdateCheckLockTests {
   }
 
   @TestMethod
+  public passesOnAFailureToPutBackAClaimedLockOtherThanFindingANewerOneAndKeepsItsText(): Promise<void> {
+    return UpdateCheckLockTests.withFolderAsync(async folder => {
+      const file = join(folder, "update-check.lock");
+      const newer = JSON.stringify(new UpdateProcess(6340, 1700, 1701, "main").toJson());
+      await writeFile(file, JSON.stringify(UpdateCheckLockTests.OTHER.toJson()));
+      const lock = new UpdateCheckLock(folder, () => Promise.resolve(UpdateCheckLockTests.SELF), async () => {
+        await writeFile(file, newer);
+        return false;
+      }, UpdateCheckLockTests.IGNORE);
+
+      let failure: unknown = null;
+      {
+        using _link = new FailingFileCallFixture("link", file, "EACCES");
+        await lock.tryAcquireAsync().catch((error: unknown) => { failure = error; });
+      }
+      const left = await readdir(folder);
+
+      Assert.areEqual("EACCES", ErrorCode.of(failure));
+      Assert.areEqual(1, left.length);
+      Assert.areEqual(newer, await readFile(join(folder, left[0] ?? String.empty), "utf8"));
+    });
+  }
+
+  @TestMethod
   public passesOnAFailureToCreateOrClaimTheLockOtherThanFindingOrMissingIt(): Promise<void> {
     return UpdateCheckLockTests.withFolderAsync(async folder => {
       const file = join(folder, "update-check.lock");
