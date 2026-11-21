@@ -83,6 +83,7 @@ What a module asks the person before an agent acts is in [PERMISSIONS.md](PERMIS
 ## Calls
 
 - The app opens a session with `context.tools.openSession(scope, bindings)` and ends it with `session.end()`.
+  The app's deactivation ends the sessions it left open; an ended session leaves nothing behind in the app's context, so an app may open and end any number of them.
   - `scope` is the app's opaque name for what the session acts for, such as a conversation, and is at most 256 characters.
   - `bindings` is a JSON object the app fills, by binding name, with what it attaches to the session for each module, such as a folder or the items the person shared; each module's document names the bindings it reads.
 - `session.listTools()` lists the registered tools' descriptors, and `session.callAsync(name, arguments, options)` calls one, with an optional deadline within the tool's maximum and an abort signal.
