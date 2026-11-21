@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -147,14 +147,40 @@ export class StoppedInstallerTests {
   }
 
   @TestMethod
-  public async passesOnAListingFailureThatIsNoTimeout(): Promise<void> {
+  public async namesAListingFailureThatIsNoTimeoutRatherThanThrowingIt(): Promise<void> {
     await StoppedInstallerTests.withFolderAsync(async (folder, installFolder, temporary) => {
-      const failure = new BuildException("powershell.exe could not start.");
-      const runner = new ListingRunner(() => Promise.reject(failure));
+      const runner = new ListingRunner(() => Promise.reject(new BuildException("powershell.exe could not start.")));
 
-      const error = await Assert.throwsAsync(() => new StoppedInstaller(runner, folder, {}).describeAsync(installFolder, temporary, Date.now(), 4242), BuildException);
+      const description = await new StoppedInstaller(runner, folder, {}).describeAsync(installFolder, temporary, Date.now(), 4242);
 
-      Assert.areEqual(failure, error);
+      Assert.isTrue(description.endsWith("\nWhat the installer, process 4242, had started could not be listed: powershell.exe could not start."), description);
+    });
+  }
+
+  @TestMethod
+  public async namesAnEntryOrFolderItCannotReadAndDescribesTheRest(): Promise<void> {
+    await StoppedInstallerTests.withFolderAsync(async (folder, installFolder, temporary) => {
+      const started = Date.now();
+      const made = path.join(temporary, "nsq3A1.tmp");
+      await StoppedInstallerTests.writeAsync(path.join(made, "app-64.7z"), "archive");
+      const gone = path.join(made, "gone");
+      await symlink(path.join(folder, "missing"), gone, "junction");
+      const notFolder = path.join(folder, "not-a-folder");
+      await writeFile(notFolder, "a file");
+      const stopped = new StoppedInstaller(new ListingRunner(StoppedInstallerTests.nothing), folder, {});
+
+      const description = await stopped.describeAsync(installFolder, temporary, started, undefined);
+      const unlisted = await stopped.describeAsync(installFolder, notFolder, started, undefined);
+
+      const lines = description.split("\n");
+      Assert.areEqual(4, lines.length, description);
+      Assert.areEqual(`The installer's temporary folder ${made} held:`, lines[1]);
+      Assert.areEqual("app-64.7z: 7 bytes", lines[2]);
+      Assert.isTrue((lines[3] ?? String.empty).startsWith(`${gone} could not be read: Error: ENOENT`), description);
+      const unlistedLines = unlisted.split("\n");
+      Assert.areEqual(3, unlistedLines.length, unlisted);
+      Assert.areEqual(`${notFolder} held no temporary folder the installer had made.`, unlistedLines[1]);
+      Assert.isTrue((unlistedLines[2] ?? String.empty).startsWith(`${notFolder} could not be read: Error: `), unlisted);
     });
   }
 }

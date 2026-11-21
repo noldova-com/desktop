@@ -12,7 +12,6 @@ import path from "node:path";
 
 import "@noldova/context.core";
 
-import { ProcessTimeoutException } from "../../exceptions/process-timeout.exception.ts";
 import type { ProcessRunner } from "../processes/process-runner.ts";
 import { Resources } from "../../resources.ts";
 
@@ -37,42 +36,61 @@ export class StoppedInstaller {
   private static async describeInstallFolderAsync(installFolder: string): Promise<string> {
     if (!existsSync(installFolder))
       return Resources.formatInstallerCreatedNothing(installFolder);
-    const files = await StoppedInstaller.listFilesAsync(installFolder);
     const lines: string[] = [];
-    for (const file of files)
-      lines.push(Resources.formatInstalledFileSize(path.relative(installFolder, file), (await stat(file)).size));
+    const files = await StoppedInstaller.readAsync(installFolder, lines, () => StoppedInstaller.listFilesAsync(installFolder)) ?? [];
+    for (const file of files) {
+      const item = await StoppedInstaller.readAsync(file, lines, () => stat(file));
+      if (!Object.isNull(item))
+        lines.push(Resources.formatInstalledFileSize(path.relative(installFolder, file), item.size));
+    }
     return Resources.formatInstallerStoppedFiles(installFolder, files.length, lines);
   }
 
   private static async describeTemporaryAsync(temporary: string | undefined, started: number): Promise<string> {
     if (Object.isUndefined(temporary))
       return Resources.installerTemporaryUnknown;
+    const lines: string[] = [];
     const folders: string[] = [];
-    const entries = existsSync(temporary) ? await readdir(temporary, { withFileTypes: true }) : [];
+    const entries = existsSync(temporary) ? await StoppedInstaller.readAsync(temporary, lines, () => readdir(temporary, { withFileTypes: true })) ?? [] : [];
     for (const entry of entries.filter(t => t.isDirectory() && Resources.installerTemporaryFolderPattern.test(t.name))) {
       const folder = path.join(temporary, entry.name);
-      if ((await stat(folder)).mtimeMs >= started - Resources.installerTemporaryMargin)
+      const item = await StoppedInstaller.readAsync(folder, lines, () => stat(folder));
+      if (!Object.isNull(item) && item.mtimeMs >= started - Resources.installerTemporaryMargin)
         folders.push(folder);
     }
     if (folders.length === 0)
-      return Resources.formatInstallerTemporaryNone(temporary);
-    const lines: string[] = [];
+      lines.unshift(Resources.formatInstallerTemporaryNone(temporary));
     for (const folder of folders.sort()) {
       lines.push(Resources.formatInstallerTemporaryFolder(folder));
-      for (const name of (await readdir(folder)).sort()) {
-        const item = await stat(path.join(folder, name));
-        if (!item.isDirectory()) {
-          lines.push(Resources.formatInstalledFileSize(name, item.size));
-          continue;
-        }
-        const files = await StoppedInstaller.listFilesAsync(path.join(folder, name));
-        let bytes = 0;
-        for (const file of files)
-          bytes += (await stat(file)).size;
-        lines.push(Resources.formatInstallerTemporaryContent(name, files.length, bytes));
-      }
+      for (const name of (await StoppedInstaller.readAsync(folder, lines, () => readdir(folder)) ?? []).sort())
+        await StoppedInstaller.describeTemporaryEntryAsync(path.join(folder, name), name, lines);
     }
     return lines.join(Resources.lineSeparator);
+  }
+
+  private static async describeTemporaryEntryAsync(entry: string, name: string, lines: string[]): Promise<void> {
+    const item = await StoppedInstaller.readAsync(entry, lines, () => stat(entry));
+    if (Object.isNull(item))
+      return;
+    if (!item.isDirectory()) {
+      lines.push(Resources.formatInstalledFileSize(name, item.size));
+      return;
+    }
+    const files = await StoppedInstaller.readAsync(entry, lines, () => StoppedInstaller.listFilesAsync(entry)) ?? [];
+    let bytes = 0;
+    for (const file of files)
+      bytes += (await StoppedInstaller.readAsync(file, lines, () => stat(file)))?.size ?? 0;
+    lines.push(Resources.formatInstallerTemporaryContent(name, files.length, bytes));
+  }
+
+  private static async readAsync<T>(target: string, lines: string[], read: () => Promise<T>): Promise<T | null> {
+    try {
+      return await read();
+    }
+    catch (error) {
+      lines.push(Resources.formatInstallerPathUnreadable(target, error));
+      return null;
+    }
   }
 
   private static async listFilesAsync(folder: string): Promise<string[]> {
@@ -93,9 +111,7 @@ export class StoppedInstaller {
       return output.length === 0 ? Resources.formatInstallerProcessesNone(processId) : Resources.formatInstallerProcesses(processId, output);
     }
     catch (error) {
-      if (!(error instanceof ProcessTimeoutException))
-        throw error;
-      return Resources.formatInstallerProcessesReadFailed(processId, error.message);
+      return Resources.formatInstallerProcessesReadFailed(processId, error instanceof Error ? error.message : String(error));
     }
   }
 }

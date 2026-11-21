@@ -2514,6 +2514,10 @@ export class Resources {
     return `${temporary} held no temporary folder the installer had made.`;
   }
 
+  public static formatInstallerPathUnreadable(target: string, error: unknown): string {
+    return `${target} could not be read: ${String(error)}`;
+  }
+
   public static formatInstallerTemporaryFolder(folder: string): string {
     return `The installer's temporary folder ${folder} held:`;
   }
