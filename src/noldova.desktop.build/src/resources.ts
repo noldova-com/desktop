@@ -1399,6 +1399,9 @@ export class Resources {
   public static readonly killSignal: NodeJS.Signals = "SIGKILL";
   public static readonly probeSignal: 0 = 0;
   public static readonly refusedSignalCode: string = "EPERM";
+  public static readonly taskkillCommand: string = "taskkill.exe";
+  public static readonly taskkillTreeArguments: readonly string[] = ["/T", "/F", "/PID"];
+  public static readonly taskkillEndedPattern: RegExp = /^[^\r\n]*?PID (\d+)/gm;
   public static readonly psCommand: string = "ps";
   public static readonly psProcessGroupArguments: readonly string[] = ["-A", "-o", "pid=,pgid=,lstart="];
   public static readonly psStartTolerance: number = 2_000;

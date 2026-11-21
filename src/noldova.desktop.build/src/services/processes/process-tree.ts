@@ -46,13 +46,23 @@ export class ProcessTree {
     if (Object.isNull(listing) || (!Object.isNull(exited) && listing.has(groupId))
       || ![...listing.values()].some(t => t.parent === groupId && t.start + Resources.psStartTolerance > launched))
       return;
-    if (!this.signalGroup(groupId, Resources.killSignal))
-      return;
-    for (let waited = 0; waited < Resources.processTreeGrace && this.isGroupLeft(groupId); waited += Resources.processTreeGracePoll)
+    if (this.signal(-groupId, Resources.killSignal))
+      await this.waitUntilGoneAsync([-groupId]);
+  }
+
+  private async waitUntilGoneAsync(targets: readonly number[]): Promise<void> {
+    for (let waited = 0; waited < Resources.processTreeGrace && targets.some(t => this.isLeft(t)); waited += Resources.processTreeGracePoll)
       await this.delayAsync(Resources.processTreeGracePoll);
   }
 
   private async endOnWindowsAsync(processId: number, launched: number, exited: number | null): Promise<void> {
+    if (Object.isNull(exited)) {
+      const ended = await this.list(Resources.taskkillCommand, [...Resources.taskkillTreeArguments, String(processId)]).catch(() => null);
+      if (!Object.isNull(ended)) {
+        await this.waitUntilGoneAsync([processId, ...[...ended.matchAll(Resources.taskkillEndedPattern)].map(t => Number(t[1]))]);
+        return;
+      }
+    }
     let listing = await this.readAsync(Resources.windowsPowershellCommand, [...Resources.processListArguments, Resources.processListScript]);
     if (Object.isNull(listing))
       return;
@@ -77,9 +87,9 @@ export class ProcessTree {
       .map(t => [Number(t[1]), { parent: Number(t[2]), start: windows ? Number(t[3]) : Date.parse(String(t[3])) }]));
   }
 
-  private isGroupLeft(groupId: number): boolean {
+  private isLeft(target: number): boolean {
     try {
-      return this.signalGroup(groupId, Resources.probeSignal);
+      return this.signal(target, Resources.probeSignal);
     }
     catch (error) {
       if (error instanceof Error && Resources.errorCodeField in error && error[Resources.errorCodeField] === Resources.refusedSignalCode)
@@ -88,9 +98,9 @@ export class ProcessTree {
     }
   }
 
-  private signalGroup(groupId: number, signal: NodeJS.Signals | 0): boolean {
+  private signal(target: number, signal: NodeJS.Signals | 0): boolean {
     try {
-      this.kill(-groupId, signal);
+      this.kill(target, signal);
       return true;
     }
     catch (error) {

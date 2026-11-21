@@ -138,7 +138,38 @@ export class ProcessTreeTests {
   }
 
   @TestMethod
-  public async endsARunningCommandsTreeOnWindowsByStartTimeUntilNoneIsListed(): Promise<void> {
+  public async endsARunningCommandsTreeOnWindowsWithTaskkillAndWaitsUntilEachProcessIsGone(): Promise<void> {
+    const ended = [
+      "SUCCESS: The process with PID 4500 (child process of PID 4400) has been terminated.",
+      "SUCCESS: The process with PID 4400 (child process of PID 4321) has been terminated.",
+      "SUCCESS: The process with PID 4321 (child process of PID 100) has been terminated."
+    ].join("\r\n");
+    const answers: Readonly<Record<number, readonly string[]>> = { 4321: ["running"], 4400: ["running", "EPERM"] };
+    const probes: number[] = [];
+    const lists: string[] = [];
+    let delays = 0;
+    const tree = new ProcessTree("win32", (processId, signal) => {
+      Assert.isTrue(signal === 0, String(signal));
+      probes.push(processId);
+      const code = (answers[processId] ?? []).at(probes.filter(t => t === processId).length - 1) ?? "ESRCH";
+      if (code !== "running")
+        throw ProcessTreeTests.failure(code);
+    }, async (command, commandArguments) => {
+      lists.push(JSON.stringify([command, commandArguments]));
+      return ended;
+    }, async () => {
+      delays += 1;
+    });
+
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+
+    Assert.areEqual(JSON.stringify([JSON.stringify(["taskkill.exe", ["/T", "/F", "/PID", "4321"]])]), JSON.stringify(lists));
+    Assert.areEqual(JSON.stringify([4321, 4321, 4500, 4400, 4321, 4500, 4400, 4321, 4500, 4400, 4321]), JSON.stringify(probes));
+    Assert.areEqual(3, delays);
+  }
+
+  @TestMethod
+  public async endsARunningCommandsTreeOnWindowsByStartTimeUntilNoneIsListedWhenTaskkillFails(): Promise<void> {
     const start = ProcessTreeTests.LAUNCHED;
     const listing = ProcessTreeTests.windows([[4321, 100, start + 5], [4400, 4321, start + 50], [4500, 4400, start + 80], [4600, 4321, start - 10_000], [700, 1, start - 60_000]]);
     const answers = [listing, ProcessTreeTests.windows([[4500, 4400, start + 80], [700, 1, start - 60_000]]), ProcessTreeTests.windows([[700, 1, start - 60_000]])];
@@ -147,6 +178,8 @@ export class ProcessTreeTests {
     const tree = new ProcessTree("win32", processId => {
       signals.push(processId);
     }, async (command, commandArguments) => {
+      if (command === Resources.taskkillCommand)
+        return Promise.reject(new Error("taskkill failed"));
       lists.push(JSON.stringify([command, commandArguments]));
       return answers[lists.length - 1] ?? String.empty;
     }, async () => undefined);
@@ -169,7 +202,9 @@ export class ProcessTreeTests {
       ProcessTreeTests.windows([[4400, 900, start + 9_000], [4700, 4400, start + 9_500]])
     ];
     const lists: string[] = [];
-    const tree = new ProcessTree("win32", () => undefined, async (_, commandArguments) => {
+    const tree = new ProcessTree("win32", () => undefined, async (command, commandArguments) => {
+      if (command === Resources.taskkillCommand)
+        return Promise.reject(new Error("taskkill failed"));
       lists.push(commandArguments.at(-1) ?? String.empty);
       return answers[lists.length - 1] ?? String.empty;
     }, async () => undefined);
@@ -208,7 +243,9 @@ export class ProcessTreeTests {
 
     for (const [listing] of cases) {
       let count = 0;
-      const tree = new ProcessTree("win32", () => undefined, async () => {
+      const tree = new ProcessTree("win32", () => undefined, async command => {
+        if (command === Resources.taskkillCommand)
+          return Promise.reject(new Error("taskkill failed"));
         count += 1;
         return listing ?? Promise.reject(new Error("powershell failed"));
       }, async () => undefined);
@@ -222,7 +259,9 @@ export class ProcessTreeTests {
   @TestMethod
   public async stopsEndingOnWindowsWhenAnEndScriptFails(): Promise<void> {
     let count = 0;
-    const tree = new ProcessTree("win32", () => undefined, async () => {
+    const tree = new ProcessTree("win32", () => undefined, async command => {
+      if (command === Resources.taskkillCommand)
+        return Promise.reject(new Error("taskkill failed"));
       count += 1;
       return count === 1 ? ProcessTreeTests.windows([[4321, 1, ProcessTreeTests.LAUNCHED + 5]]) : Promise.reject(new Error("powershell failed"));
     }, async () => undefined);
