@@ -71,6 +71,26 @@ export class ModuleToolsTests {
   }
 
   @TestMethod
+  public keepsNoRegistrationForTheSessionsItOpenedOnceTheyEnd(): void {
+    const registry = new ToolRegistry();
+    const registrations: Disposable[] = [];
+    const tools = ModuleToolsTests.create(registry, registrations);
+    const ended: string[] = [];
+    registry.onSessionEnded(t => ended.push(t), new ModuleLogFixture());
+
+    for (let index = 0; index < 100; index++)
+      tools.openSession(`conversation-${index}`, {}).end();
+    const open = tools.openSession("conversation-open", {});
+    const kept = registrations.length;
+    for (const registration of registrations)
+      registration[Symbol.dispose]();
+
+    Assert.areEqual(1, kept);
+    Assert.areEqual(101, ended.length);
+    Assert.areEqual(open.id, ended[100]);
+  }
+
+  @TestMethod
   public stopsAndResumesAgentControlAndTellsItsListenersUntilTheirRegistrationsEnd(): void {
     const registry = new ToolRegistry();
     const registrations: Disposable[] = [];
