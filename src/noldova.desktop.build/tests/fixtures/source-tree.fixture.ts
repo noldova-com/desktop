@@ -6,9 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+import { FolderFixture } from "./folder.fixture.js";
 
 export class SourceTreeFixture implements AsyncDisposable {
   public readonly path: string;
@@ -26,7 +28,7 @@ export class SourceTreeFixture implements AsyncDisposable {
   public async writeAsync(files: Readonly<Record<string, string>>): Promise<void> {
     for (const [name, text] of Object.entries(files)) {
       const file = path.join(this.path, ...name.split("/"));
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(file));
       await writeFile(file, text);
     }
   }

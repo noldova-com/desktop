@@ -14,6 +14,8 @@ import path from "node:path";
 import "@noldova/context.core";
 import { NtExecutable, NtExecutableResource, Resource } from "resedit";
 
+import { FolderFixture } from "./folder.fixture.js";
+
 export class DevelopmentFolderFixture implements AsyncDisposable {
   public static readonly PRODUCT: Readonly<Record<string, unknown>> = {
     name: "Sample App",
@@ -95,7 +97,7 @@ export class DevelopmentFolderFixture implements AsyncDisposable {
 
   public async writeAsync(segments: readonly string[], content: string | Buffer): Promise<string> {
     const file = path.join(this.path, ...segments);
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, content);
     return file;
   }

@@ -8,7 +8,7 @@
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -17,6 +17,7 @@ import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
 import { BuildCommandLine } from "@noldova/desktop.build";
 
+import { FolderFixture } from "./folder.fixture.js";
 import { TarballFixture } from "./tarball.fixture.js";
 
 export class InstalledAppFixture implements AsyncDisposable {
@@ -166,7 +167,7 @@ export class InstalledAppFixture implements AsyncDisposable {
 
   private async writeAsync(segments: readonly string[], content: string | Buffer): Promise<void> {
     const file = path.join(this.path, ...segments);
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, content);
   }
 }
