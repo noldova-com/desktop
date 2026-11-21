@@ -15,16 +15,15 @@ import { Resources } from "../../resources.js";
 
 @Directive({
   selector: "[nolTabScroller]",
-  exportAs: "nolTabScroller",
-  host: {
-    "(wheel)": "scrollAcross($event)"
-  }
+  exportAs: "nolTabScroller"
 })
 export class TabScrollerDirective {
   private readonly host: HTMLElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly isOverflowingValue: WritableSignal<boolean> = signal(false);
-  private revealed: readonly unknown[] = [];
+  private readonly hiddenValue: WritableSignal<ReadonlySet<string>> = signal(new Set());
+  private readonly observer: ResizeObserver;
   private measured: readonly unknown[] = [];
+  private fitted: readonly unknown[] = [];
   private actionsWidth: number = Number.NaN;
   private unfoldedWidth: number = 0;
 
@@ -32,60 +31,85 @@ export class TabScrollerDirective {
   public readonly frame = input.required<GroupFrame>({ alias: "nolTabScrollerFrame" });
   public readonly rowCount = input<number>(0, { alias: "nolTabScrollerRows" });
   public readonly isOverflowing: Signal<boolean> = this.isOverflowingValue.asReadonly();
+  public readonly hidden: Signal<ReadonlySet<string>> = this.hiddenValue.asReadonly();
 
   public constructor() {
     const appearance = inject(AppearanceService);
-    const observer = new ResizeObserver(() => {
-      if (this.measureActions())
-        this.reveal();
-      this.isOverflowingValue.set(this.overflows());
+    this.observer = new ResizeObserver(() => {
+      this.measureActions();
+      this.fit();
     });
-    inject(DestroyRef).onDestroy(() => observer.disconnect());
-    afterNextRender(() => observer.observe(this.actionBar()));
+    inject(DestroyRef).onDestroy(() => this.observer.disconnect());
+    afterNextRender(() => this.observer.observe(this.actionBar()));
     afterRenderEffect(() => {
-      const frame = this.frame();
-      const view = [frame.group.active?.key, frame.bounds.width, this.isOverflowingValue(), appearance.typography()];
+      const view = [this.frame(), appearance.typography()];
       const buttons = [this.rowCount(), appearance.typography()];
       const isStale = buttons.some((t, index) => t !== this.measured[index]);
       this.measured = buttons;
       if (isStale && this.isOverflowingValue()) {
         this.isOverflowingValue.set(false);
+        this.fitted = [];
         return;
       }
       this.measureActions();
-      if (view.some((t, index) => t !== this.revealed[index]))
-        this.reveal();
-      this.revealed = view;
-      this.isOverflowingValue.set(this.overflows());
+      if (view.some((t, index) => t !== this.fitted[index]))
+        this.fit();
+      this.fitted = view;
     });
   }
 
-  protected scrollAcross(event: WheelEvent): void {
-    if (event.deltaX !== 0 || event.deltaY === 0 || this.host.scrollWidth <= this.host.clientWidth)
-      return;
-    event.preventDefault();
-    this.host.scrollLeft += event.deltaY;
+  public isHidden(key: string): boolean {
+    return this.hiddenValue().has(key);
   }
 
-  private overflows(): boolean {
-    const folded = this.isOverflowingValue() ? this.unfoldedWidth - this.actionsWidth : 0;
-    const slack = this.host.querySelector(Resources.tabStripEndSelector)?.getBoundingClientRect().width ?? 0;
-    return this.host.scrollWidth - slack + folded > this.host.clientWidth;
+  private fit(): void {
+    const tabs = [...this.host.querySelectorAll<HTMLElement>(Resources.tabKeySelector)];
+    tabs.forEach(t => this.observer.observe(t));
+    const widths = tabs.map(t => TabScrollerDirective.widthOf(t));
+    const start = parseFloat(getComputedStyle(this.host).paddingInlineStart) || 0;
+    const room = this.host.clientWidth - start;
+    const overflows = widths.reduce((sum, t) => sum + t, 0) > room - this.unfoldedWidth + TabScrollerDirective.TOLERANCE;
+    if (overflows !== this.isOverflowingValue())
+      this.isOverflowingValue.set(overflows);
+    const shown = TabScrollerDirective.shownOf(widths, tabs.findIndex(t => t.matches(Resources.selectedTabSelector)), room - this.actionsWidth);
+    const hidden = new Set(tabs.filter((_, index) => !shown.has(index)).map(t => t.dataset[Resources.tabKeyData] ?? String.empty));
+    const current = this.hiddenValue();
+    if (hidden.size !== current.size || [...hidden].some(t => !current.has(t)))
+      this.hiddenValue.set(hidden);
   }
 
-  private measureActions(): boolean {
+  private measureActions(): void {
     const width = this.actionBar().getBoundingClientRect().width;
     if (!this.isOverflowingValue())
       this.unfoldedWidth = width;
     if (width === this.actionsWidth)
-      return false;
+      return;
     this.actionsWidth = width;
-    this.host.style.scrollPaddingInlineEnd = Resources.formatPixels(width);
     this.host.style.setProperty(Resources.tabActionsWidthProperty, Resources.formatPixels(width));
-    return true;
   }
 
-  private reveal(): void {
-    this.host.querySelectorAll(Resources.selectedTabSelector).forEach(t => t.scrollIntoView(Resources.revealOptions));
+  private static shownOf(widths: readonly number[], selected: number, room: number): ReadonlySet<number> {
+    const shown: number[] = [];
+    let used = 0;
+    for (const [index, width] of widths.entries()) {
+      if (used + width > room + TabScrollerDirective.TOLERANCE)
+        break;
+      shown.push(index);
+      used += width;
+    }
+    const width = widths[selected];
+    if (Object.isUndefined(width) || shown.includes(selected))
+      return new Set(shown);
+    let kept = shown.length;
+    while (kept > 0 && used + width > room + TabScrollerDirective.TOLERANCE)
+      used -= widths[--kept] ?? 0;
+    return new Set([...shown.slice(0, kept), selected]);
   }
+
+  private static widthOf(tab: HTMLElement): number {
+    const style = getComputedStyle(tab);
+    return tab.getBoundingClientRect().width + (parseFloat(style.marginInlineStart) || 0) + (parseFloat(style.marginInlineEnd) || 0);
+  }
+
+  private static readonly TOLERANCE: number = 0.5;
 }
