@@ -123,10 +123,7 @@ export class Resources {
   public static readonly tabGroupData: string = "group";
   public static readonly tabCloseSelector: string = ".nol-tab-close";
   public static readonly selectedTabSelector: string = ".nol-tab-selected";
-  public static readonly tabStripEndSelector: string = ".nol-tab-group-end";
-  public static readonly tabScrollerSelector: string = ".nol-tab-group-scroller";
   public static readonly tabActionsWidthProperty: string = "--nol-tab-group-actions-width";
-  public static readonly revealOptions: ScrollIntoViewOptions = { block: "nearest", inline: "nearest" };
   public static readonly arrowLeftKey: string = "ArrowLeft";
   public static readonly arrowRightKey: string = "ArrowRight";
   public static readonly homeKey: string = "Home";
