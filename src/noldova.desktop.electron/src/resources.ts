@@ -418,6 +418,7 @@ export class Resources {
   public static readonly updateConfigFile: string = "update-config.json";
   public static readonly updateCacheSuffix: string = "-updater-";
   public static readonly updateCheckLockFile: string = "update-check.lock";
+  public static readonly updateLockRemovalBusy: string = "another running process was removing it the whole time";
   public static readonly updateChecksStateKey: string = "updateChecks";
   public static readonly updateFeedTimeout: number = 30_000;
   public static readonly updateCheckAction: string = "Check";

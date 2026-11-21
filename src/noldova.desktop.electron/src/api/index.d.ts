@@ -9819,7 +9819,9 @@ export declare class UpdateCheckLock implements IUpdateCheckLock {
    *
    * @returns A promise of whether this main process now holds the lock.
    * @throws {UpdateException} Rejected when this main process's process cannot be found.
-   * @throws {Error} Rejected when the lock can neither be created nor found, or a stale one cannot be claimed.
+   * @throws {Error} Rejected when the lock can neither be created nor found, or a stale one cannot be removed. A stale lock is removed
+   * through the runtime's `StaleFileRemoval`, only while it still holds the text judged stale, so main processes racing to
+   * take it over end with one holder.
    * @example
    * ```ts
    * import type { UpdateCheckLock } from "@noldova/desktop.electron";
