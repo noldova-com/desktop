@@ -17,6 +17,7 @@ import { UpdateProcess } from "@noldova/desktop.protocol";
 
 import { ErrorCode } from "../../src/models/error-code.js";
 import { FailingFileCallFixture } from "../fixtures/failing-file-call.fixture.js";
+import { FileRenameHookFixture } from "../fixtures/file-rename-hook.fixture.js";
 
 @TestClass
 export class UpdateCheckLockTests {
@@ -101,6 +102,30 @@ export class UpdateCheckLockTests {
       Assert.areEqual(newer, kept);
       Assert.isFalse(isRemovedHeld);
       Assert.areEqual(0, (await readdir(folder)).length);
+    });
+  }
+
+  @TestMethod
+  public leavesTheLockAThirdMainProcessMadeWhileItClaimedAnotherOnesLock(): Promise<void> {
+    return UpdateCheckLockTests.withFolderAsync(async folder => {
+      const file = join(folder, "update-check.lock");
+      const middle = JSON.stringify(new UpdateProcess(6340, 1700, 1701, "main").toJson());
+      const newest = JSON.stringify(new UpdateProcess(6341, 1800, 1801, "main").toJson());
+      await writeFile(file, JSON.stringify(UpdateCheckLockTests.OTHER.toJson()));
+      const lock = new UpdateCheckLock(folder, () => Promise.resolve(UpdateCheckLockTests.SELF), async () => {
+        await writeFile(file, middle);
+        return false;
+      }, UpdateCheckLockTests.IGNORE);
+
+      let isHeld = true;
+      {
+        using _rename = new FileRenameHookFixture(file, () => writeFile(file, newest, { flag: "wx" }));
+        isHeld = await lock.tryAcquireAsync();
+      }
+
+      Assert.isFalse(isHeld);
+      Assert.areEqual(newest, await readFile(file, "utf8"));
+      Assert.areEqual(JSON.stringify(["update-check.lock"]), JSON.stringify(await readdir(folder)));
     });
   }
 

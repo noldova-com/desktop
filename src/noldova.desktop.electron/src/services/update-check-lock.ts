@@ -112,8 +112,20 @@ export class UpdateCheckLock implements IUpdateCheckLock {
       return false;
     }
     const isJudged = await readFile(claimed, Resources.textEncoding) === text;
-    await (isJudged ? rm(claimed, { force: true }) : rename(claimed, this.file));
+    if (!isJudged)
+      await UpdateCheckLock.putBackAsync(claimed, this.file);
+    await rm(claimed, { force: true });
     return isJudged;
+  }
+
+  private static async putBackAsync(claimed: string, file: string): Promise<void> {
+    try {
+      await link(claimed, file);
+    }
+    catch (error) {
+      if (!UpdateCheckLock.hasCode(error, Resources.existingErrorCode))
+        throw error;
+    }
   }
 
   private temporaryName(): string {
