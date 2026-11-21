@@ -674,6 +674,22 @@ export declare class AppImageReplacement {
   public constructor(image: string, log: (text: string) => void);
 
   /**
+   * Why the AppImage can't be replaced, read now: the AppImage, after its links, can't be found, or its folder can't be
+   * written; `null` when it can. The main process reads it once, before it checks for updates, so an update it could never
+   * install is refused before anything downloads or stops.
+   *
+   * @example
+   * ```ts
+   * import type { AppImageReplacement } from "@noldova/desktop.electron";
+   *
+   * export function canReplace(replacement: AppImageReplacement): boolean {
+   *   return replacement.refusal === null;
+   * }
+   * ```
+   */
+  public get refusal(): string | null;
+
+  /**
    * Replaces the AppImage with the downloaded file.
    *
    * @param download The downloaded and validated AppImage of the new version.
@@ -977,7 +993,8 @@ export declare class InstallerHandoff implements IUpdateHandoff {
  */
 export declare class AppImageHandoff implements IUpdateHandoff {
   /**
-   * Why the update cannot be installed when the main process doesn't run from an AppImage, or `null` when it does.
+   * Why the update cannot be installed: the main process doesn't run from an AppImage, or the folder refusal it was
+   * created with; `null` when neither holds.
    *
    * @example
    * ```ts
@@ -994,14 +1011,17 @@ export declare class AppImageHandoff implements IUpdateHandoff {
    * Creates the handoff.
    *
    * @param replacement Replaces the AppImage with the download, or `null` when the main process doesn't run from an AppImage.
+   * @param folderRefusal Why the AppImage can't be replaced, such as {@link AppImageReplacement.refusal}; `null` by default.
    * @example
    * ```ts
    * import { AppImageHandoff, AppImageReplacement } from "@noldova/desktop.electron";
    *
-   * export const handoff: AppImageHandoff = new AppImageHandoff(new AppImageReplacement("/home/person/Applications/Noldova Desktop Sample.AppImage", console.log));
+   * const replacement = new AppImageReplacement("/home/person/Applications/Noldova Desktop Sample.AppImage", console.log);
+   *
+   * export const handoff: AppImageHandoff = new AppImageHandoff(replacement, replacement.refusal);
    * ```
    */
-  public constructor(replacement: Pick<AppImageReplacement, "replaceAsync"> | null);
+  public constructor(replacement: Pick<AppImageReplacement, "replaceAsync"> | null, folderRefusal?: string | null);
 
   /**
    * Checks the download and replaces the AppImage with it.
