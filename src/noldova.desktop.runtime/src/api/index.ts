@@ -104,6 +104,7 @@ export { PseudoTerminalCommandLineRefusedException } from "../exceptions/pseudo-
 export { PseudoTerminalCommandLineWithArgumentsException } from "../exceptions/pseudo-terminal-command-line-with-arguments.exception.js";
 export { PseudoTerminalsUndeclaredException } from "../exceptions/pseudo-terminals-undeclared.exception.js";
 export { RegistrationException } from "../exceptions/registration.exception.js";
+export { RemovalUnclaimedException } from "../exceptions/removal-unclaimed.exception.js";
 export { RuntimeException } from "../exceptions/runtime.exception.js";
 export { RuntimeExitedException } from "../exceptions/runtime-exited.exception.js";
 export { RuntimeExitedWithoutReasonException } from "../exceptions/runtime-exited-without-reason.exception.js";
@@ -280,6 +281,7 @@ export { RuntimeServer } from "../services/endpoint/runtime-server.js";
 export { DeviceFolder } from "../services/installation/device-folder.js";
 export { Installation } from "../services/installation/installation.js";
 export { ProcessPresence } from "../services/installation/process-presence.js";
+export { StaleFileRemoval } from "../services/files/stale-file-removal.js";
 export { AppImageCopyCleanup } from "../services/lifetime/app-image-copy-cleanup.js";
 export { IdleMonitor } from "../services/lifetime/idle-monitor.js";
 export { RuntimeHost } from "../services/lifetime/runtime-host.js";

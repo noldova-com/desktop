@@ -4862,6 +4862,31 @@ export declare enum UpdateBarrierStatus {
 }
 
 /**
+ * The exception thrown when a process can't remove a stale file because the
+ * process table doesn't list it, so no other process could tell whether its
+ * claim on the removal still holds.
+ */
+export declare class RemovalUnclaimedException extends RuntimeException {
+  /**
+   * The file whose removal wasn't claimed.
+   */
+  public readonly file: string;
+
+  /**
+   * Creates the exception, with its message from the package's own text.
+   *
+   * @param file The file whose removal wasn't claimed.
+   * @example
+   * ```ts
+   * import { RemovalUnclaimedException } from "@noldova/desktop.runtime";
+   *
+   * export const failure: RemovalUnclaimedException = new RemovalUnclaimedException("barrier.json");
+   * ```
+   */
+  public constructor(file: string);
+}
+
+/**
  * Thrown when an installation's launch barrier keeps a client from starting
  * a runtime.
  */
@@ -5547,15 +5572,16 @@ export declare class Installation {
   public readTextAsync(): Promise<string | null>;
 
   /**
-   * Removes the launch barrier only while it is still the one that was read: it
-   * moves the barrier aside under a unique name and deletes it when its text is
-   * unchanged. A barrier that replaced it is put back, unless yet another one
-   * has taken its place meanwhile, in which case the moved one is deleted.
+   * Removes the launch barrier only while it is still the one that was read,
+   * through a {@link StaleFileRemoval}, so processes racing to remove it and to
+   * hold in its place end with one holder. A barrier that replaced it is kept.
    *
    * @param text The barrier's text, as {@link Installation.readTextAsync} read it.
    * @returns A promise of whether that barrier is gone; `false` when another
-   * one replaced it.
-   * @throws Error When the barrier cannot be moved, read or put back.
+   * one replaced it, or another process kept removing one through every try.
+   * @throws RemovalUnclaimedException When the process table doesn't list this
+   * process.
+   * @throws Error When the barrier or an intent cannot be written, read or removed.
    * @example
    * ```ts
    * import type { Installation } from "@noldova/desktop.runtime";
@@ -5648,6 +5674,65 @@ export declare class ProcessPresence {
    * ```
    */
   public isRunningAsync(process: UpdateProcess): Promise<boolean>;
+}
+
+/**
+ * Removes a file that a process judged stale, such as a lock or a barrier
+ * whose holder has gone, so that processes racing to remove it and to take
+ * its place end with one holder. Each remover first leaves its own intent
+ * beside the file, `<file>.<unique>.removing`, naming its process; it goes on
+ * only while no other running process has one, and otherwise steps back and
+ * tries again, up to 20 times. It then removes the file only if its text is
+ * still the one judged stale. The file is never moved, so a holder that took
+ * its place meanwhile keeps it. The intents of processes that ended, or that
+ * can't be read as a process, are deleted, and so are this process's own
+ * intents that no removal of its own is still using, such as one it left
+ * because deleting it stayed busy past its retries.
+ */
+export declare class StaleFileRemoval {
+  /**
+   * The file it removes.
+   */
+  public readonly file: string;
+
+  /**
+   * Creates the removal.
+   *
+   * @param file The file it removes.
+   * @param stampAsync Returns the calling process with the range its start
+   * falls in, or `undefined` when the process table doesn't list it.
+   * @param isRunningAsync Whether another remover's process still runs.
+   * @example
+   * ```ts
+   * import { type ProcessPresence, StaleFileRemoval } from "@noldova/desktop.runtime";
+   *
+   * export function open(file: string, presence: ProcessPresence): StaleFileRemoval {
+   *   return new StaleFileRemoval(file, async () => (await presence.stampAsync([[process.pid, "updater"]])).at(0), t => presence.isRunningAsync(t));
+   * }
+   * ```
+   */
+  public constructor(file: string, stampAsync: () => Promise<UpdateProcess | undefined>, isRunningAsync: (process: UpdateProcess) => Promise<boolean>);
+
+  /**
+   * Removes the file only while its text is the one judged stale.
+   *
+   * @param text The file's text, as read when it was judged stale.
+   * @returns A promise of whether that file is gone; `false` when another one
+   * replaced it, or when another running process kept its intent through
+   * every try.
+   * @throws RemovalUnclaimedException When the process table doesn't list the
+   * calling process.
+   * @throws Error When an intent or the file can't be written, read or removed.
+   * @example
+   * ```ts
+   * import type { StaleFileRemoval } from "@noldova/desktop.runtime";
+   *
+   * export function clearAsync(removal: StaleFileRemoval, judged: string): Promise<boolean> {
+   *   return removal.removeAsync(judged);
+   * }
+   * ```
+   */
+  public removeAsync(text: string): Promise<boolean>;
 }
 
 /**

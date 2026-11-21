@@ -259,6 +259,8 @@ export class RuntimeApiTests {
       "DeviceFolder",
       "Installation",
       "ProcessPresence",
+      "RemovalUnclaimedException",
+      "StaleFileRemoval",
       "WindowsDeviceNames",
       "WindowsFolderProtector",
       "WindowsProcessApi",

@@ -370,6 +370,7 @@ Before the handoff replaces its files, every process of the installation stops w
 - **Launch barrier:** the installation's `barrier.json` names the main process coordinating the update, the version being installed, and the state `Preparing`, `Closing` or `HandedOff`.
   While it holds, no runtime starts, a starting main process says that the app is installing an update and exits, and the command line waits.
   A barrier whose holder has gone is settled by the next main process or command line; a `HandedOff` barrier for another version is removed only when the person confirms.
+  Processes that remove a barrier take turns: each leaves its own intent file beside it, goes on only while no other running process has one, and removes the barrier only if it is still the one it judged, so processes racing to settle it and hold in its place end with one holder.
   A main process whose runtime stopped for an update that then ended without it reconnects: it checks each time the installation's folder changes, and every second, since the holder can end without changing the barrier and Node can't wait for the exit of a process it didn't start.
 - **Order:** the main process where the person chose Restart to update connects to the runtime of every data directory in the record, then:
   1. asks the person about work in progress, if any, and while they wait reads it again each time a runtime announces a change of its work or disconnects; closing the window that asks answers Cancel, so the restart is cancelled and a Quit held meanwhile goes on;
