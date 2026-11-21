@@ -9,6 +9,7 @@
 export interface IUpdater {
   readonly downloadedFile: string | null;
   formatPackagePath(version: string): string;
+  readSignature(file: string): string | null;
   checkAsync(): Promise<string | null>;
   downloadAsync(version: string, onProgress: (percent: number) => void): Promise<string>;
   cancel(): void;

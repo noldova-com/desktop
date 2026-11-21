@@ -126,6 +126,19 @@ export class Resources {
   public static readonly tarFileTypes: readonly string[] = ["0", String.empty, "7"];
   public static readonly tarFolderType: string = "5";
   public static readonly windowsPublisherVariable: string = "WINDOWS_PUBLISHER";
+  public static readonly linuxSigningKeyVariable: string = "LINUX_UPDATE_SIGNING_KEY";
+  public static readonly linuxUpdateKeysVariable: string = "LINUX_UPDATE_PUBLIC_KEYS";
+  public static readonly linuxSigningCredentials: readonly string[] = [Resources.linuxSigningKeyVariable, Resources.linuxUpdateKeysVariable];
+  public static readonly updateSignatureKeyType: string = "ed25519";
+  public static readonly updateSignatureEncoding: BufferEncoding = "base64";
+  public static readonly updateSignatureLength: number = 64;
+  public static readonly publicKeyEncoding: "spki" = "spki";
+  public static readonly keyDerFormat: "der" = "der";
+  public static readonly feedLinuxKeysMissing: string = `${Resources.linuxUpdateKeysVariable} is empty, but the feed serves a Linux target, whose app refuses an update`
+    + " without a valid signature by a key it ships; set it to those keys, as the release workflow's feed job reads them from the app repository's variable.";
+  public static readonly linuxUpdateKeysInvalid: string = `${Resources.linuxUpdateKeysVariable} must list distinct Ed25519 public keys, each the base64 of its DER SubjectPublicKeyInfo, separated by spaces or lines.`;
+  public static readonly linuxSigningKeyInvalid: string = `${Resources.linuxSigningKeyVariable} must be an Ed25519 private key in PKCS #8 PEM, so it is not shown here.`;
+  public static readonly linuxSigningKeyNotShipped: string = `The public half of ${Resources.linuxSigningKeyVariable} is not among ${Resources.linuxUpdateKeysVariable}, so the packaged app would refuse its own updates; ship the key one release before signing with it.`;
   public static readonly windowsSigningSection: string = "desktop.product.windowsSigning";
   public static readonly windowsSigningCredentials: readonly string[] = ["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"];
   public static readonly macSigningCredentials: readonly string[] = ["MAC_CERTIFICATE", "MAC_CERTIFICATE_PASSWORD", "APPLE_API_KEY_P8", "APPLE_API_KEY_ID", "APPLE_API_ISSUER"];
@@ -400,6 +413,43 @@ export class Resources {
   public static readonly parentFolderSegment: string = "..";
   public static readonly macProgramSegments: readonly string[] = [Resources.parentFolderSegment, "MacOS"];
   public static readonly executableMode: number = 0o755;
+  public static readonly debianUpdateInstallerFile: string = "linux-update-install";
+  public static readonly debianUpdateArgumentsRefusedCode: number = 64;
+  public static readonly debianUpdateChangedCode: number = 65;
+  public static readonly debianUpdateNotInstalledCode: number = 66;
+  public static readonly debianUpdateFolderPrefix: string = "noldova-desktop-update.";
+  public static readonly debianUpdateCopyLimit: number = 300;
+  public static readonly polkitActionsFolder: string = "/usr/share/polkit-1/actions";
+  public static readonly polkitPolicyEnd: string = "NOLDOVA_UPDATE_POLICY";
+  public static readonly polkitActionIdUnsafe: RegExp = /[^a-z0-9.-]/g;
+  public static readonly polkitActionIdReplacement: string = "-";
+  public static readonly afterInstallTemplateOption: string = "afterInstall";
+  public static readonly afterRemoveTemplateOption: string = "afterRemove";
+  public static readonly debianUpdateInstallerScript: string = [
+    "#!/bin/sh",
+    "set -eu",
+    `[ "$#" -eq 3 ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
+    "file=$1",
+    "hash=$2",
+    "size=$3",
+    `[ "\${#hash}" -eq 128 ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
+    "case $hash in",
+    `  *[!0-9a-f]*) exit ${Resources.debianUpdateArgumentsRefusedCode} ;;`,
+    "esac",
+    "case $size in",
+    `  ''|0*|*[!0-9]*) exit ${Resources.debianUpdateArgumentsRefusedCode} ;;`,
+    "esac",
+    `folder=$(/bin/mktemp -d -p /tmp ${Resources.debianUpdateFolderPrefix}XXXXXXXXXX)`,
+    "trap '/bin/rm -rf -- \"$folder\"' EXIT",
+    "trap 'exit 1' HUP INT TERM",
+    "copy=$folder/update.deb",
+    `/usr/bin/timeout ${String(Resources.debianUpdateCopyLimit)} /bin/cp --no-dereference -- "$file" "$copy" || exit ${Resources.debianUpdateChangedCode}`,
+    `[ ! -L "$copy" ] && [ -f "$copy" ] || exit ${Resources.debianUpdateChangedCode}`,
+    `[ "$(/usr/bin/stat --format=%s -- "$copy")" = "$size" ] || exit ${Resources.debianUpdateChangedCode}`,
+    "actual=$(/usr/bin/sha512sum -- \"$copy\")",
+    `[ "\${actual%% *}" = "$hash" ] || exit ${Resources.debianUpdateChangedCode}`,
+    `/usr/bin/dpkg --install -- "$copy" || exit ${Resources.debianUpdateNotInstalledCode}`
+  ].map(t => `${t}\n`).join(String.empty);
   public static readonly windowsSigningHash: string = "sha256";
   public static readonly windowsSignHookName: string = "windows-sign-hook";
   public static readonly packageFuses: Readonly<Record<string, boolean>> = {
@@ -479,6 +529,7 @@ export class Resources {
   public static readonly packageArchiveCheckFolder: string = "archive-check";
   public static readonly packageConfigurationFile: string = "electron-builder.json";
   public static readonly packageReportFile: string = "package-report.json";
+  public static readonly packageUpdateSignaturesFile: string = "update-signatures.json";
   public static readonly packageThirdPartyFolder: string = "third-party";
   public static readonly packageCompanyFolder: string = "company";
   public static readonly packageThirdPartyLicensesFile: string = "runtime-third-party.txt";
@@ -542,6 +593,8 @@ export class Resources {
   public static readonly packagedModuleWithoutId: string = "a module without an id";
   public static readonly packagedModuleWithoutState: string = "in no state";
   public static readonly productWindowsPublisherField: string = "windowsPublisher";
+  public static readonly productLinuxUpdateKeysField: string = "linuxUpdateKeys";
+  public static readonly packagedUpdateKeysInvalid: string = `The packaged product file's ${Resources.productLinuxUpdateKeysField} must be a list of public keys, so its packages cannot be released.`;
   public static readonly publisherNoneVerified: string = `The installed package has no Windows publisher, and ${Resources.windowsPublisherVariable} is not set.`;
   public static readonly publisherMatchVerified: string = `The installed package's Windows publisher matches ${Resources.windowsPublisherVariable}.`;
   public static readonly errorCodeField: "code" = "code";
@@ -613,7 +666,7 @@ export class Resources {
   public static readonly shippedWindowsFilesOmission: string = "it leaves a package's .exe and .dll files out of macOS and Linux packages.";
   public static readonly shippedResourceForkOmission: string = `it leaves out every file and folder whose name starts with ${Resources.shippedResourceForkPrefix}.`;
   public static readonly signingCredentialNames: readonly string[] = [...Resources.windowsSigningCredentials, Resources.windowsPublisherVariable, ...Resources.macSigningCredentials,
-    ...Resources.macInstallerSigningCredentials];
+    ...Resources.macInstallerSigningCredentials, ...Resources.linuxSigningCredentials];
   public static readonly installedLockfileSegments: readonly string[] = [Resources.nodeModulesFolder, ".package-lock.json"];
   public static readonly lockfileVersion: number = 3;
   public static readonly lockfileRootLocation: string = String.empty;
@@ -1213,6 +1266,7 @@ export class Resources {
   public static readonly feedVersionLinePattern: RegExp = /^version: (.+)$/mu;
   public static readonly feedEntryStartPattern: RegExp = /^ {2}- url: /gmu;
   public static readonly feedFileEntryPattern: RegExp = /^ {2}- url: (.+)\n {4}sha512: (.+)\n {4}size: (\d+)$/gmu;
+  public static readonly updateMetadataSignaturePattern: RegExp = /^ {2}- url: (.+)\n {4}sha512: .+\n {4}size: \d+\n {4}signature: (.+)$/gmu;
   public static readonly feedUrlCarriesSecret: string = `${Resources.feedUrlVariable} must not carry user info, a query or a fragment, which could hold a secret, so it is not shown here.`;
   public static readonly releaseRevisionVariable: string = "RELEASE_REVISION";
   public static readonly productUpdateFeedField: string = "updateFeed";
@@ -1345,6 +1399,7 @@ export class Resources {
   public static readonly statOwnerAndModeOption: string = "--format=%u:%a";
   public static readonly sandboxHelperPlainMode: string = "755";
   public static readonly sandboxHelperSetuidMode: string = "4755";
+  public static readonly debianUpdateInstallerMode: string = "755";
   public static readonly apparmorStatusCommand: string = "apparmor_status";
   public static readonly apparmorEnabledOption: string = "--enabled";
   public static readonly apparmorParserCommand: string = "apparmor_parser";
@@ -1355,6 +1410,7 @@ export class Resources {
   public static readonly testCommand: string = "test";
   public static readonly testMissingOption: string = "!";
   public static readonly testExistsOption: string = "-e";
+  public static readonly testFolderOption: string = "-d";
   public static readonly cmpCommand: string = "cmp";
   public static readonly cmpSilentOption: string = "--silent";
   public static readonly grepCommand: string = "grep";
@@ -1849,7 +1905,7 @@ export class Resources {
   public static readonly reportUnsignedChecked: string = "unsigned but marked checked";
   public static readonly reportUnsigned: string = "unsigned";
   public static readonly signedPlatformsField: "signedPlatforms" = "signedPlatforms";
-  public static readonly signablePlatforms: readonly string[] = [Resources.windowsTarget, Resources.macosTarget];
+  public static readonly signablePlatforms: readonly string[] = [Resources.windowsTarget, Resources.macosTarget, Resources.linuxTarget];
   public static readonly signedPlatformsInvalid: string =
     `The root ${Resources.packageManifestFileName}'s desktop.signedPlatforms must list distinct platforms among ${Resources.signablePlatforms.join(", ")}.`;
   public static readonly releaseTargetsSeparator: string = ",";
@@ -2179,8 +2235,12 @@ export class Resources {
     return `The update feed ${feed} serves ${version} for ${targetIds.join(", ")}.\n`;
   }
 
-  public static formatFeedFilesMatch(targetId: string, metadata: string, version: string, names: readonly string[]): string {
-    return `${targetId}: ${metadata} names ${version}, and ${names.join(", ")} match its SHA-512 and size.`;
+  public static formatFeedFilesMatch(targetId: string, metadata: string, version: string, names: readonly string[], isSigned: boolean): string {
+    return `${targetId}: ${metadata} names ${version}, and ${names.join(", ")} match its SHA-512 and size${isSigned ? " and carry a valid signature by a key the app ships" : String.empty}.`;
+  }
+
+  public static formatFeedSignatureInvalid(name: string, feed: string, metadata: string): string {
+    return `${name} at ${feed} carries no valid signature by a key in ${Resources.linuxUpdateKeysVariable} in ${metadata}, so the app would refuse it.`;
   }
 
   public static formatFeedTargetsInvalid(targetIds: readonly string[], text: string): string {
@@ -2306,7 +2366,7 @@ export class Resources {
   }
 
   public static formatUpdateFeedNeedsSigning(repository: string, productName: string, unsigned: readonly string[]): string {
-    return `${repository} is ${productName}'s update feed, which gets only signed ${Resources.signablePlatforms.join(" and ")} packages, `
+    return `${repository} is ${productName}'s update feed, which gets only signed Windows, macOS and Linux packages, `
       + `but desktop.signedPlatforms leaves out ${unsigned.join(" and ")}.`;
   }
 
@@ -2327,8 +2387,8 @@ export class Resources {
       + `${ids.join(", ")}.`;
   }
 
-  public static formatUpdateMetadataEntry(name: string, sha512: string, size: number): readonly string[] {
-    return [`  - url: ${Resources.formatYamlQuoted(name)}`, `    sha512: ${sha512}`, `    size: ${size}`];
+  public static formatUpdateMetadataEntry(name: string, sha512: string, size: number, signature: string | null): readonly string[] {
+    return [`  - url: ${Resources.formatYamlQuoted(name)}`, `    sha512: ${sha512}`, `    size: ${size}`, ...Object.isNull(signature) ? [] : [`    signature: ${signature}`]];
   }
 
   public static formatUpdateMetadata(version: string, entries: readonly string[], updateName: string, sha512: string, releaseDate: string): string {
@@ -3753,8 +3813,28 @@ export class Resources {
     return `${repository} is not the app's release repository, so its packages are unsigned and cannot go to the internal update feed.`;
   }
 
-  public static formatSignedTargetUnsupported(targetId: string): string {
-    return `${Resources.packageSignedOption} signs Windows and macOS packages only, so it cannot sign the ${targetId} package.`;
+  public static formatLinuxSigningCredentialsMissing(missing: readonly string[]): string {
+    return `Signing Linux packages needs ${missing.join(Resources.listSeparator)}, the Ed25519 key that signs the update packages and the public keys the app ships.`;
+  }
+
+  public static formatLinuxPackagesSigned(names: readonly string[]): string {
+    return `Signed ${names.join(Resources.listSeparator)} for the update feed.\n`;
+  }
+
+  public static formatLinuxSignaturesVerified(names: readonly string[]): string {
+    return `Each of ${names.join(Resources.listSeparator)} carries a valid signature by a key the app ships.`;
+  }
+
+  public static formatLinuxSignatureInvalid(name: string): string {
+    return `${name} carries no valid signature by a key the app ships.`;
+  }
+
+  public static formatUpdateSignaturesUnreadable(file: string, error: unknown): string {
+    return `The update signatures ${file} could not be read as JSON: ${String(error)}`;
+  }
+
+  public static formatUpdateSignatureMessage(version: string, targetId: string, name: string, sha512: string): string {
+    return `noldova-desktop-update/1\n${version}\n${targetId}\n${name}\n${sha512}\n`;
   }
 
   public static formatBuilderFailed(exitCode: number | null): string {
@@ -4097,6 +4177,68 @@ export class Resources {
     return `${Resources.macApplicationsFolder}/${installFolder}`;
   }
 
+  public static formatDebianUpdateActionId(applicationId: string): string {
+    return `${applicationId.toLowerCase().replaceAll(Resources.polkitActionIdUnsafe, Resources.polkitActionIdReplacement)}.update`;
+  }
+
+  public static formatDebianUpdatePolicyFile(applicationId: string): string {
+    return `${Resources.polkitActionsFolder}/${Resources.formatDebianUpdateActionId(applicationId)}.policy`;
+  }
+
+  public static formatDebianUpdatePolicy(applicationId: string, name: string): string {
+    const escaped = name.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    return [
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+      "<!DOCTYPE policyconfig PUBLIC \"-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN\" \"http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd\">",
+      "<policyconfig>",
+      `  <action id="${Resources.formatDebianUpdateActionId(applicationId)}">`,
+      `    <description>Install an update of ${escaped}</description>`,
+      `    <message>Installing the ${escaped} update needs an administrator's permission.</message>`,
+      "    <defaults>",
+      "      <allow_any>auth_admin</allow_any>",
+      "      <allow_inactive>auth_admin</allow_inactive>",
+      "      <allow_active>auth_admin</allow_active>",
+      "    </defaults>",
+      Resources.formatDebianUpdateExecPath(`${Resources.debianTemplateProductPath}resources/${Resources.debianUpdateInstallerFile}`),
+      "  </action>",
+      "</policyconfig>"
+    ].join(Resources.lineSeparator);
+  }
+
+  public static formatDebianUpdateExecPath(installer: string): string {
+    return `    <annotate key="org.freedesktop.policykit.exec.path">${installer}</annotate>`;
+  }
+
+  public static formatDebianUpdatePolicyChecked(policy: string, installer: string): string {
+    return `${policy} names ${installer} as its program, so polkit asks for the update installer in the package's own words.`;
+  }
+
+  public static formatDebianUpdatePolicyWrong(policy: string, installer: string): string {
+    return `${policy} doesn't name ${installer} as its program, so pkexec would ask for the update installer with its command line in place of the package's message.`;
+  }
+
+  public static formatDebianUpdatePolicySkipped(folder: string): string {
+    return `${folder} doesn't exist, so the package wrote no polkit action and pkexec asks for the update installer in its own words.`;
+  }
+
+  public static formatDebianUpdatePolicyInstall(applicationId: string, name: string): string {
+    const file = Resources.formatDebianUpdatePolicyFile(applicationId);
+    return [
+      String.empty,
+      `if [ -d '${Resources.polkitActionsFolder}' ]; then`,
+      `  cat > '${file}' <<'${Resources.polkitPolicyEnd}'`,
+      Resources.formatDebianUpdatePolicy(applicationId, name),
+      Resources.polkitPolicyEnd,
+      `  chmod 0644 '${file}'`,
+      "fi",
+      String.empty
+    ].join(Resources.lineSeparator);
+  }
+
+  public static formatDebianUpdatePolicyRemove(applicationId: string): string {
+    return [String.empty, `rm -f '${Resources.formatDebianUpdatePolicyFile(applicationId)}'`, String.empty].join(Resources.lineSeparator);
+  }
+
   public static formatDebianInstallFolder(installFolder: string): string {
     return `${Resources.debianInstallPrefix}/${installFolder}`;
   }
@@ -4175,6 +4317,14 @@ export class Resources {
 
   public static formatDebianSandboxHelperWrong(helper: string, actual: string, expected: string, canCreate: boolean): string {
     return `${helper} is ${actual}, not ${expected} as the package's after-install script leaves it where root ${canCreate ? "can" : "cannot"} create user namespaces.`;
+  }
+
+  public static formatDebianUpdateInstallerWrong(installer: string, actual: string, expected: string): string {
+    return `${installer} is ${actual}, not ${expected}: the app only runs an update installer that only root can change, so this package could never install an update.`;
+  }
+
+  public static formatDebianUpdateInstallerChecked(installer: string, expected: string): string {
+    return `${installer} is ${expected}, so only root can change the update installer the app runs.`;
   }
 
   public static formatDebianSandboxHelperChecked(helper: string, expected: string, canCreate: boolean): string {

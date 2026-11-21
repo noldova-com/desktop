@@ -16,7 +16,7 @@ import "@noldova/context.core";
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import {
-  FeedProvider, FeedSource, type IFeedResponse, UpdateFeedRedirectedException, UpdateFeedRefusedException, UpdateFeedUnreachableException, UpdateInfoInvalidException
+  FeedProvider, FeedSource, type IFeedResponse, UpdateFeedRedirectedException, UpdateFeedRefusedException, UpdateFeedUnreachableException, UpdateInfoInvalidException, UpdateSignatureCheck
 } from "@noldova/desktop.electron";
 
 @TestClass
@@ -46,6 +46,18 @@ export class FeedProviderTests {
       Assert.areEqual(1, files.length);
       Assert.areEqual("https://objects.github.test/releases/v1.3.0/Noldova%20Desktop%20Sample-1.3.0-linux-x64.AppImage", files[0]?.url.href);
       Assert.areEqual("c2hh", files[0]?.info.sha512);
+    });
+  }
+
+  @TestMethod
+  public keepsTheSignatureTheInformationGivesAPackageWhereTheSignatureCheckReadsIt(): Promise<void> {
+    const text = FeedProviderTests.INFO.replace("    size: 1024", "    size: 1024\n    signature: c2lnbmF0dXJl");
+    return FeedProviderTests.withAnswerAsync({ ok: true, status: 200, url: FeedProviderTests.RELEASE, text: () => Promise.resolve(text) }, async provider => {
+      const info = await provider.getLatestVersion();
+      const [entry] = info.files;
+
+      Assert.isTrue(!Object.isUndefined(entry) && "signature" in entry && entry.signature === "c2lnbmF0dXJl");
+      Assert.areEqual("c2lnbmF0dXJl", UpdateSignatureCheck.readSignature(info, "/cache/pending/Noldova Desktop Sample-1.3.0-linux-x64.AppImage"));
     });
   }
 

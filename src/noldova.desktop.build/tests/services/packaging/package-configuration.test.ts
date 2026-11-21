@@ -6,10 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
@@ -18,8 +21,10 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { ProductIdentity } from "../../../src/models/packages/product-identity.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
+import { Resources } from "../../../src/resources.js";
 import { PackageConfiguration } from "../../../src/services/packaging/package-configuration.js";
 import { MainPackageConfigurationsFixture } from "../../fixtures/main-package-configurations.fixture.js";
+import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 
 @TestClass
 export class PackageConfigurationTests {
@@ -204,10 +209,45 @@ export class PackageConfigurationTests {
       const original = await readFile(path.join(PackageConfiguration.locateBuilderTemplates(), file), "utf8");
       const written = await readFile(path.join(root.path, "_build", "package", "debian-templates", file), "utf8");
       const linked = file === "apparmor-profile.tpl" ? original
-        : original.replaceAll("'/opt/${sanitizedProductName}/${executable}'", "'/opt/${sanitizedProductName}/resources/bin/${executable}'");
+        : `${original}${PackageConfigurationTests.describeTemplateAddition(file)}`.replaceAll("'/opt/${sanitizedProductName}/${executable}'",
+          "'/opt/${sanitizedProductName}/resources/bin/${executable}'");
       Assert.areEqual(linked.replaceAll("/opt/${sanitizedProductName}/", "/opt/Sample Makers/${sanitizedProductName}/"), written, file);
       Assert.isTrue(written.includes("/opt/Sample Makers/${sanitizedProductName}/"), file);
     }
+  }
+
+  @TestMethod
+  public async installsAPolkitActionForTheUpdateInstallerAndRemovesItWithThePackageAsync(): Promise<void> {
+    await using root = await PackageConfigurationTests.createRootAsync();
+    const configuration = PackageConfigurationTests.create(new PackageTarget("linux", "x64", true), false, null, false, root.path, PackageConfigurationTests.FOLDERED);
+
+    await configuration.writeAsync(path.join(root.path, "_build", "package", "electron-builder.json"));
+
+    const templates = path.join(root.path, "_build", "package", "debian-templates");
+    const installed = await readFile(path.join(templates, "after-install.tpl"), "utf8");
+    const removed = await readFile(path.join(templates, "after-remove.tpl"), "utf8");
+    for (const line of [
+      "if [ -d '/usr/share/polkit-1/actions' ]; then",
+      "  cat > '/usr/share/polkit-1/actions/com.example.sample.update.policy' <<'NOLDOVA_UPDATE_POLICY'",
+      "  <action id=\"com.example.sample.update\">",
+      "    <description>Install an update of Sample App</description>",
+      "    <message>Installing the Sample App update needs an administrator's permission.</message>",
+      "      <allow_active>auth_admin</allow_active>",
+      "    <annotate key=\"org.freedesktop.policykit.exec.path\">/opt/Sample Makers/${sanitizedProductName}/resources/linux-update-install</annotate>",
+      "NOLDOVA_UPDATE_POLICY",
+      "  chmod 0644 '/usr/share/polkit-1/actions/com.example.sample.update.policy'"
+    ])
+      Assert.isTrue(installed.split("\n").includes(line), line);
+    Assert.isTrue(removed.endsWith("\nrm -f '/usr/share/polkit-1/actions/com.example.sample.update.policy'\n"), removed);
+  }
+
+  @TestMethod
+  public namesTheUpdatesPolkitActionInLowercaseAndEscapesTheAppsNameInIt(): void {
+    const policy = Resources.formatDebianUpdatePolicy("Com.Example_Sample App", "Tom & <Jerry>");
+
+    Assert.areEqual("com.example-sample-app.update", Resources.formatDebianUpdateActionId("Com.Example_Sample App"));
+    Assert.isTrue(policy.includes("<action id=\"com.example-sample-app.update\">"), policy);
+    Assert.isTrue(policy.includes("<description>Install an update of Tom &amp; &lt;Jerry&gt;</description>"), policy);
   }
 
   @TestMethod
@@ -281,7 +321,8 @@ export class PackageConfigurationTests {
 
     Assert.areEqual(JSON.stringify({ maintainer: "Sample", afterInstall: path.join(templates, "after-install.tpl"), afterRemove: path.join(templates, "after-remove.tpl"),
       appArmorProfile: path.join(templates, "apparmor-profile.tpl") }), JSON.stringify(json.readValue("deb")));
-    Assert.areEqual(JSON.stringify([{ from: path.join(PackageConfigurationTests.ROOT, "_build", "package", "command", "sample-app"), to: "bin/sample-app" }]),
+    Assert.areEqual(JSON.stringify([{ from: path.join(PackageConfigurationTests.ROOT, "_build", "package", "command", "sample-app"), to: "bin/sample-app" },
+      { from: path.join(PackageConfigurationTests.ROOT, "_build", "package", "command", "linux-update-install"), to: "linux-update-install" }]),
       JSON.stringify(json.readObject("linux").readValue("extraResources")));
     Assert.areEqual(JSON.stringify({ homepage: "https://github.com/example/sample-app" }), JSON.stringify(json.readValue("extraMetadata")));
   }
@@ -367,7 +408,10 @@ export class PackageConfigurationTests {
     await configuration.writeAsync(file);
 
     const command = await readFile(path.join(root.path, "_build", "package", "command", "sample-app"), "utf8");
+    const installer = path.join(root.path, "_build", "package", "command", "linux-update-install");
     Assert.isTrue(existsSync(file));
+    Assert.isTrue((await readFile(installer, "utf8")).startsWith("#!/bin/sh\nset -eu\n"));
+    Assert.isTrue(process.platform === "win32" || ((await stat(installer)).mode & 0o777) === 0o755);
     Assert.isTrue(command.startsWith("#!/bin/sh\n"), command);
     Assert.isTrue(command.endsWith("exec \"$resources/../sample-app\" \"$resources/app.asar/node_modules/@noldova/desktop.cli/services/cli-entry.js\" \"$@\"\n"), command);
     Assert.isTrue(command.includes("export ELECTRON_RUN_AS_NODE=1\n"), command);
@@ -375,10 +419,134 @@ export class PackageConfigurationTests {
       const original = await readFile(path.join(PackageConfiguration.locateBuilderTemplates(), name), "utf8");
       const written = await readFile(path.join(root.path, "_build", "package", "debian-templates", name), "utf8");
       Assert.areEqual(name === "apparmor-profile.tpl" ? original
-        : original.replaceAll("'/opt/${sanitizedProductName}/${executable}'", "'/opt/${sanitizedProductName}/resources/bin/${executable}'"), written, name);
+        : `${original}${PackageConfigurationTests.describeTemplateAddition(name)}`.replaceAll("'/opt/${sanitizedProductName}/${executable}'",
+          "'/opt/${sanitizedProductName}/resources/bin/${executable}'"), written, name);
       Assert.areEqual(name !== "apparmor-profile.tpl", written.includes("'/opt/${sanitizedProductName}/resources/bin/${executable}'"), name);
       Assert.isFalse(written.includes("'/opt/${sanitizedProductName}/${executable}'"), name);
     }
+  }
+
+  @TestMethod
+  @PlatformFixture.linuxOnly()
+  public async refusesArgumentsTheDebianUpdateInstallerCannotTrustAndLeavesNothingAsync(): Promise<void> {
+    await PackageConfigurationTests.withUpdateInstallerAsync(async (folder, runAsync) => {
+      const file = path.join(folder, "update.deb");
+      await writeFile(file, "the package");
+      const hash = createHash("sha512").update("the package").digest("hex");
+      const size = String("the package".length);
+      const cases: readonly (readonly string[])[] = [
+        [],
+        [file],
+        [file, hash],
+        [file, hash, size, "extra"],
+        [file, hash.toUpperCase(), size],
+        [file, hash.slice(1), size],
+        [file, `${hash.slice(1)}g`, size],
+        [file, `${hash.slice(1)} `, size],
+        [file, hash, String.empty],
+        [file, hash, "0"],
+        [file, hash, `0${size}`],
+        [file, hash, `${size}x`],
+        [file, hash, `-${size}`]
+      ];
+
+      const codes: number[] = [];
+      for (const args of cases)
+        codes.push(await runAsync(args));
+
+      Assert.areEqual(JSON.stringify(cases.map(() => 64)), JSON.stringify(codes));
+    });
+  }
+
+  @TestMethod
+  @PlatformFixture.linuxOnly()
+  public async refusesOnItsOwnCopyAnythingButTheCheckedPackageAndRemovesTheCopyAsync(): Promise<void> {
+    await PackageConfigurationTests.withUpdateInstallerAsync(async (folder, runAsync) => {
+      const target = `${folder}${"/.".repeat(8)}/checked.deb`;
+      const content = "the checked package".padEnd(target.length, ".");
+      const file = path.join(folder, "update.deb");
+      await writeFile(file, content);
+      const checked = createHash("sha512").update(content).digest("hex");
+      const size = String(content.length);
+      await writeFile(path.join(folder, "checked.deb"), content);
+      const link = path.join(folder, "link.deb");
+      Assert.isTrue(path.isAbsolute(target) && target.length === content.length, target);
+      await symlink(target, link);
+      const directory = path.join(folder, "directory.deb");
+      await mkdir(directory);
+      const swapped = path.join(folder, "swapped.deb");
+      await writeFile(swapped, "the swapped package".padEnd(target.length, "."));
+      const cases: readonly (readonly string[])[] = [
+        [link, checked, size],
+        [directory, checked, size],
+        [path.join(folder, "missing.deb"), checked, size],
+        [file, checked, String(Number(size) + 1)],
+        [swapped, checked, size]
+      ];
+
+      const codes: number[] = [];
+      for (const args of cases)
+        codes.push(await runAsync(args));
+
+      Assert.areEqual(JSON.stringify(cases.map(() => 65)), JSON.stringify(codes));
+    });
+  }
+
+  @TestMethod
+  @PlatformFixture.linuxOnly()
+  public async stopsCopyingAFileThatNeverEndsAtItsLimitAsync(): Promise<void> {
+    await PackageConfigurationTests.withUpdateInstallerAsync(async (folder, runAsync, installer) => {
+      const fifo = path.join(folder, "update.deb");
+      await promisify(execFile)("mkfifo", [fifo]);
+      const limited = path.join(folder, "limited-update-install");
+      const script = await readFile(installer, "utf8");
+      Assert.isTrue(script.includes("/usr/bin/timeout 300 "), script);
+      await writeFile(limited, script.replace("/usr/bin/timeout 300 ", "/usr/bin/timeout 1 "), { mode: 0o755 });
+
+      const code = await runAsync([fifo, "a".repeat(128), "1"], limited);
+
+      Assert.areEqual(65, code);
+    });
+  }
+
+  @TestMethod
+  @PlatformFixture.linuxOnly()
+  public async reportsADpkgThatFailsOnTheCheckedCopyAndRemovesTheCopyAsync(): Promise<void> {
+    await PackageConfigurationTests.withUpdateInstallerAsync(async (folder, runAsync) => {
+      const file = path.join(folder, "update.deb");
+      await writeFile(file, "not a Debian archive");
+
+      const code = await runAsync([file, createHash("sha512").update("not a Debian archive").digest("hex"), String("not a Debian archive".length)]);
+
+      Assert.areEqual(66, code);
+    });
+  }
+
+  private static async withUpdateInstallerAsync(test: (folder: string, runAsync: (args: readonly string[], program?: string) => Promise<number>, installer: string) => Promise<void>):
+    Promise<void> {
+    await using root = await PackageConfigurationTests.createRootAsync();
+    await PackageConfigurationTests.create(new PackageTarget("linux", "x64"), false, null, false, root.path).writeAsync(path.join(root.path, "_build", "package", "electron-builder.json"));
+    const installer = path.join(root.path, "_build", "package", "command", "linux-update-install");
+    const copies = async (): Promise<string> => JSON.stringify((await readdir("/tmp")).filter(t => t.startsWith("noldova-desktop-update.")).sort());
+    const before = await copies();
+    const folder = path.join(root.path, "packages");
+    await mkdir(folder);
+    await test(folder, async (args, program = installer) => {
+      try {
+        await promisify(execFile)(program, [...args]);
+        return 0;
+      }
+      catch (error) {
+        return error instanceof Error && "code" in error && Object.isNumber(error.code) ? error.code : -1;
+      }
+    }, installer);
+    Assert.areEqual(before, await copies());
+  }
+
+  private static describeTemplateAddition(file: string): string {
+    if (file === "after-install.tpl")
+      return Resources.formatDebianUpdatePolicyInstall("com.example.sample", "Sample App");
+    return file === "after-remove.tpl" ? Resources.formatDebianUpdatePolicyRemove("com.example.sample") : String.empty;
   }
 
   private static create(target: PackageTarget, isSigned: boolean, publisher: string | null, hasWebViews: boolean, root: string = PackageConfigurationTests.ROOT,

@@ -223,6 +223,7 @@ export class Resources {
   public static readonly dataDirectoryVariableField: string = "dataDirectoryVariable";
   public static readonly iconsField: string = "icons";
   public static readonly windowsPublisherField: string = "windowsPublisher";
+  public static readonly linuxUpdateKeysField: string = "linuxUpdateKeys";
   public static readonly updateFeedField: string = "updateFeed";
   public static readonly permissionsModuleField: string = "permissionsModule";
   public static readonly installFolderField: string = "installFolder";

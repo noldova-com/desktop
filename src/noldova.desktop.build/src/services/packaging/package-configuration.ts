@@ -102,8 +102,10 @@ export class PackageConfiguration {
       await mkdir(path.dirname(this.posixCommand), { recursive: true });
       await writeFile(this.posixCommand, this.describePosixCommand(), { mode: Resources.executableMode });
     }
-    if (this.target.platform === Resources.linuxTarget)
+    if (this.target.platform === Resources.linuxTarget) {
+      await writeFile(this.updateInstaller, Resources.debianUpdateInstallerScript, { mode: Resources.executableMode });
       await this.writeDebianTemplatesAsync(this.product.installFolder);
+    }
   }
 
   public static locateBuilderTemplates(): string {
@@ -130,10 +132,17 @@ export class PackageConfiguration {
   private async writeDebianTemplatesAsync(installFolder: string | null): Promise<void> {
     const folder = new PackageLayout(this.root).debianTemplates;
     await mkdir(folder, { recursive: true });
-    for (const file of Resources.debianTemplates.values()) {
+    for (const [option, file] of Resources.debianTemplates) {
       const source = path.join(PackageConfiguration.locateBuilderTemplates(), file);
-      await writeFile(path.join(folder, file), PackageConfiguration.placeDebianTemplate(await readFile(source, Resources.textEncoding), source, installFolder));
+      const text = `${await readFile(source, Resources.textEncoding)}${this.describeDebianTemplateAddition(option)}`;
+      await writeFile(path.join(folder, file), PackageConfiguration.placeDebianTemplate(text, source, installFolder));
     }
+  }
+
+  private describeDebianTemplateAddition(option: string): string {
+    if (option === Resources.afterInstallTemplateOption)
+      return Resources.formatDebianUpdatePolicyInstall(this.product.applicationId, this.product.name);
+    return option === Resources.afterRemoveTemplateOption ? Resources.formatDebianUpdatePolicyRemove(this.product.applicationId) : String.empty;
   }
 
   private static spell(extension: string): string[] {
@@ -152,6 +161,10 @@ export class PackageConfiguration {
 
   private get posixCommand(): string {
     return path.join(new PackageLayout(this.root).command, this.product.slug);
+  }
+
+  private get updateInstaller(): string {
+    return path.join(new PackageLayout(this.root).command, Resources.debianUpdateInstallerFile);
   }
 
   private get windowsCommand(): string {
@@ -224,7 +237,8 @@ export class PackageConfiguration {
             target,
             icon: path.join(icons, Resources.linuxIconFile),
             executableName: product.slug,
-            extraResources: [{ from: this.posixCommand, to: Resources.formatPackagedCommandPath(product.slug) }],
+            extraResources: [{ from: this.posixCommand, to: Resources.formatPackagedCommandPath(product.slug) },
+              { from: this.updateInstaller, to: Resources.debianUpdateInstallerFile }],
             syncDesktopName: true,
             category: product.linuxCategory,
             artifactName,

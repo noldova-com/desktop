@@ -15,6 +15,7 @@ export class FakeUpdater implements IUpdater {
   public readonly formatted: string[] = [];
   public readonly downloadedVersions: string[] = [];
   public downloadedFile: string | null = null;
+  public signature: string | null = null;
   public checks: number = 0;
   public cancels: number = 0;
   public downloads: number = 0;
@@ -40,6 +41,10 @@ export class FakeUpdater implements IUpdater {
   public formatPackagePath(version: string): string {
     this.formatted.push(version);
     return this.packagePath;
+  }
+
+  public readSignature(file: string): string | null {
+    return file === this.packagePath ? this.signature : null;
   }
 
   public cancel(): void {

@@ -16,12 +16,14 @@ export class SigningCredentialsTests {
   @TestMethod
   public takesEverySigningCredentialOutOfTheEnvironmentAndLeavesTheRest(): void {
     const environment: NodeJS.ProcessEnv = {
-      PATH: "/usr/bin", AZURE_TENANT_ID: "tenant", AZURE_CLIENT_SECRET: String.empty, WINDOWS_PUBLISHER: "CN=Sample", APPLE_API_KEY_P8: "key", MAC_CERTIFICATE: undefined
+      PATH: "/usr/bin", AZURE_TENANT_ID: "tenant", AZURE_CLIENT_SECRET: String.empty, WINDOWS_PUBLISHER: "CN=Sample", APPLE_API_KEY_P8: "key", MAC_CERTIFICATE: undefined,
+      LINUX_UPDATE_SIGNING_KEY: "private", LINUX_UPDATE_PUBLIC_KEYS: "public"
     };
 
     const credentials = SigningCredentials.take(environment);
 
-    Assert.areEqual(JSON.stringify({ AZURE_TENANT_ID: "tenant", AZURE_CLIENT_SECRET: String.empty, WINDOWS_PUBLISHER: "CN=Sample", APPLE_API_KEY_P8: "key" }),
+    Assert.areEqual(JSON.stringify({ AZURE_TENANT_ID: "tenant", AZURE_CLIENT_SECRET: String.empty, WINDOWS_PUBLISHER: "CN=Sample", APPLE_API_KEY_P8: "key",
+      LINUX_UPDATE_SIGNING_KEY: "private", LINUX_UPDATE_PUBLIC_KEYS: "public" }),
       JSON.stringify(credentials));
     Assert.areEqual(JSON.stringify(["PATH"]), JSON.stringify(Object.keys(environment)));
   }

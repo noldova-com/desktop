@@ -242,11 +242,15 @@ export class FeedUpdaterTests {
       const app = new FakeAppUpdater();
       const checked: string[] = [];
       const lines: string[] = [];
+      const present: boolean[] = [];
       let failure: string | null = null;
       const updater = new FeedUpdater(app, FeedUpdaterTests.SOURCE, FeedUpdaterTests.INSTALLATION, folder, "noldova-desktop", t => {
         checked.push(t);
         return Promise.resolve(failure);
-      }, t => lines.push(t));
+      }, t => {
+        lines.push(t);
+        present.push(existsSync(packagePath));
+      });
       const packagePath = updater.formatPackagePath("1.3.0");
       await mkdir(join(packagePath, ".."), { recursive: true });
       await writeFile(packagePath, "Noldova Desktop Sample 1.3.0");
@@ -278,13 +282,60 @@ export class FeedUpdaterTests {
       Assert.isTrue(isDeleted);
       Assert.areEqual("The update isn't signed by the publisher.", stuck.message);
       Assert.isTrue(existsSync(packagePath));
-      Assert.areEqual(1, lines.length);
-      Assert.isTrue(lines[0]?.startsWith("The update that failed its publisher check could not be deleted: Error: EBUSY") === true, lines[0]);
+      Assert.areEqual(3, lines.length);
+      Assert.areEqual("The downloaded update was refused and is deleted: The signature is not the publisher's.", lines[0]);
+      Assert.areEqual(lines[0], lines[1]);
+      Assert.isTrue(lines[2]?.startsWith("The update that failed its publisher check could not be deleted: Error: EBUSY") === true, lines[2]);
+      Assert.areEqual(JSON.stringify([true, true, true]), JSON.stringify(present));
       Assert.areEqual(JSON.stringify(Array(4).fill(packagePath)), JSON.stringify(checked));
     });
   }
 
-  private static create(app: FakeAppUpdater, folder: string = FeedUpdaterTests.INSTALLATION): FeedUpdater {
+  @TestMethod
+  public givesTheCheckTheUpdateInformationOfTheLastCheckOrNoneBeforeOne(): Promise<void> {
+    return FeedUpdaterTests.withFolderAsync(async folder => {
+      const app = new FakeAppUpdater();
+      const seen: (string | null)[] = [];
+      const updater = new FeedUpdater(app, FeedUpdaterTests.SOURCE, join(folder, "0123456789abcdef"), folder, "noldova-desktop", (_, info) => {
+        seen.push(info?.version ?? null);
+        return Promise.resolve(null);
+      }, () => undefined);
+      const packagePath = updater.formatPackagePath("1.3.0");
+      await mkdir(join(packagePath, ".."), { recursive: true });
+      await writeFile(packagePath, "Noldova Desktop Sample 1.3.0");
+      app.download = () => Promise.resolve([packagePath]);
+
+      await updater.downloadAsync("1.3.0", () => undefined);
+      app.check = () => Promise.resolve({ isUpdateAvailable: true, updateInfo: FakeAppUpdater.info("1.3.0") });
+      await updater.checkAsync();
+      await updater.downloadAsync("1.3.0", () => undefined);
+      app.check = () => Promise.resolve(null);
+      await updater.checkAsync();
+      await updater.downloadAsync("1.3.0", () => undefined);
+
+      Assert.areEqual(JSON.stringify([null, "1.3.0", null]), JSON.stringify(seen));
+    });
+  }
+
+  @TestMethod
+  public givesTheSignatureTheLastChecksInformationCarriesForAFile(): Promise<void> {
+    return FeedUpdaterTests.withFolderAsync(async folder => {
+      const app = new FakeAppUpdater();
+      const updater = FeedUpdaterTests.create(app, folder);
+      const packagePath = updater.formatPackagePath("1.3.0");
+      const before = updater.readSignature(packagePath);
+      const entry = { url: basename(packagePath), sha512: "c2hh", size: 28, signature: "c2ln" };
+      app.check = () => Promise.resolve({ isUpdateAvailable: true, updateInfo: { ...FakeAppUpdater.info("1.3.0"), files: [entry] } });
+
+      await updater.checkAsync();
+
+      Assert.isNull(before);
+      Assert.areEqual("c2ln", updater.readSignature(packagePath));
+      Assert.isNull(updater.readSignature(updater.formatPackagePath("1.4.0")));
+    });
+  }
+
+  private static create(app: FakeAppUpdater,folder: string = FeedUpdaterTests.INSTALLATION): FeedUpdater {
     return new FeedUpdater(app, FeedUpdaterTests.SOURCE, folder === FeedUpdaterTests.INSTALLATION ? folder : join(folder, "0123456789abcdef"), "/cache", "noldova-desktop", null, () => undefined);
   }
 

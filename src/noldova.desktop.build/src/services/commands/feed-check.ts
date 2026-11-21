@@ -19,6 +19,7 @@ import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { ResponseBody } from "../../models/response-body.ts";
 import { UpdateFeed } from "../packages/update-feed.ts";
 import { UpdateMetadata } from "../release/update-metadata.ts";
+import { UpdateSignature } from "../../models/release/update-signature.ts";
 import { Resources } from "../../resources.ts";
 
 export class FeedCheck {
@@ -64,12 +65,15 @@ export class FeedCheck {
     if (!Resources.feedVersionPattern.test(version))
       throw new BuildException(Resources.formatFeedVersionInvalid(version));
     const targets = this.readTargets();
+    const keys = this.readUpdateKeys();
+    if (keys.length === 0 && targets.some(t => t.platform === Resources.linuxTarget))
+      throw new BuildException(Resources.feedLinuxKeysMissing);
     const deadline = this.clock.now() + this.readWaitSeconds() * Resources.millisecondsPerSecond;
     const end = deadline + Resources.feedDownloadLimit;
     for (const target of targets) {
       const name = UpdateMetadata.formatFileName(target);
       const text = await this.readUpdateInformationAsync(feed, name, version, deadline, end);
-      this.output.write(Resources.formatOutputLine(await this.checkFilesAsync(feed, name, version, text, target, deadline, end)));
+      this.output.write(Resources.formatOutputLine(await this.checkFilesAsync(feed, name, version, text, target, keys, deadline, end)));
     }
     this.output.write(Resources.formatFeedServes(feed, version, targets.map(t => t.id)));
   }
@@ -109,8 +113,11 @@ export class FeedCheck {
     await this.clock.pauseAsync(Math.min(Resources.feedRetryInterval, remaining));
   }
 
-  private async checkFilesAsync(feed: string, metadata: string, version: string, text: string, target: PackageTarget, deadline: number, end: number): Promise<string> {
-    const files: IFeedFile[] = [...text.matchAll(Resources.feedFileEntryPattern)].map(t => ({ name: FeedCheck.unquote(String(t[1])), sha512: String(t[2]), size: Number(t[3]) }));
+  private async checkFilesAsync(feed: string, metadata: string, version: string, text: string, target: PackageTarget, keys: readonly string[], deadline: number, end: number):
+    Promise<string> {
+    const files: IFeedFile[] = [...text.matchAll(Resources.feedFileEntryPattern)].map(t => ({ name: UpdateMetadata.unquote(String(t[1])), sha512: String(t[2]), size: Number(t[3]) }));
+    const signatures = UpdateMetadata.readSignatures(text);
+    const isSigned = target.platform === Resources.linuxTarget;
     if (files.length === 0)
       throw new BuildException(Resources.formatFeedListsNoFiles(metadata, feed));
     if (files.length !== [...text.matchAll(Resources.feedEntryStartPattern)].length)
@@ -122,8 +129,10 @@ export class FeedCheck {
         throw new BuildException(Resources.formatFeedHashMismatch(file.name, feed, sha512, metadata, file.sha512));
       if (bytes.length !== file.size)
         throw new BuildException(Resources.formatFeedSizeMismatch(file.name, feed, bytes.length, metadata, file.size));
+      if (isSigned && !UpdateSignature.isSignedByOneOf(keys, UpdateSignature.formatMessage(version, target.id, file.name, sha512), signatures.get(file.name) ?? String.empty))
+        throw new BuildException(Resources.formatFeedSignatureInvalid(file.name, feed, metadata));
     }
-    return Resources.formatFeedFilesMatch(target.id, metadata, version, files.map(t => t.name));
+    return Resources.formatFeedFilesMatch(target.id, metadata, version, files.map(t => t.name), isSigned);
   }
 
   private async openAsync(feed: string, name: string, end: number): Promise<Response> {
@@ -178,6 +187,11 @@ export class FeedCheck {
     return all.filter(t => ids.includes(t.id)).sort((first, second) => ids.indexOf(first.id) - ids.indexOf(second.id));
   }
 
+  private readUpdateKeys(): readonly string[] {
+    const text = this.read(Resources.linuxUpdateKeysVariable);
+    return text.length === 0 ? [] : UpdateSignature.readPublicKeys(text);
+  }
+
   private readWaitSeconds(): number {
     const text = this.read(Resources.feedWaitVariable);
     if (text.length === 0)
@@ -208,10 +222,5 @@ export class FeedCheck {
     catch (error) {
       throw new BuildException(Resources.formatFeedReadFailed(name, feed, error), new ExceptionOptions(error));
     }
-  }
-
-  private static unquote(text: string): string {
-    const quoted = Resources.yamlQuotedPattern.exec(text);
-    return Object.isNull(quoted) ? text : String(quoted[1]).replaceAll(Resources.yamlEscapedQuote, Resources.yamlQuote);
   }
 }

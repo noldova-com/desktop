@@ -21,14 +21,14 @@ import { DevelopmentFolderFixture } from "../../fixtures/development-folder.fixt
 
 @TestClass
 export class ReleaseSigningTests {
-  private static readonly INVALID: string = "The root package.json's desktop.signedPlatforms must list distinct platforms among windows, macos.";
+  private static readonly INVALID: string = "The root package.json's desktop.signedPlatforms must list distinct platforms among windows, macos, linux.";
   private static readonly PRODUCT: ProductIdentity = ProductIdentity.fromManifest(JsonReader.fromValue({ desktop: { product: DevelopmentFolderFixture.PRODUCT } }));
 
   @TestMethod
   public async listsTheSignedPlatformsInTheirOwnOrderForTheReleaseRepositoryAsync(): Promise<void> {
-    const signing = await ReleaseSigningTests.readAsync({ signedPlatforms: ["macos", "windows"] });
+    const signing = await ReleaseSigningTests.readAsync({ signedPlatforms: ["linux", "macos", "windows"] });
 
-    Assert.areEqual("windows,macos", signing.listSignedPlatforms(ReleaseSigningTests.PRODUCT, "Example/Sample-App").join());
+    Assert.areEqual("windows,macos,linux", signing.listSignedPlatforms(ReleaseSigningTests.PRODUCT, "Example/Sample-App").join());
   }
 
   @TestMethod
@@ -40,19 +40,19 @@ export class ReleaseSigningTests {
 
   @TestMethod
   public async refusesTheReleaseRepositoryWhenAPlatformIsUnsignedAsync(): Promise<void> {
-    for (const [platforms, unsigned] of [[[], "windows and macos"], [["windows"], "macos"]] as const) {
+    for (const [platforms, unsigned] of [[[], "windows and macos and linux"], [["windows", "macos"], "linux"]] as const) {
       const signing = await ReleaseSigningTests.readAsync({ signedPlatforms: platforms });
 
       const error = Assert.throws(() => signing.listSignedPlatforms(ReleaseSigningTests.PRODUCT, "example/sample-app"), BuildException);
 
-      Assert.areEqual("example/sample-app is Sample App's update feed, which gets only signed windows and macos packages, "
+      Assert.areEqual("example/sample-app is Sample App's update feed, which gets only signed Windows, macOS and Linux packages, "
         + `but desktop.signedPlatforms leaves out ${unsigned}.`, error.message);
     }
   }
 
   @TestMethod
   public async refusesSignedPlatformsThatAreNotADistinctListOfSignablePlatformsAsync(): Promise<void> {
-    for (const platforms of ["windows", ["windows", "windows"], ["linux"], [1]]) {
+    for (const platforms of ["windows", ["windows", "windows"], ["solaris"], [1]]) {
       const error = await Assert.throwsAsync(() => ReleaseSigningTests.readAsync({ signedPlatforms: platforms }), BuildException);
 
       Assert.areEqual(ReleaseSigningTests.INVALID, error.message, JSON.stringify(platforms));

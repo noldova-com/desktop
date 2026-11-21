@@ -22,14 +22,16 @@ export class DebianInstall implements ISystemInstall {
   private readonly runner: ProcessRunner;
   private readonly folder: string;
   private readonly slug: string;
+  private readonly applicationId: string;
 
   public readonly packageName: string;
   public readonly installed: InstalledPackage;
 
-  private constructor(runner: ProcessRunner, folder: string, slug: string, packageName: string, program: string) {
+  private constructor(runner: ProcessRunner, folder: string, slug: string, applicationId: string, packageName: string, program: string) {
     this.runner = runner;
     this.folder = folder;
     this.slug = slug;
+    this.applicationId = applicationId;
     this.packageName = packageName;
     this.installed = new InstalledPackage(program, program, path.posix.join(path.posix.dirname(program), Resources.packagedResourcesFolder), null);
   }
@@ -42,7 +44,7 @@ export class DebianInstall implements ISystemInstall {
     return path.posix.join(Resources.apparmorProfilesFolder, this.slug);
   }
 
-  public static async installAsync(runner: ProcessRunner, file: string, slug: string, installFolder: string | null, folder: string): Promise<DebianInstall> {
+  public static async installAsync(runner: ProcessRunner, file: string, slug: string, installFolder: string | null, folder: string, applicationId: string): Promise<DebianInstall> {
     const field = await runner.captureAsync(Resources.dpkgDebCommand, [Resources.dpkgDebFieldOption, file, Resources.debianPackageField], folder, Resources.smokeCommandLimit);
     const packageName = field.output.trim();
     if (!field.isSuccessful || packageName.length === 0)
@@ -70,7 +72,7 @@ export class DebianInstall implements ISystemInstall {
     const expected = Object.isNull(installFolder) ? Resources.debianInstallPrefix : Resources.formatDebianInstallFolder(installFolder);
     if (!path.posix.dirname(path.posix.dirname(program)).endsWith(expected))
       throw await DebianInstall.removeAfterAsync(runner, packageName, folder, new BuildException(Resources.formatDebianInstalledElsewhere(program, expected)));
-    return new DebianInstall(runner, folder, slug, packageName, program);
+    return new DebianInstall(runner, folder, slug, applicationId, packageName, program);
   }
 
   private static async removeAfterAsync(runner: ProcessRunner, packageName: string, folder: string, failure: unknown): Promise<unknown> {
@@ -98,7 +100,9 @@ export class DebianInstall implements ISystemInstall {
   }
 
   public async verifyAsync(): Promise<string> {
-    return [await this.verifySandboxHelperAsync(), await this.verifyProfileAsync(), await this.verifyPackageTypeAsync()].join(Resources.lineSeparator);
+    return [await this.verifySandboxHelperAsync(), await this.verifyUpdateInstallerAsync(), await this.verifyUpdatePolicyAsync(), await this.verifyProfileAsync(),
+      await this.verifyPackageTypeAsync()]
+      .join(Resources.lineSeparator);
   }
 
   public async removeAsync(): Promise<string> {
@@ -123,6 +127,26 @@ export class DebianInstall implements ISystemInstall {
     if (!status.isSuccessful || actual !== expected)
       throw new BuildException(Resources.formatDebianSandboxHelperWrong(helper, status.isSuccessful ? actual : status.text, expected, canCreate));
     return Resources.formatDebianSandboxHelperChecked(helper, expected, canCreate);
+  }
+
+  private async verifyUpdateInstallerAsync(): Promise<string> {
+    const installer = path.posix.join(this.installed.resources, Resources.debianUpdateInstallerFile);
+    const expected = Resources.formatOwnerAndMode(Resources.rootUserId, Resources.debianUpdateInstallerMode);
+    const status = await this.runAsync(Resources.statCommand, [Resources.statOwnerAndModeOption, installer]);
+    const actual = status.output.trim();
+    if (!status.isSuccessful || actual !== expected)
+      throw new BuildException(Resources.formatDebianUpdateInstallerWrong(installer, status.isSuccessful ? actual : status.text, expected));
+    return Resources.formatDebianUpdateInstallerChecked(installer, expected);
+  }
+
+  private async verifyUpdatePolicyAsync(): Promise<string> {
+    if (!(await this.runAsync(Resources.testCommand, [Resources.testFolderOption, Resources.polkitActionsFolder])).isSuccessful)
+      return Resources.formatDebianUpdatePolicySkipped(Resources.polkitActionsFolder);
+    const installer = path.posix.join(this.installed.resources, Resources.debianUpdateInstallerFile);
+    const policy = Resources.formatDebianUpdatePolicyFile(this.applicationId);
+    if (!(await this.runAsync(Resources.grepCommand, [...Resources.grepWholeLineOptions, Resources.formatDebianUpdateExecPath(installer), policy])).isSuccessful)
+      throw new BuildException(Resources.formatDebianUpdatePolicyWrong(policy, installer));
+    return Resources.formatDebianUpdatePolicyChecked(policy, installer);
   }
 
   private async verifyProfileAsync(): Promise<string> {

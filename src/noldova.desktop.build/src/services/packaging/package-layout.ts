@@ -71,6 +71,10 @@ export class PackageLayout {
     return path.join(this.folder, Resources.packageReportFile);
   }
 
+  public get updateSignatures(): string {
+    return path.join(this.folder, Resources.packageUpdateSignaturesFile);
+  }
+
   public get thirdParty(): string {
     return path.join(this.folder, Resources.packageThirdPartyFolder);
   }

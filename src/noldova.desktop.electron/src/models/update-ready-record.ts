@@ -15,12 +15,14 @@ export class UpdateReadyRecord {
   public readonly file: string;
   public readonly sha512: string;
   public readonly isNotified: boolean;
+  public readonly signature: string | null;
 
-  public constructor(version: string, file: string, sha512: string, isNotified: boolean) {
+  public constructor(version: string, file: string, sha512: string, isNotified: boolean, signature: string | null) {
     this.version = version;
     this.file = file;
     this.sha512 = sha512;
     this.isNotified = isNotified;
+    this.signature = signature;
   }
 
   public static fromJson(value: unknown): UpdateReadyRecord {
@@ -29,11 +31,12 @@ export class UpdateReadyRecord {
       reader.readNonBlankString(Resources.updateVersionField),
       reader.readNonBlankString(Resources.updateFileField),
       reader.readNonBlankString(Resources.updateSha512Field),
-      reader.readBoolean(Resources.updateNotifiedField));
+      reader.readBoolean(Resources.updateNotifiedField),
+      reader.hasField(Resources.updateSignatureField) ? reader.readNullableString(Resources.updateSignatureField) : null);
   }
 
   public notified(): UpdateReadyRecord {
-    return new UpdateReadyRecord(this.version, this.file, this.sha512, true);
+    return new UpdateReadyRecord(this.version, this.file, this.sha512, true, this.signature);
   }
 
   public toJson(): JsonObject {
@@ -41,7 +44,8 @@ export class UpdateReadyRecord {
       [Resources.updateVersionField]: this.version,
       [Resources.updateFileField]: this.file,
       [Resources.updateSha512Field]: this.sha512,
-      [Resources.updateNotifiedField]: this.isNotified
+      [Resources.updateNotifiedField]: this.isNotified,
+      [Resources.updateSignatureField]: this.signature
     };
   }
 }

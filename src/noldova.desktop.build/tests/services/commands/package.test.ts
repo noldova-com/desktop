@@ -6,8 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { generateKeyPairSync } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 
@@ -20,6 +21,7 @@ import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { Resources } from "../../../src/resources.js";
 import { Package } from "../../../src/services/commands/package.js";
 import { PackageAssets } from "../../../src/services/packaging/package-assets.js";
+import { LinuxSigning } from "../../../src/services/packaging/linux-signing.js";
 import { PackageLayout } from "../../../src/services/packaging/package-layout.js";
 import { PackageStage } from "../../../src/services/packaging/package-stage.js";
 import { NpmCommand } from "../../../src/services/toolchain/npm-command.js";
@@ -30,6 +32,13 @@ import { StandInBuildFixture } from "../../fixtures/stand-in-build.fixture.js";
 import { StandInBuilderRunnerFixture } from "../../fixtures/stand-in-builder-runner.fixture.js";
 import { TarballFixture } from "../../fixtures/tarball.fixture.js";
 import { TemporaryFolderRunnerFixture } from "../../fixtures/temporary-folder-runner.fixture.js";
+
+class ProductStandInBuild extends StandInBuildFixture {
+  public override async buildAsync(folder: string): Promise<void> {
+    await super.buildAsync(folder);
+    await writeFile(path.join(folder, "product.json"), JSON.stringify({ name: "Sample App" }));
+  }
+}
 
 @TestClass
 export class PackageTests {
@@ -544,12 +553,42 @@ export class PackageTests {
   }
 
   @TestMethod
-  public async refusesToSignAPackageForLinuxAsync(): Promise<void> {
+  public async refusesToSignAPackageForLinuxWithoutItsKeysAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync();
 
     const result = await app.packageAsync("linux", ["--signed"]);
 
-    Assert.areEqual("1 --signed signs Windows and macOS packages only, so it cannot sign the linux-x64 package.\n", result);
+    Assert.areEqual("1 Signing Linux packages needs LINUX_UPDATE_SIGNING_KEY, LINUX_UPDATE_PUBLIC_KEYS, the Ed25519 key that signs the update packages "
+      + "and the public keys the app ships.\n", result);
+  }
+
+  @TestMethod
+  public async signsALinuxBuildForTheUpdateFeedAndShipsTheKeysInItsProductFileAsync(): Promise<void> {
+    await using app = await InstalledAppFixture.createAsync();
+    await using plain = await InstalledAppFixture.createAsync();
+    const layout = new PackageLayout(app.path);
+    const signer = generateKeyPairSync("ed25519");
+    const key = signer.publicKey.export({ type: "spki", format: "der" }).toString("base64");
+    const credentials = { LINUX_UPDATE_SIGNING_KEY: signer.privateKey.export({ type: "pkcs8", format: "pem" }).toString(), LINUX_UPDATE_PUBLIC_KEYS: key };
+
+    const result = await PackageTests.buildAsync(app, "linux", "x64", true, ["--signed"], { PATH: "/usr/bin", ...credentials }, undefined, new ProductStandInBuild(app.path));
+    const product = JsonReader.parse(await readFile(layout.stagedProduct, "utf8"));
+    const signatures = await LinuxSigning.readAsync(layout.updateSignatures);
+    const report = JsonReader.parse(await readFile(layout.report, "utf8"));
+    const names = PackageTarget.fromProcess("linux", "x64").listFileNames(PackageTests.PRODUCT_NAME, PackageTests.PRODUCT_VERSION);
+    await plain.writeAppFileAsync("_build/package/update-signatures.json", "{}");
+    const unsigned = await PackageTests.buildAsync(plain, "linux", "x64", true, [], {}, undefined, new ProductStandInBuild(plain.path));
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.includes(`Signed ${names.join(", ")} for the update feed.\nSignatures:\nEach of ${names.join(", ")} carries a valid signature by a key the app ships.\n`),
+      result.output);
+    Assert.areEqual(JSON.stringify([key]), JSON.stringify(product.readStringArray("linuxUpdateKeys")));
+    Assert.areEqual(names.join(), [...signatures.keys()].join());
+    Assert.areEqual("linux-x64,true,true", [report.readString("target"), String(report.readBoolean("signed")), String(report.readBoolean("checked"))].join());
+    Assert.isTrue(Object.keys(credentials).every(t => Object.isUndefined(result.environments[0]?.[t])), JSON.stringify(result.environments));
+    Assert.areEqual(0, unsigned.exitCode, unsigned.output);
+    Assert.isFalse(existsSync(new PackageLayout(plain.path).updateSignatures));
+    Assert.isFalse(JsonReader.parse(await readFile(new PackageLayout(plain.path).stagedProduct, "utf8")).hasField("linuxUpdateKeys"));
   }
 
   @TestMethod
@@ -785,7 +824,8 @@ export class PackageTests {
 
   private static async buildAsync(app: InstalledAppFixture, platform: string, architecture: string, makesPackages: boolean, packageArguments: readonly string[] = [],
     environment: NodeJS.ProcessEnv = {},
-    createRunner: (temporary: TemporaryFolderRunnerFixture, files: readonly string[]) => StandInBuilderRunnerFixture = (t, u) => new StandInBuilderRunnerFixture(t, u)):
+    createRunner: (temporary: TemporaryFolderRunnerFixture, files: readonly string[]) => StandInBuilderRunnerFixture = (t, u) => new StandInBuilderRunnerFixture(t, u),
+    build: StandInBuildFixture = new StandInBuildFixture(app.path)):
     Promise<{ readonly exitCode: number; readonly output: string; readonly environments: readonly NodeJS.ProcessEnv[]; readonly calls: readonly (readonly string[])[] }> {
     await app.installAsync(InstalledAppFixture.CLI);
     await app.installAsync(InstalledAppFixture.ELECTRON);
@@ -794,7 +834,7 @@ export class PackageTests {
     const files = makesPackages ? PackageTarget.fromProcess(platform, architecture).listFileNames(PackageTests.PRODUCT_NAME, PackageTests.PRODUCT_VERSION).map(t => path.join(layout.output, t)) : [];
     const temporary = await TemporaryFolderRunnerFixture.createAsync(path.join(app.path, "temporary"));
     const runner = createRunner(temporary, files);
-    const stage = new PackageStage(app.path, new NpmCommand(temporary, process.env), new StandInBuildFixture(app.path));
+    const stage = new PackageStage(app.path, new NpmCommand(temporary, process.env), build);
     const output = new PassThrough();
     const chunks: string[] = [];
     output.on("data", (t: Buffer) => chunks.push(t.toString()));

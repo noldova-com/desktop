@@ -21,6 +21,7 @@ import { RootManifest } from "../../models/packages/root-manifest.ts";
 import { UpdateFeed } from "../packages/update-feed.ts";
 import { ElectronDistribution } from "../packaging/electron-distribution.ts";
 import type { IPackageSigning } from "../../interfaces/i-package-signing.ts";
+import { LinuxSigning } from "../packaging/linux-signing.ts";
 import { MacSigning } from "../packaging/mac-signing.ts";
 import { MacUpdateArchiveCheck } from "../packaging/mac-update-archive-check.ts";
 import { NativeBinaries } from "../packaging/native-binaries.ts";
@@ -68,6 +69,7 @@ export class Package {
     const credentials = SigningCredentials.take(this.environment);
     const layout = new PackageLayout(this.root, this.environment);
     await rm(layout.report, { force: true });
+    await rm(layout.updateSignatures, { force: true });
     const feedIndex = packageArguments.indexOf(Resources.updateFeedOption);
     const updateFeed = feedIndex < 0 ? null : packageArguments[feedIndex + 1] ?? String.empty;
     const options = packageArguments.filter((_, i) => feedIndex < 0 || (i !== feedIndex && i !== feedIndex + 1));
@@ -80,12 +82,12 @@ export class Package {
       const product = await ProductIdentity.readAsync(this.root);
       const target = PackageTarget.fromProcess(this.platform, this.architecture).withInstallFolder(product.installFolder);
       const version = (await RootManifest.readAsync(this.root)).productVersion;
-      const signing = options.length === 0 ? null : this.createSigning(target, layout, credentials, product);
+      const signing = options.length === 0 ? null : this.createSigning(target, layout, credentials, product, version);
       const electron = new ElectronDistribution(this.root, layout.electron);
       const configuration = new PackageConfiguration(this.root, product, version, target, this.stage.folder, layout.output, electron.folder, await electron.readVersionAsync(),
         !Object.isNull(signing), signing?.windowsPublisher ?? null, await new ModuleCatalog(this.root).hasWebViewsAsync());
       await configuration.writeAsync(layout.configuration);
-      await this.stage.stageAsync(target, this.output, updateFeed, signing?.windowsPublisher ?? null);
+      await this.stage.stageAsync(target, this.output, updateFeed, signing?.windowsPublisher ?? null, signing?.updateKeys);
       const natives = ShippedFiles.filter(await NativeBinaries.listAsync(this.stage.folder), target);
       const unpackedFiles = new Set([...natives, ...await UnpackedFiles.listAsync(this.stage.folder, target)]);
       await configuration.writeAsync(layout.configuration, PackagedUnpackedFiles.toPatterns([...unpackedFiles]));
@@ -111,14 +113,14 @@ export class Package {
     }
   }
 
-  private createSigning(target: PackageTarget, layout: PackageLayout, credentials: NodeJS.ProcessEnv, product: ProductIdentity): IPackageSigning {
+  private createSigning(target: PackageTarget, layout: PackageLayout, credentials: NodeJS.ProcessEnv, product: ProductIdentity, version: string): IPackageSigning {
     switch (target.platform) {
       case Resources.windowsTarget:
         return new WindowsSigning(this.runner, this.root, layout.signing, layout.output, target, this.environment, credentials, this.signingPackages, product);
       case Resources.macosTarget:
         return new MacSigning(this.runner, layout.signing, this.environment, credentials, target.isFoldered);
       default:
-        throw new BuildException(Resources.formatSignedTargetUnsupported(target.id));
+        return new LinuxSigning(credentials, target, version, layout.updateSignatures);
     }
   }
 

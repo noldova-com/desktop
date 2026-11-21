@@ -1011,24 +1011,31 @@ export declare class AppImageHandoff implements IUpdateHandoff {
    * Creates the handoff.
    *
    * @param replacement Replaces the AppImage with the download, or `null` when the main process doesn't run from an AppImage.
+   * @param verifyAsync Checks the ready update's signature again, as {@link UpdateSignatureCheck.checkReadyAsync} does,
+   * and resolves to why it failed, or `null` when it passed.
    * @param folderRefusal Why the AppImage can't be replaced, such as {@link AppImageReplacement.refusal}; `null` by default.
    * @example
    * ```ts
-   * import { AppImageHandoff, AppImageReplacement } from "@noldova/desktop.electron";
+   * import { ProductInfo } from "@noldova/desktop.runtime";
+   * import { AppImageHandoff, AppImageReplacement, UpdateSignatureCheck } from "@noldova/desktop.electron";
    *
+   * const check = new UpdateSignatureCheck(ProductInfo.current.linuxUpdateKeys, process.platform, process.arch, console.log, Date.now);
    * const replacement = new AppImageReplacement("/home/person/Applications/Noldova Desktop Sample.AppImage", console.log);
    *
-   * export const handoff: AppImageHandoff = new AppImageHandoff(replacement, replacement.refusal);
+   * export const handoff: AppImageHandoff = new AppImageHandoff(replacement, t => check.checkReadyAsync(t), replacement.refusal);
    * ```
    */
-  public constructor(replacement: Pick<AppImageReplacement, "replaceAsync"> | null, folderRefusal?: string | null);
+  public constructor(replacement: Pick<AppImageReplacement, "replaceAsync"> | null, verifyAsync: (record: UpdateReadyRecord) => Promise<string | null>,
+    folderRefusal?: string | null);
 
   /**
-   * Checks the download and replaces the AppImage with it.
+   * Checks the download and its signature, and replaces the AppImage with it.
    *
    * @param record The ready update.
    * @returns A promise of `null` once the AppImage is replaced.
    * @throws {StaleUpdateException} Rejected when the download's SHA-512 no longer matches the ready record.
+   * @throws {UpdateUnsignedAtHandoffException} Rejected when the ready update carries no valid signature by a key the
+   * build ships, as when the record was written by something other than this app.
    * @throws {UpdateHandoffException} Rejected when the main process doesn't run from an AppImage or the AppImage cannot be
    * replaced.
    * @example
@@ -1114,13 +1121,16 @@ export declare class InstallFolderMove {
 }
 
 /**
- * The handoff of an update on Linux for a copy installed from the Debian package: hashes the downloaded `.deb` again and
- * installs it with `pkexec /usr/bin/dpkg --install`, which asks for an administrator's permission. No process takes the
- * update over; {@link AppImageRestart} starts the new version.
+ * The handoff of an update on Linux for a copy installed from the Debian package: hashes the downloaded `.deb` again,
+ * checks its signature, and runs the package's update installer, `resources/linux-update-install`, through pkexec, which
+ * asks for an administrator's permission. As root, the installer copies the `.deb` into a folder only root can write,
+ * requires the copy's SHA-512 to be the checked one, and installs the copy with dpkg, so a file changed after the check
+ * is never installed. No process takes the update over; {@link AppImageRestart} starts the new version.
  */
 export declare class DebianHandoff implements IUpdateHandoff {
   /**
-   * Why the update cannot be installed when the system has no pkexec, or `null` when it has.
+   * Why the update cannot be installed when the system has no pkexec or the package's update installer is missing or
+   * can be changed by someone other than root, or `null` when it can.
    *
    * @example
    * ```ts
@@ -1136,28 +1146,79 @@ export declare class DebianHandoff implements IUpdateHandoff {
   /**
    * Creates the handoff.
    *
-   * @param installer The pkexec program that runs dpkg as root, or `null` when the system has none.
-   * @param runAsync Runs a program with its arguments and resolves once it exits successfully, or rejects with why it did not.
+   * @param installer The pkexec program that runs the update installer as root, or `null` when the system has none.
+   * @param updateInstaller The package's update installer, as {@link DebianHandoff.findUpdateInstaller} finds it, or
+   * `null` when it is missing or someone other than root can change it.
+   * @param runAsync Runs a program with its arguments and resolves once it exits successfully, or rejects with why it
+   * did not, an error whose `code` is the program's exit code.
+   * @param verifyAsync Checks the ready update's signature again, as {@link UpdateSignatureCheck.checkReadyAsync} does,
+   * and resolves to why it failed, or `null` when it passed.
    * @example
    * ```ts
    * import { execFile } from "node:child_process";
    * import { promisify } from "node:util";
    *
-   * import { DebianHandoff } from "@noldova/desktop.electron";
+   * import { ProductInfo } from "@noldova/desktop.runtime";
+   * import { DebianHandoff, UpdateSignatureCheck } from "@noldova/desktop.electron";
    *
-   * export const handoff: DebianHandoff = new DebianHandoff("/usr/bin/pkexec", (program, args) => promisify(execFile)(program, [...args]));
+   * const check = new UpdateSignatureCheck(ProductInfo.current.linuxUpdateKeys, process.platform, process.arch, console.log, Date.now);
+   * export const handoff: DebianHandoff = new DebianHandoff("/usr/bin/pkexec", DebianHandoff.findUpdateInstaller("/opt/Sample/resources/linux-update-install"),
+   *   (program, args) => promisify(execFile)(program, [...args]), t => check.checkReadyAsync(t));
    * ```
    */
-  public constructor(installer: string | null, runAsync: (program: string, programArguments: readonly string[]) => Promise<unknown>);
+  public constructor(installer: string | null, updateInstaller: string | null, runAsync: (program: string, programArguments: readonly string[]) => Promise<unknown>,
+    verifyAsync: (record: UpdateReadyRecord) => Promise<string | null>);
 
   /**
-   * Checks the download and installs it.
+   * Gives the package's update installer when it is a regular file owned by root that neither its group nor others can
+   * write, so only root can change what pkexec runs.
+   *
+   * @param file The update installer, `linux-update-install` in the package's `resources` folder.
+   * @returns The file, or `null` when it is missing or not only root's to change.
+   * @example
+   * ```ts
+   * import { DebianHandoff } from "@noldova/desktop.electron";
+   *
+   * export const installer: string | null = DebianHandoff.findUpdateInstaller("/opt/Sample/resources/linux-update-install");
+   * ```
+   */
+  public static findUpdateInstaller(file: string): string | null;
+
+  /**
+   * Tells whether a file's status makes it only root's to change: a regular file owned by root that neither its group
+   * nor others can write.
+   *
+   * @param status The file's status, as `fs.statSync` gives it.
+   * @returns Whether only root can change the file.
+   * @example
+   * ```ts
+   * import { statSync } from "node:fs";
+   *
+   * import { DebianHandoff } from "@noldova/desktop.electron";
+   *
+   * export const isTrusted: boolean = DebianHandoff.isOnlyRootsToChange(statSync("/opt/Sample/resources/linux-update-install"));
+   * ```
+   */
+  public static isOnlyRootsToChange(status: Pick<Stats, "isFile" | "uid" | "mode">): boolean;
+
+  /**
+   * Checks the download and its signature, and installs it.
    *
    * @param record The ready update.
    * @returns A promise of `null` once the package is installed.
    * @throws {StaleUpdateException} Rejected when the download's SHA-512 no longer matches the ready record.
-   * @throws {UpdateHandoffException} Rejected when the system has no pkexec, or pkexec or dpkg fails, as when the person
-   * refuses the permission.
+   * @throws {UpdateUnsignedAtHandoffException} Rejected when the ready update carries no valid signature by a key the
+   * build ships, as when the record was written by something other than this app; pkexec is not started.
+   * @throws {UpdateChangedBeforeHandoffException} Rejected when the file can no longer be read, or when the update
+   * installer's copy of it is not the checked file: not a regular file, not of the checked size, or of another SHA-512,
+   * as when the file was changed, moved or replaced by a link after the check; nothing is installed.
+   * @throws {DebianUpdateArgumentsRefusedException} Rejected when the update installer refuses its arguments, the file,
+   * the SHA-512 in hexadecimal and the size, which this app never passes malformed.
+   * @throws {DebianInstallerMissingException} Rejected when the system has no pkexec.
+   * @throws {DebianUpdateInstallerMissingException} Rejected when the update installer is missing or not only root's to
+   * change.
+   * @throws {DebianPackageNotInstalledException} Rejected when pkexec or dpkg fails, as when the person refuses the
+   * permission.
    * @example
    * ```ts
    * import type { DebianHandoff, UpdateReadyRecord } from "@noldova/desktop.electron";
@@ -8622,6 +8683,23 @@ export interface IUpdater {
   formatPackagePath(version: string): string;
 
   /**
+   * Gives the signature the update information of the last check carries for a file, which the ready update's record
+   * keeps, so a handoff after a restart can check it again.
+   *
+   * @param file The downloaded package.
+   * @returns The signature, in base64, or `null` when the information carries none for the file.
+   * @example
+   * ```ts
+   * import type { IUpdater } from "@noldova/desktop.electron";
+   *
+   * export function isSigned(updater: IUpdater, file: string): boolean {
+   *   return updater.readSignature(file) !== null;
+   * }
+   * ```
+   */
+  readSignature(file: string): string | null;
+
+  /**
    * Cancels the download in progress, if any.
    *
    * @example
@@ -9598,10 +9676,11 @@ export declare class FeedUpdater implements IUpdater {
    * `update-config.json` and whose name, the installation's id, names its cache folder.
    * @param cacheRoot The user's cache folder, where electron-updater keeps `<slug>-updater-<installation id>`.
    * @param productSlug The product's slug.
-   * @param verifyAsync Checks a downloaded file's publisher, resolving to `null` when it is the product's publisher and
-   * otherwise to why not, or `null` on a platform whose updates carry no publisher to check.
-   * @param log Records the updater's warnings and errors, and a download that failed its publisher check but could not be
-   * deleted.
+   * @param verifyAsync Checks a downloaded file, given the update information of the last check, resolving to `null`
+   * when it is the product's publisher's on Windows, or signed by a key the product ships on Linux, and otherwise to
+   * why not; or `null` on macOS, whose updates Squirrel.Mac checks.
+   * @param log Records the updater's warnings and errors, why a download failed its check, before the download is
+   * deleted, and a download that failed its check but could not be deleted.
    * @example
    * ```ts
    * import { AppImageUpdater } from "electron-updater";
@@ -9618,7 +9697,7 @@ export declare class FeedUpdater implements IUpdater {
     installationFolder: string,
     cacheRoot: string,
     productSlug: string,
-    verifyAsync: ((file: string) => Promise<string | null>) | null,
+    verifyAsync: ((file: string, info: UpdateInfo | null) => Promise<string | null>) | null,
     log: (text: string) => void);
 
   /**
@@ -9675,6 +9754,23 @@ export declare class FeedUpdater implements IUpdater {
    * ```
    */
   public formatPackagePath(version: string): string;
+
+  /**
+   * Gives the signature the update information of the last check carries for a file, as
+   * {@link UpdateSignatureCheck.readSignature} reads it.
+   *
+   * @param file The downloaded package.
+   * @returns The signature, in base64, or `null` before a check or when the information carries none for the file.
+   * @example
+   * ```ts
+   * import type { FeedUpdater } from "@noldova/desktop.electron";
+   *
+   * export function readSignature(updater: FeedUpdater): string | null {
+   *   return updater.readSignature(updater.formatPackagePath("1.3.0"));
+   * }
+   * ```
+   */
+  public readSignature(file: string): string | null;
 
   /**
    * Cancels the download in progress, if any.
@@ -9765,7 +9861,8 @@ export declare class PublisherCheck {
    * @param publisher The publisher's distinguished name, or null for an unsigned build, which fails every check.
    * @param signatures Reads a file's signature, as {@link IWindowsProcessApi.verifySignatureAsync} does.
    * @param log Records each check, its duration and whether it passed, in one line; the reason of a failure is left to
-   * the caller, so it is logged once.
+   * the caller, so it is logged once: {@link FeedUpdater} logs it before it deletes the download, and a handoff names
+   * it in the exception it rejects with.
    * @param now Gives the time in milliseconds.
    * @example
    * ```ts
@@ -9792,6 +9889,90 @@ export declare class PublisherCheck {
    * ```
    */
   public checkAsync(file: string): Promise<string | null>;
+}
+
+/**
+ * Checks that a Linux update carries a valid Ed25519 signature by one of the keys the product ships. The signature is
+ * the file's entry's `signature` in the update information, over the text `noldova-desktop-update/1`, the version, the
+ * target such as `linux-x64`, the file's name and its SHA-512 in base64, each followed by a line feed; the check hashes
+ * the downloaded file again. A build that ships no key, a file the information doesn't list, a missing or invalid
+ * signature, a hash that differs or a failed check counts as failed, with one line saying why.
+ */
+export declare class UpdateSignatureCheck {
+  /**
+   * Creates the check.
+   *
+   * @param keys The product's `linuxUpdateKeys`; none fails every check.
+   * @param platform The platform, `process.platform`.
+   * @param architecture The processor, `process.arch`.
+   * @param log Records each check, its duration and whether it passed, in one line; the reason of a failure is left to
+   * the caller, so it is logged once: {@link FeedUpdater} logs it before it deletes the download, and a handoff names
+   * it in the exception it rejects with.
+   * @param now Gives the time in milliseconds.
+   * @example
+   * ```ts
+   * import { ProductInfo } from "@noldova/desktop.runtime";
+   * import { UpdateSignatureCheck } from "@noldova/desktop.electron";
+   *
+   * export const check: UpdateSignatureCheck = new UpdateSignatureCheck(ProductInfo.current.linuxUpdateKeys, process.platform, process.arch, console.log, Date.now);
+   * ```
+   */
+  public constructor(keys: readonly string[], platform: string, architecture: string, log: (text: string) => void, now: () => number);
+
+  /**
+   * Checks a file.
+   *
+   * @param file The downloaded package.
+   * @param info The update information that offered it, or `null` when none was read.
+   * @returns A promise of `null` when a key the product ships signed it, otherwise of why not.
+   * @example
+   * ```ts
+   * import type { UpdateInfo } from "electron-updater";
+   * import type { UpdateSignatureCheck } from "@noldova/desktop.electron";
+   *
+   * export async function isSignedAsync(check: UpdateSignatureCheck, file: string, info: UpdateInfo): Promise<boolean> {
+   *   return await check.checkAsync(file, info) === null;
+   * }
+   * ```
+   */
+  public checkAsync(file: string, info: UpdateInfo | null): Promise<string | null>;
+
+  /**
+   * Checks a ready update again before its handoff, as after a restart: its file's SHA-512 now, its name, its version
+   * and the build's target, against the signature its record keeps. A record without a signature, or a signature that
+   * no key the product ships made over that file, counts as failed.
+   *
+   * @param record The ready update's record.
+   * @returns A promise of `null` when a key the product ships signed the file, otherwise of why not.
+   * @example
+   * ```ts
+   * import type { UpdateReadyRecord, UpdateSignatureCheck } from "@noldova/desktop.electron";
+   *
+   * export async function isStillSignedAsync(check: UpdateSignatureCheck, record: UpdateReadyRecord): Promise<boolean> {
+   *   return await check.checkReadyAsync(record) === null;
+   * }
+   * ```
+   */
+  public checkReadyAsync(record: UpdateReadyRecord): Promise<string | null>;
+
+  /**
+   * Reads the signature the update information carries for a file, the `signature` field of its entry in `files`,
+   * which electron-updater keeps as the feed's YAML gives it.
+   *
+   * @param info The update information, or `null` when none was read.
+   * @param file The package, whose name is its entry's `url`.
+   * @returns The signature, in base64, or `null` when the information lists no such file or carries no signature for it.
+   * @example
+   * ```ts
+   * import type { UpdateInfo } from "electron-updater";
+   * import { UpdateSignatureCheck } from "@noldova/desktop.electron";
+   *
+   * export function hasSignature(info: UpdateInfo): boolean {
+   *   return UpdateSignatureCheck.readSignature(info, "/tmp/Noldova Desktop Sample-1.3.0-linux-x64.AppImage") !== null;
+   * }
+   * ```
+   */
+  public static readSignature(info: UpdateInfo | null, file: string): string | null;
 }
 
 /**
@@ -9885,6 +10066,11 @@ export declare class UpdateReadyRecord {
    * Whether the main process has posted `desktop.updateReady` for it.
    */
   public readonly isNotified: boolean;
+  /**
+   * The signature the update information carried for the file, in base64, which a Linux handoff checks again; `null`
+   * when it carried none, as on Windows and macOS, or for a record written before the field.
+   */
+  public readonly signature: string | null;
 
   /**
    * Creates the record.
@@ -9893,17 +10079,18 @@ export declare class UpdateReadyRecord {
    * @param file The downloaded file.
    * @param sha512 The file's SHA-512 in base64.
    * @param isNotified Whether `desktop.updateReady` was posted.
+   * @param signature The file's signature from the update information, or `null` when it carried none.
    * @example
    * ```ts
    * import { UpdateReadyRecord } from "@noldova/desktop.electron";
    *
-   * export const record: UpdateReadyRecord = new UpdateReadyRecord("1.3.0", "/tmp/Noldova Desktop Sample-linux-x64.AppImage", "c2hh", false);
+   * export const record: UpdateReadyRecord = new UpdateReadyRecord("1.3.0", "/tmp/Noldova Desktop Sample-linux-x64.AppImage", "c2hh", false, null);
    * ```
    */
-  public constructor(version: string, file: string, sha512: string, isNotified: boolean);
+  public constructor(version: string, file: string, sha512: string, isNotified: boolean, signature: string | null);
 
   /**
-   * Reads a record.
+   * Reads a record; one without `signature` reads as having none.
    *
    * @param value The record's JSON.
    * @returns The record.
@@ -10152,6 +10339,48 @@ export declare class DebianInstallerMissingException extends UpdateHandoffExcept
    * import { DebianInstallerMissingException } from "@noldova/desktop.electron";
    *
    * export const failure: DebianInstallerMissingException = new DebianInstallerMissingException();
+   * ```
+   */
+  public constructor();
+}
+
+/**
+ * The exception thrown when the Debian package's update installer refuses the arguments it was given for the
+ * downloaded file, so the installed version is left as it was.
+ */
+export declare class DebianUpdateArgumentsRefusedException extends UpdateHandoffException {
+  /**
+   * The downloaded package the update installer refused.
+   */
+  public readonly file: string;
+
+  /**
+   * Creates the exception, with its message from the package's own text.
+   *
+   * @param file The downloaded package the update installer refused.
+   * @example
+   * ```ts
+   * import { DebianUpdateArgumentsRefusedException } from "@noldova/desktop.electron";
+   *
+   * export const failure: DebianUpdateArgumentsRefusedException = new DebianUpdateArgumentsRefusedException("/tmp/Sample-linux-x64.deb");
+   * ```
+   */
+  public constructor(file: string);
+}
+
+/**
+ * The exception thrown when this copy is a Debian package's install but its update installer is missing or someone
+ * other than root can change it, so its handoff can't install the update.
+ */
+export declare class DebianUpdateInstallerMissingException extends UpdateHandoffException {
+  /**
+   * Creates the exception, with its message from the package's own text.
+   *
+   * @example
+   * ```ts
+   * import { DebianUpdateInstallerMissingException } from "@noldova/desktop.electron";
+   *
+   * export const failure: DebianUpdateInstallerMissingException = new DebianUpdateInstallerMissingException();
    * ```
    */
   public constructor();
@@ -10729,6 +10958,36 @@ export declare class UpdateUnsavedException extends UpdateStopException {
    * ```
    */
   public constructor(dataDirectory: string, problems: readonly string[]);
+}
+
+/**
+ * The exception thrown when a ready Linux update, at its handoff after the download or a restart, carries no valid
+ * signature by a key the build ships, so it is not installed.
+ */
+export declare class UpdateUnsignedAtHandoffException extends UpdateHandoffException {
+  /**
+   * The update that was not installed.
+   */
+  public readonly file: string;
+
+  /**
+   * Why the update's signature was refused.
+   */
+  public readonly problem: string;
+
+  /**
+   * Creates the exception, with its message from the package's own text.
+   *
+   * @param file The update that was not installed.
+   * @param problem Why the update's signature was refused.
+   * @example
+   * ```ts
+   * import { UpdateUnsignedAtHandoffException } from "@noldova/desktop.electron";
+   *
+   * export const failure: UpdateUnsignedAtHandoffException = new UpdateUnsignedAtHandoffException("/tmp/app.deb", "its signature is not by a key this build ships");
+   * ```
+   */
+  public constructor(file: string, problem: string);
 }
 
 /**

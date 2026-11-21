@@ -29,9 +29,9 @@ export class ReleasePublishTests {
   private static readonly VERSION: string = "1.2.3-internal.7";
   private static readonly DATE: string = "2026-11-05T00:00:00.000Z";
   private static readonly TARGETS: readonly PackageTarget[] = [new PackageTarget("linux", "x64"), new PackageTarget("windows", "x64"), new PackageTarget("macos", "x64")];
-  private static readonly SIGNED: readonly string[] = ["windows", "macos"];
+  private static readonly SIGNED: readonly string[] = ["windows", "macos", "linux"];
   private static readonly FEED: string = "http://127.0.0.1:47325/";
-  private static readonly REPORTS_CHECKED: string = "Every target of the release has one package report, and the signed ones were signed and checked: windows, macos.\n";
+  private static readonly REPORTS_CHECKED: string = "Every target of the release has one package report, and the signed ones were signed and checked: windows, macos, linux.\n";
 
   @TestMethod
   public async checksTheReleaseFilesOfAnInternalVersionAndPublishesNothingAsync(): Promise<void> {
@@ -238,7 +238,7 @@ export class ReleasePublishTests {
     for (const target of targets) {
       for (const name of target.listFileNames("Sample App", written))
         await app.writeAppFileAsync(`release/${name}`, `${name} bytes`);
-      await set.writeAsync(path.join(app.path, "release"), target, ReleasePublishTests.DATE);
+      await set.writeAsync(path.join(app.path, "release"), target, ReleasePublishTests.DATE, () => null);
       const isSigned = ReleasePublishTests.SIGNED.includes(target.platform);
       await new PackageReport(target.id, isSigned, isSigned, !unstarted.includes(target.id)).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
     }

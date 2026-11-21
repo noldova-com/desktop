@@ -31,6 +31,7 @@ export class ProductInfo {
   public readonly checkoutVariable: string;
   public readonly icons: string;
   public readonly windowsPublisher: string | null;
+  public readonly linuxUpdateKeys: readonly string[];
   public readonly updateFeed: string | null;
   public readonly permissionsModule: string | null;
   public readonly installFolder: string | null;
@@ -51,6 +52,7 @@ export class ProductInfo {
     this.checkoutVariable = Resources.formatCheckoutVariable(this.slug);
     this.icons = reader.readNonBlankString(Resources.iconsField);
     this.windowsPublisher = reader.readNullableString(Resources.windowsPublisherField);
+    this.linuxUpdateKeys = reader.hasField(Resources.linuxUpdateKeysField) ? reader.readStringArray(Resources.linuxUpdateKeysField) : [];
     this.updateFeed = reader.readNullableString(Resources.updateFeedField);
     this.permissionsModule = reader.readOptionalString(Resources.permissionsModuleField) ?? null;
     this.installFolder = reader.readOptionalString(Resources.installFolderField) ?? null;

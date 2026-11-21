@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { AppImageHandoff, NotAnAppImageException, UpdateChangedBeforeHandoffException, UpdateReadyRecord } from "@noldova/desktop.electron";
+import { AppImageHandoff, NotAnAppImageException, UpdateChangedBeforeHandoffException, UpdateReadyRecord, UpdateUnsignedAtHandoffException } from "@noldova/desktop.electron";
 
 @TestClass
 export class AppImageHandoffTests {
@@ -25,9 +25,9 @@ export class AppImageHandoffTests {
       const handoff = new AppImageHandoff({ replaceAsync: t => {
         replaced.push(t);
         return Promise.resolve();
-      } });
+      } }, () => Promise.resolve(null));
 
-      const processId = await handoff.handOffAsync(new UpdateReadyRecord("1.3.0", download, AppImageHandoffTests.HASH, true));
+      const processId = await handoff.handOffAsync(new UpdateReadyRecord("1.3.0", download, AppImageHandoffTests.HASH, true, null));
 
       Assert.isNull(processId);
       Assert.isNull(handoff.refusal);
@@ -42,10 +42,10 @@ export class AppImageHandoffTests {
       const handoff = new AppImageHandoff({ replaceAsync: t => {
         replaced.push(t);
         return Promise.resolve();
-      } });
+      } }, () => Promise.resolve(null));
 
-      const changed = await Assert.throwsAsync(() => handoff.handOffAsync(new UpdateReadyRecord("1.3.0", download, "b3RoZXI=", true)), UpdateChangedBeforeHandoffException);
-      const gone = await Assert.throwsAsync(() => handoff.handOffAsync(new UpdateReadyRecord("1.3.0", `${download}.gone`, AppImageHandoffTests.HASH, true)), UpdateChangedBeforeHandoffException);
+      const changed = await Assert.throwsAsync(() => handoff.handOffAsync(new UpdateReadyRecord("1.3.0", download, "b3RoZXI=", true, null)), UpdateChangedBeforeHandoffException);
+      const gone = await Assert.throwsAsync(() => handoff.handOffAsync(new UpdateReadyRecord("1.3.0", `${download}.gone`, AppImageHandoffTests.HASH, true, null)), UpdateChangedBeforeHandoffException);
 
       Assert.areEqual("The downloaded update has changed since it was checked, so it wasn't installed.", changed.message);
       Assert.areEqual(changed.message, gone.message);
@@ -56,9 +56,9 @@ export class AppImageHandoffTests {
   @TestMethod
   public async refusesWhenTheMainProcessDoesNotRunFromAnAppImageAndLeavesNothingToClear(): Promise<void> {
     await AppImageHandoffTests.withDownloadAsync(async download => {
-      const handoff = new AppImageHandoff(null);
+      const handoff = new AppImageHandoff(null, () => Promise.resolve(null));
 
-      const failure = await Assert.throwsAsync(() => handoff.handOffAsync(new UpdateReadyRecord("1.3.0", download, AppImageHandoffTests.HASH, true)), NotAnAppImageException);
+      const failure = await Assert.throwsAsync(() => handoff.handOffAsync(new UpdateReadyRecord("1.3.0", download, AppImageHandoffTests.HASH, true, null)), NotAnAppImageException);
       await handoff.clearAsync();
 
       Assert.areEqual("This copy of Noldova Desktop Sample doesn't run from an AppImage, so it can't install the update.", failure.message);
@@ -67,10 +67,36 @@ export class AppImageHandoffTests {
   }
 
   @TestMethod
+  public async refusesAReadyRecordWhoseSignatureFailsItsCheckAndReplacesNothing(): Promise<void> {
+    await AppImageHandoffTests.withDownloadAsync(async download => {
+      const replaced: string[] = [];
+      const checked: UpdateReadyRecord[] = [];
+      const handoff = new AppImageHandoff({ replaceAsync: t => {
+        replaced.push(t);
+        return Promise.resolve();
+      } }, t => {
+        checked.push(t);
+        return Promise.resolve("its signature is not by a key this build ships");
+      });
+      const record = new UpdateReadyRecord("1.3.0", download, AppImageHandoffTests.HASH, true, "c2ln");
+
+      const failure = await Assert.throwsAsync(() => handoff.handOffAsync(record), UpdateUnsignedAtHandoffException);
+
+      Assert.areEqual(`The update ${download} carries no valid signature, so it was not installed: its signature is not by a key this build ships`, failure.message);
+      Assert.areEqual(download, failure.file);
+      Assert.isTrue(checked[0] === record);
+      Assert.areEqual(1, checked.length);
+      Assert.areEqual(0, replaced.length);
+    });
+  }
+
+  @TestMethod
   public refusesWithTheFolderRefusalItWasGivenOnlyForAnAppImage(): void {
     const replacement = { replaceAsync: () => Promise.resolve() };
+    const verifyAsync = (): Promise<string | null> => Promise.resolve(null);
 
-    const refusals = [new AppImageHandoff(replacement, "The folder /opt/apps cannot be written."), new AppImageHandoff(replacement), new AppImageHandoff(null, "unused")]
+    const refusals = [new AppImageHandoff(replacement, verifyAsync, "The folder /opt/apps cannot be written."), new AppImageHandoff(replacement, verifyAsync),
+      new AppImageHandoff(null, verifyAsync, "unused")]
       .map(t => t.refusal);
 
     Assert.areEqual(JSON.stringify(["The folder /opt/apps cannot be written.", null,
