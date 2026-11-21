@@ -13,6 +13,7 @@ import { inspect } from "node:util";
 import "@noldova/context.core";
 import { type NotificationPost, QualifiedName } from "@noldova/desktop.protocol";
 
+import { EventWithdrawnException } from "../../exceptions/event-withdrawn.exception.js";
 import { ModuleDatabaseException } from "../../exceptions/module-database.exception.js";
 import { NotContributedException } from "../../exceptions/not-contributed.exception.js";
 import { PseudoTerminalsUndeclaredException } from "../../exceptions/pseudo-terminals-undeclared.exception.js";
@@ -34,7 +35,7 @@ import type { IRuntimeWebViews } from "../../interfaces/i-runtime-web-views.js";
 import type { ISecretBackend } from "../../interfaces/i-secret-backend.js";
 import type { IToolsContext } from "../../interfaces/i-tools-context.js";
 import type { ClientClosure } from "../../models/client-closure.js";
-import type { EventChannel } from "../../models/event-channel.js";
+import { EventChannel } from "../../models/event-channel.js";
 import type { ModuleDeclaration } from "../../models/module-declaration.js";
 import { NotificationHandle } from "../../models/notification-handle.js";
 import { Registration } from "../../models/registration.js";
@@ -91,7 +92,6 @@ export class ModuleContext implements IRuntimePartContext, Disposable {
   private readonly closures: ClientClosures;
   private readonly dependencyStates: DependencyStates;
   private readonly refusedServices: Set<string> = new Set();
-  private isDisposed: boolean = false;
 
   public readonly moduleFolder: string;
   public readonly settings: IModuleSettings;
@@ -140,15 +140,15 @@ export class ModuleContext implements IRuntimePartContext, Disposable {
     this.closures = closures;
     this.moduleFolder = dataDirectory.locateModuleFolder(declaration.id);
     this.workFolder = dataDirectory.locateWorkFolder(declaration.id);
-    this.settings = new ModuleSettings(declaration, settings, this.registrations);
+    this.settings = new ModuleSettings(declaration, settings, this.registrations, this.stopping.signal);
     this.log = new ModuleLog(declaration.id, diagnostics, redactor);
     this.tools = new ModuleTools(declaration, tools, this.log, this.registrations, this.stopping.signal, webViews);
     this.permissions = new ModulePermissions(declaration.id, tools.permissions, this.log, this.registrations, this.stopping.signal);
     this.webViews = new ModuleWebViews(declaration.id, webViews);
     this.files = new ModuleFiles(declaration.id, grants, [this.moduleFolder, this.workFolder]);
     this.secrets = new ModuleSecrets(declaration.id, secrets);
-    this.appWindows = new ModuleAppWindows(appSurface, this.registrations);
-    this.shortcuts = new ModuleAppShortcuts(appSurface, this.registrations);
+    this.appWindows = new ModuleAppWindows(appSurface, this.registrations, this.stopping.signal);
+    this.shortcuts = new ModuleAppShortcuts(appSurface, this.registrations, this.stopping.signal);
     if (!Object.isNull(declaration.webViews))
       this.registrations.push(webViews.attach(declaration.id));
   }
@@ -187,23 +187,33 @@ export class ModuleContext implements IRuntimePartContext, Disposable {
   }
 
   public registerMethod(name: string, handler: IMethodHandler): void {
-    this.registrations.push(this.methods.register(this.requireContributed(Resources.methodsKind, name), {
+    const qualified = this.requireContributed(Resources.methodsKind, name);
+    if (this.stopping.signal.aborted)
+      return;
+    this.registrations.push(this.methods.register(qualified, {
       handleAsync: t => handler.handleAsync(new RequestContext(t.client, t.payload, AbortSignal.any([t.signal, this.stopping.signal]), t.connection, t.window, t.page))
     }));
   }
 
   public declareEvent(name: string): EventChannel {
-    const channel = this.events.declare(this.requireContributed(Resources.eventsKind, name));
+    const qualified = this.requireContributed(Resources.eventsKind, name);
+    if (this.stopping.signal.aborted)
+      return ModuleContext.withdrawn(qualified);
+    const channel = this.events.declare(qualified);
     this.registrations.push(channel);
     return channel;
   }
 
   public registerCommand(command: RuntimeCommand): void {
     this.requireContributed(Resources.commandsKind, command.info.name.text);
+    if (this.stopping.signal.aborted)
+      return;
     this.registrations.push(this.commands.register(command));
   }
 
   public onClientClosed(listener: (closure: ClientClosure) => void | Promise<void>): void {
+    if (this.stopping.signal.aborted)
+      return;
     this.registrations.push(this.closures.listen(listener));
   }
 
@@ -217,6 +227,8 @@ export class ModuleContext implements IRuntimePartContext, Disposable {
     const qualified = QualifiedName.parse(name);
     if (qualified.owner !== this.declaration.id)
       throw new ServiceNotOwnedException(this.declaration.id, name);
+    if (this.stopping.signal.aborted)
+      return;
 
     this.registrations.push(this.services.publish(qualified, service));
   }
@@ -253,7 +265,7 @@ export class ModuleContext implements IRuntimePartContext, Disposable {
   }
 
   public onDependencyChanged(listener: (moduleId: string, isActive: boolean) => void): () => void {
-    if (this.isDisposed)
+    if (this.stopping.signal.aborted)
       return () => undefined;
     const registration = new Registration(this.dependencyStates.listen(this.declaration, (moduleId, isActive) => {
       try {
@@ -268,12 +280,17 @@ export class ModuleContext implements IRuntimePartContext, Disposable {
   }
 
   public [Symbol.dispose](): void {
-    this.isDisposed = true;
     this.stopping.abort();
     for (const registration of this.registrations.splice(0).reverse())
       registration[Symbol.dispose]();
     this.notifications.dismissOwnedBy(this.declaration.id);
     this.work.endOwnedBy(this.declaration.id);
+  }
+
+  private static withdrawn(name: QualifiedName): EventChannel {
+    return new EventChannel(() => {
+      throw new EventWithdrawnException(name.text);
+    }, () => undefined);
   }
 
   private updateNotification(id: string, post: NotificationPost): boolean {

@@ -14,10 +14,12 @@ import type { AppSurface } from "./app-surface.js";
 export class ModuleAppShortcuts implements IAppShortcuts {
   private readonly surface: AppSurface;
   private readonly registrations: Disposable[];
+  private readonly stopping: AbortSignal;
 
-  public constructor(surface: AppSurface, registrations: Disposable[]) {
+  public constructor(surface: AppSurface, registrations: Disposable[], stopping: AbortSignal) {
     this.surface = surface;
     this.registrations = registrations;
+    this.stopping = stopping;
   }
 
   public list(): readonly AppShortcut[] {
@@ -29,6 +31,8 @@ export class ModuleAppShortcuts implements IAppShortcuts {
   }
 
   public onChanged(listener: () => void): () => void {
+    if (this.stopping.aborted)
+      return () => undefined;
     const registration = this.surface.onShortcutsChanged(listener);
     this.registrations.push(registration);
     return () => registration[Symbol.dispose]();

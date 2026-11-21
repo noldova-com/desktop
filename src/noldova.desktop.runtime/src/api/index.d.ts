@@ -7553,7 +7553,13 @@ export interface IModuleLog {
 /**
  * What a module's runtime part may register and use. The runtime withdraws
  * everything registered through it when the part deactivates or fails to
- * activate.
+ * activate. After that, a call that would register, publish or listen, such as
+ * one from work that finishes late, still refuses a name a live context
+ * refuses but registers nothing: a method, command or service isn't
+ * registered, an event it declares refuses to publish as a withdrawn one does,
+ * a listener is never called and the function it returns does nothing, and
+ * `tools.openSession` throws {@link ModuleDeactivatedException}. So the part's
+ * next activation registers the same names again.
  */
 export interface IRuntimePartContext {
   /**
