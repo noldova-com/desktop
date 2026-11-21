@@ -4901,9 +4901,8 @@ export class Resources {
     return `$ids = @(${processIds.join(", ")}); $starts = @(${starts.join(", ")}); ` +
       `$deadline = [DateTime]::UtcNow.AddMilliseconds(${String(Resources.processExitWait)}); ` +
       "for ($i = 0; $i -lt $ids.Count; $i++) { try { $p = [System.Diagnostics.Process]::GetProcessById($ids[$i]); $null = $p.Handle; " +
-      "$s = ([DateTimeOffset]$p.StartTime).ToUnixTimeMilliseconds(); if ([Math]::Abs($s - $starts[$i]) -le 1) { $p.Kill(); " +
-      "$w = $p.WaitForExit([int][Math]::Max(0, ($deadline - [DateTime]::UtcNow).TotalMilliseconds)); Write-Output ('kill {0} waited {1}' -f $ids[$i], $w) } " +
-      "else { Write-Output ('skip {0} start {1} listed {2}' -f $ids[$i], $s, $starts[$i]) } } catch { Write-Output ('fail {0} {1}' -f $ids[$i], $_.Exception.Message) } }; " +
+      "if ([Math]::Abs(([DateTimeOffset]$p.StartTime).ToUnixTimeMilliseconds() - $starts[$i]) -le 1) { $p.Kill(); " +
+      "$null = $p.WaitForExit([int][Math]::Max(0, ($deadline - [DateTime]::UtcNow).TotalMilliseconds)) } } catch { } }; " +
       Resources.processListScript;
   }
 
