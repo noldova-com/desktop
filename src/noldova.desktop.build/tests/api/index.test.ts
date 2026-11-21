@@ -66,7 +66,24 @@ export class BuildApiTests {
     Assert.areEqual(`./${BuildApiTests.RELEASE_ENTRY.join("/")}`, bin.readString("noldova-desktop-release"));
     Assert.isTrue(loaded.size > 10, String(loaded.size));
     Assert.areEqual(String.empty, [...packages].join(", "));
-    Assert.areEqual("@noldova/context.core, @noldova/context.exceptions, @noldova/context.json", [...contexts].sort().join(", "));
+    Assert.areEqual("@noldova/context.core, @noldova/context.exceptions, @noldova/context.json, @noldova/context.text", [...contexts].sort().join(", "));
+  }
+
+  @TestMethod
+  public async declaresAsPeersEveryNoldovaPackageItsNoldovaPeersNeed(): Promise<void> {
+    const folder = path.dirname(fileURLToPath(import.meta.resolve("@noldova/desktop.build/package.json")));
+    const peers = Object.keys(JsonReader.parse(await readFile(path.join(folder, "package.json"), "utf8")).readObject("peerDependencies").toJson())
+      .filter(t => t.startsWith("@noldova/"));
+    const needed = new Set<string>();
+    for (const peer of peers) {
+      const manifest = JsonReader.parse(await readFile(await BuildApiTests.manifestOfAsync(peer), "utf8"));
+      for (const section of ["dependencies", "peerDependencies"].filter(t => manifest.hasField(t)))
+        for (const name of Object.keys(manifest.readObject(section).toJson()).filter(t => t.startsWith("@noldova/")))
+          needed.add(name);
+    }
+
+    Assert.isTrue(peers.length > 3, peers.join(", "));
+    Assert.areEqual(String.empty, [...needed].filter(t => !peers.includes(t)).sort().join(", "));
   }
 
   @TestMethod
@@ -90,5 +107,15 @@ export class BuildApiTests {
     Assert.areEqual("2 noldova-desktop-release list-targets [<app folder>]\n2 noldova-desktop-release release-check\n2 noldova-desktop-release choose-feed\n2 noldova-desktop-release release-publish\n2 noldova-desktop-release release-lock\n2 noldova-desktop-release release-unlock\n2 noldova-desktop-release feed-check\n"
       + "2 noldova-desktop-release module-range <module folder>\n2 noldova-desktop-release noldova-desktop-range <lowest Noldova Desktop version>\n",
       results.map(t => `${t.status} ${t.stdout.slice(t.stdout.indexOf("noldova-desktop-release"))}`).join(String.empty));
+  }
+
+  private static async manifestOfAsync(name: string): Promise<string> {
+    for (let folder = path.dirname(fileURLToPath(import.meta.resolve(name))); folder !== path.dirname(folder); folder = path.dirname(folder)) {
+      const file = path.join(folder, "package.json");
+      const found = await readFile(file, "utf8").then(t => JsonReader.parse(t).readOptionalString("name"), () => undefined);
+      if (found === name)
+        return file;
+    }
+    throw new Error(`No package.json names ${name}.`);
   }
 }
