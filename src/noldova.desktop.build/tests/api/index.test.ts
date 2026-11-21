@@ -70,20 +70,23 @@ export class BuildApiTests {
   }
 
   @TestMethod
-  public async declaresAsPeersEveryNoldovaPackageItsNoldovaPeersNeed(): Promise<void> {
+  public async declaresAsPeersEveryNoldovaPackageItsNoldovaPeersNeedFromTheLowestVersionTheyNeed(): Promise<void> {
     const folder = path.dirname(fileURLToPath(import.meta.resolve("@noldova/desktop.build/package.json")));
-    const peers = Object.keys(JsonReader.parse(await readFile(path.join(folder, "package.json"), "utf8")).readObject("peerDependencies").toJson())
-      .filter(t => t.startsWith("@noldova/"));
-    const needed = new Set<string>();
-    for (const peer of peers) {
+    const ranges = new Map(Object.entries(JsonReader.parse(await readFile(path.join(folder, "package.json"), "utf8")).readObject("peerDependencies").toJson())
+      .filter((t): t is [string, string] => t[0].startsWith("@noldova/") && Object.isString(t[1])));
+    const gaps: string[] = [];
+    for (const peer of ranges.keys()) {
       const manifest = JsonReader.parse(await readFile(await BuildApiTests.manifestOfAsync(peer), "utf8"));
       for (const section of ["dependencies", "peerDependencies"].filter(t => manifest.hasField(t)))
-        for (const name of Object.keys(manifest.readObject(section).toJson()).filter(t => t.startsWith("@noldova/")))
-          needed.add(name);
+        for (const [name, needed] of Object.entries(manifest.readObject(section).toJson()).filter(t => t[0].startsWith("@noldova/"))) {
+          const range = ranges.get(name);
+          if (Object.isUndefined(range) || BuildApiTests.lowestOf(range) < BuildApiTests.lowestOf(String(needed)))
+            gaps.push(`${peer} needs ${name} ${String(needed)}, the build takes ${range ?? "none"}`);
+        }
     }
 
-    Assert.isTrue(peers.length > 3, peers.join(", "));
-    Assert.areEqual(String.empty, [...needed].filter(t => !peers.includes(t)).sort().join(", "));
+    Assert.isTrue(ranges.size > 3, [...ranges.keys()].join(", "));
+    Assert.areEqual(String.empty, gaps.sort().join("; "));
   }
 
   @TestMethod
@@ -94,7 +97,7 @@ export class BuildApiTests {
 
     Assert.areEqual(2, result.status);
     Assert.areEqual("Usage: noldova-desktop-release <command> [<argument>...], where the command is one of list-targets, release-check, choose-feed, release-publish, release-lock, release-unlock, feed-check, module-range, noldova-desktop-range. "
-      + "It loads only Node.js's own modules and context's core, exceptions and json packages, so it runs from desktop.build's archive with those three beside it, without an install.\n", result.stderr);
+      + "It loads only Node.js's own modules and the context packages desktop.build takes as peers, so it runs from desktop.build's archive with those beside it, without an install.\n", result.stderr);
   }
 
   @TestMethod
@@ -107,6 +110,10 @@ export class BuildApiTests {
     Assert.areEqual("2 noldova-desktop-release list-targets [<app folder>]\n2 noldova-desktop-release release-check\n2 noldova-desktop-release choose-feed\n2 noldova-desktop-release release-publish\n2 noldova-desktop-release release-lock\n2 noldova-desktop-release release-unlock\n2 noldova-desktop-release feed-check\n"
       + "2 noldova-desktop-release module-range <module folder>\n2 noldova-desktop-release noldova-desktop-range <lowest Noldova Desktop version>\n",
       results.map(t => `${t.status} ${t.stdout.slice(t.stdout.indexOf("noldova-desktop-release"))}`).join(String.empty));
+  }
+
+  private static lowestOf(range: string): string {
+    return (/\d+\.\d+\.\d+/.exec(range)?.[0] ?? String.empty).split(".").map(t => t.padStart(6, "0")).join(".");
   }
 
   private static async manifestOfAsync(name: string): Promise<string> {
