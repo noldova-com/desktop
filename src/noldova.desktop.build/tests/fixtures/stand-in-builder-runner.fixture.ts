@@ -6,13 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
 
 import type { ProcessResult } from "../../src/models/processes/process-result.js";
 import { ProcessRunner } from "../../src/services/processes/process-runner.js";
+import { FolderFixture } from "./folder.fixture.js";
 
 export class StandInBuilderRunnerFixture extends ProcessRunner {
   private readonly runner: ProcessRunner;
@@ -47,11 +48,11 @@ export class StandInBuilderRunnerFixture extends ProcessRunner {
       return 1;
     }
     for (const file of this.files) {
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(file));
       await writeFile(file, String.empty);
     }
     for (const [file, data] of this.built) {
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(file));
       await writeFile(file, data);
     }
     return 0;

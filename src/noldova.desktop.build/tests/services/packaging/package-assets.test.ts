@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -16,6 +16,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackageAssets } from "../../../src/services/packaging/package-assets.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 @TestClass
 export class PackageAssetsTests {
@@ -74,7 +75,7 @@ export class PackageAssetsTests {
     const folder = await mkdtemp(path.join(tmpdir(), "package-assets-"));
     if (hasEntitlements) {
       const file = path.join(folder, ...PackageAssetsTests.ENTITLEMENTS);
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(file));
       await writeFile(file, "<plist/>");
     }
     return { path: folder, [Symbol.asyncDispose]: () => rm(folder, { recursive: true, force: true }) };

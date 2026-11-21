@@ -23,6 +23,7 @@ import { ProductIdentity } from "../../../src/models/packages/product-identity.j
 import { PackageInstaller } from "../../../src/services/packaging/package-installer.js";
 import { UserPath } from "../../../src/services/packaging/user-path.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 class ScriptedRunner extends ProcessRunner {
   private readonly answer: (command: string, commandArguments: readonly string[]) => Promise<ProcessResult>;
@@ -155,7 +156,7 @@ class MovingRunner extends ProcessRunner {
 
   private async installAsync(folder: string, isProgramWritten: boolean): Promise<void> {
     for (const file of [...isProgramWritten ? ["Sample App.exe"] : [], "ffmpeg.dll", path.join("bin", "sample-app.cmd"), "Uninstall Sample App.exe"]) {
-      await mkdir(path.dirname(path.join(folder, file)), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(path.join(folder, file)));
       await writeFile(path.join(folder, file), file);
     }
     this.location = folder;
@@ -168,7 +169,7 @@ class MovingRunner extends ProcessRunner {
       await rm(path.join(this.programs, "Sample Makers", "Smoke Neighbour"), { recursive: true });
     await this.installAsync(this.app, true);
     if (this.isShortcutWritten) {
-      await mkdir(path.dirname(this.shortcut), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(this.shortcut));
       await writeFile(this.shortcut, "shortcut");
     }
   }
@@ -757,7 +758,7 @@ export class PackageInstallerTests {
   }
 
   private static async writeAsync(file: string, text: string): Promise<void> {
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, text);
   }
 

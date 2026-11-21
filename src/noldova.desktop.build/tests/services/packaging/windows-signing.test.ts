@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -21,6 +21,7 @@ import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { ProcessResult } from "../../../src/models/processes/process-result.js";
 import { WindowsSigning } from "../../../src/services/packaging/windows-signing.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 class SigningRunner extends ProcessRunner {
   public files: readonly string[] = [];
@@ -66,7 +67,7 @@ export class WindowsSigningTests {
       const own = [path.join(unpacked, "HELPER.EXE"), path.join(unpacked, "Sample App.exe"), path.join(unpacked, "resources", "app.asar.unpacked", "native", "ADDON.NODE")];
       const libraries = [path.join(modules, "CONPTY.DLL"), path.join(modules, "Tool.Exe")];
       for (const file of [...own, ...libraries, path.join(unpacked, "LICENSE.TXT")]) {
-        await mkdir(path.dirname(file), { recursive: true });
+        await FolderFixture.ensureAsync(path.dirname(file));
         await writeFile(file, String.empty);
       }
       const runner = new SigningRunner();
@@ -88,7 +89,7 @@ export class WindowsSigningTests {
     try {
       const program = path.join(output, "win-arm64-unpacked", "Sample App.exe");
       const installer = path.join(output, "Sample App-1.2.3-windows-arm64.exe");
-      await mkdir(path.dirname(program), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(program));
       await writeFile(program, String.empty);
       const runner = new SigningRunner();
       const signing = new WindowsSigning(runner, output, output, output, new PackageTarget("windows", "arm64"), {}, WindowsSigningTests.CREDENTIALS, [],

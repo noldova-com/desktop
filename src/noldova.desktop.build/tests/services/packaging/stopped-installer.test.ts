@@ -19,6 +19,7 @@ import { ProcessResult } from "../../../src/models/processes/process-result.js";
 import { Resources } from "../../../src/resources.js";
 import { StoppedInstaller } from "../../../src/services/packaging/stopped-installer.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 class ListingRunner extends ProcessRunner {
   private readonly answer: () => Promise<ProcessResult>;
@@ -57,7 +58,7 @@ export class StoppedInstallerTests {
   }
 
   private static async writeAsync(file: string, text: string): Promise<void> {
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, text);
   }
 

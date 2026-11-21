@@ -14,6 +14,8 @@ import path from "node:path";
 
 import "@noldova/context.core";
 
+import { FolderFixture } from "./folder.fixture.js";
+
 export class AppFolderFixture implements AsyncDisposable {
   private static readonly BROWSER_MARKER: string = "browser-installed";
   private static readonly INSTALL_RECORD: readonly string[] = ["node_modules", ".noldova-install"];
@@ -94,7 +96,7 @@ export class AppFolderFixture implements AsyncDisposable {
 
   private async writeAsync(segments: readonly string[], text: string): Promise<void> {
     const file = path.join(this.path, ...segments);
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, text);
   }
 }

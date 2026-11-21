@@ -16,6 +16,7 @@ import { ProcessResult } from "../../src/models/processes/process-result.js";
 import { ArchiveReader } from "../../src/services/packages/archive.reader.js";
 import { BuildLayout } from "../../src/services/packages/build-layout.js";
 import { ProcessRunner } from "../../src/services/processes/process-runner.js";
+import { FolderFixture } from "./folder.fixture.js";
 import { TarballFixture } from "./tarball.fixture.js";
 
 export interface IPackageToolsAnswers {
@@ -148,7 +149,7 @@ export class PackageToolsRunnerFixture extends ProcessRunner {
   }
 
   private static async writeAsync(file: string, content: string | Buffer): Promise<void> {
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, content);
   }
 

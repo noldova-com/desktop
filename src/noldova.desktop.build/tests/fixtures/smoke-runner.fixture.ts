@@ -13,6 +13,7 @@ import "@noldova/context.core";
 
 import { ProcessResult } from "../../src/models/processes/process-result.js";
 import { ProcessRunner } from "../../src/services/processes/process-runner.js";
+import { FolderFixture } from "./folder.fixture.js";
 import { SmokeProcessFixture } from "./smoke-process.fixture.js";
 
 export class SmokeRunnerFixture extends ProcessRunner {
@@ -180,8 +181,8 @@ export class SmokeRunnerFixture extends ProcessRunner {
   }
 
   private async writeAppAsync(program: string, resources: string, fuseBinary: string): Promise<void> {
-    await mkdir(path.dirname(program), { recursive: true });
-    await mkdir(path.dirname(fuseBinary), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(program));
+    await FolderFixture.ensureAsync(path.dirname(fuseBinary));
     await mkdir(resources, { recursive: true });
     await writeFile(fuseBinary, SmokeRunnerFixture.createProgram(this.isCookieEncrypted, this.hasFuseWire));
     if (program !== fuseBinary)

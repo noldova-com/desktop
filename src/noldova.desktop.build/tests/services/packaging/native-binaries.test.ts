@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -14,6 +14,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { NativeBinaries } from "../../../src/services/packaging/native-binaries.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 @TestClass
 export class NativeBinariesTests {
@@ -83,7 +84,7 @@ export class NativeBinariesTests {
     const folder = await mkdtemp(path.join(tmpdir(), "native-binaries-"));
     for (const [name, content] of Object.entries(files)) {
       const file = path.join(folder, ...name.split("/"));
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(file));
       await writeFile(file, content);
     }
     return { path: folder, [Symbol.asyncDispose]: () => rm(folder, { recursive: true, force: true }) };

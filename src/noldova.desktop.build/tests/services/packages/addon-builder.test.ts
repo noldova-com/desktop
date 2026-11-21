@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
@@ -21,6 +21,7 @@ import { Resources } from "../../../src/resources.js";
 import { AddonBuilder } from "../../../src/services/packages/addon-builder.js";
 import { BuildLayout } from "../../../src/services/packages/build-layout.js";
 import { NodeGyp } from "../../../src/services/toolchain/node-gyp.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 import { RecordingRunnerFixture } from "../../fixtures/recording-runner.fixture.js";
 
 @TestClass
@@ -325,7 +326,7 @@ export class AddonBuilderTests {
   }
 
   private static async writeAsync(file: string, text: string): Promise<void> {
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, text);
   }
 }
