@@ -7,7 +7,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { accessSync, constants, createReadStream, realpathSync } from "node:fs";
 import { type FileHandle, open, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -28,6 +28,24 @@ export class AppImageReplacement {
   public constructor(image: string, log: (text: string) => void) {
     this.image = image;
     this.log = log;
+  }
+
+  public get refusal(): string | null {
+    let image: string;
+    try {
+      image = realpathSync(this.image);
+    }
+    catch (error) {
+      return new AppImageUnreadableException(this.image, error).message;
+    }
+    const folder = path.dirname(image);
+    try {
+      accessSync(folder, constants.W_OK | constants.X_OK);
+      return null;
+    }
+    catch (error) {
+      return new AppImageFolderUnwritableException(folder, error).message;
+    }
   }
 
   public async replaceAsync(download: string): Promise<void> {

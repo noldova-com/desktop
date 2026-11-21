@@ -7,7 +7,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -15,14 +15,15 @@ import { ExceptionOptions } from "@noldova/context.exceptions";
 import type { JsonObject } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import {
-  DatabasesNotBackedUpException, InstallerNotHeldException, UpdateCheckerUnknownException, UpdateController, UpdateDownloadInterruptedException, UpdateDownloadMismatchException,
-  UpdateFeedUnreachableException, UpdateNoLongerOfferedException, type UpdateReadyRecord, type UpdateStatus, UpdateUnderWayException
+  AppImageHandoff, AppImageReplacement, DatabasesNotBackedUpException, InstallerNotHeldException, UpdateCheckerUnknownException, UpdateController, UpdateDownloadInterruptedException, UpdateDownloadMismatchException,
+  UpdateFeedUnreachableException, UpdateNoLongerOfferedException, type UpdateReadyRecord, UpdateStateKind, type UpdateStatus, UpdateUnderWayException
 } from "@noldova/desktop.electron";
 
 import { Condition } from "../fixtures/condition.fixture.js";
 import { FakeDeviceFileStore } from "../fixtures/fake-device-file-store.fixture.js";
 import { FakeUpdateCheckLock } from "../fixtures/fake-update-check-lock.fixture.js";
 import { FakeUpdater } from "../fixtures/fake-updater.fixture.js";
+import { UnwritableFolderFixture } from "../fixtures/unwritable-folder.fixture.js";
 
 interface IScheduled {
   readonly delay: number;
@@ -272,6 +273,38 @@ export class UpdateControllerTests {
         JSON.stringify(fixture.controller.status.toJson()));
       Assert.areEqual(0, fixture.updater.downloads);
     }, false, true, true, "This copy can't install updates.");
+  }
+
+  @TestMethod
+  public async refusesAnAppImageWhoseFolderCannotBeWrittenBeforeDownloadingAnything(): Promise<void> {
+    const folder = await realpath(await mkdtemp(join(tmpdir(), "desktop-unwritable-app-image-")));
+    try {
+      const image = join(folder, "Noldova Desktop Sample.AppImage");
+      await writeFile(image, "Noldova Desktop Sample 1.2.0");
+      const replacement = new AppImageReplacement(image, () => undefined);
+      let refusal: string | null = null;
+      {
+        using _folder = new UnwritableFolderFixture(folder);
+        refusal = new AppImageHandoff(replacement, replacement.refusal).refusal;
+      }
+      Assert.isTrue(refusal?.startsWith(`The folder ${folder} cannot be written, `) === true, String(refusal));
+
+      await UpdateControllerFixture.runAsync(async fixture => {
+        fixture.updater.check = () => Promise.resolve("1.3.0");
+        await fixture.controller.startAsync();
+
+        fixture.controller.act("Check");
+        await fixture.publishedAsync(2);
+
+        Assert.areEqual(JSON.stringify({ kind: "Failed", version: null, progress: null, checkedAt: 1_000, reason: refusal, mustMove: false }),
+          JSON.stringify(fixture.controller.status.toJson()));
+        Assert.areEqual(0, fixture.updater.downloads);
+        Assert.isFalse(fixture.published.some(t => t.kind === UpdateStateKind.Downloading), JSON.stringify(fixture.published.map(t => t.kind)));
+      }, false, true, true, refusal);
+    }
+    finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   }
 
   @TestMethod

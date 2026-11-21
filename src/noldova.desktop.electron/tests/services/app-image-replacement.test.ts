@@ -131,6 +131,25 @@ export class AppImageReplacementTests {
   }
 
   @TestMethod
+  public async refusesAheadAnAppImageItCannotFindOrWhoseFolderItCannotWrite(): Promise<void> {
+    await AppImageReplacementTests.runInFolderAsync(async (folder, image) => {
+      const missing = path.join(folder, "missing.AppImage");
+      const writable = this.create(image).refusal;
+      const gone = this.create(missing).refusal;
+      let unwritable: string | null = null;
+      {
+        using _folder = new UnwritableFolderFixture(folder);
+        unwritable = this.create(image).refusal;
+      }
+
+      Assert.isNull(writable);
+      Assert.isTrue(gone?.startsWith(`The AppImage ${missing} could not be read, `) === true, String(gone));
+      Assert.isTrue(unwritable?.startsWith(`The folder ${folder} cannot be written, so the AppImage in it cannot be replaced with the update: `) === true, String(unwritable));
+      Assert.isTrue(unwritable?.includes("EACCES") === true, String(unwritable));
+    });
+  }
+
+  @TestMethod
   public async removesItsCopyWhenTheDownloadCannotBeReadAndLeavesTheAppImage(): Promise<void> {
     await AppImageReplacementTests.runInFolderAsync(async (folder, image) => {
       const missing = path.join(folder, "update", "missing.AppImage");
