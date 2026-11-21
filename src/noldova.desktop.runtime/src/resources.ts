@@ -1988,6 +1988,10 @@ export class Resources {
     return `The pseudo-terminal library has no ${members.join(Resources.memberSeparator)}, so the runtime cannot stop or close its output. Its version may have changed how it keeps it.`;
   }
 
+  public static formatModuleDeactivated(moduleId: string): string {
+    return `The module ${moduleId} has deactivated, so it opens no new tool session.`;
+  }
+
   public static formatModuleStopping(moduleId: string, program: string): string {
     return `${program} was not started, because the module ${moduleId} is stopping.`;
   }

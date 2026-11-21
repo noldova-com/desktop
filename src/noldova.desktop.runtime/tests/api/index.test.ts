@@ -106,6 +106,7 @@ export class RuntimeApiTests {
       "MacFolderProtector",
       "ModuleDatabase",
       "ModuleDatabaseException",
+      "ModuleDeactivatedException",
       "ModuleDeclaration",
       "ModuleDeclarationReader",
       "ModuleHost",

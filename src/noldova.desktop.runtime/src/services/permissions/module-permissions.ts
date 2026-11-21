@@ -10,7 +10,7 @@ import type { IModuleLog } from "../../interfaces/i-module-log.js";
 import type { IPermissionAnswerer } from "../../interfaces/i-permission-answerer.js";
 import type { IPermissionsContext } from "../../interfaces/i-permissions-context.js";
 import type { PermissionRevocation } from "../../models/permission-revocation.js";
-import type { Registration } from "../../models/registration.js";
+import { Registration } from "../../models/registration.js";
 import type { RememberedPermission } from "../../models/remembered-permission.js";
 import type { PermissionCenter } from "./permission-center.js";
 
@@ -19,18 +19,19 @@ export class ModulePermissions implements IPermissionsContext {
   private readonly center: PermissionCenter;
   private readonly log: IModuleLog;
   private readonly registrations: Disposable[];
+  private readonly stopping: AbortSignal;
 
-  public constructor(moduleId: string, center: PermissionCenter, log: IModuleLog, registrations: Disposable[]) {
+  public constructor(moduleId: string, center: PermissionCenter, log: IModuleLog, registrations: Disposable[], stopping: AbortSignal) {
     this.moduleId = moduleId;
     this.center = center;
     this.log = log;
     this.registrations = registrations;
+    this.stopping = stopping;
   }
 
   public registerAnswerer(answerer: IPermissionAnswerer): Registration {
-    const registration = this.center.registerAnswerer(this.moduleId, answerer, this.log);
-    this.registrations.push(registration);
-    return registration;
+    this.center.requirePermissionsModule(this.moduleId);
+    return this.stopping.aborted ? ModulePermissions.released() : this.keep(this.center.registerAnswerer(this.moduleId, answerer, this.log));
   }
 
   public listRemembered(): readonly RememberedPermission[] {
@@ -42,7 +43,14 @@ export class ModulePermissions implements IPermissionsContext {
   }
 
   public onRevoked(listener: (revocation: PermissionRevocation) => void): Registration {
-    const registration = this.center.onRevoked(this.moduleId, listener, this.log);
+    return this.stopping.aborted ? ModulePermissions.released() : this.keep(this.center.onRevoked(this.moduleId, listener, this.log));
+  }
+
+  private static released(): Registration {
+    return new Registration(() => undefined);
+  }
+
+  private keep(registration: Registration): Registration {
     this.registrations.push(registration);
     return registration;
   }
