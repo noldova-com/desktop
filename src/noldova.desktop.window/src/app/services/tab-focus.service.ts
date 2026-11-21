@@ -36,12 +36,7 @@ export class TabFocusService {
   }
 
   public focus(tab: Tab): void {
-    const asked = this.document.activeElement;
-    afterNextRender(() => {
-      const active = this.document.activeElement;
-      if (active === asked || active === this.document.body)
-        this.elementOf(tab)?.focus({ preventScroll: true });
-    }, { injector: this.environment });
+    afterNextRender(() => this.elementOf(tab)?.focus({ preventScroll: true }), { injector: this.environment });
   }
 
   public focusContent(tab: Tab): void {

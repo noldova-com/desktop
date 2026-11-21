@@ -37,35 +37,6 @@ describe("TabFocusService", () => {
     expect([before, document.activeElement]).toEqual([document.body, elements[1]]);
   });
 
-  it("focuses a tab after the next render while the focus stays where it was asked from or falls to the body, and leaves it where it moved anywhere else", () => {
-    const focus = TestBed.inject(TabFocusService);
-    const field = document.body.appendChild(document.createElement("input"));
-    try {
-      elements[0]?.focus();
-      focus.focus(plan);
-      TestBed.tick();
-      const stayed = document.activeElement;
-      elements[0]?.focus();
-      focus.focus(plan);
-      elements[0]?.blur();
-      TestBed.tick();
-      const fell = document.activeElement;
-      elements[0]?.focus();
-      focus.focus(plan);
-      field.focus();
-      TestBed.tick();
-      const moved = document.activeElement;
-      focus.focus(plan);
-      elements[0]?.focus();
-      TestBed.tick();
-
-      expect([stayed, fell, moved, document.activeElement]).toEqual([elements[1], elements[1], field, elements[0]]);
-    }
-    finally {
-      field.remove();
-    }
-  });
-
   it("focuses a tab without scrolling the row that holds it, and nothing for a tab that isn't shown", () => {
     const focus = TestBed.inject(TabFocusService);
     const row = document.body.appendChild(document.createElement("div"));

@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import { FocusTrapFactory } from "@angular/cdk/a11y";
-import { Component, type Signal, type WritableSignal, inject, signal } from "@angular/core";
+import { Component, EnvironmentInjector, type Signal, type WritableSignal, afterNextRender, inject, signal } from "@angular/core";
 import { type ComponentFixture, TestBed } from "@angular/core/testing";
 
 import { AppearanceService, DefaultTheme, ThemeMode, Typography } from "@noldova/ui.components.angular";
@@ -196,6 +196,31 @@ describe("WorkspaceComponent", () => {
 
     expect(whileLoading).toBe(true);
     expect(document.activeElement).toBe(tab);
+  });
+
+  it("leaves the focus where the person moved it before the next render, rather than giving it back to the active tab it was restoring", async () => {
+    const registry = LayoutFixture.createRegistry();
+    const fixture = await renderAsync(registry, Layout.createDefault(registry).openDocument(LayoutFixture.plan));
+    const host = DomFixture.host(fixture);
+    const tab = DomFixture.one(host, `[data-tab-key="${LayoutFixture.plan.key}"]`);
+    const focused = DomFixture.closest(tab, "nol-tab-group").appendChild(document.createElement("button"));
+    const field = document.body.appendChild(document.createElement("input"));
+    try {
+      focused.focus();
+      focused.remove();
+      let asked: Element | null = null;
+      parts.generation.update(t => t + 1);
+      afterNextRender(() => {
+        asked = document.activeElement;
+        field.focus();
+      }, { injector: TestBed.inject(EnvironmentInjector) });
+      await settleAsync(fixture);
+
+      expect([asked, document.activeElement]).toEqual([document.body, field]);
+    }
+    finally {
+      field.remove();
+    }
   });
 
   it("moves the focus into a document or view whose tab the pointer chooses, back to where it was in it, and leaves it on a tab chosen by keyboard and on a document with nothing to focus", async () => {
