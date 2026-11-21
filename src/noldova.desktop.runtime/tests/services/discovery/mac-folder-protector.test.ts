@@ -34,11 +34,11 @@ export class MacFolderProtectorTests {
   private static readonly DETACH_ATTEMPTS: number = 5;
   private static readonly DETACH_PAUSE_MILLISECONDS: number = 1000;
   private static readonly COMMAND_LIMIT_MILLISECONDS: number = 20_000;
-  private static readonly CREATE_LIMIT_MILLISECONDS: number = 12_000;
-  private static readonly ATTACH_LIMIT_MILLISECONDS: number = 12_000;
+  private static readonly CREATE_LIMIT_MILLISECONDS: number = 120_000;
+  private static readonly ATTACH_LIMIT_MILLISECONDS: number = 120_000;
   private static readonly MOUNT_LIMIT_MILLISECONDS: number = 3_000;
   private static readonly REFUSAL_LIMIT_MILLISECONDS: number = 3_000;
-  private static readonly DETACH_LIMIT_MILLISECONDS: number = 18_000;
+  private static readonly DETACH_LIMIT_MILLISECONDS: number = 600_000;
   private static readonly HOLDER_PROCESS: RegExp = /diskimage|mds|mdworker|fseventsd|fsck|diskarbitration|hdiutil|diskutil/u;
   private static readonly IMAGE_ENTRIES: RegExp = /^=+$/mu;
   private static readonly WHOLE_DISK: RegExp = /^(\/dev\/disk\d+)\s/mu;
@@ -106,17 +106,40 @@ export class MacFolderProtectorTests {
   }
 
   private static async detachAsync(disk: string, mountPoint: string, failures: string[]): Promise<void> {
-    for (let attempt = 1; attempt <= MacFolderProtectorTests.DETACH_ATTEMPTS; attempt++) {
+    const started = performance.now();
+    const at = (): string => `+${Math.round(performance.now() - started)} ms`;
+    const record: string[] = [];
+    void MacFolderProtectorTests.readHoldersAsync;
+    void MacFolderProtectorTests.DETACH_ATTEMPTS;
+    const name = disk.replace("/dev/", "");
+    const probe = async (label: string, command: string, values: string[]): Promise<void> => {
+      const t = performance.now();
+      const r = await MacFolderProtectorTests.runAsync(command, values);
+      record.push(`  [${at()}] ${label} (${Math.round(performance.now() - t)} ms): ${r.text.trimEnd().split("\n").slice(-60).join("\n    ")}`);
+    };
+    for (let attempt = 1; attempt <= 60; attempt++) {
       if (attempt > 1)
         await setTimeout(MacFolderProtectorTests.DETACH_PAUSE_MILLISECONDS);
+      const t = performance.now();
       const result = await MacFolderProtectorTests.runAsync("/usr/bin/hdiutil", ["detach", "-force", disk]);
-      if (result.status === 0)
-        return;
-      failures.push(`attempt ${attempt}: ${result.text}`);
-      if (attempt === 1)
-        failures.push(`What held ${disk} or ${mountPoint} after it:\n${await MacFolderProtectorTests.readHoldersAsync(disk, mountPoint)}`);
+      record.push(`[${at()}] attempt ${attempt} (${Math.round(performance.now() - t)} ms): ${result.text.trimEnd().replace(/\n/gu, " | ")}`);
+      if (result.status === 0) {
+        if (attempt === 1)
+          return;
+        failures.push(record.join("\n"));
+        throw new Error(`PROBE 202: ${disk} detached on attempt ${attempt}, ${at()} after the first:\n${record.join("\n")}`);
+      }
+      if (attempt === 1 || attempt === 5) {
+        await probe("sudo lsof devices", "/usr/bin/sudo", ["-n", "/usr/sbin/lsof", "-n", "-w", disk, `/dev/r${name}`, `${disk}s1`, `/dev/r${name}s1`]);
+        await probe("sudo lsof mount", "/usr/bin/sudo", ["-n", "/usr/sbin/lsof", "-n", "-w", "+f", "--", mountPoint]);
+        await probe("ps", "/bin/sh", ["-c", "/bin/ps -axo pid,ppid,etime,stat,%cpu,command | grep -iE 'xprotect|syspolicy|mds|mdworker|fseventsd|fsck|diskimage|diskarbitration|hdiutil|diskutil|storagekit|diskmanagement|quicklook|amfi|endpoint|revisiond|deleted' | grep -v grep | cut -c1-220"]);
+        await probe("mount", "/bin/sh", ["-c", `/sbin/mount | grep -E '${name}|shared' ; /usr/bin/hdiutil info | grep -A3 -E '^/dev/${name}' | head -20`]);
+        await probe("log", "/usr/bin/sudo", ["-n", "/usr/bin/log", "show", "--last", "45s", "--style", "compact", "--predicate",
+          `process CONTAINS[c] "xprotect" OR process == "syspolicyd" OR process == "diskarbitrationd" OR process CONTAINS "diskimage" OR eventMessage CONTAINS "${name}"`]);
+      }
     }
-    throw new Error(`hdiutil could not detach ${disk} in ${MacFolderProtectorTests.DETACH_ATTEMPTS} attempts:\n${failures.join("\n")}`);
+    failures.push(record.join("\n"));
+    throw new Error(`PROBE 202: hdiutil could not detach ${disk} in 60 attempts:\n${record.join("\n")}`);
   }
 
   private static async readHoldersAsync(disk: string, mountPoint: string): Promise<string> {

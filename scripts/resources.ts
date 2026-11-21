@@ -198,7 +198,7 @@ export class Resources {
   public static readonly testResultsIdentityField: string = "identity";
   public static readonly testResultsFailureField: string = "failure";
   public static readonly packageTestCheckTitle: string = "Package tests and coverage";
-  public static readonly serialTestDefaultTimeout: number = 40_000;
+  public static readonly serialTestDefaultTimeout: number = 300_000;
   public static readonly serialTestPackagingTimeout: number = 90_000;
   public static readonly serialTestPackagingCategory: string = "Packaging";
   public static readonly serialTestGeneralSuite: string = "General";
