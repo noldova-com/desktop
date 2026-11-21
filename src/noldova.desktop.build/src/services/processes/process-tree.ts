@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 
@@ -19,13 +19,16 @@ export class ProcessTree {
   private readonly kill: (processId: number, signal: NodeJS.Signals | 0) => void;
   private readonly list: (command: string, commandArguments: readonly string[]) => Promise<string>;
   private readonly delayAsync: (milliseconds: number) => Promise<unknown>;
+  private readonly endTree: (processId: number) => string;
 
   public constructor(platform: string = process.platform, kill: (processId: number, signal: NodeJS.Signals | 0) => void = process.kill,
-    list: (command: string, commandArguments: readonly string[]) => Promise<string> = ProcessTree.listAsync, delayAsync: (milliseconds: number) => Promise<unknown> = delay) {
+    list: (command: string, commandArguments: readonly string[]) => Promise<string> = ProcessTree.listAsync, delayAsync: (milliseconds: number) => Promise<unknown> = delay,
+    endTree: (processId: number) => string = ProcessTree.taskkill) {
     this.platform = platform;
     this.kill = kill;
     this.list = list;
     this.delayAsync = delayAsync;
+    this.endTree = endTree;
   }
 
   public get isGrouped(): boolean {
@@ -57,7 +60,7 @@ export class ProcessTree {
 
   private async endOnWindowsAsync(processId: number, launched: number, exited: number | null): Promise<void> {
     if (Object.isNull(exited)) {
-      const ended = await this.list(Resources.taskkillCommand, [...Resources.taskkillTreeArguments, String(processId)]).catch(() => null);
+      const ended = this.endHeldTree(processId);
       if (!Object.isNull(ended)) {
         await this.waitUntilGoneAsync([processId, ...[...ended.matchAll(Resources.taskkillEndedPattern)].map(t => Number(t[1]))]);
         return;
@@ -67,9 +70,9 @@ export class ProcessTree {
     if (Object.isNull(listing))
       return;
     const start = listing.get(processId)?.start;
-    let tree = Object.isNull(exited)
-      ? new Map(!Object.isUndefined(start) && start + Resources.psStartTolerance > launched ? [[processId, start]] : [])
-      : new Map([...listing].filter(([, t]) => t.parent === processId && t.start + Resources.psStartTolerance > launched && t.start <= exited).map(([id, t]) => [id, t.start]));
+    const children = [...listing].filter(([, t]) => t.parent === processId && t.start + Resources.psStartTolerance > launched && (Object.isNull(exited) || t.start <= exited))
+      .map(([id, t]): [number, number] => [id, t.start]);
+    let tree = new Map(Object.isNull(exited) && !Object.isUndefined(start) && start + Resources.psStartTolerance > launched ? [[processId, start], ...children] : children);
     for (let round = 0; !Object.isNull(listing) && round < Resources.processTreeRounds; round++) {
       tree = ProcessTree.treeOf(listing, tree);
       const found = ProcessTree.listed(listing, tree);
@@ -77,6 +80,15 @@ export class ProcessTree {
         return;
       listing = await this.readAsync(Resources.windowsPowershellCommand,
         [...Resources.processListArguments, Resources.formatProcessEndScript(found.map(t => t[0]), found.map(t => t[1]))]);
+    }
+  }
+
+  private endHeldTree(processId: number): string | null {
+    try {
+      return this.endTree(processId);
+    }
+    catch {
+      return null;
     }
   }
 
@@ -108,6 +120,11 @@ export class ProcessTree {
         return false;
       throw error;
     }
+  }
+
+  private static taskkill(processId: number): string {
+    return execFileSync(Resources.taskkillCommand, [...Resources.taskkillTreeArguments, String(processId)],
+      { encoding: Resources.textEncoding, timeout: Resources.taskkillTimeout, windowsHide: true, stdio: [Resources.ignoreStdio, Resources.pipeStdio, Resources.pipeStdio] });
   }
 
   private static async listAsync(command: string, commandArguments: readonly string[]): Promise<string> {
