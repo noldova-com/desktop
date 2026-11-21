@@ -130,7 +130,7 @@ jobs:
       - name: Install the session bus
         if: runner.os == 'Linux'
         timeout-minutes: 5
-        run: command -v dbus-run-session >/dev/null || { sudo apt-get update && sudo apt-get install -y --no-install-recommends dbus-daemon dbus-bin; }
+        run: command -v dbus-daemon >/dev/null || { sudo apt-get update && sudo apt-get install -y --no-install-recommends dbus-daemon; }
 
       - name: Give Chromium's sandbox its setuid helper where user namespaces are refused
         if: runner.os == 'Linux'
