@@ -123,6 +123,13 @@ class FakeAccountComponent {
   }
 }
 
+@Component({
+  selector: "nol-fake-notice",
+  template: `<p>Nothing to change here.</p>`
+})
+class FakeNoticeComponent {
+}
+
 describe("SettingsComponent", () => {
   let fixture: ComponentFixture<SettingsComponent>;
   let bridge: PreloadBridgeFixture;
@@ -1249,6 +1256,31 @@ describe("SettingsComponent", () => {
     fixture.detectChanges();
 
     expect(element().querySelector<HTMLButtonElement>("[data-setting=\"clock.alarms\"] .nol-setting-row-control button")?.disabled).toBe(true);
+  });
+
+  it("moves the focus from a Reset that goes away to its row's control, from Open page to the opened page's first control, and to the page list when that page has none", async () => {
+    ownPages.set([accountEntry(() => Promise.resolve(FakeNoticeComponent))]);
+    render();
+    const settle = async (): Promise<void> => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      TestBed.tick();
+    };
+
+    await page.getByRole("button", { name: "Reset Mode" }).click();
+    const reset = DomFixture.one(element(), "[data-setting='desktop.mode'] .nol-setting-row-control").contains(document.activeElement);
+    await searchAsync("tick");
+    await page.getByRole("button", { name: "Open page" }).click();
+    await settle();
+    const opened = [texts("[aria-selected=true]"), document.activeElement === element().querySelector(".nol-settings-column :is(input, select, textarea, button)")];
+    await searchAsync("accou");
+    await page.getByRole("button", { name: "Open page" }).click();
+    await settle();
+    const empty = [texts("[aria-selected=true]"), DomFixture.one(element(), ".nol-settings-pages").contains(document.activeElement)];
+
+    expect(reset).toBe(true);
+    expect(opened).toEqual([["Clock"], true]);
+    expect(empty).toEqual([["Account"], true]);
   });
 
   it("changes and resets a setting through the settings service, and reports a change or reset that fails", async () => {

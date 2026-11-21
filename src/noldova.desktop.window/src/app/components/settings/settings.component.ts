@@ -186,6 +186,11 @@ export class SettingsComponent {
     return entry.rows.filter(t => [t.title, t.description].some(u => !Object.isNull(u) && TextMatch.contains(u, query)));
   }
 
+  protected openPage(page: string): void {
+    this.select(page);
+    afterNextRender(() => this.focusControl(this.column().nativeElement.querySelector<HTMLElement>(Resources.settingControlSelector)), { injector: this.injector });
+  }
+
   protected openRow(page: string, id: string): void {
     this.select(page);
     afterNextRender(() => this.reveal(id), { injector: this.injector });
@@ -223,6 +228,7 @@ export class SettingsComponent {
 
   protected reset(definition: SettingDefinition): void {
     this.dropDraft(definition);
+    this.focusControl(this.column().nativeElement.querySelector<HTMLElement>(Resources.formatSettingRowControlSelector(definition.name.text)));
     const resetting = definition === this.clock.definition ? this.clock.resetAsync() : this.switches.resetAsync(definition);
     resetting.catch((error: unknown) => this.errors.handleError(error));
   }
@@ -258,6 +264,20 @@ export class SettingsComponent {
     this.revealer = revealer;
   }
 
+  private focusControl(control: HTMLElement | null): void {
+    if (Object.isNull(control))
+      this.focusPages();
+    else
+      control.focus();
+  }
+
+  private focusPages(): void {
+    if (this.pageList().nativeElement.checkVisibility())
+      this.pageTree().focus();
+    else
+      this.pageChooser().focus();
+  }
+
   private unmark(): void {
     this.revealer?.disconnect();
     this.marked?.classList.remove(Resources.foundRowClass);
@@ -280,10 +300,7 @@ export class SettingsComponent {
     const active = document.activeElement;
     if (this.focusedControl !== hidden || !(active === document.body || hidden.contains(active) || this.pageChooser().isExpanded()))
       return;
-    if (hidden === list)
-      this.pageChooser().focus();
-    else
-      this.pageTree().focus();
+    this.focusPages();
   }
 
   private static matches(definition: SettingDefinition, query: string): boolean {
