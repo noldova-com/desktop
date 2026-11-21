@@ -8,6 +8,7 @@
 
 import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
+import type { Rectangle } from "electron";
 
 import { WindowStateNotConnectedException } from "../exceptions/window-state-not-connected.exception.js";
 import { WindowStateUnavailableException } from "../exceptions/window-state-unavailable.exception.js";
@@ -25,8 +26,11 @@ export class WindowBoundsKeeper {
   private readonly saveDelay: number;
   private readonly log: IMainProcessLog;
   private readonly keepsStoredPosition: boolean;
+  private readonly holdsPersonsMoves: boolean;
   private restored: WindowState | null = null;
   private isRead: boolean = false;
+  private hasFailedRead: boolean = false;
+  private shownBounds: Rectangle | null = null;
   private store: IWindowStateStore | undefined;
   private timer: NodeJS.Timeout | undefined;
   private hasUnsaved: boolean = false;
@@ -39,6 +43,7 @@ export class WindowBoundsKeeper {
     this.saveDelay = saveDelay;
     this.log = log;
     this.keepsStoredPosition = keepsStoredPosition;
+    this.holdsPersonsMoves = holdsPersonsMoves;
     this.store = undefined;
     this.timer = undefined;
     const changed = (): void => this.noteChange();
@@ -67,15 +72,20 @@ export class WindowBoundsKeeper {
   }
 
   public async restoreAsync(store: IWindowStateStore): Promise<void> {
-    this.store = store;
     this.isHeld = false;
     if (this.hasUnsaved) {
-      if (this.keepsStoredPosition && !this.isRead)
-        this.keepRead(await store.readAsync());
+      const held = this.keepsStoredPosition && !this.isRead ? await this.readFromAsync(store) : undefined;
+      this.store = store;
+      if (!Object.isUndefined(held))
+        this.keepRead(held);
       await this.saveAsync();
       return;
     }
-    const state = this.keepRead(await store.readAsync());
+    const saved = await this.readFromAsync(store);
+    if (this.window.isDestroyed())
+      return;
+    this.store = store;
+    const state = this.keepRead(saved);
     if (!Object.isNull(state))
       this.place(state);
   }
@@ -85,6 +95,7 @@ export class WindowBoundsKeeper {
       this.window.maximize();
     this.isMaximizedAtShow = false;
     this.window.show();
+    this.shownBounds = this.window.getNormalBounds();
   }
 
   public async saveAsync(): Promise<void> {
@@ -100,12 +111,10 @@ export class WindowBoundsKeeper {
         throw new WindowStateNotConnectedException();
       return;
     }
-    if (this.keepsStoredPosition && !this.isRead)
-      return;
     const bounds = this.window.getNormalBounds();
     const [x, y] = this.keepsStoredPosition ? [this.restored?.x ?? null, this.restored?.y ?? null] : [bounds.x, bounds.y];
     this.hasUnsaved = true;
-    await this.store.writeAsync(new WindowState(x, y, bounds.width, bounds.height, this.window.isMaximized() || this.isMaximizedAtShow).toJson());
+    await this.store.writeAsync(new WindowState(x, y, Math.max(Resources.windowMinimumWidth, bounds.width), Math.max(Resources.windowMinimumHeight, bounds.height), this.window.isMaximized() || this.isMaximizedAtShow).toJson());
     this.hasUnsaved = false;
   }
 
@@ -146,9 +155,26 @@ export class WindowBoundsKeeper {
     return this.restored;
   }
 
+  private isAt(bounds: Rectangle): boolean {
+    const now = this.window.getNormalBounds();
+    return now.x === bounds.x && now.y === bounds.y && now.width === bounds.width && now.height === bounds.height;
+  }
+
+  private async readFromAsync(store: IWindowStateStore): Promise<JsonObject | null> {
+    try {
+      return await store.readAsync();
+    }
+    catch (error) {
+      this.hasFailedRead = true;
+      throw error;
+    }
+  }
+
   private noteChange(): void {
     if (!Object.isUndefined(this.store))
       this.scheduleSave();
+    else if (this.hasFailedRead && !this.holdsPersonsMoves && !Object.isNull(this.shownBounds) && !this.isAt(this.shownBounds))
+      this.hasUnsaved = true;
   }
 
   private notePlacedByPerson(): void {
