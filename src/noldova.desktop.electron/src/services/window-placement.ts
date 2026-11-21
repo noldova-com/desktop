@@ -10,6 +10,7 @@ import "@noldova/context.core";
 import { ShellMethods, WindowStateKey } from "@noldova/desktop.protocol";
 
 import { StartupStateKind } from "../enums/startup-state-kind.js";
+import { WindowStateRefusedException } from "../exceptions/window-state-refused.exception.js";
 import { WindowStateUnavailableException } from "../exceptions/window-state-unavailable.exception.js";
 import type { KnownDevice } from "../models/known-device.js";
 import type { WindowState } from "../models/window-state.js";
@@ -57,9 +58,9 @@ export class WindowPlacement {
         await open.bounds.followAsync(this.createStore(device)).catch((error: unknown) => this.logUnsaved(error));
       else if (!Object.isNull(device))
         await open.bounds.restoreAsync(this.createStore(device)).catch((error: unknown) => {
-          if (error instanceof WindowStateUnavailableException)
+          if (error instanceof WindowStateUnavailableException || error instanceof WindowStateRefusedException)
             this.restored.delete(open);
-          else
+          if (!(error instanceof WindowStateUnavailableException))
             this.log(Resources.formatBoundsNotRestored(String(error)));
         });
     }

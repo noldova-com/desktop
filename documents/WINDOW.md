@@ -326,6 +326,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On Windows the runtime starts through an Electron utility process, which Electron creates only once it is ready, so there the start's own work runs at once and the runtime process waits for Electron to be ready.
   Until the window is open, the main process holds the start's state and the runtime's events; the window then reads the current state as it loads, as any window does, and gets the held events in order, so it works the same whether the runtime is ready before it or after, and its saved bounds are restored once.
 - A new window is 1280 by 800 pixels, at most nine tenths of the primary display's work area on each side, and centred; saved bounds keep their size where they fit, and the window is never smaller than 640 by 480 pixels.
+  A window manager that sizes it smaller anyway, such as a tiling one, gets it saved at that minimum.
   Under Wayland the compositor places each window it shows, so the window opens at its saved size wherever the compositor puts it.
   There its saves keep the saved position, with the window's size and maximized state, since the window's position is the compositor's: a later X11 session still opens it where the person left it.
   So a move the person makes under Wayland isn't kept, and until the saved bounds have been read nothing is saved, so a failed read never erases the saved position.
@@ -343,6 +344,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On an installed Windows build the taskbar button keeps the icon of the app's Start menu shortcut, since Windows takes a button's icon from the shortcut registered for the app's ID rather than from the window.
 - The window shows once its appearance is painted and its saved bounds are applied, or at once with its startup state when the runtime refuses or takes more than two seconds.
   The bounds are kept on the device too, and the ones the runtime gives are copied there when read, so after an update, or on a device whose copy is lost, only the first start waits for the runtime and may show at the default bounds before it moves; a copy that can't be written is logged and the window still takes the runtime's bounds.
+  A read the runtime refuses is logged and leaves the saved bounds as they are: nothing is saved until the next time the runtime is ready reads them, and a read that ends after the window closed does nothing.
 - When the page stops or stops responding, the main process shows the window and asks whether to reload or quit, offering the log folder instead when it stops again within ten seconds of a reload.
 - When the main process meets an error it doesn't catch, it logs it and asks once, with the operating system's message box, whether to restart or quit.
 - A packaged app started from a terminal starts itself again apart from that terminal, so closing the terminal leaves the app running.

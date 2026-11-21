@@ -1389,6 +1389,29 @@ export class MainProcessTests {
   }
 
   @TestMethod
+  public async readsTheSavedBoundsAgainTheNextTimeTheRuntimeIsReadyWhenItRefusedToReadThem(): Promise<void> {
+    const saved = { x: 200, y: 100, width: 1000, height: 700, maximized: false };
+    const first = new FakeRuntimeConnection();
+    first.answers.set("desktop.readWindowBounds", Response.failure("r", new Failure(FailureCode.Internal, "The database is busy.")));
+    const second = new FakeRuntimeConnection();
+    second.states.set(`writeWindowBounds:${FakeDeviceIdentity.ID}:main`, saved);
+    const reconnection = Promise.withResolvers<FakeRuntimeConnection>();
+    const launcher = new FakeRuntimeLauncher(first, reconnection.promise);
+    const process = new FakeMainProcessEnvironment("linux");
+    const electron = await MainProcessStartFixture.startReadyAsync("linux", launcher, new FakeElectron(), new FakeDeviceIdentity(), process);
+    const window = MainProcessStartFixture.firstWindow(electron);
+
+    electron.ipcMain.send("desktop:ready", MainProcessStartFixture.trustedEvent("linux"), MainProcessStartFixture.APPEARANCE);
+    await Condition.waitAsync(() => window.isShown);
+    launcher.listener?.onDisconnected(null);
+    reconnection.resolve(second);
+    await Condition.waitAsync(() => window.calls.some(t => t.startsWith("setBounds")));
+
+    Assert.areEqual(JSON.stringify(["show", "setBounds {\"x\":200,\"y\":100,\"width\":1000,\"height\":700}"]), JSON.stringify(window.calls));
+    Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The window's saved bounds could not be restored, so it opens with its default bounds: WindowStateRefusedException").length);
+  }
+
+  @TestMethod
   public async readsTheDeviceIdentityFromTheFolderItIsGivenOrTheOperatingSystemsOne(): Promise<void> {
     const given = new FakeDeviceIdentity();
     const located = new FakeDeviceIdentity();

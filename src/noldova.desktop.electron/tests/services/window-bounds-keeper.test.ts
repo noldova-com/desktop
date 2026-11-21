@@ -299,6 +299,59 @@ export class WindowBoundsKeeperTests {
   }
 
   @TestMethod
+  public async savesNothingAfterTheStoreRefusedToReadTheSavedBoundsUntilARestoreReadsThem(): Promise<void> {
+    const window = new FakeMainProcessWindow({}, 1);
+    const store = new MemoryStore({ x: 40, y: 60, width: 900, height: 640, maximized: false });
+    store.readFailure = new WindowStateRefusedException(new QualifiedName("desktop", "readWindowBounds"), new Failure(FailureCode.Internal, "The database is busy."));
+    const keeper = new WindowBoundsKeeper(window, new FakeDisplayHost(), 60_000, new FakeMainProcessLog(), true);
+
+    await Assert.throwsAsync(() => keeper.restoreAsync(store), WindowStateRefusedException);
+    window.change("move");
+    await keeper.saveAsync();
+    await keeper.holdAsync();
+    await keeper.saveUnsavedAsync();
+    const attemptsWhileUnread = store.attempts;
+    store.readFailure = null;
+    await keeper.restoreAsync(store);
+    await keeper.saveAsync();
+
+    Assert.areEqual(0, attemptsWhileUnread);
+    Assert.areEqual(JSON.stringify(["setBounds {\"x\":40,\"y\":60,\"width\":900,\"height\":640}"]), JSON.stringify(window.calls));
+    Assert.areEqual(JSON.stringify([{ x: 40, y: 60, width: 900, height: 640, maximized: false }]), JSON.stringify(store.writes));
+  }
+
+  @TestMethod
+  public async savesAWindowSmallerThanTheMinimumAtTheMinimumSize(): Promise<void> {
+    const window = new FakeMainProcessWindow({}, 1);
+    const store = new MemoryStore(null);
+    const keeper = new WindowBoundsKeeper(window, new FakeDisplayHost(), 60_000, new FakeMainProcessLog(), true);
+    await keeper.restoreAsync(store);
+
+    window.bounds = { x: 10, y: 20, width: 600, height: 400 };
+    await keeper.saveAsync();
+    window.bounds = { x: 10, y: 20, width: 700, height: 300 };
+    await keeper.saveAsync();
+
+    Assert.areEqual(JSON.stringify([{ x: 10, y: 20, width: 640, height: 480, maximized: false }, { x: 10, y: 20, width: 700, height: 480, maximized: false }]), JSON.stringify(store.writes));
+  }
+
+  @TestMethod
+  public async placesNothingWhenTheWindowIsGoneBeforeTheSavedBoundsAreRead(): Promise<void> {
+    const window = new FakeMainProcessWindow({}, 1);
+    const read = Promise.withResolvers<JsonObject | null>();
+    const store = new MemoryStore(null);
+    store.readAsync = (): Promise<JsonObject | null> => read.promise;
+    const keeper = new WindowBoundsKeeper(window, new FakeDisplayHost(), 60_000, new FakeMainProcessLog(), true);
+
+    const restoring = keeper.restoreAsync(store);
+    window.isGone = true;
+    read.resolve({ x: 40, y: 60, width: 900, height: 640, maximized: true });
+    await restoring;
+
+    Assert.areEqual("[]", JSON.stringify(window.calls));
+  }
+
+  @TestMethod
   public async keepsTheDefaultBoundsWhenNoneWereSavedOrTheyAreNotValid(): Promise<void> {
     const window = new FakeMainProcessWindow({}, 1);
 

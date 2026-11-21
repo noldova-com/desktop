@@ -67,15 +67,19 @@ export class WindowBoundsKeeper {
   }
 
   public async restoreAsync(store: IWindowStateStore): Promise<void> {
-    this.store = store;
     this.isHeld = false;
     if (this.hasUnsaved) {
+      this.store = store;
       if (this.keepsStoredPosition && !this.isRead)
         this.keepRead(await store.readAsync());
       await this.saveAsync();
       return;
     }
-    const state = this.keepRead(await store.readAsync());
+    const saved = await store.readAsync();
+    if (this.window.isDestroyed())
+      return;
+    this.store = store;
+    const state = this.keepRead(saved);
     if (!Object.isNull(state))
       this.place(state);
   }
@@ -105,7 +109,7 @@ export class WindowBoundsKeeper {
     const bounds = this.window.getNormalBounds();
     const [x, y] = this.keepsStoredPosition ? [this.restored?.x ?? null, this.restored?.y ?? null] : [bounds.x, bounds.y];
     this.hasUnsaved = true;
-    await this.store.writeAsync(new WindowState(x, y, bounds.width, bounds.height, this.window.isMaximized() || this.isMaximizedAtShow).toJson());
+    await this.store.writeAsync(new WindowState(x, y, Math.max(Resources.windowMinimumWidth, bounds.width), Math.max(Resources.windowMinimumHeight, bounds.height), this.window.isMaximized() || this.isMaximizedAtShow).toJson());
     this.hasUnsaved = false;
   }
 
