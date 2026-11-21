@@ -6246,7 +6246,8 @@ export declare class WindowState {
 
   /**
    * Places the state's bounds on the connected displays. Bounds that a display shows and that fit its work area are kept,
-   * on the display that shows most of them. Otherwise the window is centered on that display, or on the primary display
+   * on the display that shows most of them, when their top row lies on a work area; when it lies on none, they move by the
+   * least into that display's work area, so the window's title row stays in reach. Otherwise the window is centered on that display, or on the primary display
    * when no display shows it or it has no position; a size that fits the work area is kept, and a larger one shrinks to no
    * more than nine tenths of the work area on each side.
    *

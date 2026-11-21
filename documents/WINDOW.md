@@ -326,6 +326,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On Windows the runtime starts through an Electron utility process, which Electron creates only once it is ready, so there the start's own work runs at once and the runtime process waits for Electron to be ready.
   Until the window is open, the main process holds the start's state and the runtime's events; the window then reads the current state as it loads, as any window does, and gets the held events in order, so it works the same whether the runtime is ready before it or after, and its saved bounds are restored once.
 - A new window is 1280 by 800 pixels, at most nine tenths of the primary display's work area on each side, and centred; saved bounds keep their size where they fit, and the window is never smaller than 640 by 480 pixels.
+  Saved bounds whose top row lies on no display's work area, such as above the top of the only display, move by the least into the work area of the display that shows most of them, so the window row stays in reach.
   Under Wayland the compositor places each window it shows, so the window opens at its saved size wherever the compositor puts it.
   There its saves keep the saved position, with the window's size and maximized state, since the window's position is the compositor's: a later X11 session still opens it where the person left it.
   So a move the person makes under Wayland isn't kept, and until the saved bounds have been read nothing is saved, so a failed read never erases the saved position.
