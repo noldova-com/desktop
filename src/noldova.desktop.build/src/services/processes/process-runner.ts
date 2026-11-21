@@ -22,18 +22,25 @@ import { ProcessTree } from "./process-tree.ts";
 import { StartedProcess } from "./started-process.ts";
 
 export class ProcessRunner {
-  private static readonly tree: ProcessTree = new ProcessTree();
+  private readonly processTree: ProcessTree;
+
+  public constructor(tree: ProcessTree = new ProcessTree()) {
+    this.processTree = tree;
+  }
 
   public captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv, isVerbatim: boolean = false):
     Promise<ProcessResult> {
     return new Promise<ProcessResult>((resolve, reject) => {
+      const launched = Date.now();
       const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, stdio: [Resources.ignoreStdio, Resources.pipeStdio, Resources.pipeStdio], windowsHide: true,
-        env: environment ?? process.env, windowsVerbatimArguments: isVerbatim, argv0: isVerbatim ? `"${command}"` : command, detached: ProcessRunner.tree.isGrouped });
+        env: environment ?? process.env, windowsVerbatimArguments: isVerbatim, argv0: isVerbatim ? `"${command}"` : command, detached: this.processTree.isGrouped });
       const output: Buffer[] = [];
       const errorOutput: Buffer[] = [];
       const transcript = new ProcessTranscript();
       let size = 0;
       let failure: BuildException | null = null;
+      let exited: number | null = null;
+      let isEnding = false;
       const stop = (t: BuildException): void => {
         failure ??= t;
         child.kill();
@@ -48,19 +55,24 @@ export class ProcessRunner {
         }
       };
       const timer = setTimeout(() => {
-        failure ??= new ProcessTimeoutException(command, timeout, transcript.text, child.pid);
-        ProcessRunner.tree.end(child);
-        ProcessRunner.tree.whenEnded(child, () => {
+        const timedOut = failure ?? new ProcessTimeoutException(command, timeout, transcript.text, child.pid);
+        isEnding = true;
+        void this.endAsync(command, child.pid, launched, exited, timedOut).then(t => {
           child.stdout.destroy();
           child.stderr.destroy();
-          reject(failure);
+          reject(t);
         });
       }, timeout);
+      child.once(Resources.exitEvent, () => {
+        exited = Date.now();
+      });
       child.stdout.on(Resources.dataEvent, (t: Buffer) => receive(output, t, false));
       child.stderr.on(Resources.dataEvent, (t: Buffer) => receive(errorOutput, t, true));
       child.on(Resources.errorEvent, t => stop(new BuildException(Resources.formatProcessNotStarted(command), new ExceptionOptions(t))));
       child.on(Resources.closeEvent, t => {
         clearTimeout(timer);
+        if (isEnding)
+          return;
         if (Object.isNull(failure))
           resolve(new ProcessResult(t, Buffer.concat(output).toString(Resources.textEncoding), Buffer.concat(errorOutput).toString(Resources.textEncoding)));
         else
@@ -79,20 +91,28 @@ export class ProcessRunner {
   public runAsync(command: string, commandArguments: readonly string[], directory: string, environment?: NodeJS.ProcessEnv, watch?: (text: string) => void,
     timeout?: number): Promise<number | null> {
     return new Promise<number | null>((resolve, reject) => {
+      const launched = Date.now();
+      let exited: number | null = null;
+      let isEnding = false;
       const isWatched = !Object.isUndefined(watch);
       const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, env: environment ?? process.env,
         stdio: isWatched ? [Resources.inheritStdio, Resources.pipeStdio, Resources.pipeStdio] : Resources.inheritStdio,
-        detached: !Object.isUndefined(timeout) && ProcessRunner.tree.isGrouped });
+        detached: !Object.isUndefined(timeout) && this.processTree.isGrouped });
       if (isWatched) {
         child.stdout?.on(Resources.dataEvent, (t: Buffer) => ProcessRunner.forward(process.stdout, t, watch));
         child.stderr?.on(Resources.dataEvent, (t: Buffer) => ProcessRunner.forward(process.stderr, t, watch));
       }
       const timer = Object.isUndefined(timeout) ? null : setTimeout(() => {
-        ProcessRunner.tree.end(child);
-        child.stdout?.destroy();
-        child.stderr?.destroy();
-        reject(new ProcessTimeoutException(command, timeout));
+        isEnding = true;
+        void this.endAsync(command, child.pid, launched, exited, new ProcessTimeoutException(command, timeout)).then(t => {
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          reject(t);
+        });
       }, timeout);
+      child.once(Resources.exitEvent, () => {
+        exited = Date.now();
+      });
       child.on(Resources.errorEvent, t => {
         if (!Object.isNull(timer))
           clearTimeout(timer);
@@ -101,7 +121,8 @@ export class ProcessRunner {
       child.on(Resources.closeEvent, t => {
         if (!Object.isNull(timer))
           clearTimeout(timer);
-        resolve(t);
+        if (!isEnding)
+          resolve(t);
       });
     });
   }
@@ -122,6 +143,16 @@ export class ProcessRunner {
 
   public kill(processId: number): void {
     ProcessRunner.signal(processId, Resources.killSignal);
+  }
+
+  private async endAsync(command: string, processId: number | undefined, launched: number, exited: number | null, failure: BuildException): Promise<BuildException> {
+    try {
+      await this.processTree.endAsync(processId, launched, exited);
+      return failure;
+    }
+    catch (error) {
+      return new BuildException(Resources.formatProcessTreeNotEnded(command), new ExceptionOptions(error));
+    }
   }
 
   private static forward(target: NodeJS.WritableStream, chunk: Buffer, watch: (text: string) => void): void {
