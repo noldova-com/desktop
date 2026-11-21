@@ -1504,11 +1504,12 @@ export class ToolPermissionsTests {
   }
 
   @TestMethod
-  public async withdrawsARequestStillWaitingWhenItsReturnedCallsSessionEndsOrStops(): Promise<void> {
+  public async withdrawsARequestStillWaitingWhenItsReturnedCallsSessionEndsOrStopsOrItsToolIsSwitchedOff(): Promise<void> {
     const results: string[] = [];
-    const finishes: ((registry: ToolRegistry, session: ToolSession) => void)[] = [
+    const finishes: ((registry: ToolRegistry, session: ToolSession, tool: Registration) => void)[] = [
       (_registry, session) => session.end(),
-      (registry, session) => registry.stopSession("app", session.id, "The person stopped it.")
+      (registry, session) => registry.stopSession("app", session.id, "The person stopped it."),
+      (_registry, _session, tool) => tool[Symbol.dispose]()
     ];
     for (const finish of finishes) {
       const answerer = new PermissionAnswererFixture(() => PermissionAnswererFixture.never());
@@ -1519,19 +1520,20 @@ export class ToolPermissionsTests {
           await answerer.waitForQuestionAsync(1);
           return new ToolResult([]);
         });
-        registry.register("notes", new ToolDescriptor(ToolPermissionsTests.DELETE, ToolPermissionsTests.TOOLS), handler, ToolPermissionsTests.TOOLS, new ModuleLogFixture());
+        const tool = registry.register("notes", new ToolDescriptor(ToolPermissionsTests.DELETE, ToolPermissionsTests.TOOLS), handler, ToolPermissionsTests.TOOLS, new ModuleLogFixture());
         const session = registry.openSession("conversation-1", {});
 
         await session.callAsync("notes_delete", {});
         const isWaiting = answerer.signals[0]?.aborted === false;
-        finish(registry, session);
+        finish(registry, session, tool);
         const [late] = await Promise.all(waiting);
 
         results.push(`${isWaiting} ${late?.decision} ${answerer.signals[0]?.aborted}`);
       });
     }
 
-    Assert.areEqual(`true ${PermissionDecision.Withdrawn} true|true ${PermissionDecision.Withdrawn} true`, results.join("|"));
+    const withdrawn = `true ${PermissionDecision.Withdrawn} true`;
+    Assert.areEqual([withdrawn, withdrawn, withdrawn].join("|"), results.join("|"));
   }
 
   @TestMethod

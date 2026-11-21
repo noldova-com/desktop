@@ -393,6 +393,8 @@ export class ToolRegistry implements IToolSessionHost {
     this.tools.delete(tool.descriptor.name);
     for (const run of [...this.running].filter(t => t.tool === tool))
       run.abort(ToolAbortReason.SwitchedOff);
+    for (const run of [...this.answering].filter(t => t.tool === tool))
+      run.withdraw(ToolAbortReason.SwitchedOff);
   }
 
   private static checkReason(reason: string): void {

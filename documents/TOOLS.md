@@ -57,7 +57,7 @@ What a module asks the person before an agent acts is in [PERMISSIONS.md](PERMIS
   A call of the same session waiting behind it keeps its own deadline running, so it may end as `TimedOut` while the first one waits.
 - A call on a resource that a call of another session holds fails at once as `Unavailable`.
 - A call gives up its turn, and its place among its session's calls in flight, when it ends, by its result, its failure, its deadline or an abort, even if its handler hasn't returned.
-  A call that returns while its permission request still waits keeps its turn until the request is answered or withdrawn; its session's end or stop withdraws it.
+  A call that returns while its permission request still waits keeps its turn until the request is answered or withdrawn; its session's end or stop, and its tool's withdrawal, withdraw it.
   A handler that goes on after its signal aborts may then overlap the next call on the resource, so it stops at the abort.
 - A call whose resource points at nothing, or at `null`, fails at once as `Refused`.
 - Calls without a resource run in parallel.
