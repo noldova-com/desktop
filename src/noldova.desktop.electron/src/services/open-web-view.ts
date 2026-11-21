@@ -88,6 +88,7 @@ export class OpenWebView {
   private committedUrl: string | undefined;
   private kept: WebViewHistory | null = null;
   private keptScroll: readonly [number, number] | null = null;
+  private pendingScroll: { readonly guest: IWebViewContents; readonly scroll: readonly [number, number] } | null = null;
   private navigationCount: number = 0;
   private inputCount: number = 0;
   private isCrashed: boolean = false;
@@ -166,6 +167,12 @@ export class OpenWebView {
     const kept = guest.readHistory();
     this.kept = kept;
     this.keptScroll = null;
+    const pending = this.pendingScroll;
+    if (!Object.isNull(pending) && pending.guest === guest) {
+      this.log(Resources.formatWebViewScrollKeptPending(this.info.module, this.info.id, pending.scroll[0], pending.scroll[1]));
+      this.keptScroll = pending.scroll;
+      return;
+    }
     const scroll = await this.readScrollAsync(guest);
     if (this.kept !== kept)
       return;
@@ -695,9 +702,21 @@ export class OpenWebView {
     if (!isRestorable)
       return this.goToAsync(this.committedUrl);
     this.isCrashed = false;
-    void guest.restoreHistoryAsync(kept).then(() => this.scrollBackAsync(guest, kept, count, inputs, scroll), () => {
-      if (this.navigationCount === count && this.guest === guest && !this.isClosed && guest.getURL() === String.empty)
+    this.pendingScroll = Object.isNull(scroll) ? null : { guest, scroll };
+    void guest.restoreHistoryAsync(kept).then(() => this.scrollBackAsync(guest, kept, count, inputs, scroll), (error: unknown) => {
+      if (this.navigationCount !== count || this.guest !== guest || this.isClosed)
+        return Promise.resolve();
+      if (guest.getURL() === String.empty) {
         void this.goToAsync(this.committedUrl);
+        return Promise.resolve();
+      }
+      if (Object.isNull(scroll) || guest.isDestroyed() || guest.getURL() !== kept.currentUrl)
+        return Promise.resolve();
+      this.log(Resources.formatWebViewRestoreFailedShown(this.info.module, this.info.id, String(error)));
+      return this.scrollBackAsync(guest, kept, count, inputs, scroll);
+    }).finally(() => {
+      if (this.pendingScroll?.guest === guest)
+        this.pendingScroll = null;
     });
     return OpenWebView.started();
   }

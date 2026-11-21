@@ -1413,6 +1413,61 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async scrollsARestoredPageBackWhenItsRestoreReportsAnErrorButItShowsTheKeptAddressAndNotWhenItShowsAnother(): Promise<void> {
+    const results: string[] = [];
+    for (const shown of ["https://example.com/a", "https://example.com/elsewhere"]) {
+      const harness = await OpenWebViewTests.showAsync();
+      const fresh = OpenWebViewTests.rendererless();
+      OpenWebViewTests.scrolled(harness.contents, 0, 1200);
+      OpenWebViewTests.scrolled(fresh, 0, 0);
+      fresh.restoreAnswer = () => {
+        fresh.url = shown;
+        return Promise.reject(new Error("ERR_FAILED (-2) loading 'https://example.com/a'"));
+      };
+      await harness.open.keepAsync();
+      OpenWebViewTests.destroy(harness);
+
+      await harness.open.bindAsync(fresh, true);
+      await OpenWebViewTests.drainAsync();
+      results.push(`${fresh.isolated.join(",")}:${harness.logs.join(",")}`);
+    }
+
+    Assert.areEqual([
+      "1998 scrollTo(0, 1200):Web view 1 of browser restored its page with an error (Error: ERR_FAILED (-2) loading 'https://example.com/a') but shows the kept address, so it is " +
+        "still scrolled back.",
+      ":"
+    ].join("|"), results.join("|"));
+  }
+
+  @TestMethod
+  public async keepsTheScrollARestoredPageWasStillToBeScrolledBackToWhenItMovesAgainBeforeItLoaded(): Promise<void> {
+    const harness = await OpenWebViewTests.showAsync();
+    const fresh = OpenWebViewTests.rendererless();
+    const next = new FakeWebView(9, 3, OpenWebViewHarness.PARTITION).contents;
+    next.debugger.replies.set("Page.enable", () => next.started.then(() => ({})));
+    fresh.restoreAnswer = () => new Promise(() => undefined);
+    OpenWebViewTests.scrolled(harness.contents, 0, 1200);
+    OpenWebViewTests.scrolled(fresh, 0, 0);
+    OpenWebViewTests.scrolled(next, 0, 0);
+    await harness.open.keepAsync();
+    OpenWebViewTests.destroy(harness);
+    await harness.open.bindAsync(fresh, true);
+    await OpenWebViewTests.drainAsync();
+    fresh.url = "https://example.com/a";
+    fresh.history = [fresh.url];
+    fresh.index = 0;
+
+    await harness.open.keepAsync();
+    fresh.destroyed = true;
+    fresh.emit("destroyed");
+    await harness.open.bindAsync(next, true);
+    await OpenWebViewTests.drainAsync();
+
+    Assert.areEqual("1998 scrollTo(0, 1200):Web view 1 of browser kept the scroll position (0, 1200) its restored page had not been scrolled back to yet, rather than where that " +
+      "page showed.", `${next.isolated.join(",")}:${harness.logs.join(",")}`);
+  }
+
+  @TestMethod
   public async scrollsBackToWhereItsLastKeepFoundThePageEvenWhenAnEarlierKeepsReadAnswersLater(): Promise<void> {
     const harness = await OpenWebViewTests.showAsync();
     const fresh = OpenWebViewTests.rendererless();
