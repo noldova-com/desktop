@@ -54,6 +54,7 @@
     "test:ui:ci": "node scripts/ui-workflows-ci.ts"
   },
   "dependencies": {
+    "@noldova/context.collections": "0.0.10",
     "@noldova/context.core": "0.0.10",
     "@noldova/context.exceptions": "0.0.10",
     "@noldova/context.json": "0.0.10",

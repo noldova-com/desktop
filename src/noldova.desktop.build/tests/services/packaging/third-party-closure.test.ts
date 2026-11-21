@@ -87,6 +87,15 @@ export class ThirdPartyClosureTests {
   }
 
   @TestMethod
+  public async listsTheShippedPackagesInCodePointOrderAsync(): Promise<void> {
+    const packages = Object.fromEntries(["a", "a-b", "B", "@scope/a"].map(t => [`node_modules/${t}`, ThirdPartyClosureTests.lock("1.0.0")]));
+
+    const [shipped] = await ThirdPartyClosureTests.withClosureAsync(packages, t => t.collect([], ["a", "a-b", "B", "@scope/a"]));
+
+    Assert.areEqual("@scope/a@1.0.0, B@1.0.0, a@1.0.0, a-b@1.0.0", shipped.map(t => t.id).join(", "));
+  }
+
+  @TestMethod
   public async refusesTwoVersionsOfOnePackageAsync(): Promise<void> {
     const error = await Assert.throwsAsync(() => ThirdPartyClosureTests.collectAsync({
       "node_modules/first": { ...ThirdPartyClosureTests.lock("1.0.0"), dependencies: { shared: "^2.0.0" } },

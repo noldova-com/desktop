@@ -132,6 +132,19 @@ export class ReleaseReportsTests {
   }
 
   @TestMethod
+  public async readsTheEntriesInCodePointOrderAsync(): Promise<void> {
+    await using folder = await ReleaseReportsTests.createEntriesAsync([["a-empty", null], ["B-empty", null], ["linux-x64", new PackageReport("linux-x64", false, false)]]);
+
+    const error = await Assert.throwsAsync(() => new ReleaseReports([], ReleaseReportsTests.LINUX).verifyAsync(folder.path), BuildException);
+
+    Assert.areEqual([
+      "The package reports do not match the release's signing, so nothing was published:",
+      "B-empty holds no package report.",
+      "a-empty holds no package report."
+    ].join("\n"), error.message);
+  }
+
+  @TestMethod
   public async refusesAFolderItCannotReadWithItsCauseAsync(): Promise<void> {
     const missing = path.join(tmpdir(), "desktop-release-reports-missing", "reports");
 
