@@ -55,18 +55,22 @@ export class LinuxSigningTests {
   }
 
   @TestMethod
-  public async refusesAPackageChangedAfterItsSignatureAsync(): Promise<void> {
+  public async refusesAPackageChangedAfterItsSignatureOrNotSignedAsync(): Promise<void> {
     await LinuxSigningTests.withFolderAsync(async folder => {
       const signer = generateKeyPairSync("ed25519");
       const image = path.join(folder, "App-1.2.3-linux-arm64.AppImage");
+      const debian = path.join(folder, "App-1.2.3-linux-arm64.deb");
       await writeFile(image, "image");
+      await writeFile(debian, "debian");
       const signing = new LinuxSigning(LinuxSigningTests.credentials(signer, [signer]), LinuxSigningTests.TARGET, "1.2.3", path.join(folder, "update-signatures.json"));
       await signing.finishAsync([image]);
+
+      const unsigned = await Assert.throwsAsync(() => signing.verifyAsync([image, debian]), BuildException);
       await writeFile(image, "changed");
+      const changed = await Assert.throwsAsync(() => signing.verifyAsync([image]), BuildException);
 
-      const error = await Assert.throwsAsync(() => signing.verifyAsync([image]), BuildException);
-
-      Assert.areEqual("App-1.2.3-linux-arm64.AppImage carries no valid signature by a key the app ships.", error.message);
+      Assert.areEqual("App-1.2.3-linux-arm64.deb carries no valid signature by a key the app ships.", unsigned.message);
+      Assert.areEqual("App-1.2.3-linux-arm64.AppImage carries no valid signature by a key the app ships.", changed.message);
     });
   }
 
