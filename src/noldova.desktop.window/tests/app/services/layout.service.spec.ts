@@ -575,6 +575,18 @@ describe("LayoutService", () => {
     expect(written[1]).toEqual(service.layout().toJson());
   });
 
+  it("reports a layout sent as the page hides that fails", async () => {
+    await loadAsync(prepared());
+    const failure = new Error("The runtime refused the layout.");
+    const handled = vi.spyOn(TestBed.inject(ErrorHandler), "handleError").mockImplementation(() => undefined);
+    vi.spyOn(store, "writeAsync").mockRejectedValueOnce(failure);
+
+    service.activate(LayoutFixture.plan);
+    window.dispatchEvent(new Event("pagehide"));
+
+    await vi.waitFor(() => expect(handled).toHaveBeenCalledWith(failure));
+  });
+
   it("saves nothing before a layout was loaded, so a window that never loaded cannot replace the kept layout", async () => {
     const write = vi.spyOn(store, "writeAsync");
 
