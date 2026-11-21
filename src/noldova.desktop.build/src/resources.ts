@@ -53,7 +53,7 @@ export class Resources {
     Resources.noldovaDesktopRangeCommand
   ];
   public static readonly releaseUsage: string = `Usage: ${Resources.releaseCommandName} <command> [<argument>...], where the command is one of ${Resources.releaseCommands.join(", ")}.`
-    + " It loads only Node.js's own modules and context's core, exceptions and json packages, so it runs from desktop.build's archive with those three beside it, without an install.\n";
+    + " It loads only Node.js's own modules and the context packages desktop.build takes as peers, so it runs from desktop.build's archive with those beside it, without an install.\n";
   public static readonly licenseNotice: readonly string[] = [
     "@license",
     "Copyright (c) Noldova.",

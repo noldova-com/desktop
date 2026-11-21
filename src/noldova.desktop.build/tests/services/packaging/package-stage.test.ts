@@ -99,6 +99,24 @@ export class PackageStageTests {
   }
 
   @TestMethod
+  public async writesTheOptionalDependenciesInCodePointOrder(): Promise<void> {
+    const end = TemporaryFolderRunnerFixture.startTest();
+    const other = PackageStageTests.OTHER_ARCHITECTURE;
+    await using app = await InstalledAppFixture.createAsync();
+    await app.installAsync(InstalledAppFixture.CLI, null, { "addon-host": "1.0.0" });
+    await app.installAsync(InstalledAppFixture.ELECTRON);
+    await app.addThirdPartyAsync("addon-host", "MIT", { LICENSE: "Host license" }, { optionalDependencies: { "addon_bound": "1.0.0", "addon-zeta": "1.0.0" } });
+    await app.addThirdPartyAsync("addon_bound", "MIT", { LICENSE: "Bound license" }, { cpu: [other] });
+    await app.addThirdPartyAsync("addon-zeta", "MIT", { LICENSE: "Zeta license" }, { cpu: [other] });
+    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
+
+    await stage.stageAsync(PackageTarget.fromProcess("linux", other), new PassThrough(), null, null);
+    const written = JsonReader.parse(await readFile(path.join(stage.folder, "package.json"), "utf8")).toJson();
+
+    Assert.areEqual(JSON.stringify({ "addon-zeta": "1.0.0", "addon_bound": "1.0.0" }), JSON.stringify(written["optionalDependencies"]));
+  }
+
+  @TestMethod
   public async stagesAPackageBoundToTheTargetsProcessorAsAnOptionalDependencyOnAHostOfAnother(): Promise<void> {
     const end = TemporaryFolderRunnerFixture.startTest();
     const other = PackageStageTests.OTHER_ARCHITECTURE;
@@ -276,6 +294,37 @@ export class PackageStageTests {
     const error = await Assert.throwsAsync(() => stage.stageAsync(PackageTarget.fromProcess("linux", "x64"), new PassThrough(), null, null), BuildException);
 
     Assert.areEqual("The stage needs @noldova/desktop.clock.runtime, which is not a package under src/.", error.message);
+  }
+
+  @TestMethod
+  public async writesTheDependenciesInCodePointOrder(): Promise<void> {
+    const end = TemporaryFolderRunnerFixture.startTest();
+    const clock = "@noldova/desktop_clock";
+    await using app = await InstalledAppFixture.createAsync();
+    await app.installAsync(InstalledAppFixture.CLI);
+    await app.installAsync(InstalledAppFixture.ELECTRON);
+    await app.installAsync(clock);
+    const text = await readFile(path.join(app.path, "package.json"), "utf8");
+    const manifest = JsonReader.parse(text).toJson();
+    const desktop = JsonReader.parse(text).readObject("desktop").toJson();
+    await app.writeAppFileAsync("package.json", JSON.stringify({ ...manifest, desktop: { ...desktop, modules: [{ id: "clock", package: clock }] }, dependencies: { [clock]: InstalledAppFixture.VERSION } }));
+    await app.writeAppFileAsync(`node_modules/${clock}/package.json`, JSON.stringify({ name: clock, version: InstalledAppFixture.VERSION, exports: { "./runtime": "./runtime.js" } }));
+    await app.writeAppFileAsync(`node_modules/${clock}/runtime.js`, String.empty);
+    await app.writeAppFileAsync(`node_modules/${clock}/module.json`, JSON.stringify({
+      id: "clock",
+      version: InstalledAppFixture.VERSION,
+      displayName: "Clock",
+      description: "A module the app installs from a package.",
+      parts: ["runtime"],
+      dependencies: {},
+      contributes: {}
+    }));
+    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
+
+    await PackageStageTests.stageAsync(stage, "linux", null);
+    const names = Object.keys(JsonReader.parse(await readFile(path.join(stage.folder, "package.json"), "utf8")).readObject("dependencies").toJson());
+
+    Assert.areEqual(JSON.stringify([InstalledAppFixture.CLI, InstalledAppFixture.ELECTRON, clock]), JSON.stringify(names));
   }
 
   @TestMethod
