@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { InteractivityChecker } from "@angular/cdk/a11y";
 import { NgComponentOutlet, NgTemplateOutlet } from "@angular/common";
 import { Component, DestroyRef, ElementRef, ErrorHandler, Injector, PendingTasks, type Signal, type Type, type WritableSignal, afterNextRender, afterRenderEffect, computed, effect, inject,
   signal, untracked, viewChild } from "@angular/core";
@@ -62,6 +63,7 @@ export class SettingsComponent {
   private readonly errors: ErrorHandler = inject(ErrorHandler);
   private readonly bridge: PreloadBridgeService = inject(PreloadBridgeService);
   private readonly clock: ClockSettingService = inject(ClockSettingService);
+  private readonly checker: InteractivityChecker = inject(InteractivityChecker);
   private readonly selected: WritableSignal<string> = signal(Resources.generalPage);
   private readonly pageList: Signal<ElementRef<HTMLElement>> = viewChild.required<ElementRef<HTMLElement>>("pageList");
   private readonly column: Signal<ElementRef<HTMLElement>> = viewChild.required<ElementRef<HTMLElement>>("column");
@@ -156,7 +158,9 @@ export class SettingsComponent {
       if (this.isOpening() && this.pageHost()?.isSettled() === true)
         untracked(() => {
           this.isOpening.set(false);
-          this.focusControl(this.column().nativeElement.querySelector<HTMLElement>(Resources.settingControlSelector));
+          const column = this.column().nativeElement;
+          if (document.activeElement === document.body || document.activeElement === column)
+            this.focusControl(this.firstControl(column));
         });
     });
     afterNextRender(() => {
@@ -181,11 +185,13 @@ export class SettingsComponent {
     if (!(event.target instanceof HTMLInputElement))
       return;
     this.unmark();
+    this.isOpening.set(false);
     this.query.set(event.target.value);
   }
 
   protected select(title: string): void {
     this.unmark();
+    this.isOpening.set(false);
     this.query.set(String.empty);
     this.selected.set(title);
   }
@@ -237,7 +243,7 @@ export class SettingsComponent {
 
   protected reset(definition: SettingDefinition): void {
     this.dropDraft(definition);
-    this.focusControl(this.column().nativeElement.querySelector<HTMLElement>(Resources.formatSettingRowControlSelector(definition.name.text)));
+    this.focusControl(this.firstControl(this.column().nativeElement.querySelector<HTMLElement>(Resources.formatSettingRowControlSelector(definition.name.text))));
     const resetting = definition === this.clock.definition ? this.clock.resetAsync() : this.switches.resetAsync(definition);
     resetting.catch((error: unknown) => this.errors.handleError(error));
   }
@@ -271,6 +277,10 @@ export class SettingsComponent {
     });
     revealer.observe(column, { childList: true, subtree: true });
     this.revealer = revealer;
+  }
+
+  private firstControl(root: HTMLElement | null): HTMLElement | null {
+    return [...root?.querySelectorAll<HTMLElement>(Resources.tabbableSelector) ?? []].find(t => this.checker.isFocusable(t) && this.checker.isTabbable(t)) ?? null;
   }
 
   private focusControl(control: HTMLElement | null): void {
