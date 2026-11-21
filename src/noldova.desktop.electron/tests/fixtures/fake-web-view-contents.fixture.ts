@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { WindowOpenHandlerResponse } from "electron";
-import { type IWebViewContents, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
+import { type IWebViewContents, type IWebViewFrame, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
 
 import { FakeFrameNavigation } from "./fake-frame-navigation.fixture.js";
 import { FakePreventableEvent } from "./fake-preventable-event.fixture.js";
@@ -169,8 +169,8 @@ export class FakeWebViewContents implements IWebViewContents {
     return preventable.isPrevented;
   }
 
-  public navigateFrame(url: string, isMainFrame: boolean): boolean {
-    const navigation = new FakeFrameNavigation(url, isMainFrame);
+  public navigateFrame(url: string, isMainFrame: boolean, frame: IWebViewFrame | null = null, initiator: IWebViewFrame | null = frame): boolean {
+    const navigation = new FakeFrameNavigation(url, isMainFrame, frame, initiator);
     this.listeners.emit("will-frame-navigate", navigation, url, false, isMainFrame);
     return navigation.isPrevented;
   }

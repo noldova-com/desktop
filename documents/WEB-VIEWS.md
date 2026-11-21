@@ -16,7 +16,7 @@ The window part reaches its views through `context.webViews`.
 
 | Call | Does |
 |---|---|
-| `openAsync(pane, profileKey)` | Opens a view for the pane on the module's profile with that key, and returns its handle; a pane holds up to 32 views, such as a browser's tabs. |
+| `openAsync(pane, profileKey, { name })` | Opens a view for the pane on the module's profile with that key, and returns its handle; a pane holds up to 32 views, such as a browser's tabs. `name`, optional, is what the view's [refused pages](#a-frames-refused-navigation) call it. |
 | `handle.mount(host)` | Puts the view in the part's element, which it fills, so that element is positioned, such as with `position: relative`; views mounted in one element lie over each other, and mounting a view in another element moves it there. |
 | `handle.show()`, `handle.hide()` | Shows or hides the view; showing it hides the pane's other views, and the host also hides it while its pane is hidden. |
 | `handle.openLayerAsync(load)` | Shows the part's component over the live view, in the view's [layer](#layers-over-a-view); returns `{ componentRef, closed, close() }`. |
@@ -138,12 +138,26 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 | `Controlled` | `isControlled`, when the runtime part [marks](#a-controlled-view-keeps-painting) whether an agent controls the view and the mark changes; only the window part gets it. |
 | `State` | The address, the title, whether it is loading, and `canGoBack` and `canGoForward`; sent whenever any of them changes. |
 | `LoadFailed` | The address, the engine's code and its description. |
-| `NavigationRefused` | The address, its origin, and whether a redirect led there. |
+| `NavigationRefused` | The address, its origin, and whether a redirect led there; the main frame's only, and the page stays where it was. |
+| `FrameNavigationRefused` | The same for one of the page's frames, with its `frameId`, as [A frame's refused navigation](#a-frames-refused-navigation) says. |
 | `Crashed` | That the view's page stopped; the view stays closed until it is navigated again, and sends no `State` until then, even when a load the crash cut short ends after it. |
 | `ProfileCleared` | The profile key. |
 | `Dropped` | How many of the view's events the host dropped while the runtime was away. |
 | `RequestRefused` | What the host refused without asking, `download`, `newWindow`, `permission`, `fileChooser`, `authentication`, `certificate` or `nestedView`, and the origin that asked. |
 | `NewWindowRequested` | A new-window request the module takes, as [New windows](#new-windows) says: the address, `hadRecentInput`, `origin`, `disposition` and `fromPress`. |
+
+### A frame's refused navigation
+
+The origin check refuses a frame's navigation, or a frame's load or redirect, as it does the main frame's; the engine then shows nothing in the frame, so the host shows its own refused page there.
+
+- The view raises `FrameNavigationRefused` with the address, its origin, `isRedirect` and `frameId`, the frame's id, which stays the same while the frame exists; the page itself stays where it is, and `NavigationRefused` stays the main frame's alone.
+  A module built before this event ignores it, as it ignores any event kind it doesn't know.
+- The host sends the frame to a `data:` page it builds for that one refusal, which says "`<name>` doesn't open `<origin>`", with the name the module gave `openAsync`, or "This view doesn't open `<origin>`" without one; the name and the origin are text in the page, never markup, and it takes the window's colours.
+  The frame's own document runs the page's address, and so can read it, so the page names the origin only when that frame itself started the navigation; for a redirect, a navigation its parent or no frame started, or a load the check refused, it says "this address" instead, and only the module's event holds the address.
+- The page runs no script and loads nothing: its policy is `default-src 'none'`, and it replaces the frame's document, so the frame's own scripts stop.
+- The origin check lets that page through once, its navigation and then its one load, only for the frame it was built for, only when the frame itself navigates there, and only by its exact address; the frame's next navigation, or a new main-frame document, drops it, and a frame that has gone can't use it, since its id is never used again.
+  Every other `data:` address, the page's own included, stays refused, as does the same address a second time or in another frame.
+- A frame that is already gone when the check refuses it raises no event and gets no page; one that goes, or changes process, after the refusal keeps no page, and the module still gets the event.
 
 ### New windows
 
@@ -295,6 +309,8 @@ The file is an object with five optional fields: `methods`, each `{ "name": "<Do
 | New-window requests | Up to 5 a second per view; the host refuses the rest. |
 | Recent input | The person's input in the last 5 seconds, for `hadRecentInput`. |
 | A press's new window | One per press of the person's in a view, used within 5 seconds, for `fromPress`. |
+| A refused page's name | At most 64 characters; the origin it names, at most 256; longer ones are cut. |
+| Waiting refused pages | Up to 64 per view; a newer one drops the oldest. |
 
 ## What fails closed
 

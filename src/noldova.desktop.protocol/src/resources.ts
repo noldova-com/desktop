@@ -348,6 +348,7 @@ export class Resources {
   public static readonly canGoForwardField: string = "canGoForward";
   public static readonly originField: string = "origin";
   public static readonly isRedirectField: string = "isRedirect";
+  public static readonly frameIdField: string = "frameId";
   public static readonly hadRecentInputField: string = "hadRecentInput";
   public static readonly dispositionField: string = "disposition";
   public static readonly fromPressField: string = "fromPress";

@@ -310,8 +310,8 @@ export class PreloadBridgeService extends ClipboardWriter {
     return await this.bridge.actOnWindow(action) === true;
   }
 
-  public async openWebViewAsync(moduleId: string, pane: WebViewPane, profileKey: string): Promise<IOpenedWebView | null> {
-    const answer = await this.bridge.openWebView(moduleId, pane.toJson(), profileKey);
+  public async openWebViewAsync(moduleId: string, pane: WebViewPane, profileKey: string, name: string | null): Promise<IOpenedWebView | null> {
+    const answer = await this.bridge.openWebView(moduleId, pane.toJson(), profileKey, name);
     if (Object.isNull(answer))
       return null;
     const json = JsonReader.fromValue(answer);

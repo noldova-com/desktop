@@ -47,6 +47,7 @@ export type { IWindowPalette } from "../app/interfaces/i-window-palette.js";
 export type { IWindowPart } from "../app/interfaces/i-window-part.js";
 export type { IWindowPartContext } from "../app/interfaces/i-window-part-context.js";
 export type { IWindowSecrets } from "../app/interfaces/i-window-secrets.js";
+export type { IWebViewOpenOptions } from "../app/interfaces/i-web-view-open-options.js";
 export type { IWindowWebViews } from "../app/interfaces/i-window-web-views.js";
 export { CommandContribution } from "../app/models/command-contribution.js";
 export { ContentPaddingRef } from "../app/models/content-padding-ref.js";

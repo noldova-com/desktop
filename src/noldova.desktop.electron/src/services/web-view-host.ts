@@ -27,6 +27,8 @@ import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewEngine } from "../interfaces/i-web-view-engine.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
+import { WebViewRefusedPage } from "../models/web-view-refused-page.js";
+import type { WindowAppearance } from "../models/window-appearance.js";
 import { Resources } from "../resources.js";
 import { OpenWebView } from "./open-web-view.js";
 import { WebViewEventBacklog } from "./web-view-event-backlog.js";
@@ -47,6 +49,7 @@ export class WebViewHost {
   private readonly isConnected: () => boolean;
   private readonly deliver: (events: WebViewEvents) => void;
   private readonly log: (text: string) => void;
+  private readonly readAppearance: (windowId: number) => WindowAppearance | null | undefined;
   private readonly views: Map<string, OpenWebView> = new Map();
   private readonly kept: OpenWebView[] = [];
   private readonly expected: OpenWebView[] = [];
@@ -70,7 +73,8 @@ export class WebViewHost {
     sendInput: (windowId: number, input: JsonObject) => void,
     isConnected: () => boolean,
     deliver: (events: WebViewEvents) => void,
-    log: (text: string) => void) {
+    log: (text: string) => void,
+    readAppearance: (windowId: number) => WindowAppearance | null | undefined) {
     this.engine = engine;
     this.check = check;
     this.readDeclarationsAsync = readDeclarationsAsync;
@@ -81,11 +85,12 @@ export class WebViewHost {
     this.isConnected = isConnected;
     this.deliver = deliver;
     this.log = log;
+    this.readAppearance = readAppearance;
     engine.watchAttach((windowId, partition) => this.isAttachable(windowId, partition), log,
       (windowId, partition) => this.claim(windowId, partition), (windowId, contents) => this.restore(windowId, contents));
   }
 
-  public async openAsync(windowId: number, module: unknown, pane: unknown, profileKey: unknown): Promise<JsonObject | null> {
+  public async openAsync(windowId: number, module: unknown, pane: unknown, profileKey: unknown, name?: unknown): Promise<JsonObject | null> {
     if (!Object.isString(module) || !Object.isString(profileKey))
       return null;
     const [owner, key]: [string, string] = [module, profileKey];
@@ -98,7 +103,8 @@ export class WebViewHost {
     this.nextId += 1;
     const open: OpenWebView = new OpenWebView(info, windowId, partition, session, this.check, declaration, t => this.report(open, t), t => this.isShortcut(windowId, t),
       (t, answer) => this.forwardShortcut(open, t, answer), this.platform, (t, signal) => this.engine.waitAsync(t, signal), () => this.engine.now(), () => this.lose(open),
-      t => this.sendInput(windowId, { [Resources.moduleField]: info.module, [Resources.viewField]: info.id, [Resources.kindField]: t }), this.log);
+      t => this.sendInput(windowId, { [Resources.moduleField]: info.module, [Resources.viewField]: info.id, [Resources.kindField]: t }),
+      new WebViewRefusedPage(name, () => this.readAppearance(windowId)), this.log);
     this.views.set(info.id, open);
     this.report(open, WebViewHost.createEvent(open, WebViewEventKind.Opened, { [Resources.paneField]: info.pane.toJson(), [Resources.profileKeyField]: profileKey }));
     return { [Resources.viewField]: info.toJson(), [Resources.partitionField]: partition, [Resources.keysField]: declaration.keys.flatMap(t => t.keysOn(this.platform).map(u => u.text)) };

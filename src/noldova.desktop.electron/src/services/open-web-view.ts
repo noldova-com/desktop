@@ -7,6 +7,7 @@
  */
 
 import "@noldova/context.core";
+import { randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { JsonException, JsonReader, type JsonObject } from "@noldova/context.json";
 import {
@@ -25,6 +26,7 @@ import {
 import type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
+import type { IWebViewFrame } from "../interfaces/i-web-view-frame.js";
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewInputEvent } from "../interfaces/i-web-view-input-event.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
@@ -34,6 +36,7 @@ import type { IWindowNavigation } from "../interfaces/i-window-navigation.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 import { CaughtFailure } from "../models/caught-failure.js";
 import type { WebViewHistory } from "../models/web-view-history.js";
+import type { WebViewRefusedPage } from "../models/web-view-refused-page.js";
 import { Resources } from "../resources.js";
 import { WebViewEventCut } from "./web-view-event-cut.js";
 import { WebViewFavicon } from "./web-view-favicon.js";
@@ -52,6 +55,7 @@ export class OpenWebView {
   private readonly now: () => number;
   private readonly lost: () => void;
   private readonly input: (kind: string) => void;
+  private readonly refusedPage: WebViewRefusedPage;
   private readonly log: (text: string) => void;
   private readonly endings: Set<(kind: WebViewFailureKind) => void> = new Set();
   private readonly attachWaits: Map<(guest: IWebViewContents) => void, (kind: WebViewFailureKind) => void> = new Map();
@@ -74,6 +78,8 @@ export class OpenWebView {
   private isAnswerAwaited: boolean = false;
   private touchPoints: readonly unknown[] = [];
   private uncountedInputs: number = 0;
+  private refusedPages: ReadonlyMap<number, string> = new Map();
+  private admittedPages: ReadonlyMap<number, string> = new Map();
   private openPageCalls: number = 0;
   private releases: Set<() => void> = new Set();
   private allowed: readonly string[] = [];
@@ -115,6 +121,7 @@ export class OpenWebView {
     now: () => number,
     lost: () => void,
     input: (kind: string) => void,
+    refusedPage: WebViewRefusedPage,
     log: (text: string) => void) {
     this.info = info;
     this.windowId = windowId;
@@ -130,6 +137,7 @@ export class OpenWebView {
     this.now = now;
     this.lost = lost;
     this.input = input;
+    this.refusedPage = refusedPage;
     this.log = log;
     this.lastInput = undefined;
     this.lastPress = undefined;
@@ -182,6 +190,8 @@ export class OpenWebView {
     this.isReady = false;
     this.isFocusHeld = false;
     this.isCrashed = false;
+    this.refusedPages = new Map();
+    this.admittedPages = new Map();
     if (!Object.isNull(previous) && !previous.isDestroyed() && previous.debugger.isAttached())
       previous.debugger.detach();
     this.listen(guest);
@@ -313,10 +323,13 @@ export class OpenWebView {
     const isRedirect = this.redirects.delete(request.id);
     const isPage = request.resourceType === Resources.mainFrameResource;
     const isFrame = request.resourceType === Resources.subFrameResource;
-    const allows = !this.refusedRequests.delete(request.id)
+    const isAdmitted = isFrame && !isRedirect && this.takesAdmittedPage(request);
+    const allows = isAdmitted || !this.refusedRequests.delete(request.id)
       && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed));
     if (!allows && isPage)
       this.emitRefusedNavigation(request.url, isRedirect);
+    if (!allows && isFrame)
+      this.refuseFrame(request.frame ?? null, request.url, isRedirect, null);
     return allows;
   }
 
@@ -762,14 +775,59 @@ export class OpenWebView {
   private judgeFrame(guest: IWebViewContents, navigation: IFrameNavigation): void {
     if (!this.isBound(guest))
       return navigation.preventDefault();
+    if (!navigation.isMainFrame && this.takesRefusedPage(navigation))
+      return;
     if (this.check.allowsNavigation(navigation.url, this.allowed, !navigation.isMainFrame))
       return;
     navigation.preventDefault();
     if (navigation.isMainFrame)
       this.emitRefusedNavigation(navigation.url, false);
+    else
+      this.refuseFrame(navigation.frame, navigation.url, false, navigation.initiator ?? null);
+  }
+
+  private takesRefusedPage(navigation: IFrameNavigation): boolean {
+    const frame = navigation.frame?.frameTreeNodeId;
+    if (Object.isUndefined(frame))
+      return false;
+    const page = this.refusedPages.get(frame);
+    this.refusedPages = new Map([...this.refusedPages].filter(([key]) => key !== frame));
+    this.admittedPages = new Map([...this.admittedPages].filter(([key]) => key !== frame));
+    if (page !== navigation.url || navigation.initiator?.frameTreeNodeId !== frame)
+      return false;
+    const kept = [...this.admittedPages].slice(1 - Resources.refusedPageLimit);
+    this.admittedPages = new Map([...kept, [frame, page]]);
+    return true;
+  }
+
+  private takesAdmittedPage(request: IWebViewRequest): boolean {
+    const frame = request.frame?.frameTreeNodeId;
+    if (Object.isUndefined(frame))
+      return false;
+    const page = this.admittedPages.get(frame);
+    this.admittedPages = new Map([...this.admittedPages].filter(([key]) => key !== frame));
+    return page === request.url;
+  }
+
+  private refuseFrame(frame: IWebViewFrame | null, url: string, isRedirect: boolean, initiator: IWebViewFrame | null): void {
+    if (Object.isNull(frame))
+      return;
+    const origin = OpenWebView.originOf(url);
+    this.emit(WebViewEventKind.FrameNavigationRefused,
+      { [Resources.addressField]: url, [Resources.originField]: origin, [Resources.isRedirectField]: isRedirect, [Resources.frameIdField]: frame.frameTreeNodeId });
+    const isOwn = !isRedirect && initiator?.frameTreeNodeId === frame.frameTreeNodeId;
+    const shown = origin === Resources.nullOrigin ? url : origin;
+    const page = this.refusedPage.format(isOwn ? shown : null, randomUUID());
+    const kept = [...this.refusedPages].filter(([key]) => key !== frame.frameTreeNodeId).slice(1 - Resources.refusedPageLimit);
+    this.refusedPages = new Map([...kept, [frame.frameTreeNodeId, page]]);
+    void frame.executeJavaScript(Resources.formatRefusedPageScript(page)).catch(() => undefined);
   }
 
   private noteStart(guest: IWebViewContents, navigation: IWindowNavigation): void {
+    if (navigation.isMainFrame && !navigation.isSameDocument) {
+      this.refusedPages = new Map();
+      this.admittedPages = new Map();
+    }
     if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument && OpenWebView.isSourceDocument(navigation.url))
       this.emitRefusedNavigation(navigation.url, false);
   }

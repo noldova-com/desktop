@@ -222,6 +222,14 @@ export class Resources {
   public static readonly modifiersField: string = "modifiers";
   public static readonly originField: string = "origin";
   public static readonly dispositionField: string = "disposition";
+  public static readonly refusedPageLimit: number = 64;
+  public static readonly refusedPageNameLimit: number = 64;
+  public static readonly refusedPageOriginLimit: number = 256;
+  public static readonly refusedPagePrefix: string = "data:text/html;base64,";
+  public static readonly refusedPageBackground: string = "Canvas";
+  public static readonly refusedPageText: string = "CanvasText";
+  public static readonly namelessRefusedReason: string = "Its address isn't one this view opens.";
+  public static readonly hiddenRefusedTarget: string = "this address";
   public static readonly altModifier: number = 1;
   public static readonly ctrlModifier: number = 2;
   public static readonly metaModifier: number = 4;
@@ -284,6 +292,7 @@ export class Resources {
   public static readonly canGoForwardField: string = "canGoForward";
   public static readonly requestField: string = "request";
   public static readonly isRedirectField: string = "isRedirect";
+  public static readonly frameIdField: string = "frameId";
   public static readonly hadRecentInputField: string = "hadRecentInput";
   public static readonly methodField: string = "method";
   public static readonly paramsField: string = "params";
@@ -1716,6 +1725,28 @@ export class Resources {
 
   public static formatSpellingRejected(reason: string): string {
     return `The window's spelling preferences were rejected: ${reason}`;
+  }
+
+  public static formatRefusedPageScript(page: string): string {
+    return `location.replace(${JSON.stringify(page)})`;
+  }
+
+  public static formatRefusedTitle(name: string, origin: string): string {
+    return `${name} doesn't open ${origin}`;
+  }
+
+  public static formatRefusedReason(name: string): string {
+    return `Its address isn't one ${name} opens.`;
+  }
+
+  public static formatNamelessRefusedTitle(origin: string): string {
+    return `This view doesn't open ${origin}`;
+  }
+
+  public static formatRefusedPage(title: string, reason: string, background: string, color: string, nonce: string): string {
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">` +
+      `<meta name="color-scheme" content="light dark"><title>${title}</title><style>body{margin:0;padding:1rem;background:${background};color:${color};font:0.875rem/1.4 system-ui,sans-serif}` +
+      `h1{margin:0 0 0.5rem;font-size:1rem;font-weight:600;overflow-wrap:anywhere}p{margin:0}</style></head><body data-refused="${nonce}"><h1>${title}</h1><p>${reason}</p></body></html>`;
   }
 
   public static formatAppearanceUnread(reason: string): string {

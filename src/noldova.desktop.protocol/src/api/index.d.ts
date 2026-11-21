@@ -512,9 +512,16 @@ export declare enum WebViewEventKind {
   LoadFailed = "LoadFailed",
 
   /**
-   * The origin check refused a navigation; its details are the `address`, its `origin` and `isRedirect`.
+   * The origin check refused a navigation of the view's main frame; its details are the `address`, its `origin` and `isRedirect`.
    */
   NavigationRefused = "NavigationRefused",
+
+  /**
+   * The origin check refused a navigation inside one of the page's frames, and the host shows its own refused page in that frame; its details are the `address`, its `origin`, `isRedirect` and `frameId`, a positive whole number that names the frame for as long as it exists in the view and is never used again.
+   * It isn't the page's own refusal: the page stays where it is, and `NavigationRefused` stays the main frame's alone.
+   * A module built before this kind ignores it, as it ignores any kind it doesn't know, so it never takes a frame's refusal for the page's.
+   */
+  FrameNavigationRefused = "FrameNavigationRefused",
 
   /**
    * The view's page stopped; the view stays empty, and sends no `State`, until it is navigated again.

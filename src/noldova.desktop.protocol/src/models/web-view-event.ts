@@ -23,6 +23,7 @@ export class WebViewEvent {
   private static readonly TEXT_OR_ABSENT: (value: unknown) => boolean = t => Object.isString(t) || Object.isUndefined(t);
   private static readonly FLAG: (value: unknown) => boolean = t => Object.isBoolean(t);
   private static readonly FLAG_OR_ABSENT: (value: unknown) => boolean = t => Object.isBoolean(t) || Object.isUndefined(t);
+  private static readonly FRAME: (value: unknown) => boolean = t => Number.isSafeInteger(t) && Number(t) > 0;
   private static readonly WHOLE: (value: unknown) => boolean = t => Number.isSafeInteger(t);
   private static readonly OBJECT: (value: unknown) => boolean = t => Object.isPlainObject(t);
   private static readonly COUNT: (value: unknown) => boolean = t => Number.isSafeInteger(t) && Number(t) >= 0;
@@ -37,6 +38,9 @@ export class WebViewEvent {
     ]),
     [WebViewEventKind.LoadFailed]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.codeField, WebViewEvent.WHOLE], [Resources.descriptionField, WebViewEvent.TEXT]]),
     [WebViewEventKind.NavigationRefused]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG]]),
+    [WebViewEventKind.FrameNavigationRefused]: new Map([
+      [Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG], [Resources.frameIdField, WebViewEvent.FRAME]
+    ]),
     [WebViewEventKind.Crashed]: new Map(),
     [WebViewEventKind.ProfileCleared]: new Map([[Resources.profileKeyField, WebViewEvent.TEXT]]),
     [WebViewEventKind.RequestRefused]: new Map([[Resources.requestField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT]]),
