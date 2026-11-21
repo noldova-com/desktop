@@ -17,6 +17,7 @@ import type { MainProcessSettings } from "../models/main-process-settings.js";
 import { MenuBar } from "../models/menu-bar.js";
 import type { WindowRegistry } from "../models/window-registry.js";
 import { Resources } from "../resources.js";
+import { ApplicationMenu } from "./application-menu.js";
 import { MenuBarTemplate } from "./menu-bar-template.js";
 import type { OpenWindow } from "./open-window.js";
 import type { SpellChecker } from "./spell-checker.js";
@@ -46,6 +47,7 @@ export class WindowControls {
   private readonly windows: WindowRegistry;
   private readonly spelling: SpellChecker;
   private readonly log: (text: string) => void;
+  private menuOwner: number | null = null;
 
   public constructor(menu: IMenuHost, settings: MainProcessSettings, windows: WindowRegistry, spelling: SpellChecker, log: (text: string) => void) {
     this.menu = menu;
@@ -98,10 +100,18 @@ export class WindowControls {
     try {
       const template = MenuBarTemplate.build(MenuBar.fromJson(menuBar), id => this.windows.find(contentsId)?.window.webContents.send(Resources.menuCommandChannel, id));
       this.menu.setApplicationMenu(this.menu.buildFromTemplate(template));
+      this.menuOwner = contentsId;
     }
     catch (error) {
       this.log(Resources.formatMenuBarRejected(String(error)));
     }
+  }
+
+  public closeWindow(contentsId: number): void {
+    if (this.menuOwner !== contentsId)
+      return;
+    this.menuOwner = null;
+    ApplicationMenu.install(this.menu, this.settings);
   }
 
   public forwardFieldMenu(open: OpenWindow, params: IContextMenuParams): void {
