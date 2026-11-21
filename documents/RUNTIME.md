@@ -106,7 +106,8 @@ What a module declares and contributes is in [MODULES.md](MODULES.md); the windo
 - A runtime of the same build can be asked to prepare for an update with `desktop.update`, which [BUILD.md](BUILD.md#stopping-for-an-update) describes.
   It keeps refusing new clients until the update ends: it watches the installation's folder, so it notices the launch barrier going at once, and checks every 5 seconds whether the barrier's holder still runs, so it notices a holder that has gone before the handoff within 5 seconds; Node can't wait for the exit of a process it didn't start.
   A folder that can't be watched fails `desktop.update` with `Unavailable`, and a watch that fails later ends the update, failing `desktop.update` too if it hasn't answered.
-  The main process watches the same folder while it has no runtime connection, and quits once another main process's update sets the barrier to `Closing`.
+  The main process watches the same folder while it has no runtime connection, and quits once another main process's update sets the barrier to `Closing`, or to `HandedOff` for a version other than its own build's.
+  `HandedOff` counts too: a main process the holder doesn't know of, because recording itself failed, would otherwise keep running the installation's files while the installer replaces them; a main process of the version being installed, which the installer starts, keeps running.
 - A stop cancels the runtime's work, answers its waiters, writes its state and closes its resources; an answer to a stop doesn't prove that the process ended.
 - Clients reconnect from what is kept, not from the events they missed.
 

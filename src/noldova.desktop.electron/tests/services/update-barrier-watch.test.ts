@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { UpdateProcess } from "@noldova/desktop.protocol";
-import { UpdateBarrierState } from "@noldova/desktop.runtime";
+import { RuntimeBuild, UpdateBarrier, UpdateBarrierState } from "@noldova/desktop.runtime";
 import { UpdateBarrierWatch } from "@noldova/desktop.electron";
 
 import { Condition } from "../fixtures/condition.fixture.js";
@@ -44,6 +44,25 @@ export class UpdateBarrierWatchTests {
       results.push(await watch.checkAsync());
 
     Assert.areEqual("false false false false false false true", results.join(" "));
+    Assert.areEqual(1, this.updates.quitCount);
+  }
+
+  @TestMethod
+  public async quitsAMainProcessWithoutAConnectionOnceAnotherMainProcessHandedOffAnotherVersion(): Promise<void> {
+    const watch = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    const handedOff = FakeUpdateHost.barrier(UpdateBarrierState.HandedOff);
+    Assert.areNotEqual(RuntimeBuild.identity.productVersion, handedOff.version);
+    this.updates.barriers.push(
+      new UpdateBarrier(FakeUpdateHost.COORDINATOR, RuntimeBuild.identity.productVersion, UpdateBarrierState.HandedOff, null),
+      FakeUpdateHost.barrier(UpdateBarrierState.HandedOff, new UpdateProcess(4121, 1500, 1501, "main")),
+      handedOff);
+    this.updates.ended.push(false);
+
+    const results = [];
+    for (let check = 0; check < 3; check++)
+      results.push(await watch.checkAsync());
+
+    Assert.areEqual("false false true", results.join(" "));
     Assert.areEqual(1, this.updates.quitCount);
   }
 
