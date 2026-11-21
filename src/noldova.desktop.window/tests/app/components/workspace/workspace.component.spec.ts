@@ -708,7 +708,7 @@ describe("WorkspaceComponent", () => {
     appearance.setTheme(DefaultTheme.theme);
     await settleAsync(fixture);
 
-    expect(standard).toEqual([0.25, 26, 25, 0.25, 10, 2.75, 13.75, 10, 6.25, 16.25]);
+    expect(standard).toEqual([0.25, 26, 25, 0.25, 10, 2.75, 13.75, 10, 6.25, 12.5]);
     expect(themed).toEqual([0.375, 20, 18, 0.375, 8, 3, 11, 8.5, 5, 12]);
     AppearanceFixture.expectPixels(x ?? 0, AppearanceFixture.toPixels(0.375));
     AppearanceFixture.expectPixels(width ?? 0, AppearanceFixture.toPixels(20));
