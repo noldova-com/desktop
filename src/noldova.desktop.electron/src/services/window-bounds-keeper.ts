@@ -8,6 +8,7 @@
 
 import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
+import type { Rectangle } from "electron";
 
 import { WindowStateNotConnectedException } from "../exceptions/window-state-not-connected.exception.js";
 import { WindowStateUnavailableException } from "../exceptions/window-state-unavailable.exception.js";
@@ -25,9 +26,11 @@ export class WindowBoundsKeeper {
   private readonly saveDelay: number;
   private readonly log: IMainProcessLog;
   private readonly keepsStoredPosition: boolean;
+  private readonly holdsPersonsMoves: boolean;
   private restored: WindowState | null = null;
   private isRead: boolean = false;
   private hasFailedRead: boolean = false;
+  private shownBounds: Rectangle | null = null;
   private store: IWindowStateStore | undefined;
   private timer: NodeJS.Timeout | undefined;
   private hasUnsaved: boolean = false;
@@ -40,6 +43,7 @@ export class WindowBoundsKeeper {
     this.saveDelay = saveDelay;
     this.log = log;
     this.keepsStoredPosition = keepsStoredPosition;
+    this.holdsPersonsMoves = holdsPersonsMoves;
     this.store = undefined;
     this.timer = undefined;
     const changed = (): void => this.noteChange();
@@ -91,6 +95,7 @@ export class WindowBoundsKeeper {
       this.window.maximize();
     this.isMaximizedAtShow = false;
     this.window.show();
+    this.shownBounds = this.window.getNormalBounds();
   }
 
   public async saveAsync(): Promise<void> {
@@ -150,6 +155,11 @@ export class WindowBoundsKeeper {
     return this.restored;
   }
 
+  private isAt(bounds: Rectangle): boolean {
+    const now = this.window.getNormalBounds();
+    return now.x === bounds.x && now.y === bounds.y && now.width === bounds.width && now.height === bounds.height;
+  }
+
   private async readFromAsync(store: IWindowStateStore): Promise<JsonObject | null> {
     try {
       return await store.readAsync();
@@ -163,7 +173,7 @@ export class WindowBoundsKeeper {
   private noteChange(): void {
     if (!Object.isUndefined(this.store))
       this.scheduleSave();
-    else if (this.hasFailedRead)
+    else if (this.hasFailedRead && !this.holdsPersonsMoves && !Object.isNull(this.shownBounds) && !this.isAt(this.shownBounds))
       this.hasUnsaved = true;
   }
 

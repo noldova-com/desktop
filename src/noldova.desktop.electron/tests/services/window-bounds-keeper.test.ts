@@ -249,9 +249,9 @@ export class WindowBoundsKeeperTests {
     store.readFailure = null;
     window.bounds = { x: 16, y: 10, width: 1000, height: 700 };
     window.change("move");
-    await Assert.throwsAsync(() => keeper.saveAsync(), WindowStateNotConnectedException);
-    await Assert.throwsAsync(() => keeper.holdAsync(), WindowStateNotConnectedException);
-    await Assert.throwsAsync(() => keeper.saveUnsavedAsync(), WindowStateNotConnectedException);
+    await keeper.saveAsync();
+    await keeper.holdAsync();
+    await keeper.saveUnsavedAsync();
 
     Assert.areEqual(0, store.attempts);
   }
@@ -326,6 +326,7 @@ export class WindowBoundsKeeperTests {
     const keeper = new WindowBoundsKeeper(window, new FakeDisplayHost(), 60_000, new FakeMainProcessLog(), false);
 
     await Assert.throwsAsync(() => keeper.restoreAsync(store), WindowStateRefusedException);
+    keeper.show();
     window.bounds = { x: 16, y: 10, width: 1000, height: 700 };
     window.change("move");
     const attemptsWhileUnread = store.attempts;
@@ -333,8 +334,40 @@ export class WindowBoundsKeeperTests {
     await keeper.restoreAsync(store);
 
     Assert.areEqual(0, attemptsWhileUnread);
-    Assert.areEqual("[]", JSON.stringify(window.calls));
+    Assert.areEqual("[\"show\"]", JSON.stringify(window.calls));
     Assert.areEqual(JSON.stringify([{ x: 16, y: 10, width: 1000, height: 700, maximized: false }]), JSON.stringify(store.writes));
+  }
+
+  @TestMethod
+  public async restoresTheSavedBoundsAfterARefusedReadWhenOnlyTheSystemChangedTheWindow(): Promise<void> {
+    const saved = { x: 40, y: 60, width: 900, height: 640, maximized: false };
+    const placed = "setBounds {\"x\":40,\"y\":60,\"width\":900,\"height\":640}";
+    const restoreAsync = async (holdsPersonsMoves: boolean, change: (window: FakeMainProcessWindow, keeper: WindowBoundsKeeper) => void): Promise<readonly string[]> => {
+      const window = new FakeMainProcessWindow({}, 1);
+      const store = new MemoryStore(saved);
+      store.readFailure = new WindowStateRefusedException(new QualifiedName("desktop", "readWindowBounds"), new Failure(FailureCode.Internal, "The database is busy."));
+      const keeper = new WindowBoundsKeeper(window, new FakeDisplayHost(), 60_000, new FakeMainProcessLog(), holdsPersonsMoves);
+      await Assert.throwsAsync(() => keeper.restoreAsync(store), WindowStateRefusedException);
+      change(window, keeper);
+      store.readFailure = null;
+      await keeper.restoreAsync(store);
+      return [...window.calls.filter(t => t.startsWith("setBounds")), String(store.writes.length)];
+    };
+
+    const placedBeforeShowing = await restoreAsync(false, (window, keeper) => {
+      window.bounds = { x: 16, y: 10, width: 1000, height: 700 };
+      window.change("move");
+      keeper.show();
+      window.change("maximize");
+    });
+    const movedWithoutWillMove = await restoreAsync(true, (window, keeper) => {
+      keeper.show();
+      window.bounds = { x: 16, y: 10, width: 1000, height: 700 };
+      window.change("move");
+    });
+
+    Assert.areEqual(JSON.stringify([placed, "0"]), JSON.stringify(placedBeforeShowing));
+    Assert.areEqual(JSON.stringify([placed, "0"]), JSON.stringify(movedWithoutWillMove));
   }
 
   @TestMethod
