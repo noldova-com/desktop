@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
 import path from "node:path";
 
@@ -18,14 +18,17 @@ import { ProcessTranscript } from "../../models/processes/process-transcript.ts"
 import { ProcessTimeoutException } from "../../exceptions/process-timeout.exception.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
+import { ProcessTree } from "./process-tree.ts";
 import { StartedProcess } from "./started-process.ts";
 
 export class ProcessRunner {
+  private static readonly tree: ProcessTree = new ProcessTree();
+
   public captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv, isVerbatim: boolean = false):
     Promise<ProcessResult> {
     return new Promise<ProcessResult>((resolve, reject) => {
       const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, stdio: [Resources.ignoreStdio, Resources.pipeStdio, Resources.pipeStdio], windowsHide: true,
-        env: environment ?? process.env, windowsVerbatimArguments: isVerbatim, argv0: isVerbatim ? `"${command}"` : command, detached: ProcessRunner.isGrouped });
+        env: environment ?? process.env, windowsVerbatimArguments: isVerbatim, argv0: isVerbatim ? `"${command}"` : command, detached: ProcessRunner.tree.isGrouped });
       const output: Buffer[] = [];
       const errorOutput: Buffer[] = [];
       const transcript = new ProcessTranscript();
@@ -46,8 +49,8 @@ export class ProcessRunner {
       };
       const timer = setTimeout(() => {
         failure ??= new ProcessTimeoutException(command, timeout, transcript.text, child.pid);
-        ProcessRunner.endTree(child);
-        ProcessRunner.onExit(child, () => {
+        ProcessRunner.tree.end(child);
+        ProcessRunner.tree.whenEnded(child, () => {
           child.stdout.destroy();
           child.stderr.destroy();
           reject(failure);
@@ -79,13 +82,13 @@ export class ProcessRunner {
       const isWatched = !Object.isUndefined(watch);
       const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, env: environment ?? process.env,
         stdio: isWatched ? [Resources.inheritStdio, Resources.pipeStdio, Resources.pipeStdio] : Resources.inheritStdio,
-        detached: !Object.isUndefined(timeout) && ProcessRunner.isGrouped });
+        detached: !Object.isUndefined(timeout) && ProcessRunner.tree.isGrouped });
       if (isWatched) {
         child.stdout?.on(Resources.dataEvent, (t: Buffer) => ProcessRunner.forward(process.stdout, t, watch));
         child.stderr?.on(Resources.dataEvent, (t: Buffer) => ProcessRunner.forward(process.stderr, t, watch));
       }
       const timer = Object.isUndefined(timeout) ? null : setTimeout(() => {
-        ProcessRunner.endTree(child);
+        ProcessRunner.tree.end(child);
         child.stdout?.destroy();
         child.stderr?.destroy();
         reject(new ProcessTimeoutException(command, timeout));
@@ -119,26 +122,6 @@ export class ProcessRunner {
 
   public kill(processId: number): void {
     ProcessRunner.signal(processId, Resources.killSignal);
-  }
-
-  private static get isGrouped(): boolean {
-    return process.platform !== Resources.windowsPlatform;
-  }
-
-  private static endTree(child: ChildProcess): void {
-    if (Object.isUndefined(child.pid))
-      return;
-    if (ProcessRunner.isGrouped)
-      ProcessRunner.signal(-child.pid, Resources.killSignal);
-    else
-      execFile(Resources.taskkillCommand, [Resources.taskkillProcessOption, String(child.pid), ...Resources.taskkillTreeOptions], { windowsHide: true }, () => undefined);
-  }
-
-  private static onExit(child: ChildProcess, settle: () => void): void {
-    if (Object.isNull(child.exitCode) && Object.isNull(child.signalCode))
-      child.once(Resources.exitEvent, settle);
-    else
-      settle();
   }
 
   private static forward(target: NodeJS.WritableStream, chunk: Buffer, watch: (text: string) => void): void {
