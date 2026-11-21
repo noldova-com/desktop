@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import "@noldova/context.core";
-import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Assert, Category, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { Resources } from "../../../src/resources.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
@@ -23,7 +23,6 @@ import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 export class ProcessTreeTests {
   private static readonly LAUNCHED: number = Date.parse("2026-11-21T08:00:00.000Z");
   private static readonly EXITED: number = ProcessTreeTests.LAUNCHED + 3_000;
-  private static readonly CHILD_LIFETIME: number = 60_000;
 
   @TestMethod
   public groupsAProcessTreeEverywhereButWindows(): void {
@@ -251,37 +250,6 @@ export class ProcessTreeTests {
   }
 
   @TestMethod
-  @PlatformFixture.windowsOnly()
-  public async endsTheChildAnExitedCommandLeftRunningOnWindowsThroughTheRealListing(): Promise<void> {
-    const folder = await mkdtemp(path.join(tmpdir(), "process-tree-"));
-    const file = path.join(folder, "child.pid");
-    const child = `setTimeout(() => undefined, ${String(ProcessTreeTests.CHILD_LIFETIME)})`;
-    const script = `const child = require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(child)}], { detached: true, stdio: "ignore", windowsHide: true }); ` +
-      `require("node:fs").writeFileSync(${JSON.stringify(file)}, String(child.pid)); child.unref();`;
-    const runner = new ProcessRunner();
-    let id = 0;
-    try {
-      const launched = Date.now();
-      const command = spawn(process.execPath, ["-e", script], { stdio: "ignore", windowsHide: true });
-      const exited = await new Promise<number>((resolve, reject) => {
-        command.once("error", reject);
-        command.once("exit", () => resolve(Date.now()));
-      });
-      id = Number(await readFile(file, "utf8"));
-      Assert.isTrue(id > 0 && runner.isRunning(id), "The child did not outlive the command.");
-
-      await new ProcessTree().endAsync(command.pid, launched, exited);
-
-      Assert.isFalse(runner.isRunning(id), "The child the command left still runs.");
-    }
-    finally {
-      if (id > 0 && runner.isRunning(id))
-        runner.kill(id);
-      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
-    }
-  }
-
-  @TestMethod
   public async rejectsWhenNeitherTheRealTaskkillNorTheListingSucceeds(): Promise<void> {
     let lists = 0;
     const failure = new Error("powershell failed");
@@ -426,5 +394,42 @@ export class ProcessTreeTests {
 
   private static failure(code: string): Error {
     return Object.assign(new Error(`kill ${code}`), { code });
+  }
+}
+
+@TestClass
+@Category("Packaging")
+export class ProcessTreeListingTests {
+  private static readonly CHILD_LIFETIME: number = 60_000;
+
+  @TestMethod
+  @PlatformFixture.windowsOnly()
+  public async endsTheChildAnExitedCommandLeftRunningOnWindowsThroughTheRealListing(): Promise<void> {
+    const folder = await mkdtemp(path.join(tmpdir(), "process-tree-"));
+    const file = path.join(folder, "child.pid");
+    const child = `setTimeout(() => undefined, ${String(ProcessTreeListingTests.CHILD_LIFETIME)})`;
+    const script = `const child = require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(child)}], { detached: true, stdio: "ignore", windowsHide: true }); ` +
+      `require("node:fs").writeFileSync(${JSON.stringify(file)}, String(child.pid)); child.unref();`;
+    const runner = new ProcessRunner();
+    let id = 0;
+    try {
+      const launched = Date.now();
+      const command = spawn(process.execPath, ["-e", script], { stdio: "ignore", windowsHide: true });
+      const exited = await new Promise<number>((resolve, reject) => {
+        command.once("error", reject);
+        command.once("exit", () => resolve(Date.now()));
+      });
+      id = Number(await readFile(file, "utf8"));
+      Assert.isTrue(id > 0 && runner.isRunning(id), "The child did not outlive the command.");
+
+      await new ProcessTree().endAsync(command.pid, launched, exited);
+
+      Assert.isFalse(runner.isRunning(id), "The child the command left still runs.");
+    }
+    finally {
+      if (id > 0 && runner.isRunning(id))
+        runner.kill(id);
+      await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
+    }
   }
 }

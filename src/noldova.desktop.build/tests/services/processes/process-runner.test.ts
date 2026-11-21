@@ -12,14 +12,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { mock } from "node:test";
 
-import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Assert, Category, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { ProcessTimeoutException } from "../../../src/exceptions/process-timeout.exception.js";
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { Resources } from "../../../src/resources.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
 import { CoverageEnvironmentFixture } from "../../fixtures/coverage-environment.fixture.js";
-import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { RefusingProcessTreeFixture } from "../../fixtures/refusing-process-tree.fixture.js";
 
 @TestClass
@@ -28,7 +27,6 @@ export class ProcessRunnerTests {
   private static readonly MISSING: string = "no-such-program-for-this-test";
   private static readonly LIFETIME: number = 20_000;
   private static readonly CHILD: RegExp = /child ([0-9]+)\n/;
-  private static readonly GRANDCHILD_LIFETIME: number = 60_000;
   private static readonly REFUSED_LIFETIME: number = 3_000;
 
   @TestMethod
@@ -119,17 +117,6 @@ export class ProcessRunnerTests {
       if (!Object.isUndefined(id))
         new ProcessRunner().kill(Number(id));
     }
-  }
-
-  @TestMethod
-  public async stopsACapturedProcessAndTheGrandchildHoldingItsOutputAtItsTimeout(): Promise<void> {
-    await ProcessRunnerTests.stopsAGrandchildHoldingTheOutputAsync(false);
-  }
-
-  @TestMethod
-  @PlatformFixture.posixOnly()
-  public async stopsACapturedProcessWhoseChildEndedWhileAGrandchildStillHoldsItsOutput(): Promise<void> {
-    await ProcessRunnerTests.stopsAGrandchildHoldingTheOutputAsync(true);
   }
 
   @TestMethod
@@ -231,35 +218,64 @@ export class ProcessRunnerTests {
     }
   }
 
+  private static passTheLimit(): void {
+    mock.timers.tick(ProcessRunnerTests.LIMIT);
+    mock.timers.reset();
+  }
+
+  @TestMethod
+  public passesOnAFailureToSignalOtherThanAMissingProcess(): void {
+    Assert.throws(() => new ProcessRunner().isRunning(Number.NaN), Error);
+  }
+}
+
+@TestClass
+@Category("Packaging")
+export class ProcessRunnerGrandchildTests {
+  private static readonly LIMIT: number = 30_000;
+  private static readonly LIFETIME: number = 20_000;
+  private static readonly GRANDCHILD_LIFETIME: number = 60_000;
+
+  @TestMethod
+  public async stopsACapturedProcessAndTheGrandchildHoldingItsOutputAtItsTimeout(): Promise<void> {
+    await ProcessRunnerGrandchildTests.stopsAGrandchildHoldingTheOutputAsync(false);
+  }
+
+  @TestMethod
+  public async stopsACapturedProcessWhoseChildEndedWhileAGrandchildStillHoldsItsOutput(): Promise<void> {
+    await ProcessRunnerGrandchildTests.stopsAGrandchildHoldingTheOutputAsync(true);
+  }
+
   private static async stopsAGrandchildHoldingTheOutputAsync(isChildEnded: boolean): Promise<void> {
     const folder = await mkdtemp(path.join(tmpdir(), "process-runner-"));
     const started = path.join(folder, "grandchild.pid");
     const ended = path.join(folder, "child.pid");
-    const grandchild = `require("node:fs").writeFileSync(${JSON.stringify(started)}, String(process.pid)); setTimeout(() => undefined, ${ProcessRunnerTests.GRANDCHILD_LIFETIME})`;
+    const grandchild = `require("node:fs").writeFileSync(${JSON.stringify(started)}, String(process.pid)); setTimeout(() => undefined, ${ProcessRunnerGrandchildTests.GRANDCHILD_LIFETIME})`;
     const childRest = isChildEnded
       ? `require("node:fs").writeFileSync(${JSON.stringify(ended)}, String(process.pid)); process.exit(0)`
-      : `setTimeout(() => undefined, ${ProcessRunnerTests.GRANDCHILD_LIFETIME})`;
-    const child = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(grandchild)}], { stdio: ["ignore", "inherit", "inherit"] }); ${childRest}`;
+      : `setTimeout(() => undefined, ${ProcessRunnerGrandchildTests.GRANDCHILD_LIFETIME})`;
+    const isDetached = isChildEnded && process.platform === "win32";
+    const child = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(grandchild)}], { detached: ${String(isDetached)}, stdio: ["ignore", "inherit", "inherit"] }); ${childRest}`;
     let isTimedOut = false;
     let id = 0;
     mock.timers.enable({ apis: ["setTimeout"] });
     try {
-      const failure = Assert.throwsAsync(() => new ProcessRunner().captureAsync(process.execPath, ["-e", child], folder, ProcessRunnerTests.LIMIT),
+      const failure = Assert.throwsAsync(() => new ProcessRunner().captureAsync(process.execPath, ["-e", child], folder, ProcessRunnerGrandchildTests.LIMIT),
         ProcessTimeoutException);
-      id = await ProcessRunnerTests.readIdAsync(started);
+      id = await ProcessRunnerGrandchildTests.readIdAsync(started);
       if (isChildEnded)
-        await ProcessRunnerTests.waitUntilEndedAsync(await ProcessRunnerTests.readIdAsync(ended));
-      ProcessRunnerTests.passTheLimit();
+        await ProcessRunnerGrandchildTests.waitUntilEndedAsync(await ProcessRunnerGrandchildTests.readIdAsync(ended));
+      ProcessRunnerGrandchildTests.passTheLimit();
       isTimedOut = true;
       const error = await failure;
 
-      Assert.areEqual(ProcessRunnerTests.LIMIT, error.timeout);
+      Assert.areEqual(ProcessRunnerGrandchildTests.LIMIT, error.timeout);
       Assert.isTrue(id > 0, "The grandchild never started, so nothing held the output.");
       Assert.isFalse(new ProcessRunner().isRunning(id), "The grandchild still runs after the timeout.");
     }
     finally {
       if (!isTimedOut)
-        ProcessRunnerTests.passTheLimit();
+        ProcessRunnerGrandchildTests.passTheLimit();
       if (id > 0 && new ProcessRunner().isRunning(id))
         new ProcessRunner().kill(id);
       await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
@@ -267,7 +283,7 @@ export class ProcessRunnerTests {
   }
 
   private static async readIdAsync(file: string): Promise<number> {
-    const deadline = performance.now() + ProcessRunnerTests.LIFETIME;
+    const deadline = performance.now() + ProcessRunnerGrandchildTests.LIFETIME;
     let text = String.empty;
     while (text.length === 0 && performance.now() < deadline) {
       await new Promise<void>(resolve => setImmediate(resolve));
@@ -277,19 +293,14 @@ export class ProcessRunnerTests {
   }
 
   private static async waitUntilEndedAsync(processId: number): Promise<void> {
-    const deadline = performance.now() + ProcessRunnerTests.LIFETIME;
+    const deadline = performance.now() + ProcessRunnerGrandchildTests.LIFETIME;
     while (processId > 0 && new ProcessRunner().isRunning(processId) && performance.now() < deadline)
       await new Promise<void>(resolve => setImmediate(resolve));
     Assert.isFalse(processId > 0 && new ProcessRunner().isRunning(processId), "The child never ended.");
   }
 
   private static passTheLimit(): void {
-    mock.timers.tick(ProcessRunnerTests.LIMIT);
+    mock.timers.tick(ProcessRunnerGrandchildTests.LIMIT);
     mock.timers.reset();
-  }
-
-  @TestMethod
-  public passesOnAFailureToSignalOtherThanAMissingProcess(): void {
-    Assert.throws(() => new ProcessRunner().isRunning(Number.NaN), Error);
   }
 }
