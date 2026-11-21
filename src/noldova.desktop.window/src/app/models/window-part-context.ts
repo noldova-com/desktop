@@ -105,7 +105,7 @@ export class WindowPartContext implements IWindowPartContext {
     this.owners = [source.moduleId, ...source.dependencies, ...source.optionalDependencies];
     this.source = source;
     this.host = host;
-    this.webViews = new WindowWebViews((pane, profileKey) => this.openWebViewAsync(pane, profileKey));
+    this.webViews = new WindowWebViews((pane, profileKey, name) => this.openWebViewAsync(pane, profileKey, name));
     this.secrets = new WindowSecrets(source.moduleId, (method, payload) => host.requestAsync(method, payload));
     this.agentControl = host.agentControl;
   }
@@ -789,9 +789,9 @@ export class WindowPartContext implements IWindowPartContext {
       this.requireAllowed(command.name.text);
   }
 
-  private async openWebViewAsync(pane: WebViewPane, profileKey: string): Promise<IWebViewHandle> {
+  private async openWebViewAsync(pane: WebViewPane, profileKey: string, name: string | null): Promise<IWebViewHandle> {
     const tab = this.findOwnTab(pane.name.text, pane.instance ?? undefined);
-    return await this.host.openWebViewAsync(this, this.moduleId, pane, tab, profileKey);
+    return await this.host.openWebViewAsync(this, this.moduleId, pane, tab, profileKey, name);
   }
 
   private markTab(name: string, instance: string | undefined, tabs: Map<string, Set<object>>, show: (tabKey: string, isMarked: boolean) => void): () => void {

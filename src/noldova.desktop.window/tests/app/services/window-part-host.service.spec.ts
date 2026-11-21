@@ -1840,7 +1840,7 @@ describe("WindowPartHostService", () => {
     if (Object.isNullOrUndefined(context))
       throw new Error("The notes part has no context.");
 
-    const refusal = await host.openWebViewAsync(context, "notes", new WebViewPane(QualifiedName.parse("notes.note"), "plan"), new DocumentTab("notes.note", "plan"), "workspace-1")
+    const refusal = await host.openWebViewAsync(context, "notes", new WebViewPane(QualifiedName.parse("notes.note"), "plan"), new DocumentTab("notes.note", "plan"), "workspace-1", null)
       .catch((error: unknown) => error);
 
     expect(refusal).toBeInstanceOf(WebViewNotOpenedException);
@@ -1854,13 +1854,13 @@ describe("WindowPartHostService", () => {
     if (Object.isNullOrUndefined(context))
       throw new Error("The notes part has no context.");
     const injectors: Injector[] = [];
-    vi.spyOn(TestBed.inject(WebViewService), "openAsync").mockImplementation((_moduleId, _pane, _tab, _profileKey, injector) => {
+    vi.spyOn(TestBed.inject(WebViewService), "openAsync").mockImplementation((_moduleId, _pane, _tab, _profileKey, _name, injector) => {
       injectors.push(injector);
       return Promise.reject(new WebViewNotOpenedException());
     });
     const [plan, todo] = [new DocumentTab("notes.note", "plan"), new DocumentTab("notes.note", "todo")];
 
-    await host.openWebViewAsync(context, "notes", new WebViewPane(QualifiedName.parse("notes.note"), "plan"), plan, "workspace-1").catch(() => undefined);
+    await host.openWebViewAsync(context, "notes", new WebViewPane(QualifiedName.parse("notes.note"), "plan"), plan, "workspace-1", null).catch(() => undefined);
     const [injector] = injectors;
     if (Object.isNullOrUndefined(injector))
       throw new Error("The web view got no injector.");

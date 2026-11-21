@@ -76,10 +76,10 @@ export class WebViewService {
     });
   }
 
-  public async openAsync(moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string, injector: Injector): Promise<WebViewHandle> {
+  public async openAsync(moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string, name: string | null, injector: Injector): Promise<WebViewHandle> {
     if (!this.layout.layout().isOpen(tab))
       throw new WebViewNotOpenedException();
-    const opened = await this.bridge.openWebViewAsync(moduleId, pane, profileKey);
+    const opened = await this.bridge.openWebViewAsync(moduleId, pane, profileKey, name);
     if (Object.isNull(opened))
       throw new WebViewNotOpenedException();
     const handle = new WebViewHandle(opened.view, tab, injector, this, this.createFrame(), this.createGuest(opened.partition));

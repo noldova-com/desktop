@@ -3418,6 +3418,18 @@ export interface IWindowSecrets {
 }
 
 /**
+ * How {@link IWindowWebViews.openAsync} opens a web view.
+ */
+export interface IWebViewOpenOptions {
+  /**
+   * The name the view's refused pages give it, such as "Notes' browser" in
+   * "Notes' browser doesn't open https://example.com", up to 64 characters;
+   * the pages say "This view" when left out.
+   */
+  readonly name?: string;
+}
+
+/**
  * A window part's web views, as {@link IWindowPartContext.webViews} gives
  * them.
  */
@@ -3431,6 +3443,8 @@ export interface IWindowWebViews {
    * @param pane The view or document, which the module owns and which is open.
    * @param profileKey The profile's key: a lowercase letter or digit followed
    * by up to 63 lowercase letters, digits and hyphens.
+   * @param options How the view opens, such as the name its refused pages
+   * give it.
    * @returns A promise of the view's handle, hidden until the part shows it;
    * it rejects when the pane belongs to another module, isn't declared or
    * isn't open, the module declares no `webViews.json`, the pane holds as
@@ -3441,11 +3455,11 @@ export interface IWindowWebViews {
    * import type { IWebViewHandle, IWindowPartContext } from "@noldova/desktop.window";
    *
    * export function openPage(context: IWindowPartContext): Promise<IWebViewHandle> {
-   *   return context.webViews.openAsync(new WebViewPane(QualifiedName.parse("browser.page"), "tab-1"), "workspace-1");
+   *   return context.webViews.openAsync(new WebViewPane(QualifiedName.parse("browser.page"), "tab-1"), "workspace-1", { name: "Browser" });
    * }
    * ```
    */
-  openAsync(pane: WebViewPane, profileKey: string): Promise<IWebViewHandle>;
+  openAsync(pane: WebViewPane, profileKey: string, options?: IWebViewOpenOptions): Promise<IWebViewHandle>;
 }
 
 /**

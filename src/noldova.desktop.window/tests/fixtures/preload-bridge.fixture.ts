@@ -415,8 +415,8 @@ export class PreloadBridgeFixture implements IPreloadBridge {
     return Promise.resolve(this.windowAnswer);
   }
 
-  public openWebView(moduleId: string, pane: JsonObject, profileKey: string): Promise<unknown> {
-    this.webViewCalls.push(`open ${moduleId} ${JSON.stringify(pane)} ${profileKey}`);
+  public openWebView(moduleId: string, pane: JsonObject, profileKey: string, name: string | null): Promise<unknown> {
+    this.webViewCalls.push(`open ${moduleId} ${JSON.stringify(pane)} ${profileKey}${Object.isNull(name) ? String.empty : ` as ${name}`}`);
     if (!this.isWebViewOpened)
       return Promise.resolve(null);
     this.webViewCount += 1;

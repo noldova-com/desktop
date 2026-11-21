@@ -266,8 +266,8 @@ export class WindowPartHostService implements IWindowPartHost {
       throw new FileNotOpenedException(ProductName.current, refusal);
   }
 
-  public openWebViewAsync(context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string): Promise<IWebViewHandle> {
-    return this.webViews.openAsync(moduleId, pane, tab, profileKey, this.createPartInjector(context, computed(() => tab.equals(this.layout.layout().documents.active))));
+  public openWebViewAsync(context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string, name: string | null): Promise<IWebViewHandle> {
+    return this.webViews.openAsync(moduleId, pane, tab, profileKey, name, this.createPartInjector(context, computed(() => tab.equals(this.layout.layout().documents.active))));
   }
 
   public chooseFolderAsync(): Promise<string | null> {

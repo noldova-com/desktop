@@ -881,7 +881,7 @@ describe("WindowPartContext", () => {
 
   it("opens web views for its own views and documents through the host, refuses another module's or an undeclared pane, and closes the ones it holds when withdrawn", async () => {
     const list = await context.webViews.openAsync(new WebViewPane(QualifiedName.parse("notes.list")), "workspace-1");
-    await context.webViews.openAsync(new WebViewPane(QualifiedName.parse("notes.note"), "plan"), "workspace-2");
+    await context.webViews.openAsync(new WebViewPane(QualifiedName.parse("notes.note"), "plan"), "workspace-2", { name: "Notes' browser" });
     list.close();
     await context.webViews.openAsync(new WebViewPane(QualifiedName.parse("notes.list")), "workspace-3");
     const foreign = await context.webViews.openAsync(new WebViewPane(QualifiedName.parse("tasks.list")), "workspace-1").catch((error: unknown) => error);
@@ -889,7 +889,7 @@ describe("WindowPartContext", () => {
     context.withdraw();
 
     expect(host.calls.filter(t => t.startsWith("openWebView"))).toEqual([
-      `openWebView notes ${new ViewTab("notes.list").key} workspace-1`, `openWebView notes ${new DocumentTab("notes.note", "plan").key} workspace-2`,
+      `openWebView notes ${new ViewTab("notes.list").key} workspace-1`, `openWebView notes ${new DocumentTab("notes.note", "plan").key} workspace-2 as Notes' browser`,
       `openWebView notes ${new ViewTab("notes.list").key} workspace-3`
     ]);
     expect([foreign, undeclared].map(t => t instanceof WindowPartAccessException)).toEqual([true, true]);

@@ -64,7 +64,9 @@ export class AppearanceKeeper {
     if (Object.isNull(open))
       return null;
     try {
-      this.factory.paint(open.window, WindowAppearance.fromJson(appearance));
+      const painted = WindowAppearance.fromJson(appearance);
+      this.factory.paint(open.window, painted);
+      open.appearance = painted;
     }
     catch (error) {
       this.log(Resources.formatAppearanceRejected(String(error)));

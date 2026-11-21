@@ -96,7 +96,7 @@ export interface IWindowPartHost {
 
   openFileAsync(path: string): Promise<void>;
 
-  openWebViewAsync(context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string): Promise<IWebViewHandle>;
+  openWebViewAsync(context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string, name: string | null): Promise<IWebViewHandle>;
 
   chooseFolderAsync(): Promise<string | null>;
 

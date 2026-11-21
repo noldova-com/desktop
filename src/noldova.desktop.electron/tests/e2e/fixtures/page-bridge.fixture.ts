@@ -33,7 +33,7 @@ export interface IPageBridge {
   showInFolder(path: string): Promise<unknown>;
   openFile(path: string): Promise<unknown>;
   copyImage(bytes: Uint8Array): Promise<boolean>;
-  openWebView(moduleId: string, pane: unknown, profileKey: string): Promise<unknown>;
+  openWebView(moduleId: string, pane: unknown, profileKey: string, name?: string | null): Promise<unknown>;
   attachWebView(moduleId: string, view: string, contentsId: number): Promise<unknown>;
 }
 

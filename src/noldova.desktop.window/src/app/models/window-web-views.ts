@@ -10,19 +10,20 @@ import type { WebViewPane } from "@noldova/desktop.protocol";
 
 import { WebViewClosedException } from "../exceptions/web-view-closed.exception.js";
 import type { IWebViewHandle } from "../interfaces/i-web-view-handle.js";
+import type { IWebViewOpenOptions } from "../interfaces/i-web-view-open-options.js";
 import type { IWindowWebViews } from "../interfaces/i-window-web-views.js";
 
 export class WindowWebViews implements IWindowWebViews {
-  private readonly open: (pane: WebViewPane, profileKey: string) => Promise<IWebViewHandle>;
+  private readonly open: (pane: WebViewPane, profileKey: string, name: string | null) => Promise<IWebViewHandle>;
   private readonly handles: Set<IWebViewHandle> = new Set();
   private isWithdrawn: boolean = false;
 
-  public constructor(open: (pane: WebViewPane, profileKey: string) => Promise<IWebViewHandle>) {
+  public constructor(open: (pane: WebViewPane, profileKey: string, name: string | null) => Promise<IWebViewHandle>) {
     this.open = open;
   }
 
-  public async openAsync(pane: WebViewPane, profileKey: string): Promise<IWebViewHandle> {
-    const handle = await this.open(pane, profileKey);
+  public async openAsync(pane: WebViewPane, profileKey: string, options?: IWebViewOpenOptions): Promise<IWebViewHandle> {
+    const handle = await this.open(pane, profileKey, options?.name ?? null);
     if (this.isWithdrawn) {
       handle.close();
       throw new WebViewClosedException();

@@ -33,6 +33,7 @@ const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><a href=\"/focus?linked\" style=\"position:absolute;left:10px;top:60px;width:150px;height:30px;display:block\">Next</a><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
 const pressPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:200px;height:100px\">D</div><script>const d = document.getElementById(\"d\"); d.addEventListener(\"pointerdown\", e => { if (e.button === 1) { e.preventDefault(); window.open(\"/a\"); window.open(\"/b\"); } else if (e.pointerType === \"mouse\" && e.button === 0) window.open(\"/r\"); }); addEventListener(\"touchend\", () => window.open(\"/t\")); addEventListener(\"keydown\", e => window.open(\"/k/\" + e.key)); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Presses\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
+const framePage = "<!doctype html><title>Frame</title><p>Frame</p><script>globalThis.isLive = true; navigation.addEventListener(\"navigate\", event => parent.postMessage(event.destination.url, \"*\")); addEventListener(\"message\", event => { location.href = event.data; });</script>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
 function png(side: number): Buffer {
@@ -226,6 +227,14 @@ function readFirstViewAsync(mainProcess: MainProcessFixture, script: string): Pr
   }, script);
 }
 
+function readFirstFrameAsync(mainProcess: MainProcessFixture, script: string): Promise<{ address: string; value: unknown } | null> {
+  return mainProcess.application.evaluate(async ({ webContents }, code) => {
+    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+    const frame = first?.mainFrame.frames[0];
+    return frame === undefined ? null : { address: frame.url, value: await frame.executeJavaScript(code) };
+  }, script);
+}
+
 function readFirstViewAddressAsync(mainProcess: MainProcessFixture): Promise<{ address: string; isLoading: boolean } | null> {
   return mainProcess.application.evaluate(({ webContents }) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
@@ -290,6 +299,10 @@ async function startServerAsync(): Promise<Server> {
     }
     if (request.url === "/presses") {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(pressPage);
+      return;
+    }
+    if (request.url === "/frame") {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(framePage);
       return;
     }
     if (request.url === "/opener") {
@@ -1103,6 +1116,60 @@ test.describe("web views", () => {
     }
     finally {
       await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view sends a frame of another allowed origin that navigates to an origin it doesn't allow to its own refused page, which names the view and ends the frame's scripts, reports FrameNavigationRefused, never NavigationRefused, and refuses that page when the page itself asks for it", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const [server, frameServer] = await Promise.all([startServerAsync(), startServerAsync()]);
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      const frameOrigin = `http://${host}:${portOf(frameServer)}`;
+      const outside = `http://localhost:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      const id = await view(window, 0).getAttribute("data-view");
+      await requestAsync(window, "pages.allow", [origin, frameOrigin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("First page");
+      expect(await runInFirstViewAsync(mainProcess, "void addEventListener(\"message\", event => (globalThis.seen ??= []).push(String(event.data)))")).toBe(true);
+      expect(await runInFirstViewAsync(mainProcess, `new Promise(resolve => { const frame = document.createElement("iframe"); frame.src = ${JSON.stringify(`${frameOrigin}/frame`)}; frame.addEventListener("load", resolve, { once: true }); document.body.append(frame); })`)).toBe(true);
+      expect(await readFirstFrameAsync(mainProcess, "globalThis.isLive === true")).toEqual({ address: `${frameOrigin}/frame`, value: true });
+
+      expect(await runInFirstViewAsync(mainProcess, `void (document.querySelector("iframe").src = ${JSON.stringify(`${outside}/parent`)})`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} FrameNavigationRefused`).length).toBe(1);
+      await expect.poll(async () => (await readFirstFrameAsync(mainProcess, "document.title"))?.value).toBe("Pages doesn't open this address");
+      const seen = await readFirstViewAsync(mainProcess, "globalThis.seen ?? []");
+      const pages = (Array.isArray(seen) ? seen.filter(Object.isString) : []).filter(t => t.startsWith("data:text/html;base64,"));
+      expect(pages.length).toBeGreaterThan(0);
+      expect(pages.map(t => Buffer.from(t.slice("data:text/html;base64,".length), "base64").toString("utf8")).filter(t => t.includes(`localhost:${portOf(server)}`))).toEqual([]);
+      expect(await runInFirstViewAsync(mainProcess, `new Promise(resolve => { const frame = document.querySelector("iframe"); frame.addEventListener("load", resolve, { once: true }); frame.src = ${JSON.stringify(`${frameOrigin}/frame`)}; })`)).toBe(true);
+      expect(await readFirstFrameAsync(mainProcess, "globalThis.isLive === true")).toEqual({ address: `${frameOrigin}/frame`, value: true });
+
+      expect(await runInFirstViewAsync(mainProcess, `void document.querySelector("iframe").contentWindow.postMessage(${JSON.stringify(`${outside}/second`)}, "*")`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} FrameNavigationRefused`).length).toBe(2);
+      await expect.poll(async () => (await readFirstFrameAsync(mainProcess, "document.title"))?.value).toBe(`Pages doesn't open ${outside}`);
+      const refused = await readFirstFrameAsync(mainProcess, "[document.querySelector(\"h1\").textContent, document.querySelector(\"p\").textContent, typeof globalThis.isLive, document.scripts.length]");
+      expect(refused?.address.startsWith("data:text/html;base64,")).toBe(true);
+      expect(refused?.value).toEqual([`Pages doesn't open ${outside}`, "Its address isn't one Pages opens.", "undefined", 0]);
+
+      expect(await runInFirstViewAsync(mainProcess, `void (document.querySelector("iframe").src = ${JSON.stringify(refused?.address)})`)).toBe(true);
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} FrameNavigationRefused`).length).toBe(3);
+      await expect.poll(async () => (await readFirstFrameAsync(mainProcess, "document.title"))?.value).toBe("Pages doesn't open this address");
+      const again = await readFirstFrameAsync(mainProcess, "typeof globalThis.isLive");
+      expect(again?.address.startsWith("data:text/html;base64,")).toBe(true);
+      expect(again?.address).not.toBe(refused?.address);
+
+      const events = await eventsAsync(window);
+      expect(events).not.toContain(`${id} NavigationRefused`);
+      expect(events).not.toContain(`${id} LoadFailed`);
+      await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
+    }
+    finally {
+      await Promise.all([stopServerAsync(server), stopServerAsync(frameServer)]);
     }
   });
 
