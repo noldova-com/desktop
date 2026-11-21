@@ -598,6 +598,7 @@ export class Resources {
   public static readonly publisherNoneVerified: string = `The installed package has no Windows publisher, and ${Resources.windowsPublisherVariable} is not set.`;
   public static readonly publisherMatchVerified: string = `The installed package's Windows publisher matches ${Resources.windowsPublisherVariable}.`;
   public static readonly errorCodeField: "code" = "code";
+  public static readonly errorOutputField: "stdout" = "stdout";
   public static readonly chromiumNoSandboxOption: string = "--no-sandbox";
   public static readonly chromiumTypePrefix: string = "--type=";
   public static readonly chromiumRendererType: string = "renderer";
@@ -1453,6 +1454,26 @@ export class Resources {
   public static readonly pngExtension: string = ".png";
   public static readonly githubStepSummaryVariable: string = "GITHUB_STEP_SUMMARY";
   public static readonly killSignal: NodeJS.Signals = "SIGKILL";
+  public static readonly probeSignal: 0 = 0;
+  public static readonly refusedSignalCode: string = "EPERM";
+  public static readonly taskkillCommand: string = "taskkill.exe";
+  public static readonly taskkillTreeArguments: readonly string[] = ["/T", "/F", "/PID"];
+  public static readonly taskkillTimeout: number = 10_000;
+  public static readonly taskkillEndedPattern: RegExp = /^[^\r\n]*?PID (\d+)/gm;
+  public static readonly psCommand: string = "ps";
+  public static readonly psProcessGroupArguments: readonly string[] = ["-A", "-o", "pid=,pgid=,lstart="];
+  public static readonly psStartTolerance: number = 2_000;
+  public static readonly processListEnvironment: Readonly<Record<string, string>> = { LC_ALL: "C" };
+  public static readonly processListTimeout: number = 60_000;
+  public static readonly processListOutputLimit: number = 16 * 1024 * 1024;
+  public static readonly processListArguments: readonly string[] = ["-NoProfile", "-NonInteractive", "-Command"];
+  public static readonly processListScript: string = "Get-CimInstance -Query 'SELECT ProcessId, ParentProcessId, CreationDate FROM Win32_Process' | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, " +
+    "$_.ParentProcessId, $(if ($_.CreationDate) { ([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() } else { 'unknown' }) }";
+  public static readonly processParentPattern: RegExp = /^[ \t]*(\d+)[ \t]+(\d+)[ \t]+(\S[^\r\n]*?)[ \t]*\r?$/gm;
+  public static readonly processExitWait: number = 2_000;
+  public static readonly processTreeRounds: number = 10;
+  public static readonly processTreeGrace: number = 5_000;
+  public static readonly processTreeGracePoll: number = 100;
   public static readonly ignoreStdio: "ignore" = "ignore";
   public static readonly pipeStdio: "pipe" = "pipe";
   public static readonly inheritStdio: "inherit" = "inherit";
@@ -5025,6 +5046,19 @@ export class Resources {
 
   public static formatProcessNotStarted(command: string): string {
     return `"${command}" could not start.`;
+  }
+
+  public static formatProcessTreeNotEnded(command: string): string {
+    return `"${command}" did not finish within its limit, and its process tree could not be ended.`;
+  }
+
+  public static formatProcessEndScript(processIds: readonly number[], starts: readonly number[]): string {
+    return `$ids = @(${processIds.join(", ")}); $starts = @(${starts.join(", ")}); ` +
+      `$deadline = [DateTime]::UtcNow.AddMilliseconds(${String(Resources.processExitWait)}); ` +
+      "for ($i = 0; $i -lt $ids.Count; $i++) { try { $p = [System.Diagnostics.Process]::GetProcessById($ids[$i]); $null = $p.Handle; " +
+      "if ([Math]::Abs(([DateTimeOffset]$p.StartTime).ToUnixTimeMilliseconds() - $starts[$i]) -le 1) { $p.Kill(); " +
+      "$null = $p.WaitForExit([int][Math]::Max(0, ($deadline - [DateTime]::UtcNow).TotalMilliseconds)) } } catch { } }; " +
+      Resources.processListScript;
   }
 
   public static formatProcessExited(exitCode: number | null): string {
