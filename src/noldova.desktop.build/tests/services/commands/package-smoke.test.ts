@@ -510,6 +510,7 @@ export class PackageSmokeTests {
     Assert.areEqual([
       Resources.formatOutputLine([
         Resources.formatDebianSandboxHelperChecked(`${runner.debianFolder}/chrome-sandbox`, "0:755", true),
+        Resources.formatDebianUpdateInstallerChecked(`${runner.debianFolder}/resources/linux-update-install`, "0:755"),
         Resources.formatDebianProfileInstalled(profile),
         Resources.formatDebianPackageTypeChecked(`${runner.debianFolder}/resources/package-type`)
       ].join("\n")),

@@ -38,7 +38,8 @@ export class DebianHandoffTests {
 
       Assert.isNull(processId);
       Assert.isNull(handoff.refusal);
-      Assert.areEqual(JSON.stringify([["/usr/bin/pkexec", DebianHandoffTests.INSTALLER, download, Buffer.from(DebianHandoffTests.HASH, "base64").toString("hex")]]), JSON.stringify(ran));
+      Assert.areEqual(JSON.stringify([["/usr/bin/pkexec", DebianHandoffTests.INSTALLER, download, Buffer.from(DebianHandoffTests.HASH, "base64").toString("hex"),
+        String("Noldova Desktop Sample 1.3.0".length)]]), JSON.stringify(ran));
       Assert.areEqual(128, ran[0]?.[3]?.length);
     });
   }
@@ -134,7 +135,7 @@ export class DebianHandoffTests {
 
       Assert.areEqual("The downloaded update has changed since it was checked, so it wasn't installed.", changed.message);
       Assert.areEqual(download, refused.file);
-      Assert.areEqual(`The update installer refused ${download}, which is not a regular file, so the installed version was left as it was.`, refused.message);
+      Assert.areEqual(`The update installer refused the arguments it was given for ${download}, so the installed version was left as it was.`, refused.message);
       Assert.areEqual(JSON.stringify(["66", "126", "65"].map(t => `The Debian package ${download} could not be installed, so the installed version was left as it was: Error: Command failed: pkexec, exit ${t}`)),
         JSON.stringify(failures.map(t => t.message)));
     });

@@ -132,10 +132,17 @@ export class PackageConfiguration {
   private async writeDebianTemplatesAsync(installFolder: string | null): Promise<void> {
     const folder = new PackageLayout(this.root).debianTemplates;
     await mkdir(folder, { recursive: true });
-    for (const file of Resources.debianTemplates.values()) {
+    for (const [option, file] of Resources.debianTemplates) {
       const source = path.join(PackageConfiguration.locateBuilderTemplates(), file);
-      await writeFile(path.join(folder, file), PackageConfiguration.placeDebianTemplate(await readFile(source, Resources.textEncoding), source, installFolder));
+      const text = `${await readFile(source, Resources.textEncoding)}${this.describeDebianTemplateAddition(option)}`;
+      await writeFile(path.join(folder, file), PackageConfiguration.placeDebianTemplate(text, source, installFolder));
     }
+  }
+
+  private describeDebianTemplateAddition(option: string): string {
+    if (option === Resources.afterInstallTemplateOption)
+      return Resources.formatDebianUpdatePolicyInstall(this.product.applicationId, this.product.name);
+    return option === Resources.afterRemoveTemplateOption ? Resources.formatDebianUpdatePolicyRemove(this.product.applicationId) : String.empty;
   }
 
   private static spell(extension: string): string[] {

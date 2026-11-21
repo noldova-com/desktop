@@ -1332,7 +1332,7 @@ export class Resources {
   }
 
   public static formatDebianUpdateArgumentsRefused(file: string): string {
-    return `The update installer refused ${file}, which is not a regular file, so the installed version was left as it was.`;
+    return `The update installer refused the arguments it was given for ${file}, so the installed version was left as it was.`;
   }
 
   public static formatDebianPackageNotInstalled(file: string, reason: string): string {

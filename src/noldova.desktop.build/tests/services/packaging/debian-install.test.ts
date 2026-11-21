@@ -35,6 +35,8 @@ export class DebianInstallTests {
   private static readonly LINK: string = "readlink --canonicalize-existing /usr/bin/sample-app";
   private static readonly PROBE: string = `sudo --non-interactive bash -c ${Resources.debianNamespaceProbe}`;
   private static readonly STAT: string = `stat --format=%u:%a ${DebianInstallTests.HELPER}`;
+  private static readonly UPDATE_INSTALLER: string = "/opt/Sample App/resources/linux-update-install";
+  private static readonly UPDATE_STAT: string = `stat --format=%u:%a ${DebianInstallTests.UPDATE_INSTALLER}`;
   private static readonly ENABLED: string = "sudo --non-interactive apparmor_status --enabled";
   private static readonly PARSE: string = `sudo --non-interactive apparmor_parser --skip-kernel-load --debug ${DebianInstallTests.SOURCE}`;
   private static readonly PROFILE_MISSING: string = `test ! -e ${DebianInstallTests.PROFILE}`;
@@ -247,11 +249,12 @@ export class DebianInstallTests {
 
     Assert.areEqual([
       Resources.formatDebianSandboxHelperChecked(DebianInstallTests.HELPER, "0:755", true),
+      "/opt/Sample App/resources/linux-update-install is 0:755, so only root can change the update installer the app runs.",
       Resources.formatDebianProfileInstalled(DebianInstallTests.PROFILE),
       Resources.formatDebianPackageTypeChecked(DebianInstallTests.TYPE)
     ].join(Resources.lineSeparator), verified);
     Assert.areEqual([
-      DebianInstallTests.PROBE, DebianInstallTests.STAT, DebianInstallTests.ENABLED, DebianInstallTests.PARSE, DebianInstallTests.COMPARE, DebianInstallTests.LOADED,
+      DebianInstallTests.PROBE, DebianInstallTests.STAT, DebianInstallTests.UPDATE_STAT, DebianInstallTests.ENABLED, DebianInstallTests.PARSE, DebianInstallTests.COMPARE, DebianInstallTests.LOADED,
       DebianInstallTests.TYPED
     ].join("\n"), runner.captured.slice(5).join("\n"));
   }
@@ -282,6 +285,21 @@ export class DebianInstallTests {
     Assert.areEqual(Resources.formatDebianSandboxHelperWrong(DebianInstallTests.HELPER, "0:4755", "0:755", true), setuidError.message);
     Assert.areEqual(Resources.formatDebianSandboxHelperWrong(DebianInstallTests.HELPER, "refused", "0:755", true), missingError.message);
     Assert.areEqual(Resources.formatDebianSandboxHelperWrong(DebianInstallTests.HELPER, "0:755", "0:4755", false), plainError.message);
+  }
+
+  @TestMethod
+  public async refusesAnUpdateInstallerOnlyRootCannotChangeOrThatIsMissingAsync(): Promise<void> {
+    const writable = DebianInstallTests.createRunner(new Map([[DebianInstallTests.UPDATE_STAT, new ProcessResult(0, "0:775\n", String.empty)]]));
+    const owned = DebianInstallTests.createRunner(new Map([[DebianInstallTests.UPDATE_STAT, new ProcessResult(0, "1000:755\n", String.empty)]]));
+    const missing = DebianInstallTests.createRunner(new Map([[DebianInstallTests.UPDATE_STAT, DebianInstallTests.FAILURE]]));
+
+    const errors: string[] = [];
+    for (const runner of [writable, owned, missing])
+      errors.push((await Assert.throwsAsync(async () => await (await DebianInstallTests.installAsync(runner)).verifyAsync(), BuildException)).message);
+
+    Assert.areEqual(JSON.stringify(["0:775", "1000:755", "refused"].map(t => Resources.formatDebianUpdateInstallerWrong(DebianInstallTests.UPDATE_INSTALLER, t, "0:755"))),
+      JSON.stringify(errors));
+    Assert.isTrue((errors[0] ?? String.empty).startsWith(`${DebianInstallTests.UPDATE_INSTALLER} is 0:775, not 0:755: `), errors[0]);
   }
 
   @TestMethod
@@ -381,7 +399,7 @@ export class DebianInstallTests {
         return new ProcessResult(0, "sample-app\n", String.empty);
       if (line === DebianInstallTests.LINK)
         return new ProcessResult(0, `${DebianInstallTests.COMMAND}\n`, String.empty);
-      if (line === DebianInstallTests.STAT)
+      if (line === DebianInstallTests.STAT || line === DebianInstallTests.UPDATE_STAT)
         return new ProcessResult(0, "0:755\n", String.empty);
       return ScriptedRunnerFixture.SUCCESS;
     });

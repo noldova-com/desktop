@@ -418,23 +418,34 @@ export class Resources {
   public static readonly debianUpdateChangedCode: number = 65;
   public static readonly debianUpdateNotInstalledCode: number = 66;
   public static readonly debianUpdateFolderPrefix: string = "noldova-desktop-update.";
+  public static readonly debianUpdateCopyLimit: number = 300;
+  public static readonly polkitActionsFolder: string = "/usr/share/polkit-1/actions";
+  public static readonly polkitPolicyEnd: string = "NOLDOVA_UPDATE_POLICY";
+  public static readonly polkitActionIdUnsafe: RegExp = /[^a-z0-9.-]/g;
+  public static readonly polkitActionIdReplacement: string = "-";
+  public static readonly afterInstallTemplateOption: string = "afterInstall";
+  public static readonly afterRemoveTemplateOption: string = "afterRemove";
   public static readonly debianUpdateInstallerScript: string = [
     "#!/bin/sh",
     "set -eu",
-    `[ "$#" -eq 2 ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
+    `[ "$#" -eq 3 ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
     "file=$1",
     "hash=$2",
+    "size=$3",
     `[ "\${#hash}" -eq 128 ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
     "case $hash in",
     `  *[!0-9a-f]*) exit ${Resources.debianUpdateArgumentsRefusedCode} ;;`,
     "esac",
-    `[ ! -L "$file" ] && [ -f "$file" ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
+    "case $size in",
+    `  ''|0*|*[!0-9]*) exit ${Resources.debianUpdateArgumentsRefusedCode} ;;`,
+    "esac",
     `folder=$(/bin/mktemp -d -p /tmp ${Resources.debianUpdateFolderPrefix}XXXXXXXXXX)`,
     "trap '/bin/rm -rf -- \"$folder\"' EXIT",
     "trap 'exit 1' HUP INT TERM",
     "copy=$folder/update.deb",
-    "/bin/cp --no-dereference -- \"$file\" \"$copy\"",
-    `[ ! -L "$copy" ] && [ -f "$copy" ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
+    `/usr/bin/timeout ${String(Resources.debianUpdateCopyLimit)} /bin/cp --no-dereference -- "$file" "$copy" || exit ${Resources.debianUpdateChangedCode}`,
+    `[ ! -L "$copy" ] && [ -f "$copy" ] || exit ${Resources.debianUpdateChangedCode}`,
+    `[ "$(/usr/bin/stat --format=%s -- "$copy")" = "$size" ] || exit ${Resources.debianUpdateChangedCode}`,
     "actual=$(/usr/bin/sha512sum -- \"$copy\")",
     `[ "\${actual%% *}" = "$hash" ] || exit ${Resources.debianUpdateChangedCode}`,
     `/usr/bin/dpkg --install -- "$copy" || exit ${Resources.debianUpdateNotInstalledCode}`
@@ -1388,6 +1399,7 @@ export class Resources {
   public static readonly statOwnerAndModeOption: string = "--format=%u:%a";
   public static readonly sandboxHelperPlainMode: string = "755";
   public static readonly sandboxHelperSetuidMode: string = "4755";
+  public static readonly debianUpdateInstallerMode: string = "755";
   public static readonly apparmorStatusCommand: string = "apparmor_status";
   public static readonly apparmorEnabledOption: string = "--enabled";
   public static readonly apparmorParserCommand: string = "apparmor_parser";
@@ -4164,6 +4176,52 @@ export class Resources {
     return `${Resources.macApplicationsFolder}/${installFolder}`;
   }
 
+  public static formatDebianUpdateActionId(applicationId: string): string {
+    return `${applicationId.toLowerCase().replaceAll(Resources.polkitActionIdUnsafe, Resources.polkitActionIdReplacement)}.update`;
+  }
+
+  public static formatDebianUpdatePolicyFile(applicationId: string): string {
+    return `${Resources.polkitActionsFolder}/${Resources.formatDebianUpdateActionId(applicationId)}.policy`;
+  }
+
+  public static formatDebianUpdatePolicy(applicationId: string, name: string): string {
+    const escaped = name.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    return [
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+      "<!DOCTYPE policyconfig PUBLIC \"-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN\" \"http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd\">",
+      "<policyconfig>",
+      `  <action id="${Resources.formatDebianUpdateActionId(applicationId)}">`,
+      `    <description>Install an update of ${escaped}</description>`,
+      `    <message>Installing the ${escaped} update needs an administrator's permission.</message>`,
+      "    <defaults>",
+      "      <allow_any>auth_admin</allow_any>",
+      "      <allow_inactive>auth_admin</allow_inactive>",
+      "      <allow_active>auth_admin</allow_active>",
+      "    </defaults>",
+      `    <annotate key="org.freedesktop.policykit.exec.path">${Resources.debianTemplateProductPath}resources/${Resources.debianUpdateInstallerFile}</annotate>`,
+      "  </action>",
+      "</policyconfig>"
+    ].join(Resources.lineSeparator);
+  }
+
+  public static formatDebianUpdatePolicyInstall(applicationId: string, name: string): string {
+    const file = Resources.formatDebianUpdatePolicyFile(applicationId);
+    return [
+      String.empty,
+      `if [ -d '${Resources.polkitActionsFolder}' ]; then`,
+      `  cat > '${file}' <<'${Resources.polkitPolicyEnd}'`,
+      Resources.formatDebianUpdatePolicy(applicationId, name),
+      Resources.polkitPolicyEnd,
+      `  chmod 0644 '${file}'`,
+      "fi",
+      String.empty
+    ].join(Resources.lineSeparator);
+  }
+
+  public static formatDebianUpdatePolicyRemove(applicationId: string): string {
+    return [String.empty, `rm -f '${Resources.formatDebianUpdatePolicyFile(applicationId)}'`, String.empty].join(Resources.lineSeparator);
+  }
+
   public static formatDebianInstallFolder(installFolder: string): string {
     return `${Resources.debianInstallPrefix}/${installFolder}`;
   }
@@ -4242,6 +4300,14 @@ export class Resources {
 
   public static formatDebianSandboxHelperWrong(helper: string, actual: string, expected: string, canCreate: boolean): string {
     return `${helper} is ${actual}, not ${expected} as the package's after-install script leaves it where root ${canCreate ? "can" : "cannot"} create user namespaces.`;
+  }
+
+  public static formatDebianUpdateInstallerWrong(installer: string, actual: string, expected: string): string {
+    return `${installer} is ${actual}, not ${expected}: the app only runs an update installer that only root can change, so this package could never install an update.`;
+  }
+
+  public static formatDebianUpdateInstallerChecked(installer: string, expected: string): string {
+    return `${installer} is ${expected}, so only root can change the update installer the app runs.`;
   }
 
   public static formatDebianSandboxHelperChecked(helper: string, expected: string, canCreate: boolean): string {

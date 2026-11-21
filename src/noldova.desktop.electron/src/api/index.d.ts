@@ -1189,10 +1189,11 @@ export declare class DebianHandoff implements IUpdateHandoff {
    * @throws {StaleUpdateException} Rejected when the download's SHA-512 no longer matches the ready record.
    * @throws {UpdateUnsignedAtHandoffException} Rejected when the ready update carries no valid signature by a key the
    * build ships, as when the record was written by something other than this app; pkexec is not started.
-   * @throws {UpdateChangedBeforeHandoffException} Rejected when the update installer finds its copy's SHA-512 differs
-   * from the checked one, as when the file was changed after the check; nothing is installed.
-   * @throws {DebianUpdateArgumentsRefusedException} Rejected when the update installer refuses the file, as when it is
-   * no longer a regular file.
+   * @throws {UpdateChangedBeforeHandoffException} Rejected when the file can no longer be read, or when the update
+   * installer's copy of it is not the checked file: not a regular file, not of the checked size, or of another SHA-512,
+   * as when the file was changed, moved or replaced by a link after the check; nothing is installed.
+   * @throws {DebianUpdateArgumentsRefusedException} Rejected when the update installer refuses its arguments, the file,
+   * the SHA-512 in hexadecimal and the size, which this app never passes malformed.
    * @throws {DebianInstallerMissingException} Rejected when the system has no pkexec.
    * @throws {DebianUpdateInstallerMissingException} Rejected when the update installer is missing or not only root's to
    * change.
@@ -10318,8 +10319,8 @@ export declare class DebianInstallerMissingException extends UpdateHandoffExcept
 }
 
 /**
- * The exception thrown when the Debian package's update installer refuses the downloaded file, as when it is not a
- * regular file, so the installed version is left as it was.
+ * The exception thrown when the Debian package's update installer refuses the arguments it was given for the
+ * downloaded file, so the installed version is left as it was.
  */
 export declare class DebianUpdateArgumentsRefusedException extends UpdateHandoffException {
   /**

@@ -7,6 +7,7 @@
  */
 
 import { type Stats, statSync } from "node:fs";
+import { stat } from "node:fs/promises";
 
 import "@noldova/context.core";
 
@@ -69,13 +70,15 @@ export class DebianHandoff implements IUpdateHandoff {
       throw new DebianInstallerMissingException();
     if (Object.isNull(this.updateInstaller))
       throw new DebianUpdateInstallerMissingException();
-    if (await UpdateController.hashFileAsync(record.file).catch(() => null) !== record.sha512)
+    const size = await stat(record.file).then(t => t.size, () => null);
+    if (Object.isNull(size) || await UpdateController.hashFileAsync(record.file).catch(() => null) !== record.sha512)
       throw new UpdateChangedBeforeHandoffException();
     const failure = await this.verifyAsync(record);
     if (!Object.isNull(failure))
       throw new UpdateUnsignedAtHandoffException(record.file, failure);
     try {
-      await this.runAsync(this.installer, [this.updateInstaller, record.file, Buffer.from(record.sha512, Resources.base64Encoding).toString(Resources.hexEncoding)]);
+      await this.runAsync(this.installer, [this.updateInstaller, record.file, Buffer.from(record.sha512, Resources.base64Encoding).toString(Resources.hexEncoding),
+        String(size)]);
     }
     catch (error) {
       throw DebianHandoff.describeFailure(record.file, error);

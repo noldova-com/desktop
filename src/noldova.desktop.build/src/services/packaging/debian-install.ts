@@ -98,7 +98,8 @@ export class DebianInstall implements ISystemInstall {
   }
 
   public async verifyAsync(): Promise<string> {
-    return [await this.verifySandboxHelperAsync(), await this.verifyProfileAsync(), await this.verifyPackageTypeAsync()].join(Resources.lineSeparator);
+    return [await this.verifySandboxHelperAsync(), await this.verifyUpdateInstallerAsync(), await this.verifyProfileAsync(), await this.verifyPackageTypeAsync()]
+      .join(Resources.lineSeparator);
   }
 
   public async removeAsync(): Promise<string> {
@@ -123,6 +124,16 @@ export class DebianInstall implements ISystemInstall {
     if (!status.isSuccessful || actual !== expected)
       throw new BuildException(Resources.formatDebianSandboxHelperWrong(helper, status.isSuccessful ? actual : status.text, expected, canCreate));
     return Resources.formatDebianSandboxHelperChecked(helper, expected, canCreate);
+  }
+
+  private async verifyUpdateInstallerAsync(): Promise<string> {
+    const installer = path.posix.join(this.installed.resources, Resources.debianUpdateInstallerFile);
+    const expected = Resources.formatOwnerAndMode(Resources.rootUserId, Resources.debianUpdateInstallerMode);
+    const status = await this.runAsync(Resources.statCommand, [Resources.statOwnerAndModeOption, installer]);
+    const actual = status.output.trim();
+    if (!status.isSuccessful || actual !== expected)
+      throw new BuildException(Resources.formatDebianUpdateInstallerWrong(installer, status.isSuccessful ? actual : status.text, expected));
+    return Resources.formatDebianUpdateInstallerChecked(installer, expected);
   }
 
   private async verifyProfileAsync(): Promise<string> {
