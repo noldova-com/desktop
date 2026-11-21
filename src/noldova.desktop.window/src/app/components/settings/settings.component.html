@@ -38,7 +38,7 @@ LICENSE file in the root directory of this source tree.
     <ng-container [ngComponentOutlet]="gallery" />
   } @else if (page.entry; as entry) {
     @if (isResult) {
-      <button type="button" nol-button [variant]="secondary" (click)="select(page.title)">{{ resources.openSettingsPageLabel }}</button>
+      <button type="button" nol-button [variant]="secondary" (click)="openPage(page.title)">{{ resources.openSettingsPageLabel }}</button>
       @if (matchingRows(entry).length > 0) {
         <ul class="nol-settings-found-rows">
           @for (row of matchingRows(entry); track row.id) {
