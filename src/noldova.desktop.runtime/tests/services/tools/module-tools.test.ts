@@ -10,6 +10,7 @@ import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { ToolRisk } from "../../../src/enums/tool-risk.js";
+import { ModuleDeactivatedException } from "../../../src/exceptions/module-deactivated.exception.js";
 import { NotContributedException } from "../../../src/exceptions/not-contributed.exception.js";
 import type { IToolDescriptor } from "../../../src/interfaces/i-tool-descriptor.js";
 import { ModuleDeclaration } from "../../../src/models/module-declaration.js";
@@ -91,6 +92,38 @@ export class ModuleToolsTests {
   }
 
   @TestMethod
+  public registersNothingAndOpensNoSessionOnceItsPartHasDeactivated(): void {
+    const registry = new ToolRegistry();
+    const registrations: Disposable[] = [];
+    const stopping = new AbortController();
+    const tools = ModuleToolsTests.create(registry, registrations, stopping.signal);
+    const heard: string[] = [];
+    stopping.abort();
+
+    const made = [
+      tools.register(ModuleToolsTests.SEARCH, new ToolHandlerFixture()),
+      tools.onSessionEnded(t => heard.push(`ended ${t}`)),
+      tools.onSessionStopped(t => heard.push(`session ${t}`)),
+      tools.onStopped(t => heard.push(`stopped ${t}`)),
+      tools.onResumed(() => heard.push("resumed"))
+    ];
+    const refused = Assert.throws(() => tools.openSession("conversation-1", {}), ModuleDeactivatedException);
+    const session = registry.openSession("conversation-2", {});
+    registry.stopSession("other", session.id, "The person stopped it.");
+    registry.stopAll("The person stopped everything.");
+    registry.resumeAll("other");
+    session.end();
+    for (const registration of made)
+      registration[Symbol.dispose]();
+
+    Assert.areEqual("notes", refused.moduleId);
+    Assert.areEqual(0, registrations.length);
+    Assert.areEqual(String.empty, registry.listTools().map(t => t.name).join(","));
+    Assert.areEqual(String.empty, heard.join(","));
+    Assert.isFalse(registry.isActing);
+  }
+
+  @TestMethod
   public stopsAndResumesAgentControlAndTellsItsListenersUntilTheirRegistrationsEnd(): void {
     const registry = new ToolRegistry();
     const registrations: Disposable[] = [];
@@ -118,7 +151,7 @@ export class ModuleToolsTests {
     Assert.areEqual(5, registrations.length);
   }
 
-  private static create(registry: ToolRegistry, registrations: Disposable[]): ModuleTools {
-    return new ModuleTools(ModuleToolsTests.DECLARATION, registry, new ModuleLogFixture(), registrations, new AbortController().signal, new WebViewCenter(new TextOutputFixture()));
+  private static create(registry: ToolRegistry, registrations: Disposable[], stopping: AbortSignal = new AbortController().signal): ModuleTools {
+    return new ModuleTools(ModuleToolsTests.DECLARATION, registry, new ModuleLogFixture(), registrations, stopping, new WebViewCenter(new TextOutputFixture()));
   }
 }

@@ -33,7 +33,7 @@ export class ModulePermissionsTests {
   public registersTheAnswererForItsModuleAndKeepsTheRegistrationForTheModulesEnd(): void {
     const center = new PermissionCenter(ModulePermissionsTests.APP);
     const registrations: Disposable[] = [];
-    const permissions = new ModulePermissions(ModulePermissionsTests.APP, center, new ModuleLogFixture(), registrations);
+    const permissions = new ModulePermissions(ModulePermissionsTests.APP, center, new ModuleLogFixture(), registrations, new AbortController().signal);
 
     const registration = permissions.registerAnswerer(new PermissionAnswererFixture());
     const second = Assert.throws(() => permissions.registerAnswerer(new PermissionAnswererFixture()), AnswererRegisteredException);
@@ -48,6 +48,36 @@ export class ModulePermissionsTests {
   }
 
   @TestMethod
+  public async registersNoAnswererAndListensForNoRevocationOnceItsPartHasDeactivated(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    using lock = OwnershipLock.acquire(new DataDirectory(folder.path));
+    using database = await ShellDatabase.openAsync(lock, ShellMigrations.all);
+    const store = new RememberedPermissionStore(database);
+    const center = new PermissionCenter(ModulePermissionsTests.APP);
+    center.open(store);
+    store.remember(ModulePermissionsTests.APP, "app.sendItem", "item-1", "conversation-1", PermissionDecision.AllowedAlways);
+    const registrations: Disposable[] = [];
+    const stopping = new AbortController();
+    const permissions = new ModulePermissions(ModulePermissionsTests.APP, center, new ModuleLogFixture(), registrations, stopping.signal);
+    const revocations: PermissionRevocation[] = [];
+    stopping.abort();
+
+    const late = permissions.registerAnswerer(new PermissionAnswererFixture());
+    const listening = permissions.onRevoked(t => revocations.push(t));
+    const revoked = permissions.revoke(permissions.listRemembered()[0]?.id ?? String.empty);
+    late[Symbol.dispose]();
+    listening[Symbol.dispose]();
+    const nextRegistrations: Disposable[] = [];
+    const next = new ModulePermissions(ModulePermissionsTests.APP, center, new ModuleLogFixture(), nextRegistrations, new AbortController().signal);
+    using again = next.registerAnswerer(new PermissionAnswererFixture());
+
+    Assert.areEqual(0, registrations.length);
+    Assert.isTrue(revoked);
+    Assert.areEqual(0, revocations.length);
+    Assert.areEqual(again, nextRegistrations[0]);
+  }
+
+  @TestMethod
   public async refusesAnotherModuleTheAnswererTheListAndRevokingAndKeepsNoRegistration(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
     using lock = OwnershipLock.acquire(new DataDirectory(folder.path));
@@ -55,7 +85,7 @@ export class ModulePermissionsTests {
     const center = new PermissionCenter(ModulePermissionsTests.APP);
     center.open(new RememberedPermissionStore(database));
     const registrations: Disposable[] = [];
-    const permissions = new ModulePermissions(ModulePermissionsTests.NOTES, center, new ModuleLogFixture(), registrations);
+    const permissions = new ModulePermissions(ModulePermissionsTests.NOTES, center, new ModuleLogFixture(), registrations, new AbortController().signal);
 
     Assert.throws(() => permissions.registerAnswerer(new PermissionAnswererFixture()), PermissionsModuleOnlyException);
     Assert.throws(() => permissions.listRemembered(), PermissionsModuleOnlyException);
@@ -73,9 +103,9 @@ export class ModulePermissionsTests {
     center.open(store);
     store.remember(ModulePermissionsTests.NOTES, "notes.deleteItem", "item-1", "conversation-1", PermissionDecision.AllowedAlways);
     store.remember(ModulePermissionsTests.NOTES, "notes.deleteItem", "item-2", "conversation-1", PermissionDecision.DeniedAlways);
-    const app = new ModulePermissions(ModulePermissionsTests.APP, center, new ModuleLogFixture(), []);
+    const app = new ModulePermissions(ModulePermissionsTests.APP, center, new ModuleLogFixture(), [], new AbortController().signal);
     const notesRegistrations: Disposable[] = [];
-    const notes = new ModulePermissions(ModulePermissionsTests.NOTES, center, new ModuleLogFixture(), notesRegistrations);
+    const notes = new ModulePermissions(ModulePermissionsTests.NOTES, center, new ModuleLogFixture(), notesRegistrations, new AbortController().signal);
     const revocations: PermissionRevocation[] = [];
     notes.onRevoked(t => revocations.push(t));
 

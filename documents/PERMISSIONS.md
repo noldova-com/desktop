@@ -62,7 +62,7 @@ The calls that raise requests are in [TOOLS.md](TOOLS.md).
 ## Answering
 
 - The app names its permissions module, one of its modules, in `desktop.product.permissionsModule`, as [BUILD.md](BUILD.md#an-apps-inputs) says, and the build refuses a name that isn't one of `desktop.modules`.
-- The app's permissions module registers one answerer, `context.permissions.registerAnswerer(answerer)`, which receives each request with its id, module, session and scope and returns the decision; a second registration is refused, and so is one from any other module.
+- The app's permissions module registers one answerer, `context.permissions.registerAnswerer(answerer)`, which receives each request with its id, module, session and scope and returns the decision; a second registration is refused, and so is one from any other module; one made after the module's context is disposed registers nothing, so the next activation registers its answerer again.
 - The answerer's signal aborts when its answer is no longer wanted, at the request's expiry or withdrawal, so it removes its card; an answer that comes after counts for nothing.
 - Disposing the answerer's registration denies the requests waiting for it, and the requesting module's log says why.
 - Without one, the request is `denied`, and the requesting module's log says why; Noldova Desktop's own card is still to come, as [Open points](#open-points) says.

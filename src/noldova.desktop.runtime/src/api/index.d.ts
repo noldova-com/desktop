@@ -338,6 +338,29 @@ export declare class ModuleDatabaseException extends RuntimeException {
 }
 
 /**
+ * The exception thrown when a module's runtime part opens a tool session after its deactivation.
+ */
+export declare class ModuleDeactivatedException extends RuntimeException {
+  /**
+   * The id of the module whose runtime part has deactivated.
+   */
+  public readonly moduleId: string;
+
+  /**
+   * Creates the exception, with its message from the package's own text.
+   *
+   * @param moduleId The id of the module whose runtime part has deactivated.
+   * @example
+   * ```ts
+   * import { ModuleDeactivatedException } from "@noldova/desktop.runtime";
+   *
+   * export const failure: ModuleDeactivatedException = new ModuleDeactivatedException("notes");
+   * ```
+   */
+  public constructor(moduleId: string);
+}
+
+/**
  * The exception thrown when an operation needs the data directory's ownership
  * after it was released.
  */
@@ -14266,7 +14289,8 @@ export interface IToolsContext {
    * @param descriptor What the tool is and how its calls run.
    * @param handler Handles its calls.
    * @returns The registration; disposing it withdraws the tool and ends its calls in flight with the abort reason
-   * `SwitchedOff`. The part's deactivation disposes it too.
+   * `SwitchedOff`. The part's deactivation disposes it too; after the deactivation the tool isn't registered, and
+   * the registration releases nothing.
    * @throws {RegistrationException} When the module doesn't declare the name, or the name is already registered.
    * @throws {ArgumentException} When the descriptor breaks a rule of {@link IToolDescriptor}.
    * @example
@@ -14294,6 +14318,7 @@ export interface IToolsContext {
    * @param bindings What the app attaches to the session, by binding name, such as a folder.
    * @returns The session, open until it ends or the part deactivates.
    * @throws {ArgumentOutOfRangeException} When the scope is longer than 256 characters.
+   * @throws {ModuleDeactivatedException} When the part has deactivated.
    * @example
    * ```ts
    * import type { IRuntimePartContext, ToolSession } from "@noldova/desktop.runtime";
@@ -14310,7 +14335,8 @@ export interface IToolsContext {
    * within 5 seconds. A listener that throws is written to the module's log and stops no other listener.
    *
    * @param listener Called with the ended session's id.
-   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too.
+   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too; after the
+   * deactivation nothing listens, and the listening releases nothing.
    * @example
    * ```ts
    * import type { IRuntimePartContext, Registration } from "@noldova/desktop.runtime";
@@ -14402,7 +14428,8 @@ export interface IToolsContext {
    * turn then. A listener that throws is written to the module's log and stops no other listener.
    *
    * @param listener Called with the session's id and the stop's reason.
-   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too.
+   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too; after the
+   * deactivation nothing listens, and the listening releases nothing.
    * @example
    * ```ts
    * import type { IRuntimePartContext, Registration } from "@noldova/desktop.runtime";
@@ -14447,7 +14474,8 @@ export interface IToolsContext {
    * module's log and stops no other listener.
    *
    * @param listener Called with the stop's reason.
-   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too.
+   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too; after the
+   * deactivation nothing listens, and the listening releases nothing.
    * @example
    * ```ts
    * import type { IRuntimePartContext, Registration } from "@noldova/desktop.runtime";
@@ -14464,7 +14492,8 @@ export interface IToolsContext {
    * other listener; one that stops agent control again ends the resume there, so the later listeners don't hear it.
    *
    * @param listener Called when agent control resumes.
-   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too.
+   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too; after the
+   * deactivation nothing listens, and the listening releases nothing.
    * @example
    * ```ts
    * import type { IRuntimePartContext, Registration } from "@noldova/desktop.runtime";
@@ -14700,7 +14729,8 @@ export interface IPermissionsContext {
    * Registers the app's answerer while the part is active.
    *
    * @param answerer Answers each request that no remembered answer decides.
-   * @returns The registration; disposing it removes the answerer, and the part's deactivation disposes it too.
+   * @returns The registration; disposing it removes the answerer, and the part's deactivation disposes it too;
+   * after the deactivation no answerer is registered, and the registration releases nothing.
    * Without an answerer, every request that no remembered answer decides is denied, and the requesting module's log
    * says why.
    * @throws {PermissionAccessException} When the module isn't the app's permissions module.
@@ -14759,7 +14789,8 @@ export interface IPermissionsContext {
    * date. A listener that throws is written to the module's log and stops no other listener.
    *
    * @param listener Called with the revoked answer's action, subject and scope.
-   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too.
+   * @returns The listening; disposing it stops it, and the part's deactivation disposes it too; after the
+   * deactivation nothing listens, and the listening releases nothing.
    * @example
    * ```ts
    * import type { IRuntimePartContext, Registration } from "@noldova/desktop.runtime";

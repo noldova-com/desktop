@@ -143,7 +143,7 @@ export class ModuleContext implements IRuntimePartContext, Disposable {
     this.settings = new ModuleSettings(declaration, settings, this.registrations);
     this.log = new ModuleLog(declaration.id, diagnostics, redactor);
     this.tools = new ModuleTools(declaration, tools, this.log, this.registrations, this.stopping.signal, webViews);
-    this.permissions = new ModulePermissions(declaration.id, tools.permissions, this.log, this.registrations);
+    this.permissions = new ModulePermissions(declaration.id, tools.permissions, this.log, this.registrations, this.stopping.signal);
     this.webViews = new ModuleWebViews(declaration.id, webViews);
     this.files = new ModuleFiles(declaration.id, grants, [this.moduleFolder, this.workFolder]);
     this.secrets = new ModuleSecrets(declaration.id, secrets);
