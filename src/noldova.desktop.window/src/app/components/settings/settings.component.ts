@@ -160,7 +160,7 @@ export class SettingsComponent {
           this.isOpening.set(false);
           const column = this.column().nativeElement;
           if (document.activeElement === document.body || document.activeElement === column)
-            this.focusControl(this.firstControl(column));
+            this.focusControl(this.firstControl(Resources.tabbableSelector));
         });
     });
     afterNextRender(() => {
@@ -243,7 +243,7 @@ export class SettingsComponent {
 
   protected reset(definition: SettingDefinition): void {
     this.dropDraft(definition);
-    this.focusControl(this.firstControl(this.column().nativeElement.querySelector<HTMLElement>(Resources.formatSettingRowControlSelector(definition.name.text))));
+    this.focusControl(this.firstControl(Resources.formatSettingRowControlSelector(definition.name.text)));
     const resetting = definition === this.clock.definition ? this.clock.resetAsync() : this.switches.resetAsync(definition);
     resetting.catch((error: unknown) => this.errors.handleError(error));
   }
@@ -279,8 +279,8 @@ export class SettingsComponent {
     this.revealer = revealer;
   }
 
-  private firstControl(root: HTMLElement | null): HTMLElement | null {
-    return [...root?.querySelectorAll<HTMLElement>(Resources.tabbableSelector) ?? []].find(t => this.checker.isFocusable(t) && this.checker.isTabbable(t)) ?? null;
+  private firstControl(selector: string): HTMLElement | null {
+    return [...this.column().nativeElement.querySelectorAll<HTMLElement>(selector)].find(t => this.checker.isFocusable(t) && this.checker.isTabbable(t)) ?? null;
   }
 
   private focusControl(control: HTMLElement | null): void {

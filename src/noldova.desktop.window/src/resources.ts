@@ -1272,7 +1272,7 @@ export class Resources {
   }
 
   public static formatSettingRowControlSelector(name: string): string {
-    return `[data-setting="${CSS.escape(name)}"] .nol-setting-row-control`;
+    return `[data-setting="${CSS.escape(name)}"] .nol-setting-row-control :is(${Resources.tabbableSelector})`;
   }
 
   public static formatNotificationDismissSelector(id: string): string {
