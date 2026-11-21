@@ -88,7 +88,7 @@ export class OpenWebView {
   private committedUrl: string | undefined;
   private kept: WebViewHistory | null = null;
   private keptScroll: readonly [number, number] | null = null;
-  private pendingScroll: { readonly guest: IWebViewContents; readonly scroll: readonly [number, number]; readonly count: number; readonly inputs: number } | null = null;
+  private pendingScroll: { readonly guest: IWebViewContents; readonly scroll: readonly [number, number]; readonly url: string | null; readonly count: number; readonly inputs: number } | null = null;
   private loadStop: { readonly guest: IWebViewContents; readonly settle: () => void } | null = null;
   private navigationCount: number = 0;
   private inputCount: number = 0;
@@ -169,7 +169,7 @@ export class OpenWebView {
     this.kept = kept;
     this.keptScroll = null;
     const pending = this.pendingScroll;
-    if (!Object.isNull(pending) && pending.guest === guest && pending.count === this.navigationCount && pending.inputs === this.inputCount) {
+    if (!Object.isNull(pending) && pending.guest === guest && pending.url === guest.getURL() && pending.count === this.navigationCount && pending.inputs === this.inputCount) {
       this.log(Resources.formatWebViewScrollKeptPending(this.info.module, this.info.id, pending.scroll[0], pending.scroll[1]));
       this.keptScroll = pending.scroll;
       return;
@@ -707,7 +707,7 @@ export class OpenWebView {
     if (!isRestorable)
       return this.goToAsync(this.committedUrl);
     this.isCrashed = false;
-    this.pendingScroll = Object.isNull(scroll) ? null : { guest, scroll, count, inputs };
+    this.pendingScroll = Object.isNull(scroll) ? null : { guest, scroll, url, count, inputs };
     void guest.restoreHistoryAsync(kept).then(() => this.scrollBackAsync(guest, kept, count, inputs, scroll), (error: unknown) => {
       if (this.navigationCount !== count || this.guest !== guest || this.isClosed)
         return Promise.resolve();

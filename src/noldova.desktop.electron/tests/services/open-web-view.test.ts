@@ -1468,14 +1468,20 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async keepsWhereARestoredPageIsScrolledWhenItIsUsedOrNavigatedBeforeItsScrollBackAndThenMovesAgain(): Promise<void> {
+  public async keepsWhereARestoredPageIsScrolledWhenItIsUsedNavigatedOrRedirectedBeforeItsScrollBackAndThenMovesAgain(): Promise<void> {
     const results: string[] = [];
     const changes: ((harness: OpenWebViewHarness, contents: FakeWebViewContents) => Promise<unknown>)[] = [
       (_harness, contents) => {
         contents.emit("input-event", {}, { type: "mouseWheel" });
         return Promise.resolve();
       },
-      harness => harness.open.actAsync(WebViewAction.Reload)
+      harness => harness.open.actAsync(WebViewAction.Reload),
+      (_harness, contents) => {
+        contents.url = "https://example.com/redirected";
+        contents.history = [contents.url];
+        contents.emit("did-navigate");
+        return Promise.resolve();
+      }
     ];
     for (const change of changes) {
       const harness = await OpenWebViewTests.showAsync();
@@ -1504,7 +1510,7 @@ export class OpenWebViewTests {
       results.push(`${next.isolated.join(",")}:${harness.logs.filter(t => t.includes("not been scrolled back to yet")).length}`);
     }
 
-    Assert.areEqual("1998 scrollTo(0, 300):0|1998 scrollTo(0, 300):0", results.join("|"));
+    Assert.areEqual("1998 scrollTo(0, 300):0|1998 scrollTo(0, 300):0|1998 scrollTo(0, 300):0", results.join("|"));
   }
 
   @TestMethod
