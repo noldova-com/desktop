@@ -9,7 +9,7 @@
 import { type FSWatcher, watch } from "node:fs";
 
 import "@noldova/context.core";
-import { UpdateBarrierState } from "@noldova/desktop.runtime";
+import { RuntimeBuild, type UpdateBarrier, UpdateBarrierState } from "@noldova/desktop.runtime";
 
 import type { IUpdateHost } from "../interfaces/i-update-host.js";
 import { Resources } from "../resources.js";
@@ -90,7 +90,12 @@ export class UpdateBarrierWatch {
     if (!isLost)
       return false;
     const barrier = await this.updates.readBarrierAsync().catch(() => null);
-    return barrier?.state === UpdateBarrierState.Closing && barrier.holder.processId !== this.updates.processId && !await this.updates.hasUpdateEndedAsync().catch(() => true);
+    return !Object.isNull(barrier) && UpdateBarrierWatch.isReplacing(barrier) && barrier.holder.processId !== this.updates.processId
+      && !await this.updates.hasUpdateEndedAsync().catch(() => true);
+  }
+
+  private static isReplacing(barrier: UpdateBarrier): boolean {
+    return barrier.state === UpdateBarrierState.Closing || (barrier.state === UpdateBarrierState.HandedOff && barrier.version !== RuntimeBuild.identity.productVersion);
   }
 
   private fail(error: Error): void {
