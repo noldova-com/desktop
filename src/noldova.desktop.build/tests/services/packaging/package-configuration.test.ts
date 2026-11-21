@@ -466,8 +466,11 @@ export class PackageConfigurationTests {
       await writeFile(file, "the checked package");
       const checked = createHash("sha512").update("the checked package").digest("hex");
       const size = String("the checked package".length);
+      await writeFile(path.join(folder, "checked.deb"), "the checked package");
       const link = path.join(folder, "link.deb");
-      await symlink(file, link);
+      const target = "././././checked.deb";
+      Assert.areEqual(Number(size), target.length);
+      await symlink(target, link);
       const directory = path.join(folder, "directory.deb");
       await mkdir(directory);
       const swapped = path.join(folder, "swapped.deb");
