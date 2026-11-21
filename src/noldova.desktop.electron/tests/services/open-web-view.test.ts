@@ -1468,6 +1468,81 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async keepsWhereARestoredPageIsScrolledWhenItIsUsedOrNavigatedBeforeItsScrollBackAndThenMovesAgain(): Promise<void> {
+    const results: string[] = [];
+    const changes: ((harness: OpenWebViewHarness, contents: FakeWebViewContents) => Promise<unknown>)[] = [
+      (_harness, contents) => {
+        contents.emit("input-event", {}, { type: "mouseWheel" });
+        return Promise.resolve();
+      },
+      harness => harness.open.actAsync(WebViewAction.Reload)
+    ];
+    for (const change of changes) {
+      const harness = await OpenWebViewTests.showAsync();
+      const fresh = OpenWebViewTests.rendererless();
+      const next = new FakeWebView(9, 3, OpenWebViewHarness.PARTITION).contents;
+      next.debugger.replies.set("Page.enable", () => next.started.then(() => ({})));
+      fresh.restoreAnswer = () => new Promise(() => undefined);
+      OpenWebViewTests.scrolled(harness.contents, 0, 1200);
+      OpenWebViewTests.scrolled(fresh, 0, 0);
+      OpenWebViewTests.scrolled(next, 0, 0);
+      await harness.open.keepAsync();
+      OpenWebViewTests.destroy(harness);
+      await harness.open.bindAsync(fresh, true);
+      await OpenWebViewTests.drainAsync();
+      fresh.url = "https://example.com/a";
+      fresh.history = [fresh.url];
+      fresh.index = 0;
+      OpenWebViewTests.scrolled(fresh, 0, 300);
+      await change(harness, fresh);
+
+      await harness.open.keepAsync();
+      fresh.destroyed = true;
+      fresh.emit("destroyed");
+      await harness.open.bindAsync(next, true);
+      await OpenWebViewTests.drainAsync();
+      results.push(`${next.isolated.join(",")}:${harness.logs.filter(t => t.includes("not been scrolled back to yet")).length}`);
+    }
+
+    Assert.areEqual("1998 scrollTo(0, 300):0|1998 scrollTo(0, 300):0", results.join("|"));
+  }
+
+  @TestMethod
+  public async scrollsAPageWhoseRestoreReportsAnErrorBackOnlyOnceItStopsLoadingAndNotOnceTheViewCloses(): Promise<void> {
+    const results: string[] = [];
+    for (const isStopping of [true, false]) {
+      const harness = await OpenWebViewTests.showAsync();
+      const fresh = OpenWebViewTests.rendererless();
+      OpenWebViewTests.scrolled(harness.contents, 0, 1200);
+      OpenWebViewTests.scrolled(fresh, 0, 0);
+      fresh.restoreAnswer = () => {
+        fresh.url = "https://example.com/a";
+        fresh.loading = true;
+        return Promise.reject(new Error("ERR_ABORTED (-3) loading 'https://example.com/a'"));
+      };
+      await harness.open.keepAsync();
+      OpenWebViewTests.destroy(harness);
+      await harness.open.bindAsync(fresh, true);
+      await OpenWebViewTests.drainAsync();
+      const loading = fresh.isolated.join(",");
+      harness.contents.emit("did-stop-loading");
+      await OpenWebViewTests.drainAsync();
+      const otherStopped = fresh.isolated.join(",");
+
+      if (isStopping) {
+        fresh.loading = false;
+        fresh.emit("did-stop-loading");
+      }
+      else
+        harness.open.close();
+      await OpenWebViewTests.drainAsync();
+      results.push(`${loading};${otherStopped};${fresh.isolated.join(",")}`);
+    }
+
+    Assert.areEqual(";;1998 scrollTo(0, 1200)|;;", results.join("|"));
+  }
+
+  @TestMethod
   public async scrollsBackToWhereItsLastKeepFoundThePageEvenWhenAnEarlierKeepsReadAnswersLater(): Promise<void> {
     const harness = await OpenWebViewTests.showAsync();
     const fresh = OpenWebViewTests.rendererless();

@@ -88,7 +88,8 @@ export class OpenWebView {
   private committedUrl: string | undefined;
   private kept: WebViewHistory | null = null;
   private keptScroll: readonly [number, number] | null = null;
-  private pendingScroll: { readonly guest: IWebViewContents; readonly scroll: readonly [number, number] } | null = null;
+  private pendingScroll: { readonly guest: IWebViewContents; readonly scroll: readonly [number, number]; readonly count: number; readonly inputs: number } | null = null;
+  private loadStop: { readonly guest: IWebViewContents; readonly settle: () => void } | null = null;
   private navigationCount: number = 0;
   private inputCount: number = 0;
   private isCrashed: boolean = false;
@@ -168,7 +169,7 @@ export class OpenWebView {
     this.kept = kept;
     this.keptScroll = null;
     const pending = this.pendingScroll;
-    if (!Object.isNull(pending) && pending.guest === guest) {
+    if (!Object.isNull(pending) && pending.guest === guest && pending.count === this.navigationCount && pending.inputs === this.inputCount) {
       this.log(Resources.formatWebViewScrollKeptPending(this.info.module, this.info.id, pending.scroll[0], pending.scroll[1]));
       this.keptScroll = pending.scroll;
       return;
@@ -188,6 +189,7 @@ export class OpenWebView {
     if (!Object.isNull(previous) && previous.id === guest.id)
       return true;
     if (!Object.isNull(previous)) {
+      this.settleLoadStop(previous);
       this.endFind();
       this.end(WebViewFailureKind.Unavailable);
       this.releaseCalls();
@@ -413,6 +415,7 @@ export class OpenWebView {
       settle(null);
     const guest = this.guest;
     this.guest = null;
+    this.settleLoadStop(null);
     if (!Object.isNull(guest) && !guest.isDestroyed()) {
       if (this.isAttached)
         guest.debugger.detach();
@@ -505,6 +508,7 @@ export class OpenWebView {
       this.favicon.noteNavigation();
     });
     guest.on(Resources.didStopLoadingEvent, () => {
+      this.settleLoadStop(guest);
       if (this.isBound(guest))
         this.favicon.noteStop();
     });
@@ -544,6 +548,7 @@ export class OpenWebView {
     if (!this.isBound(guest))
       return;
     this.guest = null;
+    this.settleLoadStop(guest);
     this.isAttached = false;
     this.isReady = false;
     this.isFocusHeld = false;
@@ -702,7 +707,7 @@ export class OpenWebView {
     if (!isRestorable)
       return this.goToAsync(this.committedUrl);
     this.isCrashed = false;
-    this.pendingScroll = Object.isNull(scroll) ? null : { guest, scroll };
+    this.pendingScroll = Object.isNull(scroll) ? null : { guest, scroll, count, inputs };
     void guest.restoreHistoryAsync(kept).then(() => this.scrollBackAsync(guest, kept, count, inputs, scroll), (error: unknown) => {
       if (this.navigationCount !== count || this.guest !== guest || this.isClosed)
         return Promise.resolve();
@@ -713,12 +718,29 @@ export class OpenWebView {
       if (Object.isNull(scroll) || guest.isDestroyed() || guest.getURL() !== kept.currentUrl)
         return Promise.resolve();
       this.log(Resources.formatWebViewRestoreFailedShown(this.info.module, this.info.id, String(error)));
-      return this.scrollBackAsync(guest, kept, count, inputs, scroll);
+      return this.waitForLoadStopAsync(guest).then(() => this.scrollBackAsync(guest, kept, count, inputs, scroll));
     }).finally(() => {
       if (this.pendingScroll?.guest === guest)
         this.pendingScroll = null;
     });
     return OpenWebView.started();
+  }
+
+  private waitForLoadStopAsync(guest: IWebViewContents): Promise<void> {
+    if (!guest.isLoading())
+      return Promise.resolve();
+    return new Promise(resolve => {
+      this.settleLoadStop(null);
+      this.loadStop = { guest, settle: resolve };
+    });
+  }
+
+  private settleLoadStop(guest: IWebViewContents | null): void {
+    const stop = this.loadStop;
+    if (Object.isNull(stop) || (!Object.isNull(guest) && stop.guest !== guest))
+      return;
+    this.loadStop = null;
+    stop.settle();
   }
 
   private async scrollBackAsync(guest: IWebViewContents, kept: WebViewHistory, count: number, inputs: number, scroll: readonly [number, number] | null): Promise<void> {
