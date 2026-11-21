@@ -56,27 +56,27 @@ export class ReleaseCheckTests {
   public async namesTheSignedPlatformsAndTheProductsFeedForTheReleaseRepositoryAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync({ updateFeed: ReleaseCheckTests.OWN_FEED });
     const manifest = await readFile(path.join(app.path, "package.json"), "utf8");
-    await app.writeAppFileAsync("package.json", manifest.replace("\"desktop\":{", "\"desktop\":{\"signedPlatforms\":[\"windows\",\"macos\"],"));
+    await app.writeAppFileAsync("package.json", manifest.replace("\"desktop\":{", "\"desktop\":{\"signedPlatforms\":[\"windows\",\"macos\",\"linux\"],"));
     const outputs = await app.writeAppFileAsync("outputs", "earlier=1\n");
 
     const result = await ReleaseCheckTests.runAsync(app.path, ReleaseCheckTests.passing(), { ...ReleaseCheckTests.request("example/sample-app"), GITHUB_OUTPUT: outputs });
 
     Assert.areEqual(0, result.exitCode, result.output);
-    Assert.isTrue(result.output.endsWith("Signed platforms: windows, macos.\n"), result.output);
-    Assert.areEqual(`earlier=1\nsigned=windows macos\nproduct-feed=${ReleaseCheckTests.OWN_FEED}\n`, await readFile(outputs, "utf8"));
+    Assert.isTrue(result.output.endsWith("Signed platforms: windows, macos, linux.\n"), result.output);
+    Assert.areEqual(`earlier=1\nsigned=windows macos linux\nproduct-feed=${ReleaseCheckTests.OWN_FEED}\n`, await readFile(outputs, "utf8"));
   }
 
   @TestMethod
   public async writesAnEmptyFeedForTheReleaseRepositoryOfAProductWithoutAFeedAsync(): Promise<void> {
     await using app = await InstalledAppFixture.createAsync();
     const manifest = await readFile(path.join(app.path, "package.json"), "utf8");
-    await app.writeAppFileAsync("package.json", manifest.replace("\"desktop\":{", "\"desktop\":{\"signedPlatforms\":[\"windows\",\"macos\"],"));
+    await app.writeAppFileAsync("package.json", manifest.replace("\"desktop\":{", "\"desktop\":{\"signedPlatforms\":[\"windows\",\"macos\",\"linux\"],"));
     const outputs = await app.writeAppFileAsync("outputs", String.empty);
 
     const result = await ReleaseCheckTests.runAsync(app.path, ReleaseCheckTests.passing(), { ...ReleaseCheckTests.request("example/sample-app"), GITHUB_OUTPUT: outputs });
 
     Assert.areEqual(0, result.exitCode, result.output);
-    Assert.areEqual("signed=windows macos\nproduct-feed=\n", await readFile(outputs, "utf8"));
+    Assert.areEqual("signed=windows macos linux\nproduct-feed=\n", await readFile(outputs, "utf8"));
   }
 
   @TestMethod

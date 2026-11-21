@@ -32,11 +32,16 @@ export class ReleaseFileSet {
     return this.targets.flatMap(t => this.listTarget(t));
   }
 
-  public async writeAsync(folder: string, target: PackageTarget, releaseDate: string): Promise<readonly string[]> {
+  public async writeAsync(folder: string, target: PackageTarget, releaseDate: string, sign: (file: ReleaseFile) => string | null): Promise<readonly string[]> {
     const packages = await this.readPackagesAsync(folder, target);
-    for (const file of packages)
+    const signatures = new Map<string, string>();
+    for (const file of packages) {
       await writeFile(path.join(folder, Resources.formatChecksumName(file.name)), ReleaseFileSet.formatChecksum(file));
-    await writeFile(path.join(folder, UpdateMetadata.formatFileName(target)), this.describe(target, packages, releaseDate).format());
+      const signature = sign(file);
+      if (!Object.isNull(signature))
+        signatures.set(file.name, signature);
+    }
+    await writeFile(path.join(folder, UpdateMetadata.formatFileName(target)), this.describe(target, packages, releaseDate, signatures).format());
     return this.listTarget(target);
   }
 
@@ -64,7 +69,7 @@ export class ReleaseFileSet {
       const metadata = UpdateMetadata.formatFileName(target);
       const bytes = await readFile(path.join(folder, metadata));
       const text = bytes.toString(Resources.textEncoding);
-      if (text !== this.describe(target, packages, UpdateMetadata.readReleaseDate(text, metadata)).format())
+      if (text !== this.describe(target, packages, UpdateMetadata.readReleaseDate(text, metadata), UpdateMetadata.readSignatures(text)).format())
         throw new BuildException(Resources.formatUpdateMetadataMismatch(metadata, this.version, packages.map(t => t.name)));
       files.push(...packages, ...checksums, new ReleaseFile(metadata, PackageDigest.fromBytes(bytes)));
     }
@@ -94,7 +99,7 @@ export class ReleaseFileSet {
     return files;
   }
 
-  private describe(target: PackageTarget, packages: readonly ReleaseFile[], releaseDate: string): UpdateMetadata {
-    return new UpdateMetadata(this.version, target.formatFileName(this.productName, this.version, target.updateExtension), packages, releaseDate);
+  private describe(target: PackageTarget, packages: readonly ReleaseFile[], releaseDate: string, signatures: ReadonlyMap<string, string>): UpdateMetadata {
+    return new UpdateMetadata(this.version, target.formatFileName(this.productName, this.version, target.updateExtension), packages, releaseDate, signatures);
   }
 }

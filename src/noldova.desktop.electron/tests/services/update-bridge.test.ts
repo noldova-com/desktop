@@ -136,7 +136,7 @@ export class UpdateBridgeTests {
         severity: "Info",
         actions: [{ title: "Restart to update", command: { name: "desktop.restartToUpdate", arguments: null } }]
       }]), JSON.stringify(connection.payloads.filter((_, index) => connection.calls[index] === "desktop.postNotification")));
-      Assert.areEqual(JSON.stringify([{ ...record, notified: true }]), JSON.stringify(files.updateReady.writes));
+      Assert.areEqual(JSON.stringify([{ ...record, notified: true, signature: null }]), JSON.stringify(files.updateReady.writes));
       Assert.areEqual("Ready", JsonReader.fromValue(electron.ipcMain.invoke("desktop:readUpdate", MainProcessStartFixture.trustedEvent("linux"))).readString("kind"));
     });
   }

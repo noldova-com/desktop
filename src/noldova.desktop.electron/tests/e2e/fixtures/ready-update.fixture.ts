@@ -50,7 +50,7 @@ export class ReadyUpdateFixture {
     await writeFile(packageFile, contents);
     const recordFile = path.join(installation, ReadyUpdateFixture.RECORD_FILE);
     await mkdir(installation, { recursive: true });
-    await writeFile(recordFile, JSON.stringify(new installedElectron.UpdateReadyRecord(version, packageFile, UpdateFeedFixture.sha512(contents), false).toJson()));
+    await writeFile(recordFile, JSON.stringify(new installedElectron.UpdateReadyRecord(version, packageFile, UpdateFeedFixture.sha512(contents), false, null).toJson()));
     return new ReadyUpdateFixture(packageFile, recordFile);
   }
 }

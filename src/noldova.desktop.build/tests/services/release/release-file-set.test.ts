@@ -42,7 +42,7 @@ export class ReleaseFileSetTests {
     await using folder = await ReleaseFileSetTests.createFolderAsync(targets);
     const set = new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, targets);
     for (const target of targets)
-      await set.writeAsync(folder.path, target, ReleaseFileSetTests.DATE);
+      await set.writeAsync(folder.path, target, ReleaseFileSetTests.DATE, () => null);
 
     const files = await set.verifyAsync(folder.path);
 
@@ -55,7 +55,7 @@ export class ReleaseFileSetTests {
     const built = [ReleaseFileSetTests.LINUX];
     const named = [ReleaseFileSetTests.LINUX, new PackageTarget("macos", "arm64")];
     await using folder = await ReleaseFileSetTests.createFolderAsync(built);
-    await new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, built).writeAsync(folder.path, ReleaseFileSetTests.LINUX, ReleaseFileSetTests.DATE);
+    await new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, built).writeAsync(folder.path, ReleaseFileSetTests.LINUX, ReleaseFileSetTests.DATE, () => null);
 
     const error = await Assert.throwsAsync(() => new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, named).verifyAsync(folder.path), BuildException);
 
@@ -69,7 +69,7 @@ export class ReleaseFileSetTests {
     const named = [ReleaseFileSetTests.LINUX];
     await using folder = await ReleaseFileSetTests.createFolderAsync(built);
     for (const target of built)
-      await new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, built).writeAsync(folder.path, target, ReleaseFileSetTests.DATE);
+      await new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, built).writeAsync(folder.path, target, ReleaseFileSetTests.DATE, () => null);
 
     const error = await Assert.throwsAsync(() => new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, named).verifyAsync(folder.path), BuildException);
 
@@ -95,7 +95,7 @@ export class ReleaseFileSetTests {
     const [name = String.empty] = ReleaseFileSetTests.LINUX.listFileNames(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION);
 
     const error = await Assert.throwsAsync(
-      () => new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, [ReleaseFileSetTests.LINUX]).writeAsync(folder.path, ReleaseFileSetTests.LINUX, ReleaseFileSetTests.DATE),
+      () => new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, [ReleaseFileSetTests.LINUX]).writeAsync(folder.path, ReleaseFileSetTests.LINUX, ReleaseFileSetTests.DATE, () => null),
       BuildException);
 
     Assert.areEqual(`${path.join(folder.path, name)} is missing; npm run package makes it.`, error.message);
@@ -105,7 +105,7 @@ export class ReleaseFileSetTests {
   public async refusesAChecksumThatNoLongerMatchesItsPackageAsync(): Promise<void> {
     await using folder = await ReleaseFileSetTests.createFolderAsync([ReleaseFileSetTests.LINUX]);
     const set = new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, [ReleaseFileSetTests.LINUX]);
-    await set.writeAsync(folder.path, ReleaseFileSetTests.LINUX, ReleaseFileSetTests.DATE);
+    await set.writeAsync(folder.path, ReleaseFileSetTests.LINUX, ReleaseFileSetTests.DATE, () => null);
     const [name = String.empty] = ReleaseFileSetTests.LINUX.listFileNames(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION);
     await writeFile(path.join(folder.path, name), "changed bytes");
 
@@ -115,10 +115,30 @@ export class ReleaseFileSetTests {
   }
 
   @TestMethod
+  public async writesTheSignatureItIsGivenForEachPackageAndAcceptsThemWhenCheckingAsync(): Promise<void> {
+    await using folder = await ReleaseFileSetTests.createFolderAsync([ReleaseFileSetTests.LINUX]);
+    const set = new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, [ReleaseFileSetTests.LINUX]);
+    const names = ReleaseFileSetTests.LINUX.listFileNames(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION);
+    const asked: string[] = [];
+
+    await set.writeAsync(folder.path, ReleaseFileSetTests.LINUX, ReleaseFileSetTests.DATE, t => {
+      asked.push(t.name);
+      return t.name.endsWith(".deb") ? null : `signature of ${t.digest.size}`;
+    });
+    const text = await readFile(path.join(folder.path, "latest-linux-x64.yml"), "utf8");
+    const files = await set.verifyAsync(folder.path);
+
+    Assert.areEqual(names.join(), asked.join());
+    Assert.areEqual(1, [...text.matchAll(/^ {4}signature: /gmu)].length, text);
+    Assert.isTrue(text.includes(`    signature: signature of ${Buffer.byteLength(`${names[0]} bytes`)}\n`), text);
+    Assert.areEqual(names.length * 2 + 1, files.length);
+  }
+
+  @TestMethod
   public async refusesUpdateMetadataForAnotherVersionOrWithoutAReleaseDateAsync(): Promise<void> {
     await using folder = await ReleaseFileSetTests.createFolderAsync([ReleaseFileSetTests.LINUX]);
     const set = new ReleaseFileSet(ReleaseFileSetTests.PRODUCT, ReleaseFileSetTests.VERSION, [ReleaseFileSetTests.LINUX]);
-    await set.writeAsync(folder.path, ReleaseFileSetTests.LINUX, ReleaseFileSetTests.DATE);
+    await set.writeAsync(folder.path, ReleaseFileSetTests.LINUX, ReleaseFileSetTests.DATE, () => null);
     const metadata = path.join(folder.path, "latest-linux-x64.yml");
     const text = await readFile(metadata, "utf8");
 

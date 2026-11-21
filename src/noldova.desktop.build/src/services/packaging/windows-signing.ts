@@ -36,6 +36,7 @@ export class WindowsSigning implements IPackageSigning {
 
   public readonly builderEnvironment: NodeJS.ProcessEnv;
   public readonly windowsPublisher: string;
+  public readonly updateKeys: readonly string[] = [];
 
   public constructor(runner: ProcessRunner, root: string, folder: string, output: string, target: PackageTarget, environment: NodeJS.ProcessEnv, credentials: NodeJS.ProcessEnv,
     packages: readonly PinnedPackage[], product: ProductIdentity) {

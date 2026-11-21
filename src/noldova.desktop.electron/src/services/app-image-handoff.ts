@@ -10,6 +10,7 @@ import "@noldova/context.core";
 
 import { NotAnAppImageException } from "../exceptions/not-an-app-image.exception.js";
 import { UpdateChangedBeforeHandoffException } from "../exceptions/update-changed-before-handoff.exception.js";
+import { UpdateUnsignedAtHandoffException } from "../exceptions/update-unsigned-at-handoff.exception.js";
 import type { IUpdateHandoff } from "../interfaces/i-update-handoff.js";
 import type { UpdateReadyRecord } from "../models/update-ready-record.js";
 import { Resources } from "../resources.js";
@@ -18,10 +19,13 @@ import { UpdateController } from "./update-controller.js";
 
 export class AppImageHandoff implements IUpdateHandoff {
   private readonly replacement: Pick<AppImageReplacement, "replaceAsync"> | null;
+  private readonly verifyAsync: (record: UpdateReadyRecord) => Promise<string | null>;
   private readonly folderRefusal: string | null;
 
-  public constructor(replacement: Pick<AppImageReplacement, "replaceAsync"> | null, folderRefusal: string | null = null) {
+  public constructor(replacement: Pick<AppImageReplacement, "replaceAsync"> | null, verifyAsync: (record: UpdateReadyRecord) => Promise<string | null>,
+    folderRefusal: string | null = null) {
     this.replacement = replacement;
+    this.verifyAsync = verifyAsync;
     this.folderRefusal = folderRefusal;
   }
 
@@ -34,6 +38,9 @@ export class AppImageHandoff implements IUpdateHandoff {
       throw new NotAnAppImageException();
     if (await UpdateController.hashFileAsync(record.file).catch(() => null) !== record.sha512)
       throw new UpdateChangedBeforeHandoffException();
+    const failure = await this.verifyAsync(record);
+    if (!Object.isNull(failure))
+      throw new UpdateUnsignedAtHandoffException(record.file, failure);
     await this.replacement.replaceAsync(record.file);
     return null;
   }

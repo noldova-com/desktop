@@ -80,7 +80,7 @@ export class PackageStage {
       throw new BuildException(Resources.formatStageArchivesLeftOut(leftOut));
   }
 
-  public async stageAsync(target: PackageTarget, output: Writable, updateFeed: string | null, windowsPublisher: string | null): Promise<void> {
+  public async stageAsync(target: PackageTarget, output: Writable, updateFeed: string | null, windowsPublisher: string | null, updateKeys: readonly string[] = []): Promise<void> {
     const product = await ProductIdentity.readAsync(this.root);
     const license = this.assets.require(Resources.licenseSegments, Resources.stageLicenseRole);
     const icons = this.assets.require(product.icons.split(Resources.pathSegmentSeparator), Resources.stageIconsRole);
@@ -113,6 +113,8 @@ export class PackageStage {
     await this.build.buildAsync(path.join(this.folder, Resources.buildFolder), updateFeed);
     if (!Object.isNull(windowsPublisher))
       await BuildProduct.setWindowsPublisherAsync(path.join(this.folder, Resources.buildFolder), windowsPublisher);
+    if (updateKeys.length > 0)
+      await BuildProduct.setLinuxUpdateKeysAsync(path.join(this.folder, Resources.buildFolder), updateKeys);
     output.write(Resources.stageNoGallery);
     const archives = new BuildLayout(this.root);
     await PackageStage.installAsync(this.npm, this.folder, manifest, {

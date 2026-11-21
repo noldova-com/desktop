@@ -67,6 +67,7 @@ The JSON helpers Protocol needs, the JSON value types and a reader that checks w
   Windows, the command line and other modules save, replace, remove and check a module's values, but never read one back.
 - A value never appears in a log, an error, a notification or a settings file.
 - [RUNTIME.md](RUNTIME.md#secrets) says how the runtime and the main process keep them, and [MODULES.md](MODULES.md#secrets) what a module's parts may do and when they are refused.
+- The Debian package's update installer, which runs as root behind the administrator's prompt, and why it checks the update's hash rather than its signature, are in [BUILD.md](BUILD.md#updates).
 
 ## Names
 

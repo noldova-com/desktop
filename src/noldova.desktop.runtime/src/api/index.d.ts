@@ -9694,6 +9694,14 @@ export declare class ProductInfo {
   public readonly windowsPublisher: string | null;
 
   /**
+   * The Ed25519 public keys, each the base64 of its DER SubjectPublicKeyInfo,
+   * one of which must sign a Linux update, which a signed Linux build takes
+   * from the release's `LINUX_UPDATE_PUBLIC_KEYS`; empty in an unsigned build,
+   * which installs no Linux update.
+   */
+  public readonly linuxUpdateKeys: readonly string[];
+
+  /**
    * The URL, ending in `/`, of the update feed a packaged build reads, or
    * `null` for a build that never checks for updates.
    */
