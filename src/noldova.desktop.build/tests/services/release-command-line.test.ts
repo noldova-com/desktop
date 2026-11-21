@@ -55,10 +55,10 @@ export class ReleaseCommandLineTests {
     await new Promise<void>(resolve => server.close(() => resolve()));
 
     const result = await ReleaseCommandLineTests.runAsync(["feed-check"],
-      { FEED_URL: `http://127.0.0.1:${port}/`, FEED_VERSION: "1.2.3", RELEASE_TARGETS: "linux-x64,windows-x64", FEED_WAIT_SECONDS: "0" });
+      { FEED_URL: `http://127.0.0.1:${port}/`, FEED_VERSION: "1.2.3", RELEASE_TARGETS: "windows-x64", FEED_WAIT_SECONDS: "0" });
 
     Assert.areEqual(1, result.exitCode);
-    Assert.isTrue(result.output.startsWith(`latest-linux-x64.yml could not be read from http://127.0.0.1:${port}/: `), result.output);
+    Assert.isTrue(result.output.startsWith(`latest-windows-x64.yml could not be read from http://127.0.0.1:${port}/: `), result.output);
   }
 
   @TestMethod
@@ -72,10 +72,10 @@ export class ReleaseCommandLineTests {
     const port = Object.isNull(address) || Object.isString(address) ? 0 : address.port;
     try {
       const result = await PausedClockFixture.withoutPausesAsync(() => ReleaseCommandLineTests.runAsync(["feed-check"],
-        { FEED_URL: `http://127.0.0.1:${port}/`, FEED_VERSION: "1.2.3", RELEASE_TARGETS: "linux-x64", FEED_WAIT_SECONDS: "1" }), 10);
+        { FEED_URL: `http://127.0.0.1:${port}/`, FEED_VERSION: "1.2.3", RELEASE_TARGETS: "windows-x64", FEED_WAIT_SECONDS: "1" }), 10);
 
       const lines = result.output.split("\n").filter(t => t.length > 0);
-      const problem = `latest-linux-x64.yml could not be read from http://127.0.0.1:${port}/: `;
+      const problem = `latest-windows-x64.yml could not be read from http://127.0.0.1:${port}/: `;
       Assert.areEqual(1, result.exitCode);
       Assert.areEqual(`${problem}HTTP 404. The feed may still be catching up, so the check tries again.`, lines.at(0), result.output);
       Assert.isTrue(lines.length > 1, result.output);
