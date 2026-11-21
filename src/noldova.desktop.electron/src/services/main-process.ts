@@ -476,6 +476,7 @@ export class MainProcess {
     window.once(Resources.closedEvent, () => {
       this.updates.restart.dismiss(open);
       this.windows.remove(contentsId);
+      this.controls.closeWindow(contentsId);
       this.surface.closeWindow(contentsId);
       this.windows.endPage(contentsId);
       this.webViews.host.closeWindow(contentsId);
