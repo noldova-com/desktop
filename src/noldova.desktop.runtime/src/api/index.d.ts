@@ -15236,6 +15236,23 @@ export declare class PermissionCenter {
   public registerAnswerer(module: string, answerer: IPermissionAnswerer, log: IModuleLog): Registration;
 
   /**
+   * Refuses any module but the app's permissions module, as each of the
+   * permissions module's own members does.
+   *
+   * @param module The id of the asking module.
+   * @throws {PermissionsModuleOnlyException} When the module isn't the permissions module.
+   * @example
+   * ```ts
+   * import type { PermissionCenter } from "@noldova/desktop.runtime";
+   *
+   * export function check(center: PermissionCenter): void {
+   *   center.requirePermissionsModule("notes");
+   * }
+   * ```
+   */
+  public requirePermissionsModule(module: string): void;
+
+  /**
    * See {@link IPermissionsContext.listRemembered}.
    *
    * @param module The id of the asking module.

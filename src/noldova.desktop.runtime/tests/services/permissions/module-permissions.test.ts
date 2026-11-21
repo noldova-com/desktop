@@ -78,6 +78,24 @@ export class ModulePermissionsTests {
   }
 
   @TestMethod
+  public async refusesAnotherModuleTheAnswererAlsoOnceItsPartHasDeactivated(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    using lock = OwnershipLock.acquire(new DataDirectory(folder.path));
+    using database = await ShellDatabase.openAsync(lock, ShellMigrations.all);
+    const center = new PermissionCenter(ModulePermissionsTests.APP);
+    center.open(new RememberedPermissionStore(database));
+    const registrations: Disposable[] = [];
+    const stopping = new AbortController();
+    const permissions = new ModulePermissions(ModulePermissionsTests.NOTES, center, new ModuleLogFixture(), registrations, stopping.signal);
+    stopping.abort();
+
+    const error = Assert.throws(() => permissions.registerAnswerer(new PermissionAnswererFixture()), PermissionsModuleOnlyException);
+
+    Assert.areEqual(ModulePermissionsTests.NOTES, error.moduleId);
+    Assert.areEqual(0, registrations.length);
+  }
+
+  @TestMethod
   public async refusesAnotherModuleTheAnswererTheListAndRevokingAndKeepsNoRegistration(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
     using lock = OwnershipLock.acquire(new DataDirectory(folder.path));

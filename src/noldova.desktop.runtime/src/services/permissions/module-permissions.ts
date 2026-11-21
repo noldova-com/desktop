@@ -30,6 +30,7 @@ export class ModulePermissions implements IPermissionsContext {
   }
 
   public registerAnswerer(answerer: IPermissionAnswerer): Registration {
+    this.center.requirePermissionsModule(this.moduleId);
     return this.stopping.aborted ? ModulePermissions.released() : this.keep(this.center.registerAnswerer(this.moduleId, answerer, this.log));
   }
 
