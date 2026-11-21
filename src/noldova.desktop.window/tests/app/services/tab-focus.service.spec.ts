@@ -37,7 +37,7 @@ describe("TabFocusService", () => {
     expect([before, document.activeElement]).toEqual([document.body, elements[1]]);
   });
 
-  it("focuses a tab without scrolling the row that holds it, and nothing for a tab that isn't shown", () => {
+  it("focuses a tab without scrolling the row that holds it, also when focus was lost, and nothing for a tab that isn't shown", () => {
     const focus = TestBed.inject(TabFocusService);
     const row = document.body.appendChild(document.createElement("div"));
     row.style.cssText = "display: flex; width: 100px; overflow: hidden";
@@ -50,8 +50,12 @@ describe("TabFocusService", () => {
       TestBed.tick();
       focus.focus(new ViewTab("files.tree"));
       TestBed.tick();
+      const asked = [document.activeElement, row.scrollLeft];
+      elements[1]?.blur();
+      focus.focusIfLost(plan);
+      TestBed.tick();
 
-      expect([document.activeElement, row.scrollLeft]).toEqual([elements[1], 0]);
+      expect([...asked, document.activeElement, row.scrollLeft]).toEqual([elements[1], 0, elements[1], 0]);
     }
     finally {
       row.remove();
