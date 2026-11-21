@@ -86,9 +86,11 @@ export class WindowRegistry {
     return ended ?? null;
   }
 
-  public endPage(contentsId: number): void {
-    this.pages.get(contentsId)?.end();
+  public endPage(contentsId: number): WindowPage | null {
+    const ended = this.pages.get(contentsId) ?? null;
+    ended?.end();
     this.pages.delete(contentsId);
+    return ended;
   }
 
   public findPage(contentsId: number): WindowPage | null {

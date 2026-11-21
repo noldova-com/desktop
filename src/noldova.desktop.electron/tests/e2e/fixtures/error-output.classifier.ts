@@ -18,7 +18,7 @@ export interface IClassifiedLine {
 export class ErrorOutputClassifier {
   private static readonly EXPECTED: readonly RegExp[] = [/^\[\d+:\d+(?:\/\d+)?\.\d+:\w+:/, /^Debugger (?:listening|attached|ending)/, /^Waiting for the debugger to disconnect/, /^For help, see/];
   private static readonly MAC_LOG: RegExp = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+ [\w ]+(?: \([A-Za-z]+\))?\[\d+:\d+\] /;
-  private static readonly WEB_VIEW_SCROLL: RegExp = /^\S+ Web view \S+ of \S+ (?:kept no scroll position|was not scrolled back to)\b/;
+  private static readonly WEB_VIEW_SCROLL: RegExp = /^\S+ Web view \S+ of \S+ (?:kept no scroll position|kept the scroll position|was not scrolled back to|restored its page with an error)\b/;
   private static readonly GTK_WARNING: RegExp = /^\([\w.-]+:\d+\): Gtk-WARNING \*\*: /;
   private static readonly GTK_CONTINUATION: RegExp = /^This may indicate that pixbuf loaders or the mime database could not be found\.$/;
   private static readonly CRASH_START: RegExp = /^Received signal \d+ /;

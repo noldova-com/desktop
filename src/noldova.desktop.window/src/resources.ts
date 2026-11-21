@@ -1272,6 +1272,14 @@ export class Resources {
     return `Shows as ${text}`;
   }
 
+  public static formatSettingRowControlSelector(name: string): string {
+    return `[data-setting="${CSS.escape(name)}"] .nol-setting-row-control :is(${Resources.tabbableSelector})`;
+  }
+
+  public static formatNotificationDismissSelector(id: string): string {
+    return `[data-notification="${CSS.escape(id)}"] .nol-notifications-dismiss`;
+  }
+
   public static formatAttributeSelector(attribute: string, value: string): string {
     return `[${attribute}="${value}"]`;
   }

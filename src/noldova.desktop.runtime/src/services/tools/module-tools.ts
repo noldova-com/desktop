@@ -32,6 +32,8 @@ export class ModuleTools implements IToolsContext {
   private readonly stopping: AbortSignal;
   private readonly blocker: IPortBlocker;
   private readonly sessions: WeakSet<ToolSession> = new WeakSet();
+  private readonly open: Map<string, ToolSession> = new Map();
+  private isTrackingSessions: boolean = false;
 
   public constructor(declaration: ModuleDeclaration, registry: ToolRegistry, log: IModuleLog, registrations: Disposable[], stopping: AbortSignal, blocker: IPortBlocker) {
     this.declaration = declaration;
@@ -59,7 +61,16 @@ export class ModuleTools implements IToolsContext {
   public openSession(scope: string, bindings: JsonObject): ToolSession {
     const session = this.registry.openSession(scope, bindings);
     this.sessions.add(session);
-    this.registrations.push(new Registration(() => session.end()));
+    this.open.set(session.id, session);
+    if (!this.isTrackingSessions) {
+      this.isTrackingSessions = true;
+      const ending = this.registry.onSessionEnded(t => this.open.delete(t), this.log);
+      this.registrations.push(new Registration(() => {
+        for (const open of [...this.open.values()])
+          open.end();
+        ending[Symbol.dispose]();
+      }));
+    }
     return session;
   }
 

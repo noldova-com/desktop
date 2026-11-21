@@ -474,6 +474,26 @@ describe("WorkspaceComponent", () => {
     expect(layout.geometry().isCollapsed(DockSide.Left)).toBe(false);
   });
 
+  it("moves the focus to the view's tab when a keyboard press on a collapsed dock's strip opens a dock with no rail, which removes the strip", async () => {
+    const registry = LayoutFixture.createRegistry();
+    const { files, terminal } = LayoutFixture;
+    const opened = Layout.createDefault(registry).openView(terminal, registry);
+    const left = opened.dock(DockSide.Left).root?.groups[0]?.id ?? 0;
+    const fixture = await renderAsync(registry, opened.moveTab(terminal, left, 1).activate(files));
+    const layout = TestBed.inject(LayoutService);
+    layout.toggleDock(DockSide.Left);
+    await settleAsync(fixture);
+    const button = DomFixture.one(document, `nol-dock[data-side="Left"] .nol-dock-strip-view[data-view="${terminal.key}"]`);
+
+    button.focus();
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+    await settleAsync(fixture);
+
+    expect(layout.geometry().isCollapsed(DockSide.Left)).toBe(false);
+    expect(button.isConnected).toBe(false);
+    expect(document.activeElement).toBe(DomFixture.one(document, `nol-tab[data-tab-key="${terminal.key}"]`));
+  });
+
   it.each([
     ["disabled", (field: HTMLInputElement): void => { field.disabled = true; }],
     ["hidden", (field: HTMLInputElement): void => { field.hidden = true; }],

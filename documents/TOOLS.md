@@ -57,6 +57,7 @@ What a module asks the person before an agent acts is in [PERMISSIONS.md](PERMIS
   A call of the same session waiting behind it keeps its own deadline running, so it may end as `TimedOut` while the first one waits.
 - A call on a resource that a call of another session holds fails at once as `Unavailable`.
 - A call gives up its turn, and its place among its session's calls in flight, when it ends, by its result, its failure, its deadline or an abort, even if its handler hasn't returned.
+  A call that returns while its permission request still waits keeps its turn until the request is answered or withdrawn; its session's end or stop, and its tool's withdrawal, withdraw it.
   A handler that goes on after its signal aborts may then overlap the next call on the resource, so it stops at the abort.
 - A call whose resource points at nothing, or at `null`, fails at once as `Refused`.
 - Calls without a resource run in parallel.
@@ -83,6 +84,7 @@ What a module asks the person before an agent acts is in [PERMISSIONS.md](PERMIS
 ## Calls
 
 - The app opens a session with `context.tools.openSession(scope, bindings)` and ends it with `session.end()`.
+  The app's deactivation ends the sessions it left open; an ended session leaves nothing behind in the app's context, so an app may open and end any number of them.
   - `scope` is the app's opaque name for what the session acts for, such as a conversation, and is at most 256 characters.
   - `bindings` is a JSON object the app fills, by binding name, with what it attaches to the session for each module, such as a folder or the items the person shared; each module's document names the bindings it reads.
 - `session.listTools()` lists the registered tools' descriptors, and `session.callAsync(name, arguments, options)` calls one, with an optional deadline within the tool's maximum and an abort signal.
@@ -185,7 +187,7 @@ An aborted call fails with the code its reason and its progress give; a resumabl
 - While agent control is stopped, Noldova Desktop shows a bar with Resume above every open view and document of a module that declares tools, which runs `desktop.resumeAgentControl`, as [WINDOW.md](WINDOW.md#workspace) says.
 - A window part learns whether agent control is stopped, and when that changes, from its context's `agentControl` signal, which the runtime keeps current through Noldova Desktop's event `desktop.agentControlChanged`.
 
-A session's end aborts its calls in flight with `SessionEnded` and withdraws its waiting permission requests.
+A session's end aborts its calls in flight with `SessionEnded` and withdraws its waiting permission requests, also those of calls that have already returned.
 A client connection's end, which a part may need for what it opened for that client, reaches the part through its runtime context, not through the registry.
 
 ## Failures

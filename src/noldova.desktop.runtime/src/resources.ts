@@ -200,6 +200,8 @@ export class Resources {
   public static readonly privateFolderMode: number = 0o700;
   public static readonly exclusiveWriteFlag: string = "wx";
   public static readonly temporarySuffix: string = ".tmp";
+  public static readonly removalIntentSuffix: string = ".removing";
+  public static readonly removalAttempts: number = 20;
   public static readonly backupInfix: string = "-before-migration-";
   public static readonly updateBackupInfix: string = "-before-update-";
   public static readonly backupExtension: string = ".sqlite";
@@ -568,6 +570,7 @@ export class Resources {
   public static readonly copyLauncherRole: string = "runtime launcher";
   public static readonly copyRuntimeRole: string = "runtime";
   public static readonly copyMounterRole: string = "AppImage mount";
+  public static readonly removerRole: string = "stale file remover";
   public static readonly failureExitCode: number = 1;
   public static readonly launchShell: string = "/bin/bash";
   public static readonly launchDescriptors: string = "/proc/self/fd";
@@ -1433,6 +1436,14 @@ export class Resources {
 
   public static formatTemporaryName(fileName: string, unique: string): string {
     return `${fileName}.${unique}${Resources.temporarySuffix}`;
+  }
+
+  public static formatRemovalIntentName(fileName: string, unique: string): string {
+    return `${fileName}.${unique}${Resources.removalIntentSuffix}`;
+  }
+
+  public static formatRemovalUnclaimed(file: string): string {
+    return `The process removing ${file} is not in the process table, so it cannot claim the removal.`;
   }
 
   public static formatEndpointInvalid(productName: string, text: string): string {

@@ -50,6 +50,7 @@ export class ToolRegistry implements IToolSessionHost {
   private readonly sessions: Set<ToolSession> = new Set();
   private readonly running: Set<RunningToolCall> = new Set();
   private readonly handling: Set<RunningToolCall> = new Set();
+  private readonly answering: Set<RunningToolCall> = new Set();
   private readonly endListeners: Set<(session: string) => void> = new Set();
   private readonly stopListeners: Set<(reason: string) => void> = new Set();
   private readonly sessionStopListeners: Set<(session: string, reason: string) => void> = new Set();
@@ -165,6 +166,8 @@ export class ToolRegistry implements IToolSessionHost {
     try {
       for (const run of [...this.running].filter(t => t.session === stopped))
         run.abort(ToolAbortReason.Stopped);
+      for (const run of [...this.answering].filter(t => t.session === stopped))
+        run.withdraw(ToolAbortReason.Stopped);
       for (const listener of [...this.sessionStopListeners])
         if (this.sessionStopListeners.has(listener))
           listener(session, reason);
@@ -249,6 +252,8 @@ export class ToolRegistry implements IToolSessionHost {
       return;
     for (const run of [...this.running].filter(t => t.session === session))
       run.abort(ToolAbortReason.SessionEnded);
+    for (const run of [...this.answering].filter(t => t.session === session))
+      run.withdraw(ToolAbortReason.SessionEnded);
     for (const listener of [...this.endListeners])
       if (this.endListeners.has(listener))
         listener(session.id);
@@ -272,7 +277,11 @@ export class ToolRegistry implements IToolSessionHost {
       run.end();
       caller?.removeEventListener(Resources.abortEvent, cancel);
       this.running.delete(run);
-      void turn.then(t => t?.[Symbol.dispose]());
+      this.answering.add(run);
+      void Promise.all([turn, run.whenAnsweredAsync()]).then(([t]) => {
+        this.answering.delete(run);
+        t?.[Symbol.dispose]();
+      });
     };
     const settle = (outcome: ToolResult | ToolFailure): void => {
       if (isSettled)
@@ -384,6 +393,8 @@ export class ToolRegistry implements IToolSessionHost {
     this.tools.delete(tool.descriptor.name);
     for (const run of [...this.running].filter(t => t.tool === tool))
       run.abort(ToolAbortReason.SwitchedOff);
+    for (const run of [...this.answering].filter(t => t.tool === tool))
+      run.withdraw(ToolAbortReason.SwitchedOff);
   }
 
   private static checkReason(reason: string): void {

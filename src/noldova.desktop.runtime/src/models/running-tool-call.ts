@@ -31,6 +31,8 @@ export class RunningToolCall implements IToolCallPermissions {
   private deadline: number;
   private isEnded: boolean;
   private isWaitingForPermission: boolean;
+  private answered: PromiseWithResolvers<void> | null;
+  private readonly withdrawal: AbortController;
 
   public readonly tool: RegisteredTool;
   public readonly session: ToolSession;
@@ -44,6 +46,8 @@ export class RunningToolCall implements IToolCallPermissions {
     this.deadline = 0;
     this.isEnded = false;
     this.isWaitingForPermission = false;
+    this.answered = null;
+    this.withdrawal = new AbortController();
     this.tool = tool;
     this.session = session;
     this.controller = new AbortController();
@@ -85,10 +89,19 @@ export class RunningToolCall implements IToolCallPermissions {
     this.controller.abort(reason);
   }
 
+  public withdraw(reason: ToolAbortReason): void {
+    this.withdrawal.abort(reason);
+  }
+
+  public whenAnsweredAsync(): Promise<void> {
+    return this.answered?.promise ?? Promise.resolve();
+  }
+
   public async requestAsync(request: IPermissionRequest, signal: AbortSignal): Promise<PermissionOutcome> {
     const id = randomUUID();
     const slot = this.records.push(null) - 1;
-    const outcome = this.refuse(request, signal, id) ?? await this.askAsync(request, signal, id);
+    const asked = AbortSignal.any([signal, this.withdrawal.signal]);
+    const outcome = this.refuse(request, asked, id) ?? await this.askAsync(request, asked, id);
     this.records[slot] = new PermissionRecord(id, this.riskOf(request), outcome.decision, outcome.isRemembered);
     return outcome;
   }
@@ -104,7 +117,9 @@ export class RunningToolCall implements IToolCallPermissions {
   }
 
   private async askAsync(request: IPermissionRequest, signal: AbortSignal, id: string): Promise<PermissionOutcome> {
+    const answered = Promise.withResolvers<void>();
     this.isWaitingForPermission = true;
+    this.answered = answered;
     clearTimeout(this.timer);
     this.remaining = Math.max(0, this.deadline - Date.now());
     try {
@@ -112,6 +127,8 @@ export class RunningToolCall implements IToolCallPermissions {
     }
     finally {
       this.isWaitingForPermission = false;
+      this.answered = null;
+      answered.resolve();
       if (!this.isEnded)
         this.resumeDeadline();
     }

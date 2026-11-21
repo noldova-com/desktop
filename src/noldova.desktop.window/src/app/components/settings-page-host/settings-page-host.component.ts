@@ -56,5 +56,6 @@ export class SettingsPageHostComponent {
     return new ModuleFailure(entry.moduleId, displayName, ModuleState.Failed, Resources.settingsPageLoadFailed, []);
   });
 
+  public readonly isSettled: Signal<boolean> = computed(() => !this.component.isLoading());
   public readonly entry: InputSignal<SettingsPageEntry> = input.required<SettingsPageEntry>();
 }

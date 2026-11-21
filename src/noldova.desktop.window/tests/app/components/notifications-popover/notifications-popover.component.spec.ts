@@ -97,6 +97,28 @@ describe("NotificationsPopoverComponent", () => {
     expect(service.calls).toEqual(["run notes.undo", "run notes.open", "dismiss 2", "clear", "quiet true"]);
   });
 
+  it("moves the focus from a dismissed row to the next row's Dismiss, else the previous row's, else the popover", async () => {
+    const all = [3, 2, 1].map(t => NotificationsFixture.createNotification(t, "clock.sync", `Tick ${t}`, { isRead: true }));
+    service.stateValue.set(new NotificationState(all, false, [], 0));
+    const fixture = await NotificationsFixture.renderAsync();
+    const popover = await NotificationsFixture.openAsync(fixture);
+    const dismissOf = (id: number): HTMLButtonElement => DomFixture.oneOf(popover, `[data-notification="${id}"] .nol-notifications-dismiss`, HTMLButtonElement);
+    const dismissAsync = async (id: number): Promise<string | null> => {
+      dismissOf(id).focus();
+      dismissOf(id).click();
+      service.stateValue.set(new NotificationState(service.stateValue().notifications.filter(t => t.id !== String(id)), false, [], 0));
+      await fixture.whenStable();
+      return document.activeElement === popover ? "popover" : document.activeElement?.closest<HTMLElement>("[data-notification]")?.dataset["notification"] ?? null;
+    };
+
+    const middle = await dismissAsync(2);
+    const last = await dismissAsync(1);
+    const only = await dismissAsync(3);
+
+    expect([middle, last, only]).toEqual(["1", "3", "popover"]);
+    expect(service.calls.filter(t => t.startsWith("dismiss"))).toEqual(["dismiss 2", "dismiss 1", "dismiss 3"]);
+  });
+
   it("checks its Do not disturb box while Do not disturb is on", async () => {
     const fixture = await NotificationsFixture.renderAsync();
 
