@@ -84,7 +84,8 @@ test.describe("notifications", () => {
     const window = mainProcess.window;
     await bell(window).click();
 
-    await list(window).getByRole("checkbox", { name: "Do not disturb" }).check();
+    await list(window).getByRole("checkbox", { name: "Do not disturb" }).click();
+    await expect(list(window).getByRole("checkbox", { name: "Do not disturb" })).toBeChecked();
     await expect(bell(window).locator(".nol-notifications-icon")).toHaveText("notifications_off");
     await mainProcess.restartAsync();
 
@@ -96,7 +97,8 @@ test.describe("notifications", () => {
     await openNotificationsPageAsync(mainProcess.window);
     const setting = mainProcess.window.locator("nol-setting-row[data-setting=\"desktop.doNotDisturb\"]").getByRole("checkbox");
     await expect(setting).toBeChecked();
-    await setting.uncheck();
+    await setting.click();
+    await expect(setting).not.toBeChecked();
     await expect(bell(mainProcess.window).locator(".nol-notifications-icon")).toHaveText("notifications");
   });
 
@@ -110,7 +112,8 @@ test.describe("notifications", () => {
     await expect(modules.getByRole("checkbox", { name: "Clock notifications" })).toBeChecked();
     await mainProcess.checkpointAsync("settings-notifications");
 
-    await modules.getByRole("checkbox", { name: "Clock notifications" }).uncheck();
+    await modules.getByRole("checkbox", { name: "Clock notifications" }).click();
+    await expect(modules.getByRole("checkbox", { name: "Clock notifications" })).not.toBeChecked();
     await expect(bell(window).locator(".nol-notifications-count")).toHaveText("1");
     await tickWithFocusAsync(mainProcess);
     await bell(window).click();
@@ -132,7 +135,8 @@ test.describe("notifications", () => {
     await expect(window.locator(".cdk-live-announcer-element[aria-live=polite]")).toHaveText("The clock ticked. Ticks: 1");
     await expect(toasts).toHaveCount(0, { timeout: 15_000 });
     await bell(window).click();
-    await list(window).getByRole("checkbox", { name: "Do not disturb" }).check();
+    await list(window).getByRole("checkbox", { name: "Do not disturb" }).click();
+    await expect(list(window).getByRole("checkbox", { name: "Do not disturb" })).toBeChecked();
     await window.keyboard.press("Escape");
     await tickWithFocusAsync(mainProcess);
 
