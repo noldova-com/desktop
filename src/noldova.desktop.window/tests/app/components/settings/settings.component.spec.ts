@@ -1258,7 +1258,15 @@ describe("SettingsComponent", () => {
     expect(element().querySelector<HTMLButtonElement>("[data-setting=\"clock.alarms\"] .nol-setting-row-control button")?.disabled).toBe(true);
   });
 
-  it("moves the focus from a Reset that goes away to its row's control, from Open page to the opened page's first control once it loads, and to the page list when that page has none", async () => {
+  it("moves the focus from a Reset that goes away to its row's control", async () => {
+    render();
+
+    await page.getByRole("button", { name: "Reset Mode" }).click();
+
+    expect(DomFixture.one(element(), "[data-setting='desktop.mode'] .nol-setting-row-control").contains(document.activeElement)).toBe(true);
+  });
+
+  it("moves the focus from Open page to the opened page's first control once it loads, and to the page list when that page has none", async () => {
     const notice = new SettingsPageEntry("clock.notice", "Notice", "clock", new SettingsPageContribution("clock.notice", () => Promise.resolve(FakeNoticeComponent)), pageContext, null);
     ownPages.set([accountEntry(), notice]);
     render();
@@ -1277,12 +1285,9 @@ describe("SettingsComponent", () => {
       return [texts("[aria-selected=true]"), focused()];
     };
 
-    await page.getByRole("button", { name: "Reset Mode" }).click();
-    const reset = DomFixture.one(element(), "[data-setting='desktop.mode'] .nol-setting-row-control").contains(document.activeElement);
     const opened = await openAsync("accou");
     const empty = await openAsync("notic");
 
-    expect(reset).toBe(true);
     expect(opened).toEqual([["Account"], "input"]);
     expect(empty).toEqual([["Notice"], "pages"]);
   });
