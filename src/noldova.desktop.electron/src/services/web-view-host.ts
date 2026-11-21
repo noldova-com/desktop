@@ -104,7 +104,7 @@ export class WebViewHost {
     const open: OpenWebView = new OpenWebView(info, windowId, partition, session, this.check, declaration, t => this.report(open, t), t => this.isShortcut(windowId, t),
       (t, answer) => this.forwardShortcut(open, t, answer), this.platform, (t, signal) => this.engine.waitAsync(t, signal), () => this.engine.now(), () => this.lose(open),
       t => this.sendInput(windowId, { [Resources.moduleField]: info.module, [Resources.viewField]: info.id, [Resources.kindField]: t }),
-      new WebViewRefusedPage(name, () => this.readAppearance(windowId)));
+      new WebViewRefusedPage(name, () => this.readAppearance(windowId)), this.log);
     this.views.set(info.id, open);
     this.report(open, WebViewHost.createEvent(open, WebViewEventKind.Opened, { [Resources.paneField]: info.pane.toJson(), [Resources.profileKeyField]: profileKey }));
     return { [Resources.viewField]: info.toJson(), [Resources.partitionField]: partition, [Resources.keysField]: declaration.keys.flatMap(t => t.keysOn(this.platform).map(u => u.text)) };

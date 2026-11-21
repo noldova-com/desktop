@@ -59,6 +59,7 @@ class OpenWebViewHarness {
   public readonly presses: string[] = [];
   public readonly shortcuts: string[] = [];
   public readonly inputs: string[] = [];
+  public readonly logs: string[] = [];
   public readonly lost: Promise<void>;
   public readonly open: OpenWebView;
   public time: number = 0;
@@ -80,7 +81,7 @@ class OpenWebViewHarness {
       (t, signal) => this.waits.waitAsync(t, signal), () => this.time, () => this.markLost(), t => {
         this.inputs.push(t);
         this.onInput();
-      }, new WebViewRefusedPage("Browser", () => this.appearance));
+      }, new WebViewRefusedPage("Browser", () => this.appearance), t => this.logs.push(t));
   }
 
   public get contents(): FakeWebView["contents"] {
@@ -1289,29 +1290,34 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async scrollsARestoredPageThatCameBackAtTheTopOnceToWhereItWasButNotOneThatCameBackElsewhereOrWasKeptAtTheTop(): Promise<void> {
+  public async scrollsARestoredPageThatCameBackAtTheTopOnceToWhereItWasButNotOneThatCameBackElsewhereOrWhereItWasOrWasKeptAtTheTop(): Promise<void> {
     const results: string[] = [];
-    for (const [kept, shown] of [[1200, 0], [1200, 300], [0, 0]] as const) {
+    for (const [kept, shownX, shownY] of [[1200, 0, 0], [1200, 0, 300], [1200, 40, 1200], [0, 0, 0]] as const) {
       const harness = await OpenWebViewTests.showAsync();
       const fresh = OpenWebViewTests.rendererless();
       OpenWebViewTests.scrolled(harness.contents, kept === 0 ? 0 : 40, kept);
-      OpenWebViewTests.scrolled(fresh, 0, shown);
+      OpenWebViewTests.scrolled(fresh, shownX, shownY);
       fresh.onIsolated = () => Promise.reject(new Error("The page went away."));
       await harness.open.keepAsync();
       OpenWebViewTests.destroy(harness);
 
       await harness.open.bindAsync(fresh, true);
       await OpenWebViewTests.drainAsync();
-      results.push(`${fresh.debugger.methods().filter(t => t === "Page.getLayoutMetrics").length} ${fresh.isolated.join(",")}`);
+      results.push(`${fresh.debugger.methods().filter(t => t === "Page.getLayoutMetrics").length} ${fresh.isolated.join(",")}:${harness.logs.join(",")}`);
     }
 
-    Assert.areEqual("1 1998 scrollTo(40, 1200)|1 |0 ", results.join("|"));
+    Assert.areEqual([
+      "1 1998 scrollTo(40, 1200):Web view 1 of browser was not scrolled back to (40, 1200): its scroll script failed (Error: The page went away.).",
+      "1 :Web view 1 of browser was not scrolled back to (40, 1200): its restored page already showed (0, 300).",
+      "1 :",
+      "0 :"
+    ].join("|"), results.join("|"));
   }
 
   @TestMethod
   public async scrollsNoRestoredPageBackOnceAnInputANavigationOrARedirectCameWhileItLoadedOrItsPageIsGoneOrUnreadButDoesAfterAPointerMove(): Promise<void> {
     const results: string[] = [];
-    for (const step of ["mouseMove", "keyDown", "navigate", "redirect", "unread", "gone", "close"]) {
+    for (const step of ["mouseMove", "keyDown", "navigate", "redirect", "unread", "gone", "unreadAndGone", "close"]) {
       const harness = await OpenWebViewTests.showAsync();
       const fresh = OpenWebViewTests.rendererless();
       let finish: () => void = () => undefined;
@@ -1328,9 +1334,9 @@ export class OpenWebViewTests {
         await harness.open.navigateAsync("https://example.com/c");
       else if (step === "redirect")
         fresh.restoredUrl = "https://example.com/elsewhere";
-      else if (step === "unread")
+      else if (step === "unread" || step === "unreadAndGone")
         fresh.debugger.replies.set("Page.getLayoutMetrics", () => Promise.reject(new Error("The page went away.")));
-      else if (step === "gone")
+      if (step === "gone" || step === "unreadAndGone")
         fresh.emit("destroyed");
       else if (step === "close")
         harness.open.close();
@@ -1338,10 +1344,20 @@ export class OpenWebViewTests {
         fresh.emit("input-event", {}, { type: step });
       finish();
       await OpenWebViewTests.drainAsync();
-      results.push(fresh.isolated.join(","));
+      results.push(`${fresh.isolated.join(",")}:${harness.logs.join(",")}`);
     }
 
-    Assert.areEqual("1998 scrollTo(0, 1200)||||||", results.join("|"));
+    const stopped = (reason: string): string => `:Web view 1 of browser was not scrolled back to (0, 1200): ${reason}.`;
+    Assert.areEqual([
+      "1998 scrollTo(0, 1200):",
+      stopped("an input came while its page loaded"),
+      stopped("a navigation came while its page loaded"),
+      stopped("its page went to another address while it loaded"),
+      stopped("its restored page did not answer where it was scrolled"),
+      stopped("its page was replaced or closed while it loaded"),
+      stopped("its page was replaced or closed while it loaded"),
+      stopped("its page was replaced or closed while it loaded")
+    ].join("|"), results.join("|"));
   }
 
   @TestMethod
@@ -1365,10 +1381,35 @@ export class OpenWebViewTests {
       OpenWebViewTests.destroy(harness);
       await harness.open.bindAsync(fresh, true);
       await OpenWebViewTests.drainAsync();
-      results.push(`${waits} ${harness.waits.count(500)} ${fresh.isolated.join(",")}`);
+      results.push(`${waits} ${harness.waits.count(500)} ${fresh.isolated.join(",")}:${harness.logs.join(",")}`);
     }
 
-    Assert.areEqual("1 0 |1 0 |1 0 ", results.join("|"));
+    const unkept = "1 0 :Web view 1 of browser kept no scroll position: its page did not answer where it was scrolled within 500 ms, or answered no position, so it will not " +
+      "be scrolled back once it moves.";
+    Assert.areEqual([unkept, unkept, unkept].join("|"), results.join("|"));
+  }
+
+  @TestMethod
+  public async scrollsARestoredPageBackWhenItAnswersWhereItIsScrolledOnlyAfterTheKeepsLimit(): Promise<void> {
+    const harness = await OpenWebViewTests.showAsync();
+    const fresh = OpenWebViewTests.rendererless();
+    let answer: (value: unknown) => void = () => undefined;
+    OpenWebViewTests.scrolled(harness.contents, 0, 1200);
+    fresh.debugger.replies.set("Page.getLayoutMetrics", () => new Promise(resolve => {
+      answer = resolve;
+    }));
+    await harness.open.keepAsync();
+    OpenWebViewTests.destroy(harness);
+
+    await harness.open.bindAsync(fresh, true);
+    await OpenWebViewTests.drainAsync();
+    const waits = harness.waits.count(500);
+    harness.waits.elapse(500);
+    await OpenWebViewTests.drainAsync();
+    answer({ cssLayoutViewport: { pageX: 0, pageY: 0 } });
+    await OpenWebViewTests.drainAsync();
+
+    Assert.areEqual("0 1998 scrollTo(0, 1200) 0", `${waits} ${fresh.isolated.join(",")} ${harness.logs.length}`);
   }
 
   @TestMethod

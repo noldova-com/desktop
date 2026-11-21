@@ -14,6 +14,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { ProcessResult } from "../../../src/models/processes/process-result.js";
+import { Resources } from "../../../src/resources.js";
 import { ElectronBinary } from "../../../src/services/desktop/electron-binary.js";
 import { DevelopmentFolderFixture } from "../../fixtures/development-folder.fixture.js";
 import { PausedTimersFixture } from "../../fixtures/paused-timers.fixture.js";
@@ -53,7 +54,7 @@ export class ElectronBinaryTests {
   public async runsTheInstallerUntilTheBinaryIsThereAsync(): Promise<void> {
     await using folder = await DevelopmentFolderFixture.createAsync();
     const installer = await folder.writeAsync(["node_modules", "electron", "install.js"], String.empty);
-    const answers = [new ProcessResult(0, String.empty, String.empty), new ProcessResult(1, String.empty, "offline\n")];
+    const answers = [new ProcessResult(1, String.empty, "TypeError: fetch failed\n"), new ProcessResult(1, String.empty, "Error: Response code 503 (Service Unavailable)\n")];
     const runner = new ScriptedRunnerFixture(async () => {
       const answer = answers.shift();
       if (!Object.isUndefined(answer))
@@ -81,13 +82,40 @@ export class ElectronBinaryTests {
   public async givesUpWithTheLastFailureAsync(): Promise<void> {
     await using folder = await DevelopmentFolderFixture.createAsync();
     await folder.writeAsync(["node_modules", "electron", "install.js"], String.empty);
+    const runner = new ScriptedRunnerFixture(() => new ProcessResult(1, String.empty, "TypeError: fetch failed\n"));
+
+    const error = await Assert.throwsAsync(
+      () => PausedTimersFixture.withoutPausesAsync(() => new ElectronBinary(folder.path, runner).installAsync(new PassThrough()), ElectronBinaryTests.PAUSE), BuildException);
+
+    Assert.areEqual("Electron's binary could not be installed in 4 attempts; the last failed with exit code 1: TypeError: fetch failed.", error.message);
+    Assert.areEqual(4, runner.captured.length);
+  }
+
+  @TestMethod
+  public async failsAtOnceWhenTheInstallerFailsOtherThanOnTheNetworkAsync(): Promise<void> {
+    await using folder = await DevelopmentFolderFixture.createAsync();
+    await folder.writeAsync(["node_modules", "electron", "install.js"], String.empty);
+    const failure = "Error: Response code 404 (Not Found) for https://example.com/electron.zip";
+    const runner = new ScriptedRunnerFixture(() => new ProcessResult(1, String.empty, `${failure}\n`));
+
+    const error = await Assert.throwsAsync(
+      () => PausedTimersFixture.withoutPausesAsync(() => new ElectronBinary(folder.path, runner).installAsync(new PassThrough()), ElectronBinaryTests.PAUSE), BuildException);
+
+    Assert.areEqual(Resources.formatDownloadNotRetried(Resources.electronSubject, Resources.formatExitCodeProblem(1, failure)), error.message);
+    Assert.areEqual(1, runner.captured.length);
+  }
+
+  @TestMethod
+  public async failsAtOnceWhenTheInstallerSucceedsButLeavesNoBinaryAsync(): Promise<void> {
+    await using folder = await DevelopmentFolderFixture.createAsync();
+    await folder.writeAsync(["node_modules", "electron", "install.js"], String.empty);
     const runner = new ScriptedRunnerFixture(() => new ProcessResult(0, String.empty, String.empty));
 
     const error = await Assert.throwsAsync(
       () => PausedTimersFixture.withoutPausesAsync(() => new ElectronBinary(folder.path, runner).installAsync(new PassThrough()), ElectronBinaryTests.PAUSE), BuildException);
 
-    Assert.areEqual("Electron's binary could not be installed in 4 attempts; the last failed with it reported success, but the binary is still missing.", error.message);
-    Assert.areEqual(4, runner.captured.length);
+    Assert.areEqual(Resources.formatDownloadNotRetried(Resources.electronSubject, Resources.electronStillMissing), error.message);
+    Assert.areEqual(1, runner.captured.length);
   }
 
   private static async installElectronAsync(folder: DevelopmentFolderFixture): Promise<void> {
