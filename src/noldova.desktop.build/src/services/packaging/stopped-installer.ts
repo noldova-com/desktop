@@ -37,9 +37,9 @@ export class StoppedInstaller {
     if (!existsSync(installFolder))
       return Resources.formatInstallerCreatedNothing(installFolder);
     const lines: string[] = [];
-    const files = await StoppedInstaller.readAsync(installFolder, lines, () => StoppedInstaller.listFilesAsync(installFolder)) ?? [];
+    const files = await StoppedInstaller.readAsync(installFolder, lines, () => StoppedInstaller.listFilesAsync(installFolder), []);
     for (const file of files) {
-      const item = await StoppedInstaller.readAsync(file, lines, () => stat(file));
+      const item = await StoppedInstaller.readAsync(file, lines, () => stat(file), null);
       if (!Object.isNull(item))
         lines.push(Resources.formatInstalledFileSize(path.relative(installFolder, file), item.size));
     }
@@ -51,10 +51,10 @@ export class StoppedInstaller {
       return Resources.installerTemporaryUnknown;
     const lines: string[] = [];
     const folders: string[] = [];
-    const entries = existsSync(temporary) ? await StoppedInstaller.readAsync(temporary, lines, () => readdir(temporary, { withFileTypes: true })) ?? [] : [];
+    const entries = existsSync(temporary) ? await StoppedInstaller.readAsync(temporary, lines, () => readdir(temporary, { withFileTypes: true }), []) : [];
     for (const entry of entries.filter(t => t.isDirectory() && Resources.installerTemporaryFolderPattern.test(t.name))) {
       const folder = path.join(temporary, entry.name);
-      const item = await StoppedInstaller.readAsync(folder, lines, () => stat(folder));
+      const item = await StoppedInstaller.readAsync(folder, lines, () => stat(folder), null);
       if (!Object.isNull(item) && item.mtimeMs >= started - Resources.installerTemporaryMargin)
         folders.push(folder);
     }
@@ -62,34 +62,34 @@ export class StoppedInstaller {
       lines.unshift(Resources.formatInstallerTemporaryNone(temporary));
     for (const folder of folders.sort()) {
       lines.push(Resources.formatInstallerTemporaryFolder(folder));
-      for (const name of (await StoppedInstaller.readAsync(folder, lines, () => readdir(folder)) ?? []).sort())
+      for (const name of (await StoppedInstaller.readAsync(folder, lines, () => readdir(folder), [])).sort())
         await StoppedInstaller.describeTemporaryEntryAsync(path.join(folder, name), name, lines);
     }
     return lines.join(Resources.lineSeparator);
   }
 
   private static async describeTemporaryEntryAsync(entry: string, name: string, lines: string[]): Promise<void> {
-    const item = await StoppedInstaller.readAsync(entry, lines, () => stat(entry));
+    const item = await StoppedInstaller.readAsync(entry, lines, () => stat(entry), null);
     if (Object.isNull(item))
       return;
     if (!item.isDirectory()) {
       lines.push(Resources.formatInstalledFileSize(name, item.size));
       return;
     }
-    const files = await StoppedInstaller.readAsync(entry, lines, () => StoppedInstaller.listFilesAsync(entry)) ?? [];
+    const files = await StoppedInstaller.readAsync(entry, lines, () => StoppedInstaller.listFilesAsync(entry), []);
     let bytes = 0;
     for (const file of files)
-      bytes += (await StoppedInstaller.readAsync(file, lines, () => stat(file)))?.size ?? 0;
+      bytes += await StoppedInstaller.readAsync(file, lines, () => stat(file).then(t => t.size), 0);
     lines.push(Resources.formatInstallerTemporaryContent(name, files.length, bytes));
   }
 
-  private static async readAsync<T>(target: string, lines: string[], read: () => Promise<T>): Promise<T | null> {
+  private static async readAsync<T, F>(target: string, lines: string[], read: () => Promise<T>, fallback: F): Promise<T | F> {
     try {
       return await read();
     }
     catch (error) {
       lines.push(Resources.formatInstallerPathUnreadable(target, error));
-      return null;
+      return fallback;
     }
   }
 
@@ -111,7 +111,7 @@ export class StoppedInstaller {
       return output.length === 0 ? Resources.formatInstallerProcessesNone(processId) : Resources.formatInstallerProcesses(processId, output);
     }
     catch (error) {
-      return Resources.formatInstallerProcessesReadFailed(processId, error instanceof Error ? error.message : String(error));
+      return Resources.formatInstallerProcessesReadFailed(processId, String(error));
     }
   }
 }

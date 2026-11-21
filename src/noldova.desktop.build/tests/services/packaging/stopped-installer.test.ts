@@ -142,18 +142,19 @@ export class StoppedInstallerTests {
       const unfinished = await new StoppedInstaller(stalled, folder, {}).describeAsync(installFolder, temporary, Date.now(), 4242);
 
       Assert.isTrue(refused.endsWith("\nWhat the installer, process 4242, had started could not be listed: powershell.exe exited with 1:\nGet-CimInstance : Access denied"), refused);
-      Assert.isTrue(unfinished.endsWith(`\nWhat the installer, process 4242, had started could not be listed: ${timeout.message}`), unfinished);
+      Assert.isTrue(unfinished.endsWith(`\nWhat the installer, process 4242, had started could not be listed: ${String(timeout)}`), unfinished);
     });
   }
 
   @TestMethod
   public async namesAListingFailureThatIsNoTimeoutRatherThanThrowingIt(): Promise<void> {
     await StoppedInstallerTests.withFolderAsync(async (folder, installFolder, temporary) => {
-      const runner = new ListingRunner(() => Promise.reject(new BuildException("powershell.exe could not start.")));
+      const failure = new BuildException("powershell.exe could not start.");
+      const runner = new ListingRunner(() => Promise.reject(failure));
 
       const description = await new StoppedInstaller(runner, folder, {}).describeAsync(installFolder, temporary, Date.now(), 4242);
 
-      Assert.isTrue(description.endsWith("\nWhat the installer, process 4242, had started could not be listed: powershell.exe could not start."), description);
+      Assert.isTrue(description.endsWith(`\nWhat the installer, process 4242, had started could not be listed: ${String(failure)}`), description);
     });
   }
 
@@ -170,7 +171,7 @@ export class StoppedInstallerTests {
       const stopped = new StoppedInstaller(new ListingRunner(StoppedInstallerTests.nothing), folder, {});
 
       const description = await stopped.describeAsync(installFolder, temporary, started, undefined);
-      const unlisted = await stopped.describeAsync(installFolder, notFolder, started, undefined);
+      const unlisted = await stopped.describeAsync(notFolder, notFolder, started, undefined);
 
       const lines = description.split("\n");
       Assert.areEqual(4, lines.length, description);
@@ -178,9 +179,11 @@ export class StoppedInstallerTests {
       Assert.areEqual("app-64.7z: 7 bytes", lines[2]);
       Assert.isTrue((lines[3] ?? String.empty).startsWith(`${gone} could not be read: Error: ENOENT`), description);
       const unlistedLines = unlisted.split("\n");
-      Assert.areEqual(3, unlistedLines.length, unlisted);
-      Assert.areEqual(`${notFolder} held no temporary folder the installer had made.`, unlistedLines[1]);
-      Assert.isTrue((unlistedLines[2] ?? String.empty).startsWith(`${notFolder} could not be read: Error: `), unlisted);
+      Assert.areEqual(4, unlistedLines.length, unlisted);
+      Assert.areEqual(`${notFolder} held 0 files when the installer was stopped:`, unlistedLines[0]);
+      Assert.isTrue((unlistedLines[1] ?? String.empty).startsWith(`${notFolder} could not be read: Error: `), unlisted);
+      Assert.areEqual(`${notFolder} held no temporary folder the installer had made.`, unlistedLines[2]);
+      Assert.isTrue((unlistedLines[3] ?? String.empty).startsWith(`${notFolder} could not be read: Error: `), unlisted);
     });
   }
 }
