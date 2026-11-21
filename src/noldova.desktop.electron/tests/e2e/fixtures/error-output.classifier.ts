@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 
-export type OutputKind = "expected" | "platform-log" | "crash" | "failure";
+export type OutputKind = "expected" | "platform-log" | "diagnostic" | "crash" | "failure";
 
 export interface IClassifiedLine {
   readonly kind: OutputKind;
@@ -18,6 +18,7 @@ export interface IClassifiedLine {
 export class ErrorOutputClassifier {
   private static readonly EXPECTED: readonly RegExp[] = [/^\[\d+:\d+(?:\/\d+)?\.\d+:\w+:/, /^Debugger (?:listening|attached|ending)/, /^Waiting for the debugger to disconnect/, /^For help, see/];
   private static readonly MAC_LOG: RegExp = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+ [\w ]+(?: \([A-Za-z]+\))?\[\d+:\d+\] /;
+  private static readonly WEB_VIEW_SCROLL: RegExp = /^\S+ Web view \S+ of \S+ (?:kept no scroll position|was not scrolled back to)\b/;
   private static readonly GTK_WARNING: RegExp = /^\([\w.-]+:\d+\): Gtk-WARNING \*\*: /;
   private static readonly GTK_CONTINUATION: RegExp = /^This may indicate that pixbuf loaders or the mime database could not be found\.$/;
   private static readonly CRASH_START: RegExp = /^Received signal \d+ /;
@@ -62,6 +63,8 @@ export class ErrorOutputClassifier {
     this.isAfterGtkWarning = false;
     if (ErrorOutputClassifier.EXPECTED.some(t => t.test(line)))
       return "expected";
+    if (ErrorOutputClassifier.WEB_VIEW_SCROLL.test(line))
+      return "diagnostic";
     if (ErrorOutputClassifier.GTK_WARNING.test(line)) {
       this.isAfterGtkWarning = true;
       return "platform-log";

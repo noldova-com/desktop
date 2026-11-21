@@ -15,12 +15,13 @@ import { NpmLogsFixture } from "./fixtures/npm-logs.fixture.ts";
 import { WorkflowStepFixture } from "./fixtures/workflow-step.fixture.ts";
 
 const ARGUMENTS = ["ci", "--no-audit", "--no-fund"];
-const HEADER = Resources.npmCiStalledRead([]).trimEnd();
+const HEADER = Resources.npmCiDropped([]).trimEnd();
 
-async function runAsync(plan: readonly (readonly [number, readonly string[]])[], ending: string = "\n"): Promise<{ status: number | null, calls: readonly string[], output: string }> {
+async function runAsync(plan: readonly (readonly [number, readonly string[]])[], ending: string = "\n")
+  : Promise<{ status: number | null, calls: readonly string[], output: string, sleeps: readonly string[] }> {
   await using npm = await NpmFakeFixture.createAsync(plan, ending);
-  const result = await WorkflowStepFixture.runAsync(WorkflowStepFixture.readRun("package-app.yml", "Install the dependencies"), npm.folder, npm.bin, {});
-  return { status: result.status, calls: await npm.readCallsAsync(), output: result.output };
+  const result = await WorkflowStepFixture.runAsync(WorkflowStepFixture.readRun("package-app.yml", "Install the dependencies"), npm.folder, npm.bin, { BASH_ENV: npm.sleeper });
+  return { status: result.status, calls: await npm.readCallsAsync(), output: result.output, sleeps: await npm.readSleepsAsync() };
 }
 
 describe("package-app.yml's install step", () => {
@@ -29,11 +30,19 @@ describe("package-app.yml's install step", () => {
 
     assert.equal(result.status, 0);
     assert.deepEqual(result.calls, [JSON.stringify(ARGUMENTS), JSON.stringify(ARGUMENTS)]);
-    assert.equal(result.output, Resources.npmCiStalledRead(NpmLogsFixture.REQUESTS.slice(-5)));
+    assert.equal(result.output, Resources.npmCiDropped(NpmLogsFixture.REQUESTS.slice(-5)));
+    assert.deepEqual(result.sleeps, [String(Resources.npmCiRetryPause / 1000)]);
   });
 
   it("runs npm ci once more after a read the connection reset", async () => {
     const result = await runAsync([[196, NpmLogsFixture.RESET], [0, NpmLogsFixture.REQUESTS]]);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.calls.length, 2);
+  });
+
+  it("runs npm ci once more after a download the connection reset, which npm logs as aborted with no syscall", async () => {
+    const result = await runAsync([[196, NpmLogsFixture.ABORTED], [0, NpmLogsFixture.REQUESTS]]);
 
     assert.equal(result.status, 0);
     assert.equal(result.calls.length, 2);
@@ -75,5 +84,6 @@ describe("package-app.yml's install step", () => {
     assert.equal(result.status, 0);
     assert.equal(result.calls.length, 1);
     assert.equal(result.output, "");
+    assert.deepEqual(result.sleeps, []);
   });
 });

@@ -100,7 +100,7 @@ export class PackageStage {
       t => versions.of(t));
     const roots = [...installed, ...modulePackages].map(t => [t, String(closure.find(u => u.name === t)?.version)] as const);
     const company = await this.packCompanyAsync(closure.filter(t => PackageNaming.isNoldova(t.name)), windowPackages);
-    const thirdParty = await this.prepareThirdPartyAsync(closure.filter(t => !PackageNaming.isNoldova(t.name)), accepted, typeOnly);
+    const thirdParty = await this.prepareThirdPartyAsync(closure.filter(t => !PackageNaming.isNoldova(t.name)), accepted, typeOnly, output);
     const shipped = new Set([...closure.map(t => t.id), ...packages.map(t => Resources.formatPackageId(t.name, versions.of(t.name)))]);
     for (const [section, ids] of [[Resources.acceptedLicensesSection, accepted.ids], [Resources.typeOnlyPeersSection, typeOnly.ids], [Resources.omittedOptionalsSection, omitted.ids]] as const)
       for (const id of ids.filter(t => !shipped.has(t)))
@@ -152,10 +152,11 @@ export class PackageStage {
     return packed;
   }
 
-  private async prepareThirdPartyAsync(thirdParty: readonly LockedPackage[], accepted: AcceptedLicenses, typeOnly: TypeOnlyPeers): Promise<readonly ThirdPartyPackage[]> {
+  private async prepareThirdPartyAsync(thirdParty: readonly LockedPackage[], accepted: AcceptedLicenses, typeOnly: TypeOnlyPeers, output: Writable):
+    Promise<readonly ThirdPartyPackage[]> {
     const prepared: ThirdPartyPackage[] = [];
     for (const locked of thirdParty)
-      prepared.push(await ThirdPartyPackage.prepareAsync(locked, this.layout.thirdParty, this.assets.list(Resources.reviewedLicensesSegments), accepted, typeOnly));
+      prepared.push(await ThirdPartyPackage.prepareAsync(locked, this.layout.thirdParty, this.assets.list(Resources.reviewedLicensesSegments), accepted, typeOnly, output));
     await mkdir(path.dirname(this.layout.thirdPartyLicenses), { recursive: true });
     await writeFile(this.layout.thirdPartyLicenses, prepared.map(t => t.formatNotice()).join(Resources.stageNoticeSeparator));
     return prepared;

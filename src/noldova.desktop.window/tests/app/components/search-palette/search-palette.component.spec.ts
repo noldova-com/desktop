@@ -214,6 +214,28 @@ describe("SearchPaletteComponent", () => {
     expect(errors.map(t => String(t))).toEqual(["Error: The chat is gone."]);
   });
 
+  it("opens on Enter pressed while a new query is still answered the result that query finds, once every source has answered it", async () => {
+    let answer: (value: SearchAnswer) => void = () => undefined;
+    const held = new SearchSourceContribution("chat.chats", "Chats", "chats", "In Chats", null, "forum", () => Promise.resolve([]),
+      query => query === "term" ? Promise.resolve(new SearchAnswer([result("chat.0", "Terminal tab freezes")])) : new Promise<SearchAnswer>(resolve => {
+        answer = resolve;
+      }));
+    TestBed.overrideProvider(SearchService, { useValue: { placeholder: signal("Search chats"), createSession: () => new SearchSession([held, commands], "desktop.commands", () => undefined) } });
+    const fixture = await renderAsync(() => true);
+    const host = DomFixture.host(fixture);
+    const input = DomFixture.one(host, "nol-quick-input");
+    await typeAsync(fixture, "term", t => !Object.isNull(t.querySelector("[data-item='chat.chats/chat.0']")) && input.getAttribute("data-searching") === "false");
+    await typeAsync(fixture, " tab", () => true);
+    DomFixture.one(host, ".nol-quick-input-field").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    await settle(fixture);
+    const waiting = [...opened];
+
+    answer(new SearchAnswer([result("chat.tab", "Terminal tab freezes")]));
+    await settle(fixture, () => opened.length === 1);
+
+    expect([waiting, opened, closes]).toEqual([[], ["chat.tab"], 1]);
+  });
+
   it("only closes for a chosen item that has no result", async () => {
     const fixture = await renderAsync();
     fixture.debugElement.query(By.directive(QuickInputComponent)).injector.get(QuickInputComponent).chosen.emit(new QuickInputItem("chat.chats/gone", "Gone", null, null, null));

@@ -1462,6 +1462,10 @@ export class Resources {
     return `No command named ${name} is registered; its module may not be active.`;
   }
 
+  public static formatCommandNotEnabled(name: string): string {
+    return `The command ${name} is not enabled for these arguments.`;
+  }
+
   public static formatUndeclaredCommand(moduleId: string, name: string): string {
     return `The module ${moduleId} does not declare the command ${name}.`;
   }

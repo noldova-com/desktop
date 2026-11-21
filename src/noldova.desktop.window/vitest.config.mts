@@ -30,6 +30,7 @@ export default defineConfig({
   },
   test: {
     attachmentsDir: fileURLToPath(new URL("../../.vitest/attachments", import.meta.url)),
+    api: { port: 24325, host: "127.0.0.1" },
     browser: { commands: { watchFailedModuleRequests: new FailedModuleRequests().watch } },
     coverage: {
       reportsDirectory: fileURLToPath(new URL("../../_build/angular-coverage", import.meta.url))

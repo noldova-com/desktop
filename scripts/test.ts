@@ -58,6 +58,7 @@ import { RepositoryFiles } from "./structure/repository-files.ts";
 import { SourceTree } from "./structure/source-tree.ts";
 import { TestOptions } from "./test-options.ts";
 import { TestOptionsException } from "./test-options.exception.ts";
+import { TestPart } from "./test-part.ts";
 import { TestResources } from "./test.resources.ts";
 import { RunnerTotals } from "./totals/runner-totals.ts";
 
@@ -97,7 +98,7 @@ export class Test {
       if (options.repeat > 1)
         this.output.write(TestResources.formatRunHeading(run, options.repeat));
       const exitCode = options.filters.length === 0
-        ? await this.runChecksAsync(await this.createChecksAsync(flaky), null, flaky)
+        ? await this.runChecksAsync(TestPart.select(await this.createChecksAsync(flaky), options.part, t => t instanceof PackageTestCheck, t => t instanceof PackageCheck), Object.isNull(options.part) ? null : TestResources.formatPartNotice(options.part), flaky)
         : await this.runFilteredAsync(options.filters, flaky);
       if (exitCode !== Resources.successExitCode) {
         if (options.repeat > 1)

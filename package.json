@@ -1,6 +1,6 @@
 {
   "name": "@noldova/desktop",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "desktop": {
     "protocolVersion": 1,
     "modules": [],
@@ -54,14 +54,14 @@
     "test:ui:ci": "node scripts/ui-workflows-ci.ts"
   },
   "dependencies": {
-    "@noldova/context.core": "0.0.8",
-    "@noldova/context.exceptions": "0.0.8",
-    "@noldova/context.json": "0.0.8",
-    "@noldova/context.text": "0.0.8",
+    "@noldova/context.core": "0.0.9",
+    "@noldova/context.exceptions": "0.0.9",
+    "@noldova/context.json": "0.0.9",
+    "@noldova/context.text": "0.0.9",
     "electron-updater": "6.8.9"
   },
   "devDependencies": {
-    "@noldova/context.testing": "0.0.8",
+    "@noldova/context.testing": "0.0.9",
     "@playwright/test": "1.63.0",
     "@types/node": "26.6.6",
     "@types/semver": "7.8.0",

@@ -22,6 +22,7 @@ import { ContentPadding } from "../../../src/app/enums/content-padding";
 import { DockSide } from "../../../src/app/enums/dock-side";
 import { LinkPlace } from "../../../src/app/enums/link-place";
 import { FileSaveOutcome } from "../../../src/app/enums/file-save-outcome";
+import { CommandNotEnabledException } from "../../../src/app/exceptions/command-not-enabled.exception";
 import { FileNotOpenedException } from "../../../src/app/exceptions/file-not-opened.exception";
 import { FileNotShownException } from "../../../src/app/exceptions/file-not-shown.exception";
 import { LinkNotOpenedException } from "../../../src/app/exceptions/link-not-opened.exception";
@@ -635,6 +636,51 @@ describe("WindowPartHostService", () => {
     expect(["N", "M"].map(t => host.findWindowCommand(new KeyboardEvent("keydown", { key: t.toLowerCase(), code: `Key${t}`, ctrlKey: true, altKey: true })))).toEqual(["notes.newNote", null]);
   });
 
+  it("refuses a part's run of a command that is not enabled for its arguments, without running it", async () => {
+    const runs: string[] = [];
+    let archiveAsync = (commandArguments: JsonValue): Promise<JsonValue> => Promise.reject(new Error(`notes isn't active for ${JSON.stringify(commandArguments)}.`));
+    const notes = new WindowPartFixture("notes", log, t => {
+      t.registerCommand(new CommandContribution("notes.archive", "Archive", null, null, u => {
+        runs.push(`notes.archive ${JSON.stringify(u)}`);
+        return Promise.resolve("archived");
+      }, u => !Object.isNull(u)));
+      archiveAsync = u => t.runCommandAsync("notes.archive", u);
+    });
+    const { host } = start([source("notes", notes, [], [], ["notes.archive"])], [status("notes")]);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+
+    const refused = await archiveAsync(null).catch((error: unknown) => error);
+    const ran = await archiveAsync({ note: 1 });
+
+    expect(refused).toBeInstanceOf(CommandNotEnabledException);
+    expect(ran).toBe("archived");
+    expect(runs).toEqual(["notes.archive {\"note\":1}"]);
+  });
+
+  it("keeps a part that runs a runtime command while it continues after the runtime starts again", async () => {
+    const synced: JsonValue[] = [];
+    let syncAsync = (): Promise<JsonValue> => Promise.reject(new Error("notes isn't active."));
+    const notes = new WindowPartFixture("notes", log, t => {
+      syncAsync = () => t.runCommandAsync("notes.sync", { by: 1 });
+    });
+    notes.onReconnect = async () => {
+      synced.push(await syncAsync());
+      return true;
+    };
+    bridge.responses.set("desktop.commands", { payload: { commands: [{ name: "notes.sync", title: "Sync" }], sequence: 2 } });
+    bridge.responses.set("desktop.runCommand", { payload: 3 });
+    const { host } = start([source("notes", notes)], [status("notes")]);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+
+    bridge.publishStartup({ kind: "Connecting", details: [] });
+    bridge.publishStartup({ kind: "Ready", details: [] });
+    await vi.waitFor(() => expect(host.generation()).toBe(2));
+
+    expect(errors).toEqual([]);
+    expect(log).toEqual(["activate notes", "reconnect notes"]);
+    expect(synced).toEqual([3]);
+  });
+
   it("gives a part a command's key that follows the person's bindings", () => {
     const { host } = start([], []);
     TestBed.inject(CommandService).setCommands([new CommandContribution("notes.newNote", "New note", null, "Mod+Alt+N", () => Promise.resolve(null)),
@@ -702,6 +748,25 @@ describe("WindowPartHostService", () => {
     await vi.waitFor(() => expect(host.generation()).toBe(1));
 
     expect(commands.isEnabled("clock.tick")).toBe(false);
+    expect(errors).toEqual([]);
+  });
+
+  it("takes no command states from an answer that arrives after its connection ended", async () => {
+    let resolve: (value: unknown) => void = () => undefined;
+    bridge.responses.set("desktop.commands", new Promise<unknown>(t => {
+      resolve = t;
+    }));
+    const { host } = start([], [status("clock")]);
+    const commands = TestBed.inject(CommandService);
+    await vi.waitFor(() => expect(bridge.requests.map(t => t[0])).toContain("desktop.commands"));
+
+    bridge.publishStartup({ kind: "Connecting", details: [] });
+    resolve({ payload: { commands: [{ name: "clock.tick", title: "Tick", isEnabled: false }], sequence: 9 } });
+    bridge.responses.set("desktop.commands", { payload: { commands: [{ name: "clock.tick", title: "Tick" }], sequence: 1 } });
+    bridge.publishStartup({ kind: "Ready", details: [] });
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+
+    expect(commands.isEnabled("clock.tick")).toBe(true);
     expect(errors).toEqual([]);
   });
 

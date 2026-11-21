@@ -733,7 +733,12 @@ test.describe("web views", () => {
       await expect.poll(() => holdsPageStateAsync(mainProcess, url, text)).toBe(true);
     };
     const restoredAsync = async (url: string, text: string): Promise<void> => {
-      await expect.poll(() => runInViewAtAsync(mainProcess, url, formScript)).toEqual([text, 1200, false]);
+      try {
+        await expect.poll(() => runInViewAtAsync(mainProcess, url, formScript)).toEqual([text, 1200, false]);
+      }
+      catch (error) {
+        throw new Error(`${String(error)}\nThe main process said of web views' scroll:\n${mainProcess.diagnostics.join("\n")}`, { cause: error });
+      }
     };
     const runAsync = async (title: string): Promise<void> => {
       await CommandSearchFixture.searchAsync(window, title);
