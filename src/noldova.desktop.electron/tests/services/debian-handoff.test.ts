@@ -196,6 +196,20 @@ export class DebianHandoffTests {
     Assert.areEqual("/bin/sh", DebianHandoff.findUpdateInstaller("/bin/sh"));
   }
 
+  @TestMethod
+  @PlatformFixture.windowsOnly()
+  public async findsAReadOnlyFileOnWindowsWhichGivesEveryFileToUserZeroAsync(): Promise<void> {
+    await DebianHandoffTests.withDownloadAsync(async download => {
+      await chmod(download, 0o444);
+      try {
+        Assert.areEqual(download, DebianHandoff.findUpdateInstaller(download));
+      }
+      finally {
+        await chmod(download, 0o644);
+      }
+    });
+  }
+
   private static async withDownloadAsync(run: (download: string) => Promise<void>): Promise<void> {
     const folder = await mkdtemp(join(tmpdir(), "desktop-debian-handoff-"));
     try {
