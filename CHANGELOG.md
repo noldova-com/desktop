@@ -4,6 +4,19 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.11
+
+- When the origin check refuses a frame's navigation, or a frame's load or redirect, the view raises `FrameNavigationRefused` with the address, its origin, `isRedirect` and the frame's `frameId`, and the host shows its own refused page in that frame, in the window's colours; `NavigationRefused` stays the main frame's alone, and a module built before this event ignores it.
+  The page says "`<name>` doesn't open `<origin>`", with the name a window part gives `context.webViews.openAsync` in its new optional `{ name }`, or "This view" without one; it names the origin only when the frame itself started the navigation, and says "this address" otherwise, so a page can't read where another origin's redirect or its parent sent the frame.
+  The origin check lets that page through once, only in that frame and only at its exact address; every other `data:` address stays refused.
+- A moved web view's restored page reads its scroll without a time limit, so a busy machine no longer loses the scroll there; a keep or a scroll-back that gives up writes a line to the main process log naming the view and why.
+- A right-click in a tab's rename field opens the field menu (Cut, Copy, Paste) again, and the rename goes on once that menu closes; `@noldova/ui.components.angular` is pinned at 0.0.20, and the window package's peer on it is `>=0.0.20 <0.1.0`.
+- The build retries a browser's or Electron's install only after a network failure that another try can fix, such as `ECONNRESET`, `ETIMEDOUT`, `EAI_AGAIN` or a 5xx, 408 or 429 answer, and fails at once naming any other failure; an Electron install that leaves no binary fails at once.
+  `npm ci`'s retry after a dropped read or download waits 5 seconds before its second run.
+- A Windows installer that packaging stops at its time limit is reported with what it left: the install folder's files, each `ns*.tmp` folder the installer made under the temporary folder with its files and sizes, and which of its processes still run.
+- Tests: the docking test that resizes a dock waits for the dropped tab's focus first.
+  The packages are unchanged by this.
+
 ## 0.0.10
 
 - A `NewWindowRequested` event carries `fromPress`, following a browser's popup rule: each press of the person's own mouse button, key or touch in a view, but Escape or a modifier alone, gives the view one activation for 5 seconds, and the first new-window request after it uses it up and gets `true`; every other request, including the second one from the same press, gets `false`.
