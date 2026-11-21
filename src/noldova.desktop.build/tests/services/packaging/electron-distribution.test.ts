@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -16,6 +16,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { ElectronDistribution } from "../../../src/services/packaging/electron-distribution.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 @TestClass
 export class ElectronDistributionTests {
@@ -62,7 +63,7 @@ export class ElectronDistributionTests {
 
   private static async writeAsync(folder: string, file: string, text: string): Promise<void> {
     const target = path.join(folder, ...file.split("/"));
-    await mkdir(path.dirname(target), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(target));
     await writeFile(target, text);
   }
 

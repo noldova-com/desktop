@@ -23,6 +23,7 @@ import { AngularProject } from "../../../src/services/angular/angular-project.js
 import { ProductFile } from "../../../src/services/angular/product-file.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
 import { NpmCommand } from "../../../src/services/toolchain/npm-command.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 @TestClass
 export class ProductAboutTests {
@@ -159,7 +160,7 @@ export class ProductAboutTests {
   }
 
   private static async writeTextAsync(file: string, text: string): Promise<void> {
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, text);
   }
 

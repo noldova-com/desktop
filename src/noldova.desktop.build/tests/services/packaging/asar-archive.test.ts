@@ -27,6 +27,7 @@ import { PackagedUnpackedFiles } from "../../../src/services/packaging/packaged-
 import { ShippedFiles } from "../../../src/services/packaging/shipped-files.js";
 import { UnpackedFiles } from "../../../src/services/packaging/unpacked-files.js";
 import { Resources } from "../../../src/resources.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 @TestClass
 @Category("Packaging")
@@ -329,7 +330,7 @@ export class AsarArchiveTests {
 
   private static async writeAsync(folder: string, file: string, text: string | Buffer): Promise<void> {
     const target = path.join(folder, ...file.split("/"));
-    await mkdir(path.dirname(target), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(target));
     await writeFile(target, text);
   }
 

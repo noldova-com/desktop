@@ -27,6 +27,7 @@ import { PackageStage } from "../../../src/services/packaging/package-stage.js";
 import { ThirdPartyClosure } from "../../../src/services/packaging/third-party-closure.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
 import { NpmCommand } from "../../../src/services/toolchain/npm-command.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 import { ModuleAppFixture } from "../../fixtures/module-app.fixture.js";
 import { type ITarballEntry, TarballFixture } from "../../fixtures/tarball.fixture.js";
 import { TemporaryFolderRunnerFixture } from "../../fixtures/temporary-folder-runner.fixture.js";
@@ -354,7 +355,7 @@ export class CompanyPackageTests {
       path.join(root.path, "packed"), new NpmCommand(runner, { npm_execpath: "npm-cli.js" }), new Set());
 
     const gone = await Assert.throwsAsync(pack, BuildException);
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, "changed");
     const changed = await Assert.throwsAsync(pack, BuildException);
     await writeFile(file, archive);
@@ -372,7 +373,7 @@ export class CompanyPackageTests {
     await using root = await CompanyPackageTests.createRootAsync({ name: "@noldova-com/sample", version: "1.0.0" }, "@noldova-com/sample");
     const archive = TarballFixture.create({ "package.json": JSON.stringify({ name: "@noldova-com/sample", version: "1.0.0" }) });
     const file = path.join(root.path, "_packages", "noldova-com-sample-1.0.0.tgz");
-    await mkdir(path.dirname(file));
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, archive);
 
     const packed = await CompanyPackage.packAsync(CompanyPackageTests.lockArchive("@noldova-com/sample", "file:_packages/noldova-com-sample-1.0.0.tgz", archive), root.path,
@@ -388,7 +389,7 @@ export class CompanyPackageTests {
     const file = path.join(root.path, "_packages", "noldova-sample-1.0.0.tgz");
     const repository = path.join(root.path, "repository");
     const other = path.join(root.path, "other", "app");
-    await mkdir(path.dirname(file));
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, archive);
     await mkdir(path.join(repository, ".git"), { recursive: true });
     await CompanyPackageTests.installSampleAsync(path.join(repository, "app"));
@@ -444,7 +445,7 @@ export class CompanyPackageTests {
     const target = path.join(root.path, "folder");
     await mkdir(path.join(repository, ".git"), { recursive: true });
     await CompanyPackageTests.installSampleAsync(repository);
-    await mkdir(path.dirname(file));
+    await FolderFixture.ensureAsync(path.dirname(file));
     await mkdir(target);
     await symlink(target, file, "junction");
 
@@ -486,7 +487,7 @@ export class CompanyPackageTests {
     const file = path.join(root.path, "_packages", "noldova-sample-1.0.0.tgz");
     const app = path.join(root.path, ...appFolder);
     await mkdir(path.join(root.path, ".git"));
-    await mkdir(path.dirname(file));
+    await FolderFixture.ensureAsync(path.dirname(file));
     await mkdir(app, { recursive: true });
     await writeFile(file, archive);
     const resolved = `file:${"../".repeat(appFolder.length)}_packages/noldova-sample-1.0.0.tgz`;

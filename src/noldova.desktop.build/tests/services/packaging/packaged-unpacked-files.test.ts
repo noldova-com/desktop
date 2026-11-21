@@ -15,6 +15,7 @@ import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testin
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackagedUnpackedFiles } from "../../../src/services/packaging/packaged-unpacked-files.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 @TestClass
 export class PackagedUnpackedFilesTests {
@@ -115,7 +116,7 @@ export class PackagedUnpackedFilesTests {
     await writeFile(path.join(resources, "app.asar"), PackagedUnpackedFilesTests.createArchive({ files }));
     if (isWritten) {
       const file = path.join(resources, "app.asar.unpacked", ...segments);
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(file));
       await writeFile(file, "script");
     }
     const configuration = path.join(folder, "electron-builder.json");
