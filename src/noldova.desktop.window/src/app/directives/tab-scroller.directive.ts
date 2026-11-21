@@ -72,7 +72,7 @@ export class TabScrollerDirective {
     if (overflows !== this.isOverflowingValue())
       this.isOverflowingValue.set(overflows);
     const shown = TabScrollerDirective.shownOf(widths, tabs.findIndex(t => t.matches(Resources.selectedTabSelector)), room - this.actionsWidth);
-    const hidden = new Set(tabs.filter((_, index) => !shown.has(index)).map(t => t.dataset[Resources.tabKeyData] ?? String.empty));
+    const hidden = new Set(tabs.filter((_, index) => !shown.has(index)).map(t => t.dataset[Resources.tabKeyData]).filter((t): t is string => !Object.isUndefined(t)));
     const current = this.hiddenValue();
     if (hidden.size !== current.size || [...hidden].some(t => !current.has(t)))
       this.hiddenValue.set(hidden);
@@ -90,19 +90,19 @@ export class TabScrollerDirective {
 
   private static shownOf(widths: readonly number[], selected: number, room: number): ReadonlySet<number> {
     const shown: number[] = [];
+    const sums = [0];
     let used = 0;
     for (const [index, width] of widths.entries()) {
       if (used + width > room + TabScrollerDirective.TOLERANCE)
         break;
       shown.push(index);
       used += width;
+      sums.push(used);
     }
     const width = widths[selected];
     if (Object.isUndefined(width) || shown.includes(selected))
       return new Set(shown);
-    let kept = shown.length;
-    while (kept > 0 && used + width > room + TabScrollerDirective.TOLERANCE)
-      used -= widths[--kept] ?? 0;
+    const kept = Math.max(0, sums.findLastIndex(t => t + width <= room + TabScrollerDirective.TOLERANCE));
     return new Set([...shown.slice(0, kept), selected]);
   }
 
