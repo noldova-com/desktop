@@ -27,6 +27,7 @@ export class WindowBoundsKeeper {
   private readonly keepsStoredPosition: boolean;
   private restored: WindowState | null = null;
   private isRead: boolean = false;
+  private hasFailedRead: boolean = false;
   private store: IWindowStateStore | undefined;
   private timer: NodeJS.Timeout | undefined;
   private hasUnsaved: boolean = false;
@@ -69,13 +70,14 @@ export class WindowBoundsKeeper {
   public async restoreAsync(store: IWindowStateStore): Promise<void> {
     this.isHeld = false;
     if (this.hasUnsaved) {
-      if (this.keepsStoredPosition && !this.isRead)
-        this.keepRead(await store.readAsync());
+      const held = this.keepsStoredPosition && !this.isRead ? await this.readFromAsync(store) : undefined;
       this.store = store;
+      if (!Object.isUndefined(held))
+        this.keepRead(held);
       await this.saveAsync();
       return;
     }
-    const saved = await store.readAsync();
+    const saved = await this.readFromAsync(store);
     if (this.window.isDestroyed())
       return;
     this.store = store;
@@ -148,9 +150,21 @@ export class WindowBoundsKeeper {
     return this.restored;
   }
 
+  private async readFromAsync(store: IWindowStateStore): Promise<JsonObject | null> {
+    try {
+      return await store.readAsync();
+    }
+    catch (error) {
+      this.hasFailedRead = true;
+      throw error;
+    }
+  }
+
   private noteChange(): void {
     if (!Object.isUndefined(this.store))
       this.scheduleSave();
+    else if (this.hasFailedRead)
+      this.hasUnsaved = true;
   }
 
   private notePlacedByPerson(): void {
