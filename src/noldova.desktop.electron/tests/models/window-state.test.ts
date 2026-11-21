@@ -112,6 +112,11 @@ export class WindowStateTests {
     Assert.areEqual("100,25,1280,800", WindowStateTests.describe(new WindowState(100, -200, 1280, 800, false).placeOn(areas, WindowStateTests.PRIMARY)));
     Assert.areEqual("2400,25,1280,800", WindowStateTests.describe(new WindowState(2400, 10, 1280, 800, false).placeOn(areas, WindowStateTests.PRIMARY)));
     Assert.areEqual("2560,25,1280,800", WindowStateTests.describe(new WindowState(3000, -100, 1280, 800, false).placeOn(areas, WindowStateTests.PRIMARY)));
+    const single = [new ScreenArea(0, 0, 1920, 1040)];
+    Assert.areEqual("640,100,1280,800", WindowStateTests.describe(new WindowState(1915, 100, 1280, 800, false).placeOn(single, WindowStateTests.PRIMARY)));
+    Assert.areEqual("640,100,1280,800", WindowStateTests.describe(new WindowState(1761, 100, 1280, 800, false).placeOn(single, WindowStateTests.PRIMARY)));
+    Assert.areEqual("1760,100,1280,800", WindowStateTests.describe(new WindowState(1760, 100, 1280, 800, false).placeOn(single, WindowStateTests.PRIMARY)));
+    Assert.areEqual("-1120,100,1280,800", WindowStateTests.describe(new WindowState(-1120, 100, 1280, 800, false).placeOn(single, WindowStateTests.PRIMARY)));
     const stacked = [new ScreenArea(0, 0, 1920, 1040), new ScreenArea(0, 1080, 1920, 1040)];
     Assert.areEqual("200,1000,1280,800", WindowStateTests.describe(new WindowState(200, 1000, 1280, 800, false).placeOn(stacked, WindowStateTests.PRIMARY)));
   }

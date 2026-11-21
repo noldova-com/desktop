@@ -68,7 +68,7 @@ export class WindowState {
       return this.centerOn(primary);
     if (!shown.fits(this.width, this.height))
       return this.centerOn(shown);
-    if (workAreas.some(t => t.overlapArea(x, y, this.width, 1) > 0))
+    if (workAreas.some(t => t.overlapArea(x, y, this.width, 1) >= Resources.windowRowReach))
       return new ScreenArea(x, y, this.width, this.height);
     return new ScreenArea(WindowState.within(x, shown.x, shown.x + shown.width - this.width), WindowState.within(y, shown.y, shown.y + shown.height - this.height),
       this.width, this.height);
