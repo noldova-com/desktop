@@ -371,7 +371,7 @@ export class PosixProcessEnderTests {
   public async killsAPseudoTerminalsProgramThatDoesNotLeadAGroupYetAndIgnoresTheHangupAndSaysSo(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     await using folder = await TemporaryFolderFixture.createAsync();
-    const processes = ProcessSupervisorFixture.create(settings);
+    const processes = ProcessSupervisorFixture.createWith(settings, new ProcessSettings(300));
     const library = new PseudoTerminalLibraryFixture();
     library.detaches = false;
     const terminal = await processes.startPseudoTerminalAsync(ProcessSupervisorFixture.MODULE,
@@ -624,7 +624,7 @@ export class PosixProcessEnderTests {
     await using folder = await TemporaryFolderFixture.createAsync();
     using simulated = new SimulatedProcessesFixture();
     const table = new ProcessTableFixture([]);
-    const processes = ProcessSupervisorFixture.createLinux(settings, table);
+    const processes = ProcessSupervisorFixture.createLinux(settings, table, ProcessSupervisorFixture.CLEAN_EXIT_LIMITS);
     const ended = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.EXIT, "2"]));
     await ended.exited;
     const running = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.WAIT]));

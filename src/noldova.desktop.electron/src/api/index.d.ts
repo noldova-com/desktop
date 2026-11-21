@@ -2200,6 +2200,43 @@ export interface IFrameNavigation extends IPreventableEvent {
    * Whether the page's own frame navigates, rather than one of its frames.
    */
   readonly isMainFrame: boolean;
+
+  /**
+   * The frame that navigates, or `null` once it is gone.
+   */
+  readonly frame: IWebViewFrame | null;
+
+  /**
+   * The frame that started the navigation, such as the frame itself or its parent, or `null` when no frame did.
+   */
+  readonly initiator?: IWebViewFrame | null;
+}
+
+/**
+ * A frame of a web view's page, as Electron's `WebFrameMain` gives it.
+ */
+export interface IWebViewFrame {
+  /**
+   * The frame's id, which stays the same across its navigations for as long as the frame exists in the view and is never used again.
+   */
+  readonly frameTreeNodeId: number;
+
+  /**
+   * Runs code in the frame's page, as the host does to send a frame to its refused page.
+   *
+   * @param code - The code to run.
+   * @returns The code's result; rejects when the frame has gone or changed process.
+   *
+   * @example
+   * ```ts
+   * import type { IWebViewFrame } from "@noldova/desktop.electron";
+   *
+   * export async function readTitleAsync(frame: IWebViewFrame): Promise<unknown> {
+   *   return await frame.executeJavaScript("document.title");
+   * }
+   * ```
+   */
+  executeJavaScript(code: string): Promise<unknown>;
 }
 
 /**
@@ -3209,6 +3246,11 @@ export interface IWebViewInputEvent {
    * The event's type, such as `rawKeyDown`, `mouseDown` or `touchStart`.
    */
   readonly type: string;
+
+  /**
+   * A key event's key, as the DOM's `KeyboardEvent.key` names it, such as `a`, `Escape` or `Shift`; other events have none.
+   */
+  readonly key?: string;
 }
 
 /**
@@ -3876,6 +3918,11 @@ export interface IWebViewRequest {
    * What it loads, such as `mainFrame`, `subFrame`, `script` or `image`.
    */
   readonly resourceType: string;
+
+  /**
+   * The frame that asked, which for a `subFrame` load is the frame that navigates; `null` once it is gone.
+   */
+  readonly frame?: IWebViewFrame | null;
 
   /**
    * Its headers, once they are known.
@@ -6412,6 +6459,22 @@ export declare class UpdateWorkQuestion {
    * ```
    */
   public answer(prompt: IQuitPrompt, choice: unknown): boolean;
+
+  /**
+   * Ends the question with no answer once the window that asks closes, so the restart is cancelled rather than left
+   * waiting for good.
+   *
+   * @param prompt The window that closed; any other window changes nothing.
+   * @example
+   * ```ts
+   * import type { IQuitPrompt, UpdateWorkQuestion } from "@noldova/desktop.electron";
+   *
+   * export function closed(question: UpdateWorkQuestion, prompt: IQuitPrompt): void {
+   *   question.dismiss(prompt);
+   * }
+   * ```
+   */
+  public dismiss(prompt: IQuitPrompt): void;
 }
 
 /**
@@ -6508,6 +6571,11 @@ export declare class OpenWindow implements IQuitPrompt {
    * Limits how many errors from the window's page reach the main process log: ten a minute, then one notice.
    */
   public readonly errors: WindowErrorLimit;
+
+  /**
+   * The appearance the window was last painted in, or `null` until it is painted.
+   */
+  public appearance: WindowAppearance | null;
 
   /**
    * Takes charge of a window that is not yet shown.
@@ -8428,6 +8496,13 @@ export interface IFeedResponse {
    * The URL that answered, after any redirects.
    */
   readonly url: string;
+
+  /**
+   * The body as a stream, as `fetch` gives it; optional. The feed provider
+   * cancels it when it refuses the answer without reading it, so a server
+   * that keeps the body open doesn't hold the connection until the timeout.
+   */
+  readonly body?: ReadableStream<Uint8Array> | null;
 
   /**
    * Reads the body as text.

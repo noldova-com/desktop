@@ -168,6 +168,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On macOS nothing changes, since Cmd is the window's.
 - While a modal dialog is open, only the Edit commands run from keys, and a view's dialog adds its own module's commands.
 - On macOS the main process builds the native menu bar from the rows the window gives it, keeping the system's own items; choosing a row runs it in the window, and the window's key handling stays the only one.
+  Once the window whose rows it shows closes, the main process puts back the standard menu bar it starts with, the app, Edit and Window menus with the system's items, so no row is left that runs nowhere.
 - On Windows and Linux the menus show at the start of the window row, as a menu bar or a menu button, or not at all, as the shared setting `desktop.menuBar` chooses.
 - The window row shows the search field in its middle and no heading: the window takes the title of the document area's active tab when that tab is a document or a view's instance, and a tab in a dock never names it, whichever group has focus.
   A document's title shows in its tab, and its part draws its title and breadcrumb in its own content where it wants them; the window keeps the breadcrumb but shows it nowhere.
@@ -234,6 +235,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - The palette asks every source at once and shows each one's group as its answer comes, keeping the selected row while it is listed.
   It aborts a source's `signal` when the query changes or the palette closes, and drops an answer that comes after that.
   A source whose call rejects shows no group and no count, and its failure goes to the window's log; the other sources never wait for a late or failed one.
+  The palette tells its quick input, as `itemsQuery`, the text as typed that its rows answer: that text once the list holds the first answer with a match for its query, or once every source has answered or failed with none, so Enter pressed while a new query loads waits only until then and opens the row then selected, such as the Best match, even while a late source is still answering.
   When Noldova Desktop's commands change while the palette is open, such as when the window's start ends, the palette asks Commands again for the open query and its recent items, and shows the newest answer, dropping an older one that comes later; a module's source is asked once per query.
 
 ## Settings and modules
@@ -383,6 +385,6 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A part whose save fails keeps the app open and is reported as `desktop.saveFailed`; a part whose save hasn't settled after 4 seconds doesn't block closing and is reported as `desktop.saveUnfinished`.
   The main process waits at most 5 seconds for each window's answer.
 - A failed save of the layout is logged and closing goes on.
-- Quitting asks the runtime to stop as [RUNTIME.md](RUNTIME.md#work-and-quitting) says, and asks the person first when work is in progress.
+- Quitting asks the runtime to stop as [RUNTIME.md](RUNTIME.md#work-and-quitting) says, and asks the person first when work is in progress; closing the window that asks answers Cancel, so the app stays open.
 - On Linux and macOS the main process quits this way on SIGTERM and SIGHUP.
 - An update never outweighs an unsaved change: a save that fails or doesn't settle stops the update, as [BUILD.md](BUILD.md#stopping-for-an-update) says.

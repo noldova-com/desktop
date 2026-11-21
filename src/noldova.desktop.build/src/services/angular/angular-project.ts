@@ -66,7 +66,7 @@ export class AngularProject {
     output.write(Resources.angularInstallingBrowser);
     await RetriedDownload.runAsync(Resources.angularBrowserSubject, output, async () => {
       const result = await this.runner.captureAsync(process.execPath, [path.join(this.root, Resources.playwrightCli), ...Resources.angularBrowserArguments], this.root, Resources.downloadAttemptTimeout);
-      return result.isSuccessful ? null : Resources.formatExitCodeProblem(result.exitCode, result.errorOutput);
+      return RetriedDownload.describeInstall(Resources.angularBrowserSubject, result);
     });
   }
 

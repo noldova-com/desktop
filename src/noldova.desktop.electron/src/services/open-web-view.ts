@@ -7,6 +7,7 @@
  */
 
 import "@noldova/context.core";
+import { randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { JsonException, JsonReader, type JsonObject } from "@noldova/context.json";
 import {
@@ -25,7 +26,9 @@ import {
 import type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
+import type { IWebViewFrame } from "../interfaces/i-web-view-frame.js";
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
+import type { IWebViewInputEvent } from "../interfaces/i-web-view-input-event.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
@@ -33,6 +36,7 @@ import type { IWindowNavigation } from "../interfaces/i-window-navigation.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 import { CaughtFailure } from "../models/caught-failure.js";
 import type { WebViewHistory } from "../models/web-view-history.js";
+import type { WebViewRefusedPage } from "../models/web-view-refused-page.js";
 import { Resources } from "../resources.js";
 import { WebViewEventCut } from "./web-view-event-cut.js";
 import { WebViewFavicon } from "./web-view-favicon.js";
@@ -51,6 +55,8 @@ export class OpenWebView {
   private readonly now: () => number;
   private readonly lost: () => void;
   private readonly input: (kind: string) => void;
+  private readonly refusedPage: WebViewRefusedPage;
+  private readonly log: (text: string) => void;
   private readonly endings: Set<(kind: WebViewFailureKind) => void> = new Set();
   private readonly attachWaits: Map<(guest: IWebViewContents) => void, (kind: WebViewFailureKind) => void> = new Map();
   private readonly lookupsSettled: (() => void)[] = [];
@@ -63,6 +69,7 @@ export class OpenWebView {
   private readonly favicon: WebViewFavicon;
   private windowRequests: readonly number[] = [];
   private lastInput: number | undefined;
+  private lastPress: number | undefined;
   private relayedInputs: number = 0;
   private relayedPresses: readonly symbol[] = [];
   private heldInputs: readonly (readonly [IWebViewContents, IWebViewInput, boolean])[] = [];
@@ -71,6 +78,8 @@ export class OpenWebView {
   private isAnswerAwaited: boolean = false;
   private touchPoints: readonly unknown[] = [];
   private uncountedInputs: number = 0;
+  private refusedPages: ReadonlyMap<number, string> = new Map();
+  private admittedPages: ReadonlyMap<number, string> = new Map();
   private openPageCalls: number = 0;
   private releases: Set<() => void> = new Set();
   private allowed: readonly string[] = [];
@@ -111,7 +120,9 @@ export class OpenWebView {
     waitAsync: (milliseconds: number, signal: AbortSignal) => Promise<void>,
     now: () => number,
     lost: () => void,
-    input: (kind: string) => void) {
+    input: (kind: string) => void,
+    refusedPage: WebViewRefusedPage,
+    log: (text: string) => void) {
     this.info = info;
     this.windowId = windowId;
     this.partition = partition;
@@ -126,7 +137,10 @@ export class OpenWebView {
     this.now = now;
     this.lost = lost;
     this.input = input;
+    this.refusedPage = refusedPage;
+    this.log = log;
     this.lastInput = undefined;
+    this.lastPress = undefined;
     this.pendingUrl = undefined;
     this.committedUrl = undefined;
     this.search = undefined;
@@ -153,8 +167,11 @@ export class OpenWebView {
     this.kept = kept;
     this.keptScroll = null;
     const scroll = await this.readScrollAsync(guest);
-    if (this.kept === kept)
-      this.keptScroll = scroll;
+    if (this.kept !== kept)
+      return;
+    if (Object.isNull(scroll))
+      this.log(Resources.formatWebViewScrollNotKept(this.info.module, this.info.id));
+    this.keptScroll = scroll;
   }
 
   public async bindAsync(guest: IWebViewContents, isPristine: boolean = false): Promise<boolean> {
@@ -173,6 +190,8 @@ export class OpenWebView {
     this.isReady = false;
     this.isFocusHeld = false;
     this.isCrashed = false;
+    this.refusedPages = new Map();
+    this.admittedPages = new Map();
     if (!Object.isNull(previous) && !previous.isDestroyed() && previous.debugger.isAttached())
       previous.debugger.detach();
     this.listen(guest);
@@ -304,10 +323,13 @@ export class OpenWebView {
     const isRedirect = this.redirects.delete(request.id);
     const isPage = request.resourceType === Resources.mainFrameResource;
     const isFrame = request.resourceType === Resources.subFrameResource;
-    const allows = !this.refusedRequests.delete(request.id)
+    const isAdmitted = isFrame && !isRedirect && this.takesAdmittedPage(request);
+    const allows = isAdmitted || !this.refusedRequests.delete(request.id)
       && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed));
     if (!allows && isPage)
       this.emitRefusedNavigation(request.url, isRedirect);
+    if (!allows && isFrame)
+      this.refuseFrame(request.frame ?? null, request.url, isRedirect, null);
     return allows;
   }
 
@@ -433,7 +455,7 @@ export class OpenWebView {
     });
     guest.on(Resources.inputEvent, (_event, input) => {
       if (this.isBound(guest))
-        this.noteInput(input.type);
+        this.noteInput(input);
     });
     guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
     guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
@@ -683,19 +705,43 @@ export class OpenWebView {
   private async scrollBackAsync(guest: IWebViewContents, kept: WebViewHistory, count: number, inputs: number, scroll: readonly [number, number] | null): Promise<void> {
     if (Object.isNull(scroll) || (scroll[0] === 0 && scroll[1] === 0))
       return;
-    const shown = await this.readScrollAsync(guest);
-    if (Object.isNull(shown) || shown[0] !== 0 || shown[1] !== 0 || this.navigationCount !== count || this.inputCount !== inputs || this.guest !== guest || guest.getURL() !== kept.currentUrl)
+    const shown = await this.readLayoutScrollAsync(guest);
+    if (!Object.isNull(shown) && shown[0] === scroll[0] && shown[1] === scroll[1])
       return;
-    await guest.executeJavaScriptInIsolatedWorld(Resources.scrollBackWorld, [{ code: Resources.formatScrollBackScript(scroll[0], scroll[1]) }]).catch(() => undefined);
+    const stop = this.findScrollBackStop(guest, kept, count, inputs, shown);
+    if (!Object.isNull(stop)) {
+      this.log(Resources.formatWebViewScrollNotRestored(this.info.module, this.info.id, scroll[0], scroll[1], stop));
+      return;
+    }
+    await guest.executeJavaScriptInIsolatedWorld(Resources.scrollBackWorld, [{ code: Resources.formatScrollBackScript(scroll[0], scroll[1]) }]).catch((error: unknown) =>
+      this.log(Resources.formatWebViewScrollNotRestored(this.info.module, this.info.id, scroll[0], scroll[1], Resources.formatWebViewScrollScriptFailed(String(error)))));
+  }
+
+  private findScrollBackStop(guest: IWebViewContents, kept: WebViewHistory, count: number, inputs: number, shown: readonly [number, number] | null): string | null {
+    if (this.guest !== guest)
+      return Resources.webViewScrollUnbound;
+    if (Object.isNull(shown))
+      return Resources.webViewScrollUnread;
+    if (this.navigationCount !== count)
+      return Resources.webViewScrollNavigated;
+    if (guest.getURL() !== kept.currentUrl)
+      return Resources.webViewScrollRedirected;
+    if (this.inputCount !== inputs)
+      return Resources.webViewScrollInput;
+    return shown[0] !== 0 || shown[1] !== 0 ? Resources.formatWebViewScrollShown(shown[0], shown[1]) : null;
   }
 
   private async readScrollAsync(guest: IWebViewContents): Promise<readonly [number, number] | null> {
     const abort = new AbortController();
-    const read = guest.debugger.sendCommand(Resources.layoutMetricsMethod, {}).then(t => OpenWebView.readScroll(t), () => null);
+    const read = this.readLayoutScrollAsync(guest);
     const late = this.waitAsync(Resources.webViewScrollReadTimeout, abort.signal).then(() => null, () => null);
     const scroll = await Promise.race([read, late]);
     abort.abort();
     return scroll;
+  }
+
+  private readLayoutScrollAsync(guest: IWebViewContents): Promise<readonly [number, number] | null> {
+    return guest.debugger.sendCommand(Resources.layoutMetricsMethod, {}).then(t => OpenWebView.readScroll(t), () => null);
   }
 
   private static readScroll(reply: unknown): readonly [number, number] | null {
@@ -729,14 +775,59 @@ export class OpenWebView {
   private judgeFrame(guest: IWebViewContents, navigation: IFrameNavigation): void {
     if (!this.isBound(guest))
       return navigation.preventDefault();
+    if (!navigation.isMainFrame && this.takesRefusedPage(navigation))
+      return;
     if (this.check.allowsNavigation(navigation.url, this.allowed, !navigation.isMainFrame))
       return;
     navigation.preventDefault();
     if (navigation.isMainFrame)
       this.emitRefusedNavigation(navigation.url, false);
+    else
+      this.refuseFrame(navigation.frame, navigation.url, false, navigation.initiator ?? null);
+  }
+
+  private takesRefusedPage(navigation: IFrameNavigation): boolean {
+    const frame = navigation.frame?.frameTreeNodeId;
+    if (Object.isUndefined(frame))
+      return false;
+    const page = this.refusedPages.get(frame);
+    this.refusedPages = new Map([...this.refusedPages].filter(([key]) => key !== frame));
+    this.admittedPages = new Map([...this.admittedPages].filter(([key]) => key !== frame));
+    if (page !== navigation.url || navigation.initiator?.frameTreeNodeId !== frame)
+      return false;
+    const kept = [...this.admittedPages].slice(1 - Resources.refusedPageLimit);
+    this.admittedPages = new Map([...kept, [frame, page]]);
+    return true;
+  }
+
+  private takesAdmittedPage(request: IWebViewRequest): boolean {
+    const frame = request.frame?.frameTreeNodeId;
+    if (Object.isUndefined(frame))
+      return false;
+    const page = this.admittedPages.get(frame);
+    this.admittedPages = new Map([...this.admittedPages].filter(([key]) => key !== frame));
+    return page === request.url;
+  }
+
+  private refuseFrame(frame: IWebViewFrame | null, url: string, isRedirect: boolean, initiator: IWebViewFrame | null): void {
+    if (Object.isNull(frame))
+      return;
+    const origin = OpenWebView.originOf(url);
+    this.emit(WebViewEventKind.FrameNavigationRefused,
+      { [Resources.addressField]: url, [Resources.originField]: origin, [Resources.isRedirectField]: isRedirect, [Resources.frameIdField]: frame.frameTreeNodeId });
+    const isOwn = !isRedirect && initiator?.frameTreeNodeId === frame.frameTreeNodeId;
+    const shown = origin === Resources.nullOrigin ? url : origin;
+    const page = this.refusedPage.format(isOwn ? shown : null, randomUUID());
+    const kept = [...this.refusedPages].filter(([key]) => key !== frame.frameTreeNodeId).slice(1 - Resources.refusedPageLimit);
+    this.refusedPages = new Map([...kept, [frame.frameTreeNodeId, page]]);
+    void frame.executeJavaScript(Resources.formatRefusedPageScript(page)).catch(() => undefined);
   }
 
   private noteStart(guest: IWebViewContents, navigation: IWindowNavigation): void {
+    if (navigation.isMainFrame && !navigation.isSameDocument) {
+      this.refusedPages = new Map();
+      this.admittedPages = new Map();
+    }
     if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument && OpenWebView.isSourceDocument(navigation.url))
       this.emitRefusedNavigation(navigation.url, false);
   }
@@ -752,8 +843,15 @@ export class OpenWebView {
       [Resources.addressField]: details.url,
       [Resources.hadRecentInputField]: !Object.isUndefined(this.lastInput) && now - this.lastInput <= Resources.recentInputMilliseconds,
       [Resources.originField]: origin === Resources.nullOrigin ? null : origin,
-      ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition }
+      ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition },
+      [Resources.fromPressField]: this.takePress(now)
     });
+  }
+
+  private takePress(now: number): boolean {
+    const isFromPress = !Object.isUndefined(this.lastPress) && now - this.lastPress <= Resources.recentInputMilliseconds;
+    this.lastPress = undefined;
+    return isFromPress;
   }
 
   private settleInput(press: symbol | null, isUncounted: boolean): void {
@@ -782,7 +880,8 @@ export class OpenWebView {
     this.input(Resources.inputEndKind);
   }
 
-  private noteInput(type: string): void {
+  private noteInput(input: IWebViewInputEvent): void {
+    const type = input.type;
     if (!Resources.pointerMoveTypes.includes(type))
       this.inputCount += 1;
     const isPress = Resources.personPressTypes.includes(type);
@@ -793,8 +892,12 @@ export class OpenWebView {
     const isPersonInput = Resources.personInputTypes.includes(type);
     if (isPersonInput && this.relayCopies > 0)
       this.relayCopies -= 1;
-    else if (this.relayedInputs === 0 && isPersonInput)
-      this.lastInput = this.now();
+    else if (this.relayedInputs === 0 && isPersonInput) {
+      const now = this.now();
+      this.lastInput = now;
+      if (Object.isUndefined(input.key) || !Resources.nonActivatingKeys.includes(input.key))
+        this.lastPress = now;
+    }
     if (this.openPageCalls > 0 && isPress && this.uncountedInputs === 0)
       this.input(Resources.inputPressKind);
   }

@@ -19,8 +19,8 @@ describe("WindowWebViews", () => {
   let opens: string[];
 
   function views(): WindowWebViews {
-    return new WindowWebViews((pane, profileKey) => {
-      opens.push(`${pane.name.text} ${profileKey}`);
+    return new WindowWebViews((pane, profileKey, name) => {
+      opens.push(`${pane.name.text} ${profileKey} ${name}`);
       const handle = new WebViewHandleFixture(`view-${opened.length + 1}`, pane, profileKey);
       opened.push(handle);
       return Promise.resolve(handle);
@@ -32,10 +32,13 @@ describe("WindowWebViews", () => {
     opens = [];
   });
 
-  it("opens a web view in the pane with the profile and hands it back", async () => {
-    const handle: IWebViewHandle = await views().openAsync(list, "workspace-1");
+  it("opens a web view in the pane with the profile, and the name the module gives its pages or none, and hands it back", async () => {
+    const webViews = views();
+    const handle: IWebViewHandle = await webViews.openAsync(list, "workspace-1");
+    await webViews.openAsync(list, "workspace-2", { name: "Notes' browser" });
+    await webViews.openAsync(list, "workspace-3", {});
 
-    expect(opens).toEqual(["notes.list workspace-1"]);
+    expect(opens).toEqual(["notes.list workspace-1 null", "notes.list workspace-2 Notes' browser", "notes.list workspace-3 null"]);
     expect(handle).toBe(opened[0]);
   });
 

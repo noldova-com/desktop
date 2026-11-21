@@ -222,6 +222,14 @@ export class Resources {
   public static readonly modifiersField: string = "modifiers";
   public static readonly originField: string = "origin";
   public static readonly dispositionField: string = "disposition";
+  public static readonly refusedPageLimit: number = 64;
+  public static readonly refusedPageNameLimit: number = 64;
+  public static readonly refusedPageOriginLimit: number = 256;
+  public static readonly refusedPagePrefix: string = "data:text/html;base64,";
+  public static readonly refusedPageBackground: string = "Canvas";
+  public static readonly refusedPageText: string = "CanvasText";
+  public static readonly namelessRefusedReason: string = "Its address isn't one this view opens.";
+  public static readonly hiddenRefusedTarget: string = "this address";
   public static readonly altModifier: number = 1;
   public static readonly ctrlModifier: number = 2;
   public static readonly metaModifier: number = 4;
@@ -237,6 +245,11 @@ export class Resources {
   public static readonly pageYField: string = "pageY";
   public static readonly scrollBackWorld: number = 1998;
   public static readonly webViewScrollReadTimeout: number = 500;
+  public static readonly webViewScrollUnread: string = "its restored page did not answer where it was scrolled";
+  public static readonly webViewScrollUnbound: string = "its page was replaced or closed while it loaded";
+  public static readonly webViewScrollNavigated: string = "a navigation came while its page loaded";
+  public static readonly webViewScrollInput: string = "an input came while its page loaded";
+  public static readonly webViewScrollRedirected: string = "its page went to another address while it loaded";
   public static readonly pointerMoveTypes: readonly string[] = ["mouseMove", "mouseEnter", "mouseLeave"];
   public static readonly autoRepeatField: string = "autoRepeat";
   public static readonly keyDownType: string = "keyDown";
@@ -279,6 +292,7 @@ export class Resources {
   public static readonly canGoForwardField: string = "canGoForward";
   public static readonly requestField: string = "request";
   public static readonly isRedirectField: string = "isRedirect";
+  public static readonly frameIdField: string = "frameId";
   public static readonly hadRecentInputField: string = "hadRecentInput";
   public static readonly methodField: string = "method";
   public static readonly paramsField: string = "params";
@@ -296,6 +310,7 @@ export class Resources {
   public static readonly newWindowRequest: string = "newWindow";
   public static readonly personInputTypes: readonly string[] = ["rawKeyDown", "keyDown", "mouseDown", "touchStart"];
   public static readonly personPressTypes: readonly string[] = ["mouseDown", "touchStart"];
+  public static readonly nonActivatingKeys: readonly string[] = ["Escape", "Accel", "Alt", "AltGraph", "CapsLock", "Control", "Fn", "FnLock", "Hyper", "Meta", "NumLock", "ScrollLock", "Shift", "ShiftLevel5", "Super", "Symbol", "SymbolLock"];
   public static readonly relayedPressTypes: ReadonlyMap<string, string> = new Map([["Input.dispatchMouseEvent", "mousePressed"], [Resources.dispatchTouchEventMethod, "touchStart"]]);
   public static readonly touchPointsField: string = "touchPoints";
   public static readonly touchPointIdField: string = "id";
@@ -304,6 +319,7 @@ export class Resources {
   public static readonly inputEndKind: string = "End";
   public static readonly inputPressKind: string = "Press";
   public static readonly recentInputMilliseconds: number = 5000;
+  public static readonly fromPressField: string = "fromPress";
   public static readonly newWindowRequestLimit: number = 5;
   public static readonly newWindowRequestMilliseconds: number = 1000;
   public static readonly permissionRequest: string = "permission";
@@ -1217,6 +1233,22 @@ export class Resources {
     return `A page load was refused because its web contents ${contentsId} belong to no web view Noldova Desktop opened: ${address}`;
   }
 
+  public static formatWebViewScrollNotKept(module: string, view: string): string {
+    return `Web view ${view} of ${module} kept no scroll position: its page did not answer where it was scrolled within ${Resources.webViewScrollReadTimeout} ms, or answered no position, so it will not be scrolled back once it moves.`;
+  }
+
+  public static formatWebViewScrollNotRestored(module: string, view: string, x: number, y: number, reason: string): string {
+    return `Web view ${view} of ${module} was not scrolled back to (${x}, ${y}): ${reason}.`;
+  }
+
+  public static formatWebViewScrollShown(x: number, y: number): string {
+    return `its restored page already showed (${x}, ${y})`;
+  }
+
+  public static formatWebViewScrollScriptFailed(error: string): string {
+    return `its scroll script failed (${error})`;
+  }
+
   public static formatWebViewAttachRefused(windowId: number, partition: string): string {
     return `A <webview> in window ${windowId} was refused, because its partition "${partition}" belongs to no web view the window opened.`;
   }
@@ -1693,6 +1725,28 @@ export class Resources {
 
   public static formatSpellingRejected(reason: string): string {
     return `The window's spelling preferences were rejected: ${reason}`;
+  }
+
+  public static formatRefusedPageScript(page: string): string {
+    return `location.replace(${JSON.stringify(page)})`;
+  }
+
+  public static formatRefusedTitle(name: string, origin: string): string {
+    return `${name} doesn't open ${origin}`;
+  }
+
+  public static formatRefusedReason(name: string): string {
+    return `Its address isn't one ${name} opens.`;
+  }
+
+  public static formatNamelessRefusedTitle(origin: string): string {
+    return `This view doesn't open ${origin}`;
+  }
+
+  public static formatRefusedPage(title: string, reason: string, background: string, color: string, nonce: string): string {
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">` +
+      `<meta name="color-scheme" content="light dark"><title>${title}</title><style>body{margin:0;padding:1rem;background:${background};color:${color};font:0.875rem/1.4 system-ui,sans-serif}` +
+      `h1{margin:0 0 0.5rem;font-size:1rem;font-weight:600;overflow-wrap:anywhere}p{margin:0}</style></head><body data-refused="${nonce}"><h1>${title}</h1><p>${reason}</p></body></html>`;
   }
 
   public static formatAppearanceUnread(reason: string): string {

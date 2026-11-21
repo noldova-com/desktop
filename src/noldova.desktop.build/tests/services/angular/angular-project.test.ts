@@ -218,7 +218,7 @@ export class AngularProjectTests {
     let attempts = 0;
     const runner = new ScriptedRunnerFixture(AngularProjectTests.answer(ScriptedRunnerFixture.SUCCESS, () => {
       attempts++;
-      return attempts === 1 ? new ProcessResult(1, String.empty, "offline\n") : ScriptedRunnerFixture.SUCCESS;
+      return attempts === 1 ? new ProcessResult(1, String.empty, "Download failed: server closed connection. URL: https://example.com/chromium.zip\n") : ScriptedRunnerFixture.SUCCESS;
     }));
     const project = AngularProjectTests.create(tree, runner);
 
@@ -226,6 +226,19 @@ export class AngularProjectTests {
 
     Assert.areEqual(Resources.angularInstallingBrowser + Resources.formatDownloadRetry(Resources.angularBrowserSubject, 1), output);
     Assert.areEqual(2, runner.captured.filter(t => t.endsWith(AngularProjectTests.BROWSER)).length);
+  }
+
+  @TestMethod
+  public async failsTheBrowserInstallAtOnceWhenItsFailureIsNotANetworkOne(): Promise<void> {
+    await using tree = await AngularProjectTests.createTreeAsync({ [AngularProjectTests.CLI]: String.empty, [AngularProjectTests.WORKSPACE]: AngularProjectTests.WITH_TEST }, true);
+    const failure = "Download failed: server returned code 404 body 'Not Found'. URL: https://example.com/chromium.zip";
+    const runner = new ScriptedRunnerFixture(AngularProjectTests.answer(ScriptedRunnerFixture.SUCCESS, () => new ProcessResult(1, String.empty, `${failure}\n`)));
+    const project = AngularProjectTests.create(tree, runner);
+
+    const error = await Assert.throwsAsync(() => PausedTimersFixture.withoutPausesAsync(() => project.installAsync(new PassThrough()), AngularProjectTests.PAUSE), BuildException);
+
+    Assert.areEqual(Resources.formatDownloadNotRetried(Resources.angularBrowserSubject, Resources.formatExitCodeProblem(1, failure)), error.message);
+    Assert.areEqual(1, runner.captured.filter(t => t.endsWith(AngularProjectTests.BROWSER)).length);
   }
 
   @TestMethod

@@ -18,7 +18,7 @@ import {
 import { ProcessClockFixture } from "./process-clock.fixture.js";
 import { ProgramFixture } from "./program.fixture.js";
 import type { PseudoTerminalLibraryFixture } from "./pseudo-terminal-library.fixture.js";
-import type { SettingsFixture } from "./settings.fixture.js";
+import { SettingsFixture } from "./settings.fixture.js";
 import { WaitFixture } from "./wait.fixture.js";
 
 export class ProcessSupervisorFixture {
@@ -29,6 +29,9 @@ export class ProcessSupervisorFixture {
   public static readonly SEEN: string = "SELECT started, seen FROM owned_processes";
   public static readonly HOUR: number = 3_600_000;
   public static readonly HANG_MILLISECONDS: number = 20_000;
+  public static readonly LIMITS: ProcessSettings = SettingsFixture.PROCESS_LIMITS;
+  public static readonly SIMULATED_LIMITS: ProcessSettings = new ProcessSettings(300, 500);
+  public static readonly CLEAN_EXIT_LIMITS: ProcessSettings = new ProcessSettings(3_500, 500);
   public static readonly SYSTEM_ROOT: string = process.env["SystemRoot"] ?? "C:\\Windows";
   public static readonly LINUX: ProcessClock = new ProcessClockFixture(24 * ProcessSupervisorFixture.HOUR, "boot", true);
   public static readonly WINDOWS: ProcessClock = ProcessClock.create("win32");
@@ -131,7 +134,7 @@ export class ProcessSupervisorFixture {
     await exited;
   }
 
-  public static createLinux(settings: SettingsFixture, posix: IPosixProcessTableApi, processSettings: ProcessSettings = new ProcessSettings(300, 500)): ProcessSupervisor {
+  public static createLinux(settings: SettingsFixture, posix: IPosixProcessTableApi, processSettings: ProcessSettings = ProcessSupervisorFixture.SIMULATED_LIMITS): ProcessSupervisor {
     return ProcessSupervisorFixture.create(settings, "linux", process.env, posix, ProcessSupervisorFixture.LINUX, WindowsProcessApi.create(), processSettings);
   }
 
@@ -139,7 +142,7 @@ export class ProcessSupervisorFixture {
     settings: SettingsFixture,
     windows: IWindowsProcessApi,
     posix: IPosixProcessTableApi = PosixProcessApi.create("win32"),
-    processSettings: ProcessSettings = new ProcessSettings(300, 500)): ProcessSupervisor {
+    processSettings: ProcessSettings = ProcessSupervisorFixture.SIMULATED_LIMITS): ProcessSupervisor {
     return ProcessSupervisorFixture.create(settings, "win32", { SystemRoot: ProcessSupervisorFixture.SYSTEM_ROOT }, posix, ProcessSupervisorFixture.WINDOWS, windows, processSettings);
   }
 
@@ -149,7 +152,7 @@ export class ProcessSupervisorFixture {
   }
 
   public static createSeeing(settings: SettingsFixture): ProcessSupervisor {
-    return ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(300, 500, 20));
+    return ProcessSupervisor.create(settings.database, process.platform, process.env, settings.diagnostics, new ProcessSettings(ProcessSupervisorFixture.LIMITS.graceMilliseconds, ProcessSupervisorFixture.LIMITS.endMilliseconds, 20));
   }
 
   public static create(
@@ -159,15 +162,11 @@ export class ProcessSupervisorFixture {
     posix: IPosixProcessTableApi = PosixProcessApi.create(platform),
     clock: ProcessClock = ProcessClock.create(process.platform),
     windows: IWindowsProcessApi = WindowsProcessApi.create(),
-    processSettings: ProcessSettings = new ProcessSettings(300, 500)): ProcessSupervisor {
+    processSettings: ProcessSettings = ProcessSupervisorFixture.LIMITS): ProcessSupervisor {
     return new ProcessSupervisor(settings.database, platform, environment, posix, settings.diagnostics, windows, processSettings, clock);
   }
 
-  private static after(describe: () => string): string {
-    return describe().length === 0 ? String.empty : ` ${describe()}`;
-  }
-
-  private static async boundAsync<T>(waiting: Promise<T>, failure: () => string): Promise<T> {
+  public static async boundAsync<T>(waiting: Promise<T>, failure: () => string): Promise<T> {
     let limit: NodeJS.Timeout | undefined;
     const limited = new Promise<never>((_, reject) => {
       limit = setTimeout(() => reject(new Error(`Waited ${ProcessSupervisorFixture.HANG_MILLISECONDS / 1_000} seconds. ${failure()}`)), ProcessSupervisorFixture.HANG_MILLISECONDS);
@@ -178,5 +177,9 @@ export class ProcessSupervisorFixture {
     finally {
       clearTimeout(limit);
     }
+  }
+
+  private static after(describe: () => string): string {
+    return describe().length === 0 ? String.empty : ` ${describe()}`;
   }
 }

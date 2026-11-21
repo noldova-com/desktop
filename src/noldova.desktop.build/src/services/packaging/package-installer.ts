@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { chmod, copyFile, mkdir, readFile, readdir, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -21,6 +21,7 @@ import { FileHolders } from "./file-holders.ts";
 import { InstalledPackage } from "../../models/packaging/installed-package.ts";
 import { PackageLayout } from "./package-layout.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
+import { StoppedInstaller } from "./stopped-installer.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { UserPath } from "./user-path.ts";
 import { Resources } from "../../resources.ts";
@@ -99,19 +100,6 @@ export class PackageInstaller {
       if (await userPath.removeAsync(entry))
         removed.push(Resources.formatUserPathEntry(entry));
     return removed.length === 0 ? null : Resources.formatLeftoverRemoved(removed);
-  }
-
-  private static async describeAsync(installFolder: string): Promise<string> {
-    if (!existsSync(installFolder))
-      return Resources.formatInstallerCreatedNothing(installFolder);
-    const files = (await readdir(installFolder, { recursive: true, withFileTypes: true }))
-      .filter(t => t.isFile())
-      .map(t => path.join(t.parentPath, t.name))
-      .sort();
-    const lines: string[] = [];
-    for (const file of files)
-      lines.push(Resources.formatInstalledFileSize(path.relative(installFolder, file), (await stat(file)).size));
-    return Resources.formatInstallerStoppedFiles(installFolder, files.length, lines);
   }
 
   private static requireFiles(files: readonly string[]): void {
@@ -217,13 +205,16 @@ export class PackageInstaller {
 
   private async runInstallerAsync(installer: string, commandArguments: readonly string[], installFolder: string, folder: string, environment: NodeJS.ProcessEnv,
     isVerbatim: boolean = false): Promise<void> {
+    const started = Date.now();
     try {
       await this.runner.requireAsync(installer, commandArguments, folder, Resources.installerTimeout, environment, isVerbatim);
     }
     catch (error) {
       if (!(error instanceof ProcessTimeoutException))
         throw error;
-      throw new BuildException(Resources.formatInstallerTimedOut(error.message, await PackageInstaller.describeAsync(installFolder)), new ExceptionOptions(error));
+      const temporary = this.findVariable(Resources.installerTemporaryVariable) ?? this.findVariable(Resources.installerTemporaryFallbackVariable);
+      const description = await new StoppedInstaller(this.runner, folder, environment).describeAsync(installFolder, temporary, started, error.processId);
+      throw new BuildException(Resources.formatInstallerTimedOut(error.message, description), new ExceptionOptions(error));
     }
   }
 

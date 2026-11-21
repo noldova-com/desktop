@@ -22,6 +22,8 @@ export class WebViewEvent {
   private static readonly TEXT_OR_NULL: (value: unknown) => boolean = t => Object.isString(t) || Object.isNull(t);
   private static readonly TEXT_OR_ABSENT: (value: unknown) => boolean = t => Object.isString(t) || Object.isUndefined(t);
   private static readonly FLAG: (value: unknown) => boolean = t => Object.isBoolean(t);
+  private static readonly FLAG_OR_ABSENT: (value: unknown) => boolean = t => Object.isBoolean(t) || Object.isUndefined(t);
+  private static readonly FRAME: (value: unknown) => boolean = t => Number.isSafeInteger(t) && Number(t) > 0;
   private static readonly WHOLE: (value: unknown) => boolean = t => Number.isSafeInteger(t);
   private static readonly OBJECT: (value: unknown) => boolean = t => Object.isPlainObject(t);
   private static readonly COUNT: (value: unknown) => boolean = t => Number.isSafeInteger(t) && Number(t) >= 0;
@@ -36,11 +38,14 @@ export class WebViewEvent {
     ]),
     [WebViewEventKind.LoadFailed]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.codeField, WebViewEvent.WHOLE], [Resources.descriptionField, WebViewEvent.TEXT]]),
     [WebViewEventKind.NavigationRefused]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG]]),
+    [WebViewEventKind.FrameNavigationRefused]: new Map([
+      [Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG], [Resources.frameIdField, WebViewEvent.FRAME]
+    ]),
     [WebViewEventKind.Crashed]: new Map(),
     [WebViewEventKind.ProfileCleared]: new Map([[Resources.profileKeyField, WebViewEvent.TEXT]]),
     [WebViewEventKind.RequestRefused]: new Map([[Resources.requestField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT]]),
     [WebViewEventKind.NewWindowRequested]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.hadRecentInputField, WebViewEvent.FLAG], [Resources.originField, WebViewEvent.TEXT_OR_NULL],
-      [Resources.dispositionField, WebViewEvent.TEXT_OR_ABSENT]]),
+      [Resources.dispositionField, WebViewEvent.TEXT_OR_ABSENT], [Resources.fromPressField, WebViewEvent.FLAG_OR_ABSENT]]),
     [WebViewEventKind.Protocol]: new Map([[Resources.methodField, WebViewEvent.TEXT], [Resources.paramsField, WebViewEvent.OBJECT], [Resources.isCutField, WebViewEvent.FLAG]]),
     [WebViewEventKind.Dropped]: new Map([[Resources.countField, WebViewEvent.WHOLE]]),
     [WebViewEventKind.Key]: new Map([[Resources.nameField, WebViewEvent.TEXT]]),

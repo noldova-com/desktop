@@ -601,8 +601,6 @@ export class Resources {
   public static readonly parentFolder: string = "..";
   public static readonly mountTableFile: string = "/proc/self/mountinfo";
   public static readonly mountPointField: number = 4;
-  public static readonly mountTableEscape: RegExp = /\\([0-7]{3})/g;
-  public static readonly octalRadix: number = 8;
   public static readonly copyExtractionName: RegExp = /^desktop-runtime-[A-Za-z0-9]{6}$/;
   public static readonly copyEndSignal: NodeJS.Signals = "SIGTERM";
   public static readonly stoppedByIdle: string = "idle";

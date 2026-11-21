@@ -18,26 +18,29 @@ export class TestOptions {
   public readonly repeat: number;
   public readonly isRerunningFailed: boolean;
   public readonly isSkippingTestDetails: boolean;
+  public readonly part: number | null;
 
-  private constructor(isDocuments: boolean, filters: readonly string[], repeat: number, isRerunningFailed: boolean, isSkippingTestDetails: boolean) {
+  private constructor(isDocuments: boolean, filters: readonly string[], repeat: number, isRerunningFailed: boolean, isSkippingTestDetails: boolean, part: number | null) {
     this.isDocuments = isDocuments;
     this.filters = filters;
     this.repeat = repeat;
     this.isRerunningFailed = isRerunningFailed;
     this.isSkippingTestDetails = isSkippingTestDetails;
+    this.part = part;
   }
 
   public static parse(args: readonly string[]): TestOptions {
     if (args[0] === Resources.testOptionsDocuments) {
       if (args.length !== 1)
         throw new TestOptionsException(TestOptionsProblem.DOCUMENTS_ALONE, args[1]);
-      return new TestOptions(true, [], Resources.testOptionsDefaultRepeat, false, false);
+      return new TestOptions(true, [], Resources.testOptionsDefaultRepeat, false, false, null);
     }
 
     const filters: string[] = [];
     let repeat: number | null = null;
     let isRerunningFailed = false;
     let isSkippingTestDetails = false;
+    let part: number | null = null;
     for (let index = 0; index < args.length; index++) {
       const option = args[index];
       if (option === Resources.testOptionsSkipTestDetailsOption)
@@ -57,10 +60,24 @@ export class TestOptions {
           throw new TestOptionsException(TestOptionsProblem.REPEAT_VALUE, value);
         repeat = Number(value);
       }
+      else if (!Object.isUndefined(option) && option.startsWith(Resources.testOptionsShardPrefix)) {
+        if (!Object.isNull(part))
+          throw new TestOptionsException(TestOptionsProblem.SHARD_ONCE, option);
+        part = TestOptions.readPart(option);
+      }
       else if (option !== Resources.testOptionsSkipCoverageDetailsOption)
         throw new TestOptionsException(TestOptionsProblem.UNKNOWN_OPTION, option);
     }
-    return new TestOptions(false, filters, repeat ?? Resources.testOptionsDefaultRepeat, isRerunningFailed, isSkippingTestDetails);
+    if (!Object.isNull(part) && filters.length > 0)
+      throw new TestOptionsException(TestOptionsProblem.SHARD_FILTERED, Resources.testOptionsFilterOption);
+    return new TestOptions(false, filters, repeat ?? Resources.testOptionsDefaultRepeat, isRerunningFailed, isSkippingTestDetails, part);
+  }
+
+  private static readPart(option: string): number {
+    const match = Resources.testOptionsShardPattern.exec(option);
+    if (Object.isNull(match) || Number(match[2]) !== Resources.testOptionsShardParts || Number(match[1]) > Resources.testOptionsShardParts)
+      throw new TestOptionsException(TestOptionsProblem.SHARD_VALUE, option);
+    return Number(match[1]);
   }
 
   private static readText(value: string | undefined): string {

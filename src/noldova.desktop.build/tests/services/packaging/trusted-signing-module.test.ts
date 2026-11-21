@@ -24,6 +24,8 @@ import { WindowsSigningAccount } from "../../../src/models/packaging/windows-sig
 import { ProcessResult } from "../../../src/models/processes/process-result.js";
 import { TrustedSigningModule } from "../../../src/services/packaging/trusted-signing-module.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
+import { UnendingAnswerFixture } from "../../fixtures/unending-answer.fixture.js";
+import { WaitFixture } from "../../fixtures/wait.fixture.js";
 
 class PowerShellRunner extends ProcessRunner {
   private readonly result: ProcessResult;
@@ -219,6 +221,18 @@ export class TrustedSigningModuleTests {
       BuildException);
 
     Assert.areEqual(`A signing package could not be downloaded from ${server.url}/missing: HTTP 404.`, error.message);
+  }
+
+  @TestMethod
+  public async letsGoOfAFailedAnswerBeforeItRefusesThePackage(): Promise<void> {
+    await using failing = await UnendingAnswerFixture.startAsync(500);
+    const module = new TrustedSigningModule(new PowerShellRunner(TrustedSigningModuleTests.SUCCEEDED), path.resolve("signing"), TrustedSigningModuleTests.ACCOUNT, {});
+
+    const error = await Assert.throwsAsync(() => module.prepareAsync([TrustedSigningModuleTests.pin(failing.url, "/module", String.empty, "TrustedSigning")]),
+      BuildException);
+
+    Assert.areEqual(`A signing package could not be downloaded from ${failing.url}/module: HTTP 500.`, error.message);
+    Assert.isTrue(await WaitFixture.untilAsync(() => failing.isClosed, 10_000), "The failed answer's connection stayed open.");
   }
 
   @TestMethod

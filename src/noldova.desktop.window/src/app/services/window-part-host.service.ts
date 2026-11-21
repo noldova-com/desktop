@@ -266,8 +266,8 @@ export class WindowPartHostService implements IWindowPartHost {
       throw new FileNotOpenedException(ProductName.current, refusal);
   }
 
-  public openWebViewAsync(context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string): Promise<IWebViewHandle> {
-    return this.webViews.openAsync(moduleId, pane, tab, profileKey, this.createPartInjector(context, computed(() => tab.equals(this.layout.layout().documents.active))));
+  public openWebViewAsync(context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string, name: string | null): Promise<IWebViewHandle> {
+    return this.webViews.openAsync(moduleId, pane, tab, profileKey, name, this.createPartInjector(context, computed(() => tab.equals(this.layout.layout().documents.active))));
   }
 
   public chooseFolderAsync(): Promise<string | null> {
@@ -441,7 +441,7 @@ export class WindowPartHostService implements IWindowPartHost {
   }
 
   public runCommandAsync(name: string, commandArguments: JsonValue): Promise<JsonValue> {
-    return this.commands.runAsync(name, commandArguments);
+    return this.commands.runEnabledAsync(name, commandArguments);
   }
 
   public findWindowCommand(event: KeyboardEvent): string | null {
@@ -587,6 +587,8 @@ export class WindowPartHostService implements IWindowPartHost {
     const report = ModuleStatusList.fromJson(await this.bridge.requestAsync(ShellMethods.modules.text, null));
     this.statuses.report(report.modules);
     const commands = CommandList.fromJson(await this.bridge.requestAsync(ShellMethods.commands.text, null));
+    if (this.isConnected(connection))
+      this.applyCommands(commands);
     const kept = await this.reconnectPartsAsync(report.modules, connection);
     if (!this.isConnected(connection))
       return false;

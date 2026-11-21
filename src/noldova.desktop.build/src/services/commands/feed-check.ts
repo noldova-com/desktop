@@ -16,6 +16,7 @@ import type { IFeedFile } from "../../interfaces/i-feed-file.ts";
 import type { IRetryClock } from "../../interfaces/i-retry-clock.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
+import { ResponseBody } from "../../models/response-body.ts";
 import { UpdateFeed } from "../packages/update-feed.ts";
 import { UpdateMetadata } from "../release/update-metadata.ts";
 import { Resources } from "../../resources.ts";
@@ -68,7 +69,7 @@ export class FeedCheck {
     for (const target of targets) {
       const name = UpdateMetadata.formatFileName(target);
       const text = await this.readUpdateInformationAsync(feed, name, version, deadline, end);
-      this.output.write(Resources.formatOutputLine(await this.checkFilesAsync(feed, name, version, text, target, end)));
+      this.output.write(Resources.formatOutputLine(await this.checkFilesAsync(feed, name, version, text, target, deadline, end)));
     }
     this.output.write(Resources.formatFeedServes(feed, version, targets.map(t => t.id)));
   }
@@ -76,8 +77,10 @@ export class FeedCheck {
   private async readUpdateInformationAsync(feed: string, name: string, version: string, deadline: number, end: number): Promise<string> {
     const response = await this.openAsync(feed, name, end);
     let problem: string;
-    if (response.status === Resources.httpNotFoundStatus)
+    if (response.status === Resources.httpNotFoundStatus) {
+      await ResponseBody.letGoAsync(response);
       problem = Resources.formatFeedHttpProblem(name, feed, response.status);
+    }
     else {
       const text = (await FeedCheck.readBodyAsync(response, feed, name)).toString(Resources.textEncoding);
       const found = Resources.feedVersionLinePattern.exec(text)?.[1] ?? String.empty;
@@ -85,22 +88,35 @@ export class FeedCheck {
         return text;
       problem = Resources.formatFeedVersionMismatch(name, feed, found, version);
     }
+    await this.waitAsync(problem, deadline);
+    return this.readUpdateInformationAsync(feed, name, version, deadline, end);
+  }
+
+  private async readFileAsync(feed: string, name: string, deadline: number, end: number): Promise<Buffer> {
+    const response = await this.openAsync(feed, name, end);
+    if (response.status !== Resources.httpNotFoundStatus)
+      return await FeedCheck.readBodyAsync(response, feed, name);
+    await ResponseBody.letGoAsync(response);
+    await this.waitAsync(Resources.formatFeedHttpProblem(name, feed, response.status), deadline);
+    return await this.readFileAsync(feed, name, deadline, end);
+  }
+
+  private async waitAsync(problem: string, deadline: number): Promise<void> {
     const remaining = deadline - this.clock.now();
     if (remaining <= 0)
       throw new BuildException(problem);
     this.output.write(Resources.formatFeedCatchingUp(problem));
     await this.clock.pauseAsync(Math.min(Resources.feedRetryInterval, remaining));
-    return this.readUpdateInformationAsync(feed, name, version, deadline, end);
   }
 
-  private async checkFilesAsync(feed: string, metadata: string, version: string, text: string, target: PackageTarget, end: number): Promise<string> {
+  private async checkFilesAsync(feed: string, metadata: string, version: string, text: string, target: PackageTarget, deadline: number, end: number): Promise<string> {
     const files: IFeedFile[] = [...text.matchAll(Resources.feedFileEntryPattern)].map(t => ({ name: FeedCheck.unquote(String(t[1])), sha512: String(t[2]), size: Number(t[3]) }));
     if (files.length === 0)
       throw new BuildException(Resources.formatFeedListsNoFiles(metadata, feed));
     if (files.length !== [...text.matchAll(Resources.feedEntryStartPattern)].length)
       throw new BuildException(Resources.formatFeedFileIncomplete(metadata, feed));
     for (const file of files) {
-      const bytes = await FeedCheck.readBodyAsync(await this.openAsync(feed, file.name, end), feed, file.name);
+      const bytes = await this.readFileAsync(feed, file.name, deadline, end);
       const sha512 = createHash(Resources.feedFileHash).update(bytes).digest(Resources.feedFileDigest);
       if (sha512 !== file.sha512)
         throw new BuildException(Resources.formatFeedHashMismatch(file.name, feed, sha512, metadata, file.sha512));
@@ -117,13 +133,17 @@ export class FeedCheck {
       const response = await FeedCheck.requestAsync(url, feed, name, Math.max(Resources.feedMinimumRequestTimeout, end - this.clock.now()));
       const location = response.headers.get(Resources.locationHeader);
       if (!Resources.redirectStatuses.includes(response.status) || Object.isNull(location)) {
-        if (response.ok && (response.headers.get(Resources.contentTypeHeader) ?? String.empty).startsWith(Resources.webPageContentType))
+        if (response.ok && (response.headers.get(Resources.contentTypeHeader) ?? String.empty).startsWith(Resources.webPageContentType)) {
+          await ResponseBody.letGoAsync(response);
           throw new BuildException(Resources.formatFeedWebPage(name, feed, url.origin, url.pathname));
-        if (!response.ok && response.status !== Resources.httpNotFoundStatus)
+        }
+        if (!response.ok && response.status !== Resources.httpNotFoundStatus) {
+          await ResponseBody.letGoAsync(response);
           throw new BuildException(Resources.formatFeedHttpProblem(name, feed, response.status));
+        }
         return response;
       }
-      await response.body?.cancel();
+      await ResponseBody.letGoAsync(response);
       url = new URL(location, url);
       if (url.origin !== origin && !Resources.releaseAssetOrigins.includes(url.origin))
         throw new BuildException(Resources.formatFeedRedirectedAway(name, feed, url.origin));
@@ -182,8 +202,6 @@ export class FeedCheck {
   }
 
   private static async readBodyAsync(response: Response, feed: string, name: string): Promise<Buffer> {
-    if (!response.ok)
-      throw new BuildException(Resources.formatFeedHttpProblem(name, feed, response.status));
     try {
       return Buffer.from(await response.arrayBuffer());
     }

@@ -45,7 +45,7 @@ export class ProcessRunner {
         }
       };
       const timer = setTimeout(() => {
-        failure ??= new ProcessTimeoutException(command, timeout, transcript.text);
+        failure ??= new ProcessTimeoutException(command, timeout, transcript.text, child.pid);
         ProcessRunner.endTree(child);
         ProcessRunner.onExit(child, () => {
           child.stdout.destroy();

@@ -13,6 +13,6 @@ import { WebViewEventKind } from "@noldova/desktop.protocol";
 export class WebViewEventKindTests {
   @TestMethod
   public namesEveryKindByItsMember(): void {
-    Assert.areEqual("Opened,Closed,State,LoadFailed,NavigationRefused,Crashed,ProfileCleared,RequestRefused,NewWindowRequested,Protocol,Dropped,Key,Zoom,Found,Favicon,Controlled", Object.values(WebViewEventKind).join(","));
+    Assert.areEqual("Opened,Closed,State,LoadFailed,NavigationRefused,FrameNavigationRefused,Crashed,ProfileCleared,RequestRefused,NewWindowRequested,Protocol,Dropped,Key,Zoom,Found,Favicon,Controlled", Object.values(WebViewEventKind).join(","));
   }
 }

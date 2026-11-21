@@ -25,6 +25,7 @@ import type { FakeMainProcessWindow } from "../fixtures/fake-main-process-window
 import { FakeRuntimeConnection } from "../fixtures/fake-runtime-connection.fixture.js";
 import { FakeRuntimeLauncher } from "../fixtures/fake-runtime-launcher.fixture.js";
 import type { FakeWebView } from "../fixtures/fake-web-view.fixture.js";
+import { FakeWebViewFrame } from "../fixtures/fake-web-view-frame.fixture.js";
 import { FakeWebViewEngine } from "../fixtures/fake-web-view-engine.fixture.js";
 import { MainProcessStartFixture } from "../fixtures/main-process-start.fixture.js";
 
@@ -125,7 +126,7 @@ export class WebViewHostTests {
   public async refusesAnAttachFromAWindowThatDidntOpenTheView(): Promise<void> {
     const engine = new FakeWebViewEngine();
     const host = new WebViewHost(engine, new WebViewOriginCheck(), () => Promise.resolve(new Map([["browser", WebViewHostTests.DECLARATION]])), "linux",
-      () => undefined, () => undefined, () => undefined, () => false, () => undefined, () => undefined);
+      () => undefined, () => undefined, () => undefined, () => false, () => undefined, () => undefined, () => null);
     await host.openAsync(1, "browser", WebViewHostTests.PANE, "workspace-1");
     const inOther = engine.createGuest(2, WebViewHostTests.PARTITION);
     const inOwn = engine.createGuest(1, WebViewHostTests.PARTITION);
@@ -866,6 +867,25 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async namesTheModuleItsWindowSentAndPaintsTheWindowsColorsOnAFramesRefusedPage(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await MainProcessStartFixture.showAsync(electron, "linux", window);
+    const frame = new FakeWebViewFrame(5);
+    const opened = WebViewHostTests.json(await electron.ipcMain.invoke("desktop:webViewOpen", MainProcessStartFixture.trustedEvent("linux"), "browser", WebViewHostTests.PANE,
+      "workspace-1", "Web <Browser>"));
+    const guest = electron.webViews.createGuest(window.webContents.id, JsonReader.fromValue(opened).readString("partition"));
+    await WebViewHostTests.attachAsync(electron, JsonReader.fromValue(opened).readObject("view").readString("id"), guest.contents.id);
+
+    guest.contents.navigateFrame("https://example.net/", false, frame);
+    const page = Buffer.from((frame.pages[0] ?? String.empty).slice("data:text/html;base64,".length), "base64").toString("utf8");
+
+    Assert.isTrue(page.includes("<h1>Web &lt;Browser&gt; doesn't open https://example.net</h1>"));
+    Assert.isTrue(page.includes("background:#181818;color:#CCCCCC;"));
+    Assert.areEqual(5, WebViewHostTests.details(WebViewHostTests.windowEvents(window).find(t => t["kind"] === "FrameNavigationRefused"))["frameId"]);
+  }
+
+  @TestMethod
   public async reportsTheViewsStateWheneverItChangesUntilItsContentsAreDestroyed(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
@@ -1543,9 +1563,9 @@ export class WebViewHostTests {
     await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.runtimeEvents(connection)).length === 3);
 
     const expected = JSON.stringify([
-      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab" },
-      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window" },
-      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab" }
+      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab", fromPress: false },
+      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window", fromPress: false },
+      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab", fromPress: false }
     ]);
     Assert.areEqual("deny,deny,deny", answers.map(t => t?.action).join(","));
     Assert.areEqual(expected, JSON.stringify(WebViewHostTests.requested(WebViewHostTests.windowEvents(window))));

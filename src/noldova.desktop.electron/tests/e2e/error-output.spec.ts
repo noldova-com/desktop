@@ -87,6 +87,15 @@ test.describe("the harness's reading of the main process's error output", () => 
     expect(read[300]?.text).toBe("Error: boom");
   });
 
+  test("a web view's line on its scroll is a diagnostic, and a line that only names a web view still fails", () => {
+    const unkept = "2026-11-20T21:00:00.000Z Web view 1 of pages kept no scroll position: its page did not answer.";
+    const unrestored = "2026-11-20T21:00:01.000Z Web view 1 of pages was not scrolled back to (0, 1200): an input came while its page loaded.";
+    const other = "2026-11-20T21:00:02.000Z Web view 1 of pages lost its defaults.";
+
+    expect(new ErrorOutputClassifier().classify(`${unkept}\n${unrestored}\n${other}\n`))
+      .toEqual([{ kind: "diagnostic", text: unkept }, { kind: "diagnostic", text: unrestored }, { kind: "failure", text: other }]);
+  });
+
   test("any other output still fails, including GTK's continuation text without a GTK warning before it", () => {
     const classifier = new ErrorOutputClassifier();
 

@@ -76,7 +76,7 @@ export class BuildApiTests {
     const result = spawnSync(process.execPath, [path.join(folder, ...BuildApiTests.RELEASE_ENTRY), "package"], { encoding: "utf8" });
 
     Assert.areEqual(2, result.status);
-    Assert.areEqual("Usage: noldova-desktop-release <command> [<argument>...], where the command is one of list-targets, release-check, choose-feed, release-publish, feed-check, module-range, noldova-desktop-range. "
+    Assert.areEqual("Usage: noldova-desktop-release <command> [<argument>...], where the command is one of list-targets, release-check, choose-feed, release-publish, release-lock, release-unlock, feed-check, module-range, noldova-desktop-range. "
       + "It loads only Node.js's own modules and context's core, exceptions and json packages, so it runs from desktop.build's archive with those three beside it, without an install.\n", result.stderr);
   }
 
@@ -84,10 +84,10 @@ export class BuildApiTests {
   public async runsEachReleaseCommandFromTheReleaseEntryUnderItsName(): Promise<void> {
     const folder = path.dirname(fileURLToPath(import.meta.resolve("@noldova/desktop.build/package.json")));
 
-    const results = ["list-targets", "release-check", "choose-feed", "release-publish", "feed-check", "module-range", "noldova-desktop-range"]
+    const results = ["list-targets", "release-check", "choose-feed", "release-publish", "release-lock", "release-unlock", "feed-check", "module-range", "noldova-desktop-range"]
       .map(t => spawnSync(process.execPath, [path.join(folder, ...BuildApiTests.RELEASE_ENTRY), t, "extra", "more"], { encoding: "utf8" }));
 
-    Assert.areEqual("2 noldova-desktop-release list-targets [<app folder>]\n2 noldova-desktop-release release-check\n2 noldova-desktop-release choose-feed\n2 noldova-desktop-release release-publish\n2 noldova-desktop-release feed-check\n"
+    Assert.areEqual("2 noldova-desktop-release list-targets [<app folder>]\n2 noldova-desktop-release release-check\n2 noldova-desktop-release choose-feed\n2 noldova-desktop-release release-publish\n2 noldova-desktop-release release-lock\n2 noldova-desktop-release release-unlock\n2 noldova-desktop-release feed-check\n"
       + "2 noldova-desktop-release module-range <module folder>\n2 noldova-desktop-release noldova-desktop-range <lowest Noldova Desktop version>\n",
       results.map(t => `${t.status} ${t.stdout.slice(t.stdout.indexOf("noldova-desktop-release"))}`).join(String.empty));
   }

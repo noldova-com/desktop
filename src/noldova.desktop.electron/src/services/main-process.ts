@@ -474,7 +474,9 @@ export class MainProcess {
     window.on(Resources.hideEvent, () => describe(window.getTitle()));
     window.on(Resources.pageTitleUpdatedEvent, (_event, title) => describe(title));
     window.once(Resources.closedEvent, () => {
+      this.updates.restart.dismiss(open);
       this.windows.remove(contentsId);
+      this.controls.closeWindow(contentsId);
       this.surface.closeWindow(contentsId);
       this.windows.endPage(contentsId);
       this.webViews.host.closeWindow(contentsId);

@@ -79,8 +79,9 @@ export class ReleasePublish {
       ReleasePublish.requireInternal(internal, request, signed);
     const supported = await SupportedTargets.readAsync(this.root);
     const targets = ReleaseTargets.read(this.environment, supported);
-    const notes = ReleaseNotes.compose(product, targets, supported ?? [], signed, request, this.environment[Resources.releaseRunVariable] ?? String.empty);
-    this.output.write(Resources.formatOutputLine(await new ReleaseReports(signed, targets).verifyAsync(reports)));
+    const verified = await new ReleaseReports(signed, targets).verifyAsync(reports);
+    const notes = ReleaseNotes.compose(product, targets, supported ?? [], signed, request, this.environment[Resources.releaseRunVariable] ?? String.empty, verified.unstarted);
+    this.output.write(Resources.formatOutputLine(verified.text));
     const files = await new ReleaseFileSet(product.name, internal.length > 0 ? internal : request.version.text, targets.map(t => t.withInstallFolder(product.installFolder))).verifyAsync(folder);
     if (internal.length > 0) {
       this.output.write(Resources.formatInternalFilesChecked(internal));

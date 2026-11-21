@@ -227,7 +227,7 @@ export class RuntimeClientTests {
 
   @TestMethod
   public rejectsAHandshakeThatIsNotAnsweredInTime(): Promise<void> {
-    return RuntimeClientTests.assertRefusedAsync(() => [], HandshakeTimedOutException, "The runtime did not answer the handshake in time.", null);
+    return RuntimeClientTests.assertRefusedAsync(() => [], HandshakeTimedOutException, "The runtime did not answer the handshake in time.", null, RuntimeClientFixture.SHORT_HANDSHAKE);
   }
 
   @TestMethod
@@ -306,7 +306,7 @@ export class RuntimeClientTests {
     return RuntimeClientFixture.runRawAsync(
       (_frame, index) => index === 0 ? [RuntimeClientFixture.AUTHENTICATED] : ["x".repeat(2_048)],
       async (server, listener) => {
-        const client = await RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, new ClientSettings(300, 1_000, 50, 1_024));
+        const client = await RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, new ClientSettings(RuntimeClientFixture.SETTINGS.handshakeTimeout, RuntimeClientFixture.SETTINGS.callTimeout, RuntimeClientFixture.SETTINGS.answerGrace, 1_024));
 
         const exception = await Assert.throwsAsync(() => client.callAsync(RuntimeServerFixture.ECHO, null), ConnectionClosedException);
 
@@ -321,7 +321,7 @@ export class RuntimeClientTests {
     return RuntimeClientFixture.runRawAsync(
       (frame, index) => index === 0 ? [RuntimeClientFixture.AUTHENTICATED] : [Response.success(RawServerFixture.readId(frame), 1).toText()],
       async (server, listener) => {
-        const client = await RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, new ClientSettings(300, 1_000, 50, 1_024));
+        const client = await RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, new ClientSettings(RuntimeClientFixture.SETTINGS.handshakeTimeout, RuntimeClientFixture.SETTINGS.callTimeout, RuntimeClientFixture.SETTINGS.answerGrace, 1_024));
 
         const loop: JsonValue[] = [];
         loop.push(loop);
@@ -355,8 +355,8 @@ export class RuntimeClientTests {
         Assert.areEqual(
           `{"kind":"Handshake","id":"main:0","identity":${JSON.stringify(RuntimeServerFixture.IDENTITY.toJson())},"token":"token","client":"main"}`,
           server.frames[0]);
-        Assert.areEqual("{\"kind\":\"Request\",\"id\":\"main:1\",\"method\":\"desktop.stop\",\"payload\":{\"policy\":\"StopWork\"},\"timeoutMilliseconds\":1000}", server.frames[1]);
-        Assert.areEqual("{\"kind\":\"Request\",\"id\":\"main:2\",\"method\":\"desktop.moveAside\",\"payload\":null,\"timeoutMilliseconds\":1000}", server.frames[2]);
+        Assert.areEqual("{\"kind\":\"Request\",\"id\":\"main:1\",\"method\":\"desktop.stop\",\"payload\":{\"policy\":\"StopWork\"},\"timeoutMilliseconds\":600000}", server.frames[1]);
+        Assert.areEqual("{\"kind\":\"Request\",\"id\":\"main:2\",\"method\":\"desktop.moveAside\",\"payload\":null,\"timeoutMilliseconds\":600000}", server.frames[2]);
       });
   }
 
@@ -367,16 +367,16 @@ export class RuntimeClientTests {
       async (server, listener) => {
         const client = await RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, RuntimeClientFixture.SETTINGS);
 
-        Assert.isFalse((await client.callAsync(ShellMethods.windowClosed, { window: 3 }, 500, undefined, 3)).hasFailed);
-        Assert.isFalse((await client.callAsync(ShellMethods.windowClosed, { window: 3 }, 500, undefined, 3, 2)).hasFailed);
-        Assert.throws(() => client.callAsync(ShellMethods.windowClosed, null, 500, undefined, 0), ArgumentOutOfRangeException);
-        Assert.throws(() => client.callAsync(ShellMethods.windowClosed, null, 500, undefined, undefined, 2), ArgumentOutOfRangeException);
+        Assert.isFalse((await client.callAsync(ShellMethods.windowClosed, { window: 3 }, 60_000, undefined, 3)).hasFailed);
+        Assert.isFalse((await client.callAsync(ShellMethods.windowClosed, { window: 3 }, 60_000, undefined, 3, 2)).hasFailed);
+        Assert.throws(() => client.callAsync(ShellMethods.windowClosed, null, 60_000, undefined, 0), ArgumentOutOfRangeException);
+        Assert.throws(() => client.callAsync(ShellMethods.windowClosed, null, 60_000, undefined, undefined, 2), ArgumentOutOfRangeException);
 
         Assert.areEqual(
-          "{\"kind\":\"Request\",\"id\":\"main:1\",\"method\":\"desktop.windowClosed\",\"payload\":{\"window\":3},\"timeoutMilliseconds\":500,\"window\":3}",
+          "{\"kind\":\"Request\",\"id\":\"main:1\",\"method\":\"desktop.windowClosed\",\"payload\":{\"window\":3},\"timeoutMilliseconds\":60000,\"window\":3}",
           server.frames[1]);
         Assert.areEqual(
-          "{\"kind\":\"Request\",\"id\":\"main:2\",\"method\":\"desktop.windowClosed\",\"payload\":{\"window\":3},\"timeoutMilliseconds\":500,\"window\":3,\"page\":2}",
+          "{\"kind\":\"Request\",\"id\":\"main:2\",\"method\":\"desktop.windowClosed\",\"payload\":{\"window\":3},\"timeoutMilliseconds\":60000,\"window\":3,\"page\":2}",
           server.frames[2]);
         Assert.areEqual(3, server.frames.length);
       });
@@ -386,10 +386,11 @@ export class RuntimeClientTests {
     reply: (frame: string, index: number) => readonly string[] | null,
     exceptionType: new (...arguments_: never[]) => ConnectionException,
     message: string,
-    code: FailureCode | null): Promise<void> {
+    code: FailureCode | null,
+    settings: ClientSettings = RuntimeClientFixture.SETTINGS): Promise<void> {
     await RuntimeClientFixture.runRawAsync(reply, async (server, listener) => {
       const exception = await Assert.throwsAsync(
-        () => RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, RuntimeClientFixture.SETTINGS),
+        () => RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, settings),
         exceptionType);
 
       Assert.areEqual(message, exception.message);

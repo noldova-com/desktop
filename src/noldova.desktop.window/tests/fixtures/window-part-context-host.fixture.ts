@@ -204,8 +204,8 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
     return Promise.resolve();
   }
 
-  public openWebViewAsync(_context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string): Promise<IWebViewHandle> {
-    this.calls.push(`openWebView ${moduleId} ${tab.key} ${profileKey}`);
+  public openWebViewAsync(_context: IWindowPartContext, moduleId: string, pane: WebViewPane, tab: Tab, profileKey: string, name: string | null): Promise<IWebViewHandle> {
+    this.calls.push(`openWebView ${moduleId} ${tab.key} ${profileKey}${Object.isNull(name) ? String.empty : ` as ${name}`}`);
     const handle = new WebViewHandleFixture(String(this.webViews.length + 1), pane, profileKey);
     this.webViews.push(handle);
     return Promise.resolve(handle);

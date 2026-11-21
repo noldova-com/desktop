@@ -24,6 +24,8 @@ export class Resources {
   public static readonly noldovaDesktopRangeCommand: string = "noldova-desktop-range";
   public static readonly releaseAssetsCommand: string = "release-assets";
   public static readonly releasePublishCommand: string = "release-publish";
+  public static readonly releaseLockCommand: string = "release-lock";
+  public static readonly releaseUnlockCommand: string = "release-unlock";
   public static readonly commands: readonly string[] = [
     Resources.installCommand,
     Resources.buildCommand,
@@ -44,6 +46,8 @@ export class Resources {
     Resources.releaseCheckCommand,
     Resources.chooseFeedCommand,
     Resources.releasePublishCommand,
+    Resources.releaseLockCommand,
+    Resources.releaseUnlockCommand,
     Resources.feedCheckCommand,
     Resources.moduleRangeCommand,
     Resources.noldovaDesktopRangeCommand
@@ -97,7 +101,8 @@ export class Resources {
   public static readonly electronArchitectureVariable: string = "npm_config_arch";
   public static readonly addonWindowsTargets: readonly string[] = ["win32-x64", "win32-arm64"];
   public static readonly addonPosixTargets: readonly string[] = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
-  public static readonly addonTargets: readonly string[] = [...Resources.addonWindowsTargets, ...Resources.addonPosixTargets];
+  public static readonly addonProcessorSeparator: string = "+";
+  public static readonly addonTargetPattern: RegExp = /^(?:aix|android|cygwin|darwin|freebsd|haiku|linux|netbsd|openbsd|sunos|win32)-[a-z0-9]+(?:\+[a-z0-9]+)*$/;
   public static readonly desktopToolsEntrySegments: readonly string[] = ["node_modules", "@noldova", "desktop.cli", "services", "cli-entry.js"];
   public static readonly runAsNodeVariable: string = "ELECTRON_RUN_AS_NODE";
   public static readonly runAsNodeValue: string = "1";
@@ -408,6 +413,20 @@ export class Resources {
     grantFileProtocolExtraPrivileges: true
   };
   public static readonly installerTimeout: number = 120_000;
+  public static readonly installerTemporaryVariable: string = "TMP";
+  public static readonly installerTemporaryFallbackVariable: string = "TEMP";
+  public static readonly installerTemporaryFolderPattern: RegExp = /^ns[^.]*\.tmp$/iu;
+  public static readonly installerTemporaryMargin: number = 2_000;
+  public static readonly installerTemporaryUnknown: string = "The installer's temporary folder is unknown: neither TMP nor TEMP is set.";
+  public static readonly installerProcessVariable: string = "NOLDOVA_DESKTOP_INSTALLER_PROCESS";
+  public static readonly installerProcessesTimeout: number = 30_000;
+  public static readonly installerProcessesScript: string = [
+    Resources.powershellStopLine,
+    `$parent = [int]$env:${Resources.installerProcessVariable}`,
+    "@(CimCmdlets\\Get-CimInstance -ClassName Win32_Process -Filter \"ParentProcessId = $parent\") | Microsoft.PowerShell.Core\\ForEach-Object {",
+    "  \"$($_.ProcessId) $($_.Name), started $($_.CreationDate.ToString('HH:mm:ss')): $($_.CommandLine)\"",
+    "}"
+  ].join(Resources.lineSeparator);
   public static readonly localAppDataVariable: string = "LOCALAPPDATA";
   public static readonly windowsProgramsFolder: string = "Programs";
   public static readonly silentInstallArguments: readonly string[] = ["/S"];
@@ -1216,6 +1235,23 @@ export class Resources {
   public static readonly releaseFolderVariable: string = "RELEASE_FOLDER";
   public static readonly releaseReportsVariable: string = "RELEASE_REPORTS";
   public static readonly releaseRunVariable: string = "RELEASE_RUN_URL";
+  public static readonly releaseLockRunVariable: string = "RELEASE_LOCK_RUN";
+  public static readonly releaseLockRevisionVariable: string = "RELEASE_LOCK_REVISION";
+  public static readonly releaseLockRunPattern: RegExp = /^[1-9][0-9]{0,19}$/u;
+  public static readonly releaseLockReference: string = "refs/locks/release";
+  public static readonly releaseLockPath: string = "/git/refs/locks/release";
+  public static readonly releaseLockReadPath: string = "/git/ref/locks/release";
+  public static readonly releaseLockMessagePattern: RegExp = /^Release lock for run ([1-9][0-9]{0,19})$/u;
+  public static readonly releaseLockRetryInterval: number = 15_000;
+  public static readonly releaseLockContext: string = "the release lock";
+  public static readonly releaseLockRunContext: string = "the run holding the release lock";
+  public static readonly githubCommitsPath: string = "/git/commits";
+  public static readonly githubMessageField: string = "message";
+  public static readonly githubTreeField: string = "tree";
+  public static readonly githubParentsField: string = "parents[]";
+  public static readonly githubForceField: string = "force";
+  public static readonly githubStatusField: string = "status";
+  public static readonly githubCompletedStatus: string = "completed";
   public static readonly releaseUpdateFeedVariable: string = "RELEASE_UPDATE_FEED";
   public static readonly releaseInternalVariable: string = "RELEASE_INTERNAL_VERSION";
   public static readonly uploadLabelMark: string = "#";
@@ -1293,6 +1329,10 @@ export class Resources {
   public static readonly aptGetInstalledPrefix: string = "Inst ";
   public static readonly aptGetInstalledDetails: RegExp = /\s.*$/;
   public static readonly dpkgDebCommand: string = "dpkg-deb";
+  public static readonly dpkgQueryCommand: string = "dpkg-query";
+  public static readonly dpkgQueryStatusArguments: readonly string[] = ["--show", "--showformat=${db:Status-Status}"];
+  public static readonly debianNotInstalledStatus: string = "not-installed";
+  public static readonly pkgutilPackagesOption: string = "--pkgs";
   public static readonly dpkgDebFieldOption: string = "--field";
   public static readonly debianPackageField: string = "Package";
   public static readonly readlinkCommand: string = "readlink";
@@ -1533,6 +1573,10 @@ export class Resources {
   public static readonly addonNodeApiDefine: string = `NAPI_VERSION=${Resources.addonNodeApiVersion}`;
   public static readonly addonRebuildArguments: readonly string[] = ["rebuild", "--loglevel=error", "--enable-lto=false", "--enable-thin-lto=false"];
   public static readonly addonHeadersDownloadOption: string = "--devdir";
+  public static readonly addonHeadersInstallArguments: readonly string[] = ["install", "--loglevel=error"];
+  public static readonly addonHeadersAttempts: number = 3;
+  public static readonly addonHeadersStalledExitCode: number = 6;
+  public static readonly addonHeadersStalledText: string = "Completion callback never invoked!";
   public static readonly addonLocalHeadersOption: string = "--nodedir";
   public static readonly addonLocalHeadersSegments: readonly string[] = ["include", "node", "common.gypi"];
   public static readonly addonNoToolchainText: string = "Could not find any Visual Studio installation to use";
@@ -1626,7 +1670,8 @@ export class Resources {
   public static readonly productSlugPattern: RegExp = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
   public static readonly productVariablePattern: RegExp = /^[A-Z][A-Z0-9_]*$/;
   public static readonly productRepositoryPattern: RegExp = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
-  public static readonly productUnsafeNamePattern: RegExp = /["\\\n\r]/;
+  public static readonly productUnsafeNamePattern: RegExp = /["\\%!$`#/?<>:*|[\]{}\p{Cc}]|[. ]$|^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?$/iu;
+  public static readonly productUnsafePublisherPattern: RegExp = /["\\\n\r%!$`]/;
   public static readonly productLineBreakPattern: RegExp = /[\n\r]/;
   public static readonly productWhitespacePattern: RegExp = /\s/u;
   public static readonly productMacCategoryPattern: RegExp = /^public\.app-category\.[a-z]+(?:-[a-z]+)*$/;
@@ -1634,7 +1679,9 @@ export class Resources {
   public static readonly productUnsafeSegmentPattern: RegExp = /[\\:*?"<>|]/;
   public static readonly checkoutHashLength: number = 8;
   public static readonly checkoutVariableSuffix: string = "_CHECKOUT";
-  public static readonly productNameExpected: string = "a name without quotes, backslashes or line breaks";
+  public static readonly productNameExpected: string = "a name without quotes, backslashes, % ! $ ` # / ? < > : * | [ ] { } or control characters, with no dot or space at its end, "
+    + "and not a name Windows reserves, such as CON";
+  public static readonly productPublisherExpected: string = "a name without quotes, backslashes, % ! $ ` or line breaks";
   public static readonly productSlugExpected: string = "lowercase kebab-case";
   public static readonly productApplicationIdExpected: string = "a lowercase reverse-DNS ID";
   public static readonly productDevelopmentApplicationIdExpected: string = "a lowercase reverse-DNS ID other than applicationId";
@@ -1695,10 +1742,11 @@ export class Resources {
   public static readonly typeOnlyPeersField: string = "typeOnlyPeers";
   public static readonly typeOnlyPeersListField: string = "peers";
   public static readonly typeOnlyPeersShape: string = `The root package.json's ${Resources.typeOnlyPeersSection} must map each package, as <name>@<version>, to { "peers": [<peer name>, ...], "reason": "<why the package never loads them>" }.`;
-  public static readonly packageReportFieldCount: number = 3;
+  public static readonly packageReportFieldCount: number = 4;
   public static readonly packageReportTargetField: "target" = "target";
   public static readonly packageReportSignedField: "signed" = "signed";
   public static readonly packageReportCheckedField: "checked" = "checked";
+  public static readonly packageReportStartedField: "started" = "started";
   public static readonly zipArchiveTarget: string = "zip";
   public static readonly packagePlatforms: ReadonlyMap<string, string> = new Map([
     [Resources.windowsPlatform, Resources.windowsTarget], [Resources.macPlatform, Resources.macosTarget], [Resources.linuxPlatform, Resources.linuxTarget]
@@ -1742,6 +1790,8 @@ export class Resources {
   public static readonly tarModeField: string = "mode";
   public static readonly tarHeaderEncoding: BufferEncoding = "latin1";
   public static readonly thirdPartyDownloadTimeout: number = 120_000;
+  public static readonly downloadRetriedStatuses: readonly number[] = [408, 429];
+  public static readonly downloadTransientPattern: RegExp = /\b(?:ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|EPIPE|ENETUNREACH|EHOSTUNREACH)\b|socket hang up|fetch failed|TypeError: terminated|server closed connection|Download failed: size mismatch|timed out after \d+ms|\b(?:Response code|server returned code) (?:5\d\d|408|429)\b/;
   public static readonly licenseFilePattern: RegExp = /^(?:(?:licen[cs]e|copying|unlicense)(?:[-_][a-z0-9+-]+(?:\.\d+)*)?|[a-z0-9+-]+(?:\.\d+)*[-_]licen[cs]e)(?:\.(?:md|txt|markdown))?$/i;
   public static readonly scriptFilePattern: RegExp = /\.[cm]?js$/;
   public static readonly regexSpecialCharacters: RegExp = /[.*+?^${}()|[\]\\]/g;
@@ -2490,6 +2540,34 @@ export class Resources {
 
   public static formatInstalledFileSize(file: string, size: number): string {
     return `${file}: ${size} bytes`;
+  }
+
+  public static formatInstallerTemporaryNone(temporary: string): string {
+    return `${temporary} held no temporary folder the installer had made.`;
+  }
+
+  public static formatInstallerPathUnreadable(target: string, error: unknown): string {
+    return `${target} could not be read: ${String(error)}`;
+  }
+
+  public static formatInstallerTemporaryFolder(folder: string): string {
+    return `The installer's temporary folder ${folder} held:`;
+  }
+
+  public static formatInstallerTemporaryContent(name: string, count: number, size: number): string {
+    return `${name}: ${count} files, ${size} bytes`;
+  }
+
+  public static formatInstallerProcesses(processId: number, processes: string): string {
+    return `What the installer, process ${processId}, had started and was still running after it was stopped:\n${processes}`;
+  }
+
+  public static formatInstallerProcessesNone(processId: number): string {
+    return `Nothing the installer, process ${processId}, had started was still running after it was stopped.`;
+  }
+
+  public static formatInstallerProcessesReadFailed(processId: number, reason: string): string {
+    return `What the installer, process ${processId}, had started could not be listed: ${reason}`;
   }
 
   public static formatInstallerTimedOut(message: string, description: string): string {
@@ -3556,6 +3634,10 @@ export class Resources {
     return `${version} is not newer than the highest release, ${highest}.`;
   }
 
+  public static formatReleaseOvertaken(version: string, highest: string): string {
+    return `${version} is not newer than the highest release, ${highest}, which another run published after this one's check, so ${version} is not published; release a version newer than ${highest}.`;
+  }
+
   public static formatCompareRoute(revision: string): string {
     return `/compare/${revision}...${Resources.mainBranch}`;
   }
@@ -3584,6 +3666,66 @@ export class Resources {
   public static formatReleasePublishUsage(command: string): string {
     return `Usage: ${Resources.releaseRepositoryVariable}=<owner/name> ${Resources.releaseVersionVariable}=<N.N.N> ${Resources.releaseRevisionVariable}=<commit> ${Resources.releaseFolderVariable}=<folder> `
       + `${Resources.formatReleaseSourceOptions()} ${Resources.releaseReportsVariable}=<folder> ${Resources.releaseRunVariable}=<url> [${Resources.releaseUpdateFeedVariable}=<loopback URL> | ${Resources.releaseInternalVariable}=<N.N.N-internal.N>] ${command} ${Resources.releasePublishCommand}\n`;
+  }
+
+  public static formatReleaseLockUsage(command: string): string {
+    return `Usage: ${Resources.releaseBuildRepositoryVariable}=<owner/name> ${Resources.releaseLockRunVariable}=<run id> ${Resources.releaseLockRevisionVariable}=<commit> ${command} ${Resources.releaseLockCommand}\n`;
+  }
+
+  public static formatReleaseUnlockUsage(command: string): string {
+    return `Usage: ${Resources.releaseBuildRepositoryVariable}=<owner/name> ${Resources.releaseLockRunVariable}=<run id> ${command} ${Resources.releaseUnlockCommand}\n`;
+  }
+
+  public static formatReleaseLockVariableInvalid(variable: string, value: string): string {
+    return `${variable} must be set as the release lock needs it, not "${value}".`;
+  }
+
+  public static formatReleaseLockMessage(run: string): string {
+    return `Release lock for run ${run}`;
+  }
+
+  public static formatGitHubCommitPath(commit: string): string {
+    return `${Resources.githubCommitsPath}/${commit}`;
+  }
+
+  public static formatGitHubRunPath(run: string): string {
+    return `/actions/runs/${run}`;
+  }
+
+  public static formatReleaseLockTaken(repository: string, run: string): string {
+    return `Run ${run} took the release lock of ${repository}.\n`;
+  }
+
+  public static formatReleaseLockTakenAgain(repository: string, run: string): string {
+    return `Run ${run} already held the release lock of ${repository} from an earlier attempt, and holds it again.\n`;
+  }
+
+  public static formatReleaseLockBroken(repository: string, run: string, holder: string | null): string {
+    return `${Resources.formatReleaseLockHolder(holder)} held the release lock of ${repository} and has ended without letting go of it, so run ${run} took it over.\n`;
+  }
+
+  public static formatReleaseLockWaiting(repository: string, holder: string | null): string {
+    return `${Resources.formatReleaseLockHolder(holder)} holds the release lock of ${repository}, so this run tries again every ${Resources.releaseLockRetryInterval / Resources.millisecondsPerSecond} s until that run lets go of it or ends.\n`;
+  }
+
+  public static formatReleaseLockLost(repository: string): string {
+    return `Another run changed the release lock of ${repository} first, so this run reads it again in ${Resources.releaseLockRetryInterval / Resources.millisecondsPerSecond} s.\n`;
+  }
+
+  public static formatReleaseLockFree(repository: string): string {
+    return `Nothing holds the release lock of ${repository}, so there is nothing to let go of.\n`;
+  }
+
+  public static formatReleaseLockHeldByAnother(repository: string, run: string, holder: string | null): string {
+    return `${Resources.formatReleaseLockHolder(holder)} holds the release lock of ${repository}, not run ${run}, so it stays.\n`;
+  }
+
+  public static formatReleaseLockLetGo(repository: string, run: string): string {
+    return `Run ${run} let go of the release lock of ${repository}.\n`;
+  }
+
+  public static formatReleaseLockHolder(holder: string | null): string {
+    return Object.isNull(holder) ? "A commit that names no run" : `Run ${holder}`;
   }
 
   public static formatTestFeedPublishesNothing(feed: string): string {
@@ -3873,6 +4015,15 @@ export class Resources {
     return `Building ${packageName}'s Windows addon ${addon} needs ${toolchain}, and node-gyp found no Visual Studio with it. Install it and run npm run build again.`;
   }
 
+  public static formatAddonHeadersRetried(folder: string, attempt: number, pause: number, text: string): string {
+    return `Downloading Node.js's headers into ${folder} stalled with exit code ${Resources.addonHeadersStalledExitCode} on try ${attempt} of ${Resources.addonHeadersAttempts}, `
+      + `so the build tries again in ${pause / Resources.millisecondsPerSecond} seconds:\n${text}\n`;
+  }
+
+  public static formatAddonHeadersFailed(folder: string, attempt: number, exitCode: number | null, text: string): string {
+    return `Downloading Node.js's headers into ${folder} for the addons failed with exit code ${exitCode} on try ${attempt} of ${Resources.addonHeadersAttempts}:\n${text}`;
+  }
+
   public static formatAddonBuildFailed(packageName: string, kind: string, addon: string, exitCode: number | null, text: string): string {
     return `Building ${packageName}'s ${kind} addon ${addon} failed with exit code ${exitCode}:\n${text}`;
   }
@@ -3989,6 +4140,18 @@ export class Resources {
 
   public static formatRepositoryPage(repository: string): string {
     return `https://github.com/${repository}`;
+  }
+
+  public static formatDebianAlreadyInstalled(packageName: string, status: string): string {
+    return `The Debian package ${packageName} is already on this machine, ${status}; the smoke installs and removes it, so remove it first or smoke on another machine.`;
+  }
+
+  public static formatMacAlreadyInstalled(found: string): string {
+    return `${found} is already on this machine; the smoke installs the app and removes it and its receipt, so remove it first or smoke on another machine.`;
+  }
+
+  public static formatSystemInstallNotUndone(failure: string, removal: string): string {
+    return `${failure} Removing what the install placed failed too, so it may be left on this machine: ${removal}`;
   }
 
   public static formatDebianPackageUnnamed(file: string, exitCode: number | null, text: string): string {
@@ -4387,6 +4550,18 @@ export class Resources {
     return `${id} could not be downloaded from ${resolved}: ${error}`;
   }
 
+  public static formatDownloadSubject(id: string, resolved: string): string {
+    return `${id} from ${resolved}`;
+  }
+
+  public static formatHttpStatus(status: number): string {
+    return `HTTP ${status}`;
+  }
+
+  public static formatNetworkFailure(error: string, code: string): string {
+    return `${error} (${code})`;
+  }
+
   public static formatDownloadStatus(id: string, resolved: string, status: number): string {
     return `${id} could not be downloaded from ${resolved}: HTTP ${status}.`;
   }
@@ -4431,6 +4606,11 @@ export class Resources {
     return `${name} ${version} for ${targets}. ${signing}`;
   }
 
+  public static formatReleaseRunCheckExcept(runUrl: string, unstarted: string): string {
+    return `Each target's package passed its install check on that target's own runner in the run that built it, except ${unstarted}, whose packages that run built `
+      + `but didn't install or start: ${runUrl}`;
+  }
+
   public static formatReleaseCiOnly(ciOnly: string): string {
     return `Accepted by a CI run only: ${ciOnly}.`;
   }
@@ -4457,7 +4637,7 @@ export class Resources {
 
   public static formatAssetMismatch(name: string, size: number, digest: string | null, builtSize: number, expected: string): string {
     return `${name} on GitHub has ${size} bytes and ${digest ?? "no digest"}, but the built file has ${builtSize} bytes and ${expected}. `
-      + "A release's files are never replaced.";
+      + "Only a draft's file from an earlier run is ever replaced.";
   }
 
   public static formatGitHubReleasesContext(index: number): string {
@@ -4510,6 +4690,10 @@ export class Resources {
 
   public static formatIncompleteUploadDeleting(name: string): string {
     return `Deleting the incomplete upload of ${name}.\n`;
+  }
+
+  public static formatDifferentUploadReplacing(name: string): string {
+    return `Replacing ${name}, which the draft holds from an earlier run and which differs from the built file.\n`;
   }
 
   public static formatGitHubReleaseContext(id: number): string {
@@ -4706,6 +4890,10 @@ export class Resources {
 
   public static formatDownloadRetry(subject: string, attempt: number): string {
     return `${subject} could not be installed (attempt ${attempt} of ${Resources.downloadAttempts}); trying again in ${Resources.downloadRetryPause / Resources.millisecondsPerSecond} seconds.\n`;
+  }
+
+  public static formatDownloadNotRetried(subject: string, failure: string): string {
+    return `${subject} could not be installed; it failed with ${failure}, which isn't a network failure that trying again could fix.`;
   }
 
   public static formatDownloadGaveUp(subject: string, failure: string): string {

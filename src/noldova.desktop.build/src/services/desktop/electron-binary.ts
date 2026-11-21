@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
+import { BuildException } from "../../exceptions/build.exception.ts";
 import type { ProcessRunner } from "../processes/process-runner.ts";
 import { Resources } from "../../resources.ts";
 import { RetriedDownload } from "../processes/retried-download.ts";
@@ -43,9 +44,9 @@ export class ElectronBinary {
     await RetriedDownload.runAsync(Resources.electronSubject, output, async () => {
       const result = await this.runner.captureAsync(process.execPath, [installer], this.root, Resources.downloadAttemptTimeout,
         { ...this.environment, [Resources.electronArchitectureVariable]: this.architecture });
-      if (result.isSuccessful && this.isInstalled())
-        return null;
-      return result.isSuccessful ? Resources.electronStillMissing : Resources.formatExitCodeProblem(result.exitCode, result.errorOutput);
+      if (result.isSuccessful && !this.isInstalled())
+        throw new BuildException(Resources.formatDownloadNotRetried(Resources.electronSubject, Resources.electronStillMissing));
+      return RetriedDownload.describeInstall(Resources.electronSubject, result);
     });
   }
 }

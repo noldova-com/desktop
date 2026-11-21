@@ -92,6 +92,18 @@ export class MountedAppImageTests {
   }
 
   @TestMethod
+  public async findsAMountUnderAFolderWhoseSpaceAndBackslashTheMountTableEscapes(): Promise<void> {
+    await using fixture = await MountedAppImageTests.createAsync("pipe:[1]", "/tmp/desktop mounted\\app/mnt");
+    const output = new RecordedOutput();
+
+    const copy = await MountedAppImage.findAsync(fixture.processes, fixture.readLinkAsync, MountedAppImageTests.RUNTIME, new RuntimeRunner(), () => Promise.resolve(null), output);
+
+    Assert.areEqual("/tmp/desktop mounted\\app/mnt/.mount_sample", copy.items.join("|"));
+    Assert.isTrue(await copy.isPresentAsync());
+    Assert.areEqual(Resources.formatSmokeMounted("/tmp/desktop mounted\\app/mnt/.mount_sample"), output.text);
+  }
+
+  @TestMethod
   public async refusesARuntimeWhoseInputIsNotAPipe(): Promise<void> {
     await using fixture = await MountedAppImageTests.createAsync("/dev/null");
     const output = new RecordedOutput();
@@ -261,11 +273,14 @@ export class MountedAppImageTests {
     };
   }
 
-  private static async createAsync(input: string = "pipe:[1]"):
+  private static escape(folder: string): string {
+    return folder.replaceAll("\\", "\\134").replaceAll(" ", "\\040");
+  }
+
+  private static async createAsync(input: string = "pipe:[1]", outer: string = "/tmp/desktop-mounted-app-image/mnt"):
     Promise<{ readonly processes: string; readonly mount: string; readonly program: string; readLinkAsync(link: string): Promise<string>; writeMountsAsync(lines: readonly string[]): Promise<void> } & AsyncDisposable> {
     const folder = await mkdtemp(path.join(tmpdir(), "desktop-mounted-app-image-"));
     const processes = path.join(folder, "proc");
-    const outer = "/tmp/desktop-mounted-app-image/mnt";
     const mount = `${outer}/.mount_sample`;
     const program = `${mount}/sample-app`;
     const runtime = path.join(processes, String(MountedAppImageTests.RUNTIME));
@@ -278,8 +293,8 @@ export class MountedAppImageTests {
     const writeMountsAsync = (lines: readonly string[]): Promise<void> => writeFile(path.join(processes, "self", "mountinfo"), lines.map(t => `${t}\n`).join(String.empty));
     await writeMountsAsync([
       "22 1 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw",
-      `35 22 0:31 / ${outer} rw,nosuid,nodev shared:2 - fuse sample ro`,
-      `36 35 0:32 / ${mount} rw,nosuid,nodev shared:3 - fuse.sample-app sample-app ro,user_id=1000`
+      `35 22 0:31 / ${MountedAppImageTests.escape(outer)} rw,nosuid,nodev shared:2 - fuse sample ro`,
+      `36 35 0:32 / ${MountedAppImageTests.escape(mount)} rw,nosuid,nodev shared:3 - fuse.sample-app sample-app ro,user_id=1000`
     ]);
     return {
       processes,

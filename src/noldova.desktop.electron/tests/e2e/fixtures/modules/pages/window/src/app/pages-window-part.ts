@@ -36,6 +36,7 @@ export class PagesWindowPart implements IWindowPart {
     }, () => this.isMarkAllowed));
     context.registerCommand(new CommandContribution("pages.allowMark", "Allow the mark", null, null, async () => {
       this.isMarkAllowed = true;
+      context.updateDocument("pages.page", "1", { title: "Mark allowed" });
       return null;
     }));
   }

@@ -30,14 +30,20 @@ export class ForeignAddons {
     const segments = file.split(Resources.pathSegmentSeparator);
     const [folder, name] = segments;
     if (!Object.isUndefined(folder) && !Object.isUndefined(name) && Resources.addonBuildFolders.includes(folder))
-      return ForeignAddons.isForeignAddon(name, target);
+      return ForeignAddons.isForeignAddon(name, target, false);
     const conpty = segments[Resources.conptyFolderSegments.length + 1];
     return !Object.isUndefined(conpty) && segments.length > Resources.conptyFolderSegments.length + 2
       && Resources.conptyFolderSegments.every((t, index) => segments[index] === t) && ForeignAddons.isForeignConpty(conpty, target);
   }
 
-  private static isForeignAddon(name: string, target: PackageTarget): boolean {
-    return Resources.addonTargets.includes(name) && name !== target.addonTarget;
+  private static isForeignAddon(name: string, target: PackageTarget, hasOwn: boolean): boolean {
+    return Resources.addonTargetPattern.test(name) && name !== target.addonTarget && (hasOwn || !ForeignAddons.includesTarget(name, target));
+  }
+
+  private static includesTarget(name: string, target: PackageTarget): boolean {
+    const [platform = String.empty, architecture = String.empty] = target.addonTarget.split(Resources.kebabSeparator);
+    const [named = String.empty, processors = String.empty] = name.split(Resources.kebabSeparator);
+    return named === platform && processors.split(Resources.addonProcessorSeparator).includes(architecture);
   }
 
   private static isForeignConpty(name: string, target: PackageTarget): boolean {
@@ -47,8 +53,11 @@ export class ForeignAddons {
 
   private static async listForeignAsync(folder: string, target: PackageTarget): Promise<readonly string[]> {
     const foreign: string[] = [];
-    for (const native of Resources.addonBuildFolders.map(t => path.join(folder, t)))
-      foreign.push(...(await ForeignAddons.listFoldersAsync(native)).filter(t => ForeignAddons.isForeignAddon(t, target)).map(t => path.join(native, t)));
+    for (const native of Resources.addonBuildFolders.map(t => path.join(folder, t))) {
+      const names = await ForeignAddons.listFoldersAsync(native);
+      const hasOwn = names.includes(target.addonTarget);
+      foreign.push(...names.filter(t => ForeignAddons.isForeignAddon(t, target, hasOwn)).map(t => path.join(native, t)));
+    }
     const conpty = path.join(folder, ...Resources.conptyFolderSegments);
     for (const version of (await ForeignAddons.listFoldersAsync(conpty)).map(t => path.join(conpty, t)))
       foreign.push(...(await ForeignAddons.listFoldersAsync(version)).filter(t => ForeignAddons.isForeignConpty(t, target)).map(t => path.join(version, t)));
