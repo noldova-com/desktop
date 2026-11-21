@@ -1101,13 +1101,16 @@ export declare class InstallFolderMove {
 }
 
 /**
- * The handoff of an update on Linux for a copy installed from the Debian package: hashes the downloaded `.deb` again and
- * installs it with `pkexec /usr/bin/dpkg --install`, which asks for an administrator's permission. No process takes the
- * update over; {@link AppImageRestart} starts the new version.
+ * The handoff of an update on Linux for a copy installed from the Debian package: hashes the downloaded `.deb` again,
+ * checks its signature, and runs the package's update installer, `resources/linux-update-install`, through pkexec, which
+ * asks for an administrator's permission. As root, the installer copies the `.deb` into a folder only root can write,
+ * requires the copy's SHA-512 to be the checked one, and installs the copy with dpkg, so a file changed after the check
+ * is never installed. No process takes the update over; {@link AppImageRestart} starts the new version.
  */
 export declare class DebianHandoff implements IUpdateHandoff {
   /**
-   * Why the update cannot be installed when the system has no pkexec, or `null` when it has.
+   * Why the update cannot be installed when the system has no pkexec or the package's update installer is missing or
+   * can be changed by someone other than root, or `null` when it can.
    *
    * @example
    * ```ts
@@ -1123,8 +1126,11 @@ export declare class DebianHandoff implements IUpdateHandoff {
   /**
    * Creates the handoff.
    *
-   * @param installer The pkexec program that runs dpkg as root, or `null` when the system has none.
-   * @param runAsync Runs a program with its arguments and resolves once it exits successfully, or rejects with why it did not.
+   * @param installer The pkexec program that runs the update installer as root, or `null` when the system has none.
+   * @param updateInstaller The package's update installer, as {@link DebianHandoff.findUpdateInstaller} finds it, or
+   * `null` when it is missing or someone other than root can change it.
+   * @param runAsync Runs a program with its arguments and resolves once it exits successfully, or rejects with why it
+   * did not, an error whose `code` is the program's exit code.
    * @param verifyAsync Checks the ready update's signature again, as {@link UpdateSignatureCheck.checkReadyAsync} does,
    * and resolves to why it failed, or `null` when it passed.
    * @example
@@ -1136,11 +1142,44 @@ export declare class DebianHandoff implements IUpdateHandoff {
    * import { DebianHandoff, UpdateSignatureCheck } from "@noldova/desktop.electron";
    *
    * const check = new UpdateSignatureCheck(ProductInfo.current.linuxUpdateKeys, process.platform, process.arch, console.log, Date.now);
-   * export const handoff: DebianHandoff = new DebianHandoff("/usr/bin/pkexec", (program, args) => promisify(execFile)(program, [...args]), t => check.checkReadyAsync(t));
+   * export const handoff: DebianHandoff = new DebianHandoff("/usr/bin/pkexec", DebianHandoff.findUpdateInstaller("/opt/Sample/resources/linux-update-install"),
+   *   (program, args) => promisify(execFile)(program, [...args]), t => check.checkReadyAsync(t));
    * ```
    */
-  public constructor(installer: string | null, runAsync: (program: string, programArguments: readonly string[]) => Promise<unknown>,
+  public constructor(installer: string | null, updateInstaller: string | null, runAsync: (program: string, programArguments: readonly string[]) => Promise<unknown>,
     verifyAsync: (record: UpdateReadyRecord) => Promise<string | null>);
+
+  /**
+   * Gives the package's update installer when it is a regular file owned by root that neither its group nor others can
+   * write, so only root can change what pkexec runs.
+   *
+   * @param file The update installer, `linux-update-install` in the package's `resources` folder.
+   * @returns The file, or `null` when it is missing or not only root's to change.
+   * @example
+   * ```ts
+   * import { DebianHandoff } from "@noldova/desktop.electron";
+   *
+   * export const installer: string | null = DebianHandoff.findUpdateInstaller("/opt/Sample/resources/linux-update-install");
+   * ```
+   */
+  public static findUpdateInstaller(file: string): string | null;
+
+  /**
+   * Tells whether a file's status makes it only root's to change: a regular file owned by root that neither its group
+   * nor others can write.
+   *
+   * @param status The file's status, as `fs.statSync` gives it.
+   * @returns Whether only root can change the file.
+   * @example
+   * ```ts
+   * import { statSync } from "node:fs";
+   *
+   * import { DebianHandoff } from "@noldova/desktop.electron";
+   *
+   * export const isTrusted: boolean = DebianHandoff.isOnlyRootsToChange(statSync("/opt/Sample/resources/linux-update-install"));
+   * ```
+   */
+  public static isOnlyRootsToChange(status: Pick<Stats, "isFile" | "uid" | "mode">): boolean;
 
   /**
    * Checks the download and its signature, and installs it.
@@ -1150,8 +1189,15 @@ export declare class DebianHandoff implements IUpdateHandoff {
    * @throws {StaleUpdateException} Rejected when the download's SHA-512 no longer matches the ready record.
    * @throws {UpdateUnsignedAtHandoffException} Rejected when the ready update carries no valid signature by a key the
    * build ships, as when the record was written by something other than this app; pkexec is not started.
-   * @throws {UpdateHandoffException} Rejected when the system has no pkexec, or pkexec or dpkg fails, as when the person
-   * refuses the permission.
+   * @throws {UpdateChangedBeforeHandoffException} Rejected when the update installer finds its copy's SHA-512 differs
+   * from the checked one, as when the file was changed after the check; nothing is installed.
+   * @throws {DebianUpdateArgumentsRefusedException} Rejected when the update installer refuses the file, as when it is
+   * no longer a regular file.
+   * @throws {DebianInstallerMissingException} Rejected when the system has no pkexec.
+   * @throws {DebianUpdateInstallerMissingException} Rejected when the update installer is missing or not only root's to
+   * change.
+   * @throws {DebianPackageNotInstalledException} Rejected when pkexec or dpkg fails, as when the person refuses the
+   * permission.
    * @example
    * ```ts
    * import type { DebianHandoff, UpdateReadyRecord } from "@noldova/desktop.electron";
@@ -10266,6 +10312,48 @@ export declare class DebianInstallerMissingException extends UpdateHandoffExcept
    * import { DebianInstallerMissingException } from "@noldova/desktop.electron";
    *
    * export const failure: DebianInstallerMissingException = new DebianInstallerMissingException();
+   * ```
+   */
+  public constructor();
+}
+
+/**
+ * The exception thrown when the Debian package's update installer refuses the downloaded file, as when it is not a
+ * regular file, so the installed version is left as it was.
+ */
+export declare class DebianUpdateArgumentsRefusedException extends UpdateHandoffException {
+  /**
+   * The downloaded package the update installer refused.
+   */
+  public readonly file: string;
+
+  /**
+   * Creates the exception, with its message from the package's own text.
+   *
+   * @param file The downloaded package the update installer refused.
+   * @example
+   * ```ts
+   * import { DebianUpdateArgumentsRefusedException } from "@noldova/desktop.electron";
+   *
+   * export const failure: DebianUpdateArgumentsRefusedException = new DebianUpdateArgumentsRefusedException("/tmp/Sample-linux-x64.deb");
+   * ```
+   */
+  public constructor(file: string);
+}
+
+/**
+ * The exception thrown when this copy is a Debian package's install but its update installer is missing or someone
+ * other than root can change it, so its handoff can't install the update.
+ */
+export declare class DebianUpdateInstallerMissingException extends UpdateHandoffException {
+  /**
+   * Creates the exception, with its message from the package's own text.
+   *
+   * @example
+   * ```ts
+   * import { DebianUpdateInstallerMissingException } from "@noldova/desktop.electron";
+   *
+   * export const failure: DebianUpdateInstallerMissingException = new DebianUpdateInstallerMissingException();
    * ```
    */
   public constructor();

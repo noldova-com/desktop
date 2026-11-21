@@ -443,7 +443,11 @@ export class Resources {
   public static readonly packageTypeFile: string = "package-type";
   public static readonly debianPackageType: string = "deb";
   public static readonly debianInstallerProgram: string = "/usr/bin/pkexec";
-  public static readonly debianInstallerArguments: readonly string[] = ["/usr/bin/dpkg", "--install"];
+  public static readonly debianUpdateInstallerFile: string = "linux-update-install";
+  public static readonly debianUpdateArgumentsRefusedCode: number = 64;
+  public static readonly debianUpdateChangedCode: number = 65;
+  public static readonly rootUserId: number = 0;
+  public static readonly writableByOthersMode: number = 0o022;
   public static readonly feedSourceMissing: string = "The update feed's provider needs the feed's source in its options.";
   public static readonly feedExecutorUnexpected: string = "The update feed's provider needs electron-updater's HTTP executor in its runtime options.";
   public static readonly feedExecutorOption: string = "executor";
@@ -1127,6 +1131,10 @@ export class Resources {
     return `This copy of ${Resources.applicationName} is a Debian package, but this system has no pkexec to ask for an administrator's permission, so it can't install the update.`;
   }
 
+  public static get debianUpdateInstallerMissing(): string {
+    return `This copy of ${Resources.applicationName} is a Debian package, but its update installer is missing or can be changed by someone other than root, so it can't install the update.`;
+  }
+
   public static get notAnAppImage(): string {
     return `This copy of ${Resources.applicationName} doesn't run from an AppImage, so it can't install the update.`;
   }
@@ -1321,6 +1329,10 @@ export class Resources {
 
   public static formatAppImageLeftoverNotRemoved(folder: string): string {
     return `An unfinished copy of an earlier update in ${folder} could not be removed, so the AppImage in it was not replaced.`;
+  }
+
+  public static formatDebianUpdateArgumentsRefused(file: string): string {
+    return `The update installer refused ${file}, which is not a regular file, so the installed version was left as it was.`;
   }
 
   public static formatDebianPackageNotInstalled(file: string, reason: string): string {

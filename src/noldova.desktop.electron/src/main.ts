@@ -74,7 +74,8 @@ function createHandoff(installation: Installation, updater: IUpdater, verifyAsyn
       return () => clearTimeout(timer);
     }, log);
   if (isDebianPackage)
-    return new DebianHandoff(existsSync(Resources.debianInstallerProgram) ? Resources.debianInstallerProgram : null, async (program, args) => {
+    return new DebianHandoff(existsSync(Resources.debianInstallerProgram) ? Resources.debianInstallerProgram : null,
+      DebianHandoff.findUpdateInstaller(join(process.resourcesPath, Resources.debianUpdateInstallerFile)), async (program, args) => {
       await promisify(execFile)(program, [...args]);
     }, verifyReadyAsync);
   const image = AppImageSource.find(process.env, process.execPath);

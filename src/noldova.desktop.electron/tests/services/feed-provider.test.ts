@@ -54,8 +54,9 @@ export class FeedProviderTests {
     const text = FeedProviderTests.INFO.replace("    size: 1024", "    size: 1024\n    signature: c2lnbmF0dXJl");
     return FeedProviderTests.withAnswerAsync({ ok: true, status: 200, url: FeedProviderTests.RELEASE, text: () => Promise.resolve(text) }, async provider => {
       const info = await provider.getLatestVersion();
+      const [entry] = info.files;
 
-      Assert.areEqual("c2lnbmF0dXJl", Reflect.get(info.files[0] ?? {}, "signature"));
+      Assert.isTrue(!Object.isUndefined(entry) && "signature" in entry && entry.signature === "c2lnbmF0dXJl");
       Assert.areEqual("c2lnbmF0dXJl", UpdateSignatureCheck.readSignature(info, "/cache/pending/Noldova Desktop Sample-1.3.0-linux-x64.AppImage"));
     });
   }

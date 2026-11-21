@@ -102,8 +102,10 @@ export class PackageConfiguration {
       await mkdir(path.dirname(this.posixCommand), { recursive: true });
       await writeFile(this.posixCommand, this.describePosixCommand(), { mode: Resources.executableMode });
     }
-    if (this.target.platform === Resources.linuxTarget)
+    if (this.target.platform === Resources.linuxTarget) {
+      await writeFile(this.updateInstaller, Resources.debianUpdateInstallerScript, { mode: Resources.executableMode });
       await this.writeDebianTemplatesAsync(this.product.installFolder);
+    }
   }
 
   public static locateBuilderTemplates(): string {
@@ -152,6 +154,10 @@ export class PackageConfiguration {
 
   private get posixCommand(): string {
     return path.join(new PackageLayout(this.root).command, this.product.slug);
+  }
+
+  private get updateInstaller(): string {
+    return path.join(new PackageLayout(this.root).command, Resources.debianUpdateInstallerFile);
   }
 
   private get windowsCommand(): string {
@@ -224,7 +230,8 @@ export class PackageConfiguration {
             target,
             icon: path.join(icons, Resources.linuxIconFile),
             executableName: product.slug,
-            extraResources: [{ from: this.posixCommand, to: Resources.formatPackagedCommandPath(product.slug) }],
+            extraResources: [{ from: this.posixCommand, to: Resources.formatPackagedCommandPath(product.slug) },
+              { from: this.updateInstaller, to: Resources.debianUpdateInstallerFile }],
             syncDesktopName: true,
             category: product.linuxCategory,
             artifactName,

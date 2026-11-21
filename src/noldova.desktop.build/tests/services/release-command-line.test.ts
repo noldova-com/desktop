@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { generateKeyPairSync } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -55,10 +56,11 @@ export class ReleaseCommandLineTests {
     await new Promise<void>(resolve => server.close(() => resolve()));
 
     const result = await ReleaseCommandLineTests.runAsync(["feed-check"],
-      { FEED_URL: `http://127.0.0.1:${port}/`, FEED_VERSION: "1.2.3", RELEASE_TARGETS: "windows-x64", FEED_WAIT_SECONDS: "0" });
+      { FEED_URL: `http://127.0.0.1:${port}/`, FEED_VERSION: "1.2.3", RELEASE_TARGETS: "linux-x64,windows-x64", FEED_WAIT_SECONDS: "0",
+        LINUX_UPDATE_PUBLIC_KEYS: ReleaseCommandLineTests.createPublicKey() });
 
     Assert.areEqual(1, result.exitCode);
-    Assert.isTrue(result.output.startsWith(`latest-windows-x64.yml could not be read from http://127.0.0.1:${port}/: `), result.output);
+    Assert.isTrue(result.output.startsWith(`latest-linux-x64.yml could not be read from http://127.0.0.1:${port}/: `), result.output);
   }
 
   @TestMethod
@@ -72,10 +74,11 @@ export class ReleaseCommandLineTests {
     const port = Object.isNull(address) || Object.isString(address) ? 0 : address.port;
     try {
       const result = await PausedClockFixture.withoutPausesAsync(() => ReleaseCommandLineTests.runAsync(["feed-check"],
-        { FEED_URL: `http://127.0.0.1:${port}/`, FEED_VERSION: "1.2.3", RELEASE_TARGETS: "windows-x64", FEED_WAIT_SECONDS: "1" }), 10);
+        { FEED_URL: `http://127.0.0.1:${port}/`, FEED_VERSION: "1.2.3", RELEASE_TARGETS: "linux-x64", FEED_WAIT_SECONDS: "1",
+          LINUX_UPDATE_PUBLIC_KEYS: ReleaseCommandLineTests.createPublicKey() }), 10);
 
       const lines = result.output.split("\n").filter(t => t.length > 0);
-      const problem = `latest-windows-x64.yml could not be read from http://127.0.0.1:${port}/: `;
+      const problem = `latest-linux-x64.yml could not be read from http://127.0.0.1:${port}/: `;
       Assert.areEqual(1, result.exitCode);
       Assert.areEqual(`${problem}HTTP 404. The feed may still be catching up, so the check tries again.`, lines.at(0), result.output);
       Assert.isTrue(lines.length > 1, result.output);
@@ -99,6 +102,10 @@ export class ReleaseCommandLineTests {
     finally {
       await rm(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
     }
+  }
+
+  private static createPublicKey(): string {
+    return generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" }).toString("base64");
   }
 
   private static async runAsync(commandArguments: readonly string[], environment: NodeJS.ProcessEnv = {}): Promise<{ readonly exitCode: number; readonly output: string; readonly errors: string }> {

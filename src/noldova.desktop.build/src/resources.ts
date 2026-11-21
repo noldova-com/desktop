@@ -413,6 +413,32 @@ export class Resources {
   public static readonly parentFolderSegment: string = "..";
   public static readonly macProgramSegments: readonly string[] = [Resources.parentFolderSegment, "MacOS"];
   public static readonly executableMode: number = 0o755;
+  public static readonly debianUpdateInstallerFile: string = "linux-update-install";
+  public static readonly debianUpdateArgumentsRefusedCode: number = 64;
+  public static readonly debianUpdateChangedCode: number = 65;
+  public static readonly debianUpdateNotInstalledCode: number = 66;
+  public static readonly debianUpdateFolderPrefix: string = "noldova-desktop-update.";
+  public static readonly debianUpdateInstallerScript: string = [
+    "#!/bin/sh",
+    "set -eu",
+    `[ "$#" -eq 2 ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
+    "file=$1",
+    "hash=$2",
+    `[ "\${#hash}" -eq 128 ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
+    "case $hash in",
+    `  *[!0-9a-f]*) exit ${Resources.debianUpdateArgumentsRefusedCode} ;;`,
+    "esac",
+    `[ ! -L "$file" ] && [ -f "$file" ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
+    `folder=$(/bin/mktemp -d -p /tmp ${Resources.debianUpdateFolderPrefix}XXXXXXXXXX)`,
+    "trap '/bin/rm -rf -- \"$folder\"' EXIT",
+    "trap 'exit 1' HUP INT TERM",
+    "copy=$folder/update.deb",
+    "/bin/cp --no-dereference -- \"$file\" \"$copy\"",
+    `[ ! -L "$copy" ] && [ -f "$copy" ] || exit ${Resources.debianUpdateArgumentsRefusedCode}`,
+    "actual=$(/usr/bin/sha512sum -- \"$copy\")",
+    `[ "\${actual%% *}" = "$hash" ] || exit ${Resources.debianUpdateChangedCode}`,
+    `/usr/bin/dpkg --install -- "$copy" || exit ${Resources.debianUpdateNotInstalledCode}`
+  ].map(t => `${t}\n`).join(String.empty);
   public static readonly windowsSigningHash: string = "sha256";
   public static readonly windowsSignHookName: string = "windows-sign-hook";
   public static readonly packageFuses: Readonly<Record<string, boolean>> = {

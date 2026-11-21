@@ -35,7 +35,7 @@ export class UpdateSignatureCheck {
     const entry = info?.files.find(t => t.url === name);
     if (Object.isUndefined(entry))
       return null;
-    const signature: unknown = Reflect.get(entry, Resources.updateSignatureField);
+    const signature = "signature" in entry ? entry.signature : null;
     return Object.isString(signature) && signature.length > 0 ? signature : null;
   }
 

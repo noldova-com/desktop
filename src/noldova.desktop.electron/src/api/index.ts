@@ -95,6 +95,8 @@ export { AppImageNotReplacedException } from "../exceptions/app-image-not-replac
 export { AppImageUnreadableException } from "../exceptions/app-image-unreadable.exception.js";
 export { DebianInstallerMissingException } from "../exceptions/debian-installer-missing.exception.js";
 export { DebianPackageNotInstalledException } from "../exceptions/debian-package-not-installed.exception.js";
+export { DebianUpdateArgumentsRefusedException } from "../exceptions/debian-update-arguments-refused.exception.js";
+export { DebianUpdateInstallerMissingException } from "../exceptions/debian-update-installer-missing.exception.js";
 export { DatabasesNotBackedUpException } from "../exceptions/databases-not-backed-up.exception.js";
 export { DeviceIdentityException } from "../exceptions/device-identity.exception.js";
 export { ElectronException } from "../exceptions/electron.exception.js";

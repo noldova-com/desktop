@@ -30,6 +30,8 @@ export class MainProcessApiTests {
         "DebianInstallerMissingException",
         "DebianPackage",
         "DebianPackageNotInstalledException",
+        "DebianUpdateArgumentsRefusedException",
+        "DebianUpdateInstallerMissingException",
         "InstallerNotCopiedException",
         "InstallerNotHeldException",
         "InstallerNotStartedException",

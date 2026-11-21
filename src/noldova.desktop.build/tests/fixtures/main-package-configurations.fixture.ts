@@ -497,6 +497,10 @@ export class MainPackageConfigurationsFixture {
           {
             "from": "<cwd>/sample-app/_build/package/command/sample-app",
             "to": "bin/sample-app"
+          },
+          {
+            "from": "<cwd>/sample-app/_build/package/command/linux-update-install",
+            "to": "linux-update-install"
           }
         ],
         "syncDesktopName": true,
@@ -602,6 +606,10 @@ export class MainPackageConfigurationsFixture {
           {
             "from": "<cwd>/sample-app/_build/package/command/sample-app",
             "to": "bin/sample-app"
+          },
+          {
+            "from": "<cwd>/sample-app/_build/package/command/linux-update-install",
+            "to": "linux-update-install"
           }
         ],
         "syncDesktopName": true,

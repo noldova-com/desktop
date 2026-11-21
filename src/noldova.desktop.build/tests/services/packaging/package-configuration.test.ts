@@ -6,10 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
@@ -20,6 +23,7 @@ import { ProductIdentity } from "../../../src/models/packages/product-identity.j
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { PackageConfiguration } from "../../../src/services/packaging/package-configuration.js";
 import { MainPackageConfigurationsFixture } from "../../fixtures/main-package-configurations.fixture.js";
+import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 
 @TestClass
 export class PackageConfigurationTests {
@@ -281,7 +285,8 @@ export class PackageConfigurationTests {
 
     Assert.areEqual(JSON.stringify({ maintainer: "Sample", afterInstall: path.join(templates, "after-install.tpl"), afterRemove: path.join(templates, "after-remove.tpl"),
       appArmorProfile: path.join(templates, "apparmor-profile.tpl") }), JSON.stringify(json.readValue("deb")));
-    Assert.areEqual(JSON.stringify([{ from: path.join(PackageConfigurationTests.ROOT, "_build", "package", "command", "sample-app"), to: "bin/sample-app" }]),
+    Assert.areEqual(JSON.stringify([{ from: path.join(PackageConfigurationTests.ROOT, "_build", "package", "command", "sample-app"), to: "bin/sample-app" },
+      { from: path.join(PackageConfigurationTests.ROOT, "_build", "package", "command", "linux-update-install"), to: "linux-update-install" }]),
       JSON.stringify(json.readObject("linux").readValue("extraResources")));
     Assert.areEqual(JSON.stringify({ homepage: "https://github.com/example/sample-app" }), JSON.stringify(json.readValue("extraMetadata")));
   }
@@ -367,7 +372,10 @@ export class PackageConfigurationTests {
     await configuration.writeAsync(file);
 
     const command = await readFile(path.join(root.path, "_build", "package", "command", "sample-app"), "utf8");
+    const installer = path.join(root.path, "_build", "package", "command", "linux-update-install");
     Assert.isTrue(existsSync(file));
+    Assert.isTrue((await readFile(installer, "utf8")).startsWith("#!/bin/sh\nset -eu\n"));
+    Assert.isTrue(process.platform === "win32" || ((await stat(installer)).mode & 0o777) === 0o755);
     Assert.isTrue(command.startsWith("#!/bin/sh\n"), command);
     Assert.isTrue(command.endsWith("exec \"$resources/../sample-app\" \"$resources/app.asar/node_modules/@noldova/desktop.cli/services/cli-entry.js\" \"$@\"\n"), command);
     Assert.isTrue(command.includes("export ELECTRON_RUN_AS_NODE=1\n"), command);
@@ -379,6 +387,86 @@ export class PackageConfigurationTests {
       Assert.areEqual(name !== "apparmor-profile.tpl", written.includes("'/opt/${sanitizedProductName}/resources/bin/${executable}'"), name);
       Assert.isFalse(written.includes("'/opt/${sanitizedProductName}/${executable}'"), name);
     }
+  }
+
+  @TestMethod
+  @PlatformFixture.linuxOnly()
+  public async refusesArgumentsTheDebianUpdateInstallerCannotTrustAndLeavesNothingAsync(): Promise<void> {
+    await PackageConfigurationTests.withUpdateInstallerAsync(async (folder, runAsync) => {
+      const file = path.join(folder, "update.deb");
+      await writeFile(file, "the package");
+      const hash = createHash("sha512").update("the package").digest("hex");
+      const link = path.join(folder, "link.deb");
+      await symlink(file, link);
+      const directory = path.join(folder, "directory.deb");
+      await mkdir(directory);
+      const cases: readonly (readonly string[])[] = [
+        [],
+        [file],
+        [file, hash, "extra"],
+        [file, hash.toUpperCase()],
+        [file, hash.slice(1)],
+        [file, `${hash.slice(1)}g`],
+        [file, `${hash.slice(1)} `],
+        [link, hash],
+        [directory, hash],
+        [path.join(folder, "missing.deb"), hash]
+      ];
+
+      const codes: number[] = [];
+      for (const args of cases)
+        codes.push(await runAsync(args));
+
+      Assert.areEqual(JSON.stringify(cases.map(() => 64)), JSON.stringify(codes));
+    });
+  }
+
+  @TestMethod
+  @PlatformFixture.linuxOnly()
+  public async refusesAPackageChangedAfterTheAppsCheckOnItsOwnCopyAndRemovesTheCopyAsync(): Promise<void> {
+    await PackageConfigurationTests.withUpdateInstallerAsync(async (folder, runAsync) => {
+      const file = path.join(folder, "update.deb");
+      await writeFile(file, "the checked package");
+      const checked = createHash("sha512").update(await readFile(file)).digest("hex");
+      await writeFile(file, "a package swapped in after the check");
+
+      const code = await runAsync([file, checked]);
+
+      Assert.areEqual(65, code);
+    });
+  }
+
+  @TestMethod
+  @PlatformFixture.linuxOnly()
+  public async reportsADpkgThatFailsOnTheCheckedCopyAndRemovesTheCopyAsync(): Promise<void> {
+    await PackageConfigurationTests.withUpdateInstallerAsync(async (folder, runAsync) => {
+      const file = path.join(folder, "update.deb");
+      await writeFile(file, "not a Debian archive");
+
+      const code = await runAsync([file, createHash("sha512").update("not a Debian archive").digest("hex")]);
+
+      Assert.areEqual(66, code);
+    });
+  }
+
+  private static async withUpdateInstallerAsync(test: (folder: string, runAsync: (args: readonly string[]) => Promise<number>) => Promise<void>): Promise<void> {
+    await using root = await PackageConfigurationTests.createRootAsync();
+    await PackageConfigurationTests.create(new PackageTarget("linux", "x64"), false, null, false, root.path).writeAsync(path.join(root.path, "_build", "package", "electron-builder.json"));
+    const installer = path.join(root.path, "_build", "package", "command", "linux-update-install");
+    const copies = async (): Promise<string> => JSON.stringify((await readdir("/tmp")).filter(t => t.startsWith("noldova-desktop-update.")).sort());
+    const before = await copies();
+    const folder = path.join(root.path, "packages");
+    await mkdir(folder);
+    await test(folder, async args => {
+      try {
+        await promisify(execFile)(installer, [...args]);
+        return 0;
+      }
+      catch (error) {
+        return error instanceof Error && "code" in error && Object.isNumber(error.code) ? error.code : -1;
+      }
+    });
+    Assert.areEqual(before, await copies());
   }
 
   private static create(target: PackageTarget, isSigned: boolean, publisher: string | null, hasWebViews: boolean, root: string = PackageConfigurationTests.ROOT,
