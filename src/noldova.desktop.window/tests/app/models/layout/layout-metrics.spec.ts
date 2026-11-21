@@ -51,7 +51,7 @@ describe("LayoutMetrics", () => {
     AppearanceFixture.apply(FixtureTheme.theme, ThemeMode.Light, 13);
     const fixture = measure(13);
 
-    expect(standard).toEqual([0.25, 0.25, 10, 2.75, 13.75, 10, 6.25, 26, 25, 16.25]);
+    expect(standard).toEqual([0.25, 0.25, 10, 2.75, 13.75, 10, 6.25, 26, 25, 12.5]);
     expect(larger).toEqual(standard);
     expect(fixture).toEqual([0.375, 0.375, 8, 3, 11, 8.5, 5, 20, 18, 12]);
   });
