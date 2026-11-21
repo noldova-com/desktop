@@ -48,6 +48,7 @@ import {
   ServicePublishedException,
   ServiceRegistry,
   ServiceTypeMismatchException,
+  SettingNotReadableException,
   ToolFailureCode,
   ToolRegistry,
   ToolRisk,
@@ -595,6 +596,66 @@ export class ModuleContextTests {
       risk: { default: ToolRisk.Low, maximum: ToolRisk.Low },
       deadline: { default: 2_000, maximum: 5_000 }
     };
+  }
+
+  @TestMethod
+  public async registersNoMethodCommandEventOrServiceOnceDisposedSoItsNextActivationRegistersThemAgain(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync();
+    const methods = new MethodRegistry();
+    const events = new EventRegistry(new EventSinkFixture());
+    const services = new ServiceRegistry();
+    const commands = new CommandRegistry();
+    const late = ModuleContextFixture.create(settings, methods, events, services, commands);
+    late[Symbol.dispose]();
+
+    late.registerMethod("notes.list", { handleAsync: async () => [] });
+    late.registerCommand(new RuntimeCommand("notes.newNote", "New note", null, null, { handleAsync: async () => null }));
+    const lateChannel = late.declareEvent("notes.changed");
+    late.publishService("notes.store", new Map());
+    const left = [methods.find(new QualifiedName("notes", "list")), commands.find(new QualifiedName("notes", "newNote")), services.find(new QualifiedName("notes", "store"))];
+    const refused = [() => lateChannel.publish(null), () => lateChannel.publishTo(1, null, null)].map(t => Assert.throws(t, EventWithdrawnException).message);
+    lateChannel[Symbol.dispose]();
+    Assert.throws(() => late.registerMethod("notes.other", { handleAsync: async () => [] }), NotContributedException);
+    const next = ModuleContextFixture.create(settings, methods, events, services, commands);
+    next.registerMethod("notes.list", { handleAsync: async () => [] });
+    next.registerCommand(new RuntimeCommand("notes.newNote", "New note", null, null, { handleAsync: async () => null }));
+    next.declareEvent("notes.changed").publish(null);
+    next.publishService("notes.store", new Map());
+
+    Assert.areEqual("undefined,undefined,undefined", left.map(String).join(","));
+    Assert.areEqual(2, refused.filter(t => t.includes("notes.changed")).length);
+    Assert.isDefined(methods.find(new QualifiedName("notes", "list")));
+    Assert.isDefined(commands.find(new QualifiedName("notes", "newNote")));
+    Assert.isDefined(services.find(new QualifiedName("notes", "store")));
+  }
+
+  @TestMethod
+  public async hearsNoClosureSettingWindowOrShortcutChangeOnceDisposed(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync(ModuleContextFixture.SETTINGS);
+    const diagnostics = new TextOutputFixture();
+    const closures = new ClientClosures(diagnostics);
+    const surface = new AppSurface(closures, "linux", diagnostics);
+    const late = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry(),
+      undefined, undefined, undefined, diagnostics, undefined, undefined, closures, undefined, undefined, undefined, surface);
+    const heard: string[] = [];
+    late[Symbol.dispose]();
+
+    late.onClientClosed(() => {
+      heard.push("closed");
+    });
+    late.settings.onChanged("notes.sortBy", () => heard.push("setting"));
+    const stopWindows = late.appWindows.onChanged(() => heard.push("windows"));
+    const stopShortcuts = late.shortcuts.onChanged(() => heard.push("shortcuts"));
+    closures.report(new ClientClosure(1, 3));
+    late.settings.write("notes.sortBy", "b");
+    surface.receiveWindows(1, new AppWindowList([new AppWindow(132_406, 4210)]));
+    surface.receiveShortcuts(1, new AppShortcutList([new AppShortcut(KeyChord.parse("Mod+Shift+Period"), "desktop.stopAgentControl", true)]));
+    stopWindows();
+    stopShortcuts();
+
+    Assert.areEqual(String.empty, heard.join(","));
+    Assert.areEqual("b", String(late.settings.read("notes.sortBy")));
+    Assert.throws(() => late.settings.onChanged("clock.speed", () => undefined), SettingNotReadableException);
   }
 
   @TestMethod

@@ -22,7 +22,7 @@ export class ModuleAppWindowsTests {
   @TestMethod
   public listsTheSurfacesWindows(): void {
     const surface = new AppSurface(new ClientClosures(new TextOutputFixture()), "linux", new TextOutputFixture());
-    const windows = new ModuleAppWindows(surface, []);
+    const windows = new ModuleAppWindows(surface, [], new AbortController().signal);
     const before = windows.list().length;
 
     surface.receiveWindows(1, ModuleAppWindowsTests.WINDOWS);
@@ -35,7 +35,7 @@ export class ModuleAppWindowsTests {
   public keepsEachListenersRegistrationAndStopsTellingItOnceRemoved(): void {
     const surface = new AppSurface(new ClientClosures(new TextOutputFixture()), "linux", new TextOutputFixture());
     const registrations: Disposable[] = [];
-    const windows = new ModuleAppWindows(surface, registrations);
+    const windows = new ModuleAppWindows(surface, registrations, new AbortController().signal);
     let heard = 0;
 
     const remove = windows.onChanged(() => heard++);
@@ -51,7 +51,7 @@ export class ModuleAppWindowsTests {
   public stopsTellingAListenerWhenTheModulesRegistrationsAreDisposed(): void {
     const surface = new AppSurface(new ClientClosures(new TextOutputFixture()), "linux", new TextOutputFixture());
     const registrations: Disposable[] = [];
-    const windows = new ModuleAppWindows(surface, registrations);
+    const windows = new ModuleAppWindows(surface, registrations, new AbortController().signal);
     let heard = 0;
     windows.onChanged(() => heard++);
 

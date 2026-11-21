@@ -22,7 +22,7 @@ export class ModuleAppShortcutsTests {
   @TestMethod
   public listsAndMatchesTheSurfacesShortcuts(): void {
     const surface = new AppSurface(new ClientClosures(new TextOutputFixture()), "linux", new TextOutputFixture());
-    const shortcuts = new ModuleAppShortcuts(surface, []);
+    const shortcuts = new ModuleAppShortcuts(surface, [], new AbortController().signal);
 
     surface.receiveShortcuts(1, ModuleAppShortcutsTests.SHORTCUTS);
 
@@ -35,7 +35,7 @@ export class ModuleAppShortcutsTests {
   public keepsEachListenersRegistrationAndStopsTellingItOnceRemoved(): void {
     const surface = new AppSurface(new ClientClosures(new TextOutputFixture()), "linux", new TextOutputFixture());
     const registrations: Disposable[] = [];
-    const shortcuts = new ModuleAppShortcuts(surface, registrations);
+    const shortcuts = new ModuleAppShortcuts(surface, registrations, new AbortController().signal);
     let heard = 0;
 
     const remove = shortcuts.onChanged(() => heard++);
@@ -51,7 +51,7 @@ export class ModuleAppShortcutsTests {
   public stopsTellingAListenerWhenTheModulesRegistrationsAreDisposed(): void {
     const surface = new AppSurface(new ClientClosures(new TextOutputFixture()), "linux", new TextOutputFixture());
     const registrations: Disposable[] = [];
-    const shortcuts = new ModuleAppShortcuts(surface, registrations);
+    const shortcuts = new ModuleAppShortcuts(surface, registrations, new AbortController().signal);
     let heard = 0;
     shortcuts.onChanged(() => heard++);
 
