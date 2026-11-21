@@ -138,6 +138,7 @@ export { UpdateStopException } from "../exceptions/update-stop.exception.js";
 export { UpdateStopFailedUnexpectedlyException } from "../exceptions/update-stop-failed-unexpectedly.exception.js";
 export { UpdateUnderWayException } from "../exceptions/update-under-way.exception.js";
 export { UpdateUnsavedException } from "../exceptions/update-unsaved.exception.js";
+export { UpdateUnsignedAtHandoffException } from "../exceptions/update-unsigned-at-handoff.exception.js";
 export { WindowStateException } from "../exceptions/window-state.exception.js";
 export { WindowStateNotConnectedException } from "../exceptions/window-state-not-connected.exception.js";
 export { WindowStateRefusedException } from "../exceptions/window-state-refused.exception.js";

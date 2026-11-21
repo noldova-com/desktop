@@ -15,7 +15,7 @@ import type { UpdateInfo } from "electron-updater";
 
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { UpdateSignatureCheck } from "@noldova/desktop.electron";
+import { UpdateReadyRecord, UpdateSignatureCheck } from "@noldova/desktop.electron";
 
 @TestClass
 export class UpdateSignatureCheckTests {
@@ -72,7 +72,57 @@ export class UpdateSignatureCheckTests {
     });
   }
 
-  private static createKeys(): { readonly key: KeyObject; readonly shipped: string } {
+  @TestMethod
+  public async checksAReadyUpdateAgainAgainstTheSignatureItsRecordKeepsAndTheFileAsItIsNow(): Promise<void> {
+    await UpdateSignatureCheckTests.withFileAsync(async file => {
+      const [shipped, other] = [UpdateSignatureCheckTests.createKeys(), UpdateSignatureCheckTests.createKeys()];
+      const lines: string[] = [];
+      const check = new UpdateSignatureCheck([shipped.shipped], "linux", "x64", t => lines.push(t), () => 0);
+      const valid = UpdateSignatureCheckTests.sign(shipped.key, "1.3.0", "linux-x64");
+      const record = (version: string, signature: string | null): UpdateReadyRecord => new UpdateReadyRecord(version, file, "recorded", true, signature);
+      const cases: readonly (readonly [UpdateSignatureCheck, UpdateReadyRecord, string | null])[] = [
+        [check, record("1.3.0", valid), null],
+        [new UpdateSignatureCheck([], "linux", "x64", () => undefined, () => 0), record("1.3.0", valid),
+          "this build is unsigned, so it has no key to check the update's signature against"],
+        [check, record("1.3.0", null), "the ready update's record carries no signature for it"],
+        [check, record("1.3.0", UpdateSignatureCheckTests.sign(other.key, "1.3.0", "linux-x64")), "its signature is not by a key this build ships"],
+        [check, record("1.4.0", valid), "its signature is not by a key this build ships"],
+        [new UpdateSignatureCheck([shipped.shipped], "linux", "arm64", () => undefined, () => 0), record("1.3.0", valid), "its signature is not by a key this build ships"]
+      ];
+
+      const failures: (string | null)[] = [];
+      for (const [checker, ready] of cases)
+        failures.push(await checker.checkReadyAsync(ready));
+      await writeFile(file, "Noldova Desktop Sample 1.3.0, changed");
+      const tampered = await check.checkReadyAsync(record("1.3.0", valid));
+      const missing = await check.checkReadyAsync(new UpdateReadyRecord("1.3.0", `${file}.gone`, "recorded", true, valid));
+
+      Assert.areEqual(JSON.stringify(cases.map(t => t[2])), JSON.stringify(failures));
+      Assert.areEqual("its signature is not by a key this build ships", tampered);
+      Assert.isTrue(missing?.startsWith("its signature could not be checked: ") === true, String(missing));
+      Assert.areEqual("The update's signature check passed in 0 ms.|The update's signature check failed in 0 ms.|The update's signature check failed in 0 ms.|"
+        + "The update's signature check failed in 0 ms.|The update's signature check failed in 0 ms.|The update's signature check failed in 0 ms.", lines.join("|"));
+    });
+  }
+
+  @TestMethod
+  public readsTheSignatureOfTheFilesEntryOnlyWhenItIsANonEmptyString(): void {
+    const file = path.join(tmpdir(), UpdateSignatureCheckTests.NAME);
+    const cases: readonly (readonly [UpdateInfo | null, string, string | null])[] = [
+      [UpdateSignatureCheckTests.describe("c2ln"), file, "c2ln"],
+      [UpdateSignatureCheckTests.describe("c2ln"), path.join(tmpdir(), "Noldova Desktop Sample-1.3.0-linux-x64.deb"), null],
+      [UpdateSignatureCheckTests.describe("c2ln"), path.join(tmpdir(), "other.AppImage"), null],
+      [null, file, null],
+      [UpdateSignatureCheckTests.describe(String.empty), file, null],
+      [UpdateSignatureCheckTests.describe(5), file, null]
+    ];
+
+    const signatures = cases.map(t => UpdateSignatureCheck.readSignature(t[0], t[1]));
+
+    Assert.areEqual(JSON.stringify(cases.map(t => t[2])), JSON.stringify(signatures));
+  }
+
+  private static createKeys():{ readonly key: KeyObject; readonly shipped: string } {
     const pair = generateKeyPairSync("ed25519");
     return { key: pair.privateKey, shipped: pair.publicKey.export({ type: "spki", format: "der" }).toString("base64") };
   }

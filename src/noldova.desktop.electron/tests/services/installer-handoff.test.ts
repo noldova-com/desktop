@@ -78,7 +78,7 @@ class InstallerHandoffFixture {
   }
 
   public record(sha512: string = createHash("sha512").update(InstallerHandoffFixture.CONTENT).digest("base64")): UpdateReadyRecord {
-    return new UpdateReadyRecord("1.3.0", this.download, sha512, true);
+    return new UpdateReadyRecord("1.3.0", this.download, sha512, true, null);
   }
 }
 

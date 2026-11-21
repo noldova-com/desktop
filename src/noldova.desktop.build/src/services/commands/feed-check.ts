@@ -66,6 +66,8 @@ export class FeedCheck {
       throw new BuildException(Resources.formatFeedVersionInvalid(version));
     const targets = this.readTargets();
     const keys = this.readUpdateKeys();
+    if (keys.length === 0 && targets.some(t => t.platform === Resources.linuxTarget))
+      throw new BuildException(Resources.feedLinuxKeysMissing);
     const deadline = this.clock.now() + this.readWaitSeconds() * Resources.millisecondsPerSecond;
     const end = deadline + Resources.feedDownloadLimit;
     for (const target of targets) {
@@ -115,7 +117,7 @@ export class FeedCheck {
     Promise<string> {
     const files: IFeedFile[] = [...text.matchAll(Resources.feedFileEntryPattern)].map(t => ({ name: UpdateMetadata.unquote(String(t[1])), sha512: String(t[2]), size: Number(t[3]) }));
     const signatures = UpdateMetadata.readSignatures(text);
-    const isSigned = keys.length > 0 && target.platform === Resources.linuxTarget;
+    const isSigned = target.platform === Resources.linuxTarget;
     if (files.length === 0)
       throw new BuildException(Resources.formatFeedListsNoFiles(metadata, feed));
     if (files.length !== [...text.matchAll(Resources.feedEntryStartPattern)].length)

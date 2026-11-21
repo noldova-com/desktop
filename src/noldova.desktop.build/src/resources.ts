@@ -134,6 +134,8 @@ export class Resources {
   public static readonly updateSignatureLength: number = 64;
   public static readonly publicKeyEncoding: "spki" = "spki";
   public static readonly keyDerFormat: "der" = "der";
+  public static readonly feedLinuxKeysMissing: string = `${Resources.linuxUpdateKeysVariable} is empty, but the feed serves a Linux target, whose app refuses an update`
+    + " without a valid signature by a key it ships; set it to those keys, as the release workflow's feed job reads them from the app repository's variable.";
   public static readonly linuxUpdateKeysInvalid: string = `${Resources.linuxUpdateKeysVariable} must list distinct Ed25519 public keys, each the base64 of its DER SubjectPublicKeyInfo, separated by spaces or lines.`;
   public static readonly linuxSigningKeyInvalid: string = `${Resources.linuxSigningKeyVariable} must be an Ed25519 private key in PKCS #8 PEM, so it is not shown here.`;
   public static readonly linuxSigningKeyNotShipped: string = `The public half of ${Resources.linuxSigningKeyVariable} is not among ${Resources.linuxUpdateKeysVariable}, so the packaged app would refuse its own updates; ship the key one release before signing with it.`;

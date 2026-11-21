@@ -27,6 +27,7 @@ import { UpdateVersion } from "../models/update-version.js";
 import { ErrorCode } from "../models/error-code.js";
 import { Resources } from "../resources.js";
 import { FeedProvider } from "./feed-provider.js";
+import { UpdateSignatureCheck } from "./update-signature-check.js";
 
 export class FeedUpdater implements IUpdater {
   private readonly updater: IAppUpdater;
@@ -109,6 +110,10 @@ export class FeedUpdater implements IUpdater {
     }
   }
 
+  public readSignature(file: string): string | null {
+    return UpdateSignatureCheck.readSignature(this.checked, file);
+  }
+
   public formatPackagePath(version: string): string {
     return join(this.pendingFolder, this.source.formatReleasedFile(version));
   }
@@ -118,8 +123,10 @@ export class FeedUpdater implements IUpdater {
   }
 
   private async verifyPublisherAsync(file: string): Promise<void> {
-    if (Object.isNull(this.verifyAsync) || Object.isNull(await this.verifyAsync(file, this.checked)))
+    const failure = Object.isNull(this.verifyAsync) ? null : await this.verifyAsync(file, this.checked);
+    if (Object.isNull(failure))
       return;
+    this.log(Resources.formatDownloadRefused(failure));
     await rm(file, { force: true }).catch((error: unknown) => this.log(Resources.formatUpdateNotDeleted(String(error))));
     throw new UpdateNotSignedException();
   }

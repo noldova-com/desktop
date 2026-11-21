@@ -288,7 +288,7 @@ export class UpdateController {
         if (progress !== this.current.progress)
           this.set(new UpdateStatus(UpdateStateKind.Downloading, version, progress, checkedAt, null, false));
       });
-      record = new UpdateReadyRecord(version, file, await UpdateController.hashFileAsync(file), false);
+      record = new UpdateReadyRecord(version, file, await UpdateController.hashFileAsync(file), false, this.updater.readSignature(file));
     }
     catch (error) {
       if (!this.isStopped)

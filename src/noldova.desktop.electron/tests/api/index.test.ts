@@ -137,6 +137,7 @@ export class MainProcessApiTests {
         "UpdateTargetConnector",
         "UpdateUnderWayException",
         "UpdateUnsavedException",
+        "UpdateUnsignedAtHandoffException",
         "UpdateWorkQuestion",
         "UtilityProcessStarter",
         "WebAddressKind",

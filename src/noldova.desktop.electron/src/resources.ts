@@ -966,6 +966,7 @@ export class Resources {
   public static readonly updateSignatureMissing: string = "the update's information carries no signature for it";
   public static readonly updateHashDiffers: string = "its SHA-512 differs from the update's information";
   public static readonly updateSignatureInvalid: string = "its signature is not by a key this build ships";
+  public static readonly updateReadySignatureMissing: string = "the ready update's record carries no signature for it";
   public static readonly updateSignatureField: string = "signature";
   public static readonly updateSignatureLength: number = 64;
   public static readonly publicKeyEncoding: "spki" = "spki";
@@ -1909,6 +1910,14 @@ export class Resources {
 
   public static formatUpdateLockLeft(error: string): string {
     return `The update check's lock could not be removed, so it stays until this main process checks again or quits: ${error}`;
+  }
+
+  public static formatDownloadRefused(reason: string): string {
+    return `The downloaded update was refused and is deleted: ${reason}`;
+  }
+
+  public static formatUpdateUnsignedAtHandoff(file: string, reason: string): string {
+    return `The update ${file} carries no valid signature, so it was not installed: ${reason}`;
   }
 
   public static formatUpdateNotDeleted(error: string): string {

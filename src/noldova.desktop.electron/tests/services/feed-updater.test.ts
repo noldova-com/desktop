@@ -242,11 +242,15 @@ export class FeedUpdaterTests {
       const app = new FakeAppUpdater();
       const checked: string[] = [];
       const lines: string[] = [];
+      const present: boolean[] = [];
       let failure: string | null = null;
       const updater = new FeedUpdater(app, FeedUpdaterTests.SOURCE, FeedUpdaterTests.INSTALLATION, folder, "noldova-desktop", t => {
         checked.push(t);
         return Promise.resolve(failure);
-      }, t => lines.push(t));
+      }, t => {
+        lines.push(t);
+        present.push(existsSync(packagePath));
+      });
       const packagePath = updater.formatPackagePath("1.3.0");
       await mkdir(join(packagePath, ".."), { recursive: true });
       await writeFile(packagePath, "Noldova Desktop Sample 1.3.0");
@@ -278,8 +282,11 @@ export class FeedUpdaterTests {
       Assert.isTrue(isDeleted);
       Assert.areEqual("The update isn't signed by the publisher.", stuck.message);
       Assert.isTrue(existsSync(packagePath));
-      Assert.areEqual(1, lines.length);
-      Assert.isTrue(lines[0]?.startsWith("The update that failed its publisher check could not be deleted: Error: EBUSY") === true, lines[0]);
+      Assert.areEqual(3, lines.length);
+      Assert.areEqual("The downloaded update was refused and is deleted: The signature is not the publisher's.", lines[0]);
+      Assert.areEqual(lines[0], lines[1]);
+      Assert.isTrue(lines[2]?.startsWith("The update that failed its publisher check could not be deleted: Error: EBUSY") === true, lines[2]);
+      Assert.areEqual(JSON.stringify([true, true, true]), JSON.stringify(present));
       Assert.areEqual(JSON.stringify(Array(4).fill(packagePath)), JSON.stringify(checked));
     });
   }

@@ -89,7 +89,7 @@ class UpdateControllerFixture {
   }
 
   public get ready(): JsonObject {
-    return { version: "1.3.0", file: this.updater.packagePath, sha512: UpdateControllerFixture.HASH, notified: false };
+    return { version: "1.3.0", file: this.updater.packagePath, sha512: UpdateControllerFixture.HASH, notified: false, signature: this.updater.signature };
   }
 
   public fire(): void {
@@ -197,9 +197,10 @@ export class UpdateControllerTests {
   }
 
   @TestMethod
-  public downloadsWhatACheckFindsThenRecordsAndPostsItOnce(): Promise<void> {
+  public downloadsWhatACheckFindsThenRecordsItWithItsSignatureAndPostsItOnce(): Promise<void> {
     return UpdateControllerFixture.runAsync(async fixture => {
       fixture.updater.check = () => Promise.resolve("1.3.0");
+      fixture.updater.signature = "c2lnbmF0dXJl";
       fixture.updater.download = onProgress => {
         onProgress(-3);
         onProgress(0);

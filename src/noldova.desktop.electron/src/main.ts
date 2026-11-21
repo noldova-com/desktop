@@ -27,6 +27,7 @@ import {
 import type { IUpdateHandoff } from "./interfaces/i-update-handoff.js";
 import type { IUpdater } from "./interfaces/i-updater.js";
 import { FeedSource } from "./models/feed-source.js";
+import type { UpdateReadyRecord } from "./models/update-ready-record.js";
 import { Resources } from "./resources.js";
 import { AppImageHandoff } from "./services/app-image-handoff.js";
 import { AppImageReplacement } from "./services/app-image-replacement.js";
@@ -60,7 +61,8 @@ const programs = new ChildProgramHost(process.platform, Resources.programTimeout
 const presence = ProcessPresence.create(process.platform);
 const isDebianPackage = DebianPackage.isInstalled(process.platform, process.execPath);
 
-function createHandoff(installation: Installation, updater: IUpdater, verifyAsync: (installer: string) => Promise<string | null>, logsFolder: string, log: (text: string) => void): IUpdateHandoff {
+function createHandoff(installation: Installation, updater: IUpdater, verifyAsync: (installer: string) => Promise<string | null>,
+  verifyReadyAsync: (record: UpdateReadyRecord) => Promise<string | null>, logsFolder: string, log: (text: string) => void): IUpdateHandoff {
   if (process.platform === Resources.windowsPlatform) {
     const start = new InstallerStart(starter, verifyAsync, process.env, join(logsFolder, Resources.installerErrorFile));
     const protector = FolderProtectorFactory.create(process.platform, new SystemCommand(), process.env);
@@ -74,9 +76,9 @@ function createHandoff(installation: Installation, updater: IUpdater, verifyAsyn
   if (isDebianPackage)
     return new DebianHandoff(existsSync(Resources.debianInstallerProgram) ? Resources.debianInstallerProgram : null, async (program, args) => {
       await promisify(execFile)(program, [...args]);
-    });
+    }, verifyReadyAsync);
   const image = AppImageSource.find(process.env, process.execPath);
-  return new AppImageHandoff(Object.isNull(image) ? null : new AppImageReplacement(image.file, log));
+  return new AppImageHandoff(Object.isNull(image) ? null : new AppImageReplacement(image.file, log), verifyReadyAsync);
 }
 
 const commandLine = CommandLineRelay.readArguments(process.argv);
@@ -189,6 +191,6 @@ else
       const signature = new UpdateSignatureCheck(product.linuxUpdateKeys, process.platform, process.arch, log, Date.now);
       const feed = new FeedUpdater(updater, source, installation.folder, ProductAppAdapter.cacheFolder, product.slug,
         updater instanceof NsisUpdater ? t => check.checkAsync(t) : updater instanceof MacUpdater ? null : (t, u) => signature.checkAsync(t, u), log);
-      return { updater: feed, handoff: createHandoff(installation, feed, t => check.checkAsync(t), logsFolder, log) };
+      return { updater: feed, handoff: createHandoff(installation, feed, t => check.checkAsync(t), t => signature.checkReadyAsync(t), logsFolder, log) };
     },
     (installation, log) => new UpdateCheckLock(installation.folder, async () => (await presence.stampAsync([[process.pid, Resources.clientName]]))[0] ?? null, t => presence.isRunningAsync(t), log));
