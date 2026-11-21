@@ -25,16 +25,16 @@ describe("TestPart", () => {
     assert.deepEqual(select(null), STAGES);
   });
 
-  it("gives the first part Packages and the package tests alone", () => {
-    assert.deepEqual(select(1), [[], ["Packages", "Package tests"]]);
+  it("gives the first part every check but the package tests, with Packages, in their order", () => {
+    assert.deepEqual(select(1), [["Documents", "Comments"], ["Packages", "Script tests", "Angular tests"]]);
   });
 
-  it("gives the second part every other check, with Packages, in their order", () => {
-    assert.deepEqual(select(2), [["Documents", "Comments"], ["Packages", "Script tests", "Angular tests"]]);
+  it("gives the second part Packages and the package tests alone", () => {
+    assert.deepEqual(select(2), [[], ["Packages", "Package tests"]]);
   });
 
   it("names what each part runs and that only both together are the gate", () => {
-    assert.equal(TestResources.formatPartNotice(1), "Part run: 1 of 2, Packages and the package tests. Only both parts together are the complete gate.\n");
-    assert.equal(TestResources.formatPartNotice(2), "Part run: 2 of 2, every check but the package tests. Only both parts together are the complete gate.\n");
+    assert.equal(TestResources.formatPartNotice(1), "Part run: 1 of 2, every check but the package tests. Only both parts together are the complete gate.\n");
+    assert.equal(TestResources.formatPartNotice(2), "Part run: 2 of 2, Packages and the package tests. Only both parts together are the complete gate.\n");
   });
 });

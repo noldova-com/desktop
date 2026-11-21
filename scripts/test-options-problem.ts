@@ -14,7 +14,7 @@ export class TestOptionsProblem {
   public static readonly REPEAT_VALUE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsRepeatValue);
   public static readonly REPEAT_ONCE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsRepeatOnce);
   public static readonly RERUN_FAILED_ONCE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsRerunFailedOnce);
-  public static readonly SHARD_VALUE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsShardValue);
+  public static readonly SHARD_VALUE: TestOptionsProblem = new TestOptionsProblem(() => Resources.formatTestOptionsShardValue());
   public static readonly SHARD_ONCE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsShardOnce);
   public static readonly SHARD_FILTERED: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsShardFiltered);
   public static readonly UNKNOWN_OPTION: TestOptionsProblem = new TestOptionsProblem(t => Resources.formatTestOptionsUnknownOption(t));

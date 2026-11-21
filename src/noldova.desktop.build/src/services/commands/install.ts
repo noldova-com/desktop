@@ -8,6 +8,7 @@
 
 import type { Writable } from "node:stream";
 
+import { BuildPart } from "../../models/build-part.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { AngularProject } from "../angular/angular-project.ts";
 import { Resources } from "../../resources.ts";
@@ -21,14 +22,16 @@ export class Install {
     this.output = output;
   }
 
-  public async runAsync(installArguments: readonly string[]): Promise<number> {
+  public async runAsync(commandArguments: readonly string[]): Promise<number> {
+    const part = BuildPart.parse(commandArguments);
+    const installArguments = part.removeFrom(commandArguments);
     if (installArguments.length > 0) {
       this.output.write(Resources.installUsage);
       return Resources.usageExitCode;
     }
 
     try {
-      await this.angular.installAsync(this.output);
+      await this.angular.installAsync(this.output, part);
       return 0;
     }
     catch (error) {

@@ -15,6 +15,7 @@ import { AngularProject } from "../angular/angular-project.ts";
 import { GalleryFile } from "../angular/gallery-file.ts";
 import { ProductFile } from "../angular/product-file.ts";
 import { ElectronBinary } from "../desktop/electron-binary.ts";
+import { BuildPart } from "../../models/build-part.ts";
 import { BuildVariant } from "../../models/modules/build-variant.ts";
 import { ModuleArtifacts } from "../modules/module-artifacts.ts";
 import { ModuleCatalog } from "../modules/module-catalog.ts";
@@ -44,7 +45,9 @@ export class Build {
     this.output = output;
   }
 
-  public async runAsync(buildArguments: readonly string[]): Promise<number> {
+  public async runAsync(commandArguments: readonly string[]): Promise<number> {
+    const part = BuildPart.parse(commandArguments);
+    const buildArguments = part.removeFrom(commandArguments);
     const isListing = buildArguments.includes(Resources.buildListCopiesOption);
     const isTest = buildArguments[0] === Resources.buildTestOption;
     const isPackaged = buildArguments[0] === Resources.buildPackagedOption;
@@ -64,16 +67,20 @@ export class Build {
 
     try {
       if (isListing) {
-        this.output.write([...(await this.build.listCopiesAsync()).map(t => Resources.formatCopyLine(t)), Resources.buildEndOfCopies].join(String.empty));
+        this.output.write([...(await this.build.listCopiesAsync()).map(t => Resources.formatCopyLine(t.fields)), Resources.buildEndOfCopies].join(String.empty));
         return 0;
       }
       const feedIndex = names.indexOf(Resources.updateFeedOption);
       const variant = new BuildVariant(isTest, values.filter((_, i) => names[i] === Resources.buildWithoutOption), isPackaged, feedIndex < 0 ? null : String(values[feedIndex]));
       const outputIndex = names.indexOf(Resources.outputOption);
       const outputFolder = outputIndex < 0 ? null : path.resolve(String(values[outputIndex]));
-      await this.angular.prepareAsync(this.output);
-      const packages = await this.build.buildAsync(this.output, variant);
-      await this.build.buildAngularAsync(this.output, variant);
+      if (!Object.isNull(part.part))
+        this.output.write(Resources.formatBuildPart(part.part));
+      if (part.hasWindowChecks)
+        await this.angular.prepareAsync(this.output);
+      const packages = await this.build.buildAsync(this.output, variant, part);
+      if (part.hasWindowChecks)
+        await this.build.buildAngularAsync(this.output, variant);
       const declarations = await this.modules.listBuildAsync(variant.isTest, variant.excluded);
       await this.build.writeProductAsync(variant, outputFolder);
       this.output.write(packages.length === 0 ? Resources.buildNoPackages : Resources.formatPackagesBuilt(packages.length));
@@ -87,8 +94,11 @@ export class Build {
       }
       await this.product.writeAsync();
       await this.gallery.writeAsync(variant.isPackaged);
-      await this.build.installAngularAsync(this.output, declarations, variant);
+      if (part.hasWindowChecks)
+        await this.build.installAngularAsync(this.output, declarations, variant);
       await this.electron.installAsync(this.output);
+      if (!part.hasWindowChecks)
+        return 0;
       const windowFolder = Object.isNull(outputFolder) ? null : path.join(outputFolder, Resources.windowFolder);
       await this.angular.buildAsync(this.output, windowFolder);
       if (variant.isPackaged)

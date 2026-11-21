@@ -49,6 +49,7 @@ import { WindowNodeLoadCheck } from "./checks/window-node-load-check.ts";
 import { ModuleCatalog } from "../src/noldova.desktop.build/src/services/modules/module-catalog.ts";
 import { BuildLayout } from "../src/noldova.desktop.build/src/services/packages/build-layout.ts";
 import { PackageBuild } from "../src/noldova.desktop.build/src/services/packages/package-build.ts";
+import { BuildPart } from "../src/noldova.desktop.build/src/models/build-part.ts";
 import { PackageCatalog } from "../src/noldova.desktop.build/src/services/packages/package-catalog.ts";
 import { ProductIdentity } from "../src/noldova.desktop.build/src/models/packages/product-identity.ts";
 import { ProcessRunner } from "../src/noldova.desktop.build/src/services/processes/process-runner.ts";
@@ -98,7 +99,7 @@ export class Test {
       if (options.repeat > 1)
         this.output.write(TestResources.formatRunHeading(run, options.repeat));
       const exitCode = options.filters.length === 0
-        ? await this.runChecksAsync(TestPart.select(await this.createChecksAsync(flaky), options.part, t => t instanceof PackageTestCheck, t => t instanceof PackageCheck), Object.isNull(options.part) ? null : TestResources.formatPartNotice(options.part), flaky)
+        ? await this.runChecksAsync(TestPart.select(await this.createChecksAsync(flaky, options.part), options.part, t => t instanceof PackageTestCheck, t => t instanceof PackageCheck), Object.isNull(options.part) ? null : TestResources.formatPartNotice(options.part), flaky)
         : await this.runFilteredAsync(options.filters, flaky);
       if (exitCode !== Resources.successExitCode) {
         if (options.repeat > 1)
@@ -202,7 +203,7 @@ export class Test {
     return [new DocumentCheck(this.root, new RepositoryFiles(this.root, new Git(this.root, this.runner)))];
   }
 
-  private async createChecksAsync(flaky: FlakyRecord | null): Promise<readonly (readonly ICheck[])[]> {
+  private async createChecksAsync(flaky: FlakyRecord | null, part: number | null): Promise<readonly (readonly ICheck[])[]> {
     const files = new RepositoryFiles(this.root, new Git(this.root, this.runner));
     const { ApiCatalog } = await import("./api/api-catalog.ts");
     const { AngularFileCheck } = await import("./checks/angular-file-check.ts");
@@ -251,7 +252,7 @@ export class Test {
       new PackageLayoutCheck(this.root, packages)
     ];
     const building: readonly ICheck[] = [
-      new PackageCheck(build),
+      new PackageCheck(build, BuildPart.of(part)),
       new PackageTestCheck(this.root, build, this.environment, flaky),
       new TypeCheck(this.root, this.runner),
       new ScriptTestCheck(this.root, this.runner),

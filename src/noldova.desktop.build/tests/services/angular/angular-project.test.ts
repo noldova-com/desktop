@@ -67,6 +67,16 @@ export class AngularProjectTests {
   }
 
   @TestMethod
+  public async installsNoBrowserForThePackageTestsBuildPart(): Promise<void> {
+    await using app = await AppFolderFixture.createAsync(true, [], []);
+
+    const output = await AngularProjectTests.runAsync(app, "install", "--shard=2/2");
+
+    Assert.isFalse(app.hasInstalledBrowser, output);
+    Assert.isFalse(output.includes("browser"), output);
+  }
+
+  @TestMethod
   public async installsTheBrowserForATestTarget(): Promise<void> {
     await using app = await AppFolderFixture.createAsync(true, [], []);
 
@@ -385,11 +395,11 @@ export class AngularProjectTests {
     return chunks.join(String.empty);
   }
 
-  private static async runAsync(app: AppFolderFixture, command: string): Promise<string> {
+  private static async runAsync(app: AppFolderFixture, ...commandArguments: readonly string[]): Promise<string> {
     const output = new PassThrough();
     const chunks: string[] = [];
     output.on("data", (chunk: Buffer) => chunks.push(chunk.toString()));
-    await new BuildCommandLine(app.path, app.environment, process.platform, process.arch, output, new PassThrough()).runAsync([command]);
+    await new BuildCommandLine(app.path, app.environment, process.platform, process.arch, output, new PassThrough()).runAsync(commandArguments);
     return chunks.join(String.empty);
   }
 }

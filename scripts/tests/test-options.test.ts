@@ -46,8 +46,16 @@ describe("TestOptions", () => {
       const error = refusal([option]);
 
       assert.equal(error.problem, TestOptionsProblem.SHARD_VALUE);
-      assert.equal(error.message, Resources.testOptionsShardValue);
+      assert.equal(error.message, "--shard takes 1/2, every check but the package tests, or 2/2, Packages and the package tests.");
     });
+
+  it("names in the --shard refusal the checks of each part by its number", () => {
+    const message = refusal(["--shard=3/2"]).message;
+    const other = Resources.testOptionsShardParts + 1 - Resources.testPartPackageTests;
+
+    assert.match(message, new RegExp(`\\b${Resources.testPartPackageTests}/2, Packages and the package tests\\b`, "u"));
+    assert.match(message, new RegExp(`\\b${other}/2, every check but the package tests\\b`, "u"));
+  });
 
   it("refuses a second part", () => {
     assert.equal(refusal(["--shard=1/2", "--shard=2/2"]).problem, TestOptionsProblem.SHARD_ONCE);

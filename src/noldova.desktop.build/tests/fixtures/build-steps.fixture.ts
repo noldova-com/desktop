@@ -10,8 +10,10 @@ import type { Writable } from "node:stream";
 
 import "@noldova/context.core";
 
+import type { BuildPart } from "../../src/models/build-part.js";
 import type { BuildVariant } from "../../src/models/modules/build-variant.js";
 import type { ModuleDeclaration } from "../../src/models/modules/module-declaration.js";
+import { PackageCopy } from "../../src/models/packages/package-copy.js";
 import { PackageManifest } from "../../src/models/packages/package-manifest.js";
 import { AngularProject } from "../../src/services/angular/angular-project.js";
 import { GalleryFile } from "../../src/services/angular/gallery-file.js";
@@ -69,13 +71,13 @@ class StepPackageBuild extends PackageBuild {
     this.packages = packages;
   }
 
-  public override async listCopiesAsync(): Promise<readonly (readonly [string, string, string])[]> {
+  public override async listCopiesAsync(): Promise<readonly PackageCopy[]> {
     await this.record("copies");
-    return [["sample-app", "node_modules/@noldova/desktop.cli", "1.2.3"]];
+    return [new PackageCopy("sample-app", "node_modules/@noldova/desktop.cli", "1.2.3")];
   }
 
-  public override async buildAsync(_output: Writable, variant: BuildVariant): Promise<readonly PackageManifest[]> {
-    await this.record(`packages ${String(variant.isTest)} ${variant.excluded.join(",")} ${String(variant.isPackaged)} ${String(variant.updateFeed)}`);
+  public override async buildAsync(_output: Writable, variant: BuildVariant, part: BuildPart): Promise<readonly PackageManifest[]> {
+    await this.record(`packages ${String(variant.isTest)} ${variant.excluded.join(",")} ${String(variant.isPackaged)} ${String(variant.updateFeed)} ${String(part.part)}`);
     return this.packages;
   }
 
@@ -161,8 +163,8 @@ class StepAngularProject extends AngularProject {
     this.record = record;
   }
 
-  public override async installAsync(): Promise<void> {
-    await this.record("angular-install");
+  public override async installAsync(_output: Writable, part: BuildPart): Promise<void> {
+    await this.record(`angular-install ${String(part.part)}`);
   }
 
   public override async prepareAsync(): Promise<void> {

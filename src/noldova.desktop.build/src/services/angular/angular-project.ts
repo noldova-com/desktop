@@ -15,6 +15,7 @@ import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 import { JsonReader } from "@noldova/context.json";
 
+import { BuildPart } from "../../models/build-part.ts";
 import { BuildLayout } from "../packages/build-layout.ts";
 import { ContentHash } from "../packages/content-hash.ts";
 import { InstalledPackages } from "../packages/installed-packages.ts";
@@ -44,7 +45,7 @@ export class AngularProject {
     this.npm = npm;
   }
 
-  public async installAsync(output: Writable): Promise<void> {
+  public async installAsync(output: Writable, part: BuildPart = BuildPart.WHOLE): Promise<void> {
     if (!this.hasProject()) {
       output.write(Resources.angularNoProject);
       return;
@@ -59,6 +60,8 @@ export class AngularProject {
     }
 
     await this.requireSingleCopyAsync();
+    if (!part.hasWindowChecks)
+      return;
     if (!await this.hasTestTargetAsync()) {
       output.write(Resources.angularNoBrowser);
       return;

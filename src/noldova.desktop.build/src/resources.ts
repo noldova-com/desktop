@@ -1189,14 +1189,17 @@ export class Resources {
   public static readonly failureExitCode: number = 1;
   public static readonly githubErrorPrefix: string = "::error::";
   public static readonly outputOption: string = "--output";
-  public static readonly buildUsage: string = `Usage: ${Resources.commandName} ${Resources.buildCommand} [--test [--without <module id>]... [--output <folder> [--update-feed <URL>]] | --packaged [--output <folder> [--update-feed <URL>]] | --list-copies], where a URL is an https URL, or an http URL of localhost, ending in /\n`;
+  public static readonly buildUsage: string = `Usage: ${Resources.commandName} ${Resources.buildCommand} [--test [--without <module id>]... [--output <folder> [--update-feed <URL>]] | --packaged [--output <folder> [--update-feed <URL>]] | --shard=<1 or 2>/2 | --list-copies], where a URL is an https URL, or an http URL of localhost, ending in /\n`;
   public static readonly buildNoPackages: string = "No packages under src/; there is nothing to build.\n";
   public static readonly buildTestOption: string = "--test";
   public static readonly buildPackagedOption: string = "--packaged";
   public static readonly buildWithoutOption: string = "--without";
   public static readonly buildListCopiesOption: string = "--list-copies";
   public static readonly buildEndOfCopies: string = "end of copies\n";
-  public static readonly installUsage: string = `Usage: ${Resources.commandName} ${Resources.installCommand}\n`;
+  public static readonly installUsage: string = `Usage: ${Resources.commandName} ${Resources.installCommand} [--shard=<1 or 2>/2]\n`;
+  public static readonly buildPartPattern: RegExp = /^--shard=([12])\/2$/u;
+  public static readonly buildPackageTestsPart: number = 2;
+  public static readonly buildOtherChecksPart: number = 1;
   public static readonly npmStartingFolderVariable: string = "INIT_CWD";
   public static readonly githubOutputVariable: string = "GITHUB_OUTPUT";
   public static readonly whitespacePattern: RegExp = /\s+/;
@@ -3509,6 +3512,12 @@ export class Resources {
 
   public static formatPackagesBuilt(count: number): string {
     return `Packages built and installed: ${count}.\n`;
+  }
+
+  public static formatBuildPart(part: number): string {
+    return part === Resources.buildPackageTestsPart
+      ? "Part 2 of 2: building the packages and their tests, without the window.\n"
+      : "Part 1 of 2: building the packages and the window, without the packages' tests.\n";
   }
 
   public static formatModulesInBuild(count: number): string {

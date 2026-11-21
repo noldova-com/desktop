@@ -34,8 +34,7 @@ export class TestResources {
   }
 
   public static formatPartNotice(part: number): string {
-    const checks = part === Resources.testPartPackageTests ? "Packages and the package tests" : "every check but the package tests";
-    return `Part run: ${part} of ${Resources.testOptionsShardParts}, ${checks}. Only both parts together are the complete gate.${Resources.lineEnd}`;
+    return `Part run: ${part} of ${Resources.testOptionsShardParts}, ${Resources.formatTestPartChecks(part)}. Only both parts together are the complete gate.${Resources.lineEnd}`;
   }
 
   public static formatRunHeading(run: number, repeat: number): string {

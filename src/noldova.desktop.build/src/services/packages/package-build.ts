@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 import "@noldova/context.core";
 
+import { BuildPart } from "../../models/build-part.ts";
 import { BuildVariant } from "../../models/modules/build-variant.ts";
 import { ModuleCatalog } from "../modules/module-catalog.ts";
 import type { ModuleDeclaration } from "../../models/modules/module-declaration.ts";
@@ -25,6 +26,7 @@ import { AddonBuilder } from "./addon-builder.ts";
 import { BuildLayout } from "./build-layout.ts";
 import { BuildProduct } from "./build-product.ts";
 import { BuildRecord } from "../../models/packages/build-record.ts";
+import { PackageCopy } from "../../models/packages/package-copy.ts";
 import { ContentHash } from "./content-hash.ts";
 import { ImportClosure } from "./import-closure.ts";
 import { InstalledPackages } from "./installed-packages.ts";
@@ -69,7 +71,7 @@ export class PackageBuild {
     this.architecture = architecture;
   }
 
-  public async buildAsync(output: Writable, variant: BuildVariant = BuildVariant.REGULAR): Promise<readonly PackageManifest[]> {
+  public async buildAsync(output: Writable, variant: BuildVariant = BuildVariant.REGULAR, part: BuildPart = BuildPart.WHOLE): Promise<readonly PackageManifest[]> {
     const all = await this.listAllAsync(variant.isTest);
     const packages = all.filter(t => !t.isAngular && !PackageBuild.buildsOnAngular(t, all));
     if (packages.length === 0)
@@ -88,6 +90,11 @@ export class PackageBuild {
       await (await PackageBuild.hashRecordAsync(inputs, artifacts)).writeAsync(this.layout.locateRecord(manifest));
       archiveHashes.set(manifest.name, await ContentHash.ofFileAsync(this.layout.locateArchive(manifest, versions.of(manifest.name))));
       output.write(Resources.formatPackageBuilt(manifest.name, isCurrent));
+    }
+
+    if (!part.hasPackageTests) {
+      await this.requireCurrentAsync(variant, part);
+      return packages;
     }
 
     const installed = PackageBuild.hashInstalled(packages, archiveHashes);
@@ -115,13 +122,13 @@ export class PackageBuild {
     return packages;
   }
 
-  public async listCopiesAsync(): Promise<readonly (readonly [string, string, string])[]> {
+  public async listCopiesAsync(): Promise<readonly PackageCopy[]> {
     const all = await this.listAllAsync(false);
     const builder = await this.createBuilderAsync(await this.readVersionsAsync(all));
-    const copies: (readonly [string, string, string])[] = [];
+    const copies: PackageCopy[] = [];
     for (const manifest of all)
       for (const [file, entry] of await builder.listCopiedFilesAsync(manifest))
-        copies.push([path.relative(this.layout.root, file).split(path.sep).join(path.posix.sep), manifest.name, entry]);
+        copies.push(new PackageCopy(path.relative(this.layout.root, file).split(path.sep).join(path.posix.sep), manifest.name, entry));
     return copies;
   }
 
@@ -189,7 +196,7 @@ export class PackageBuild {
     output.write(Resources.formatAngularPackagesInstalled(packages.length, isCurrent));
   }
 
-  public async requireCurrentAsync(variant: BuildVariant = BuildVariant.REGULAR): Promise<void> {
+  public async requireCurrentAsync(variant: BuildVariant = BuildVariant.REGULAR, part: BuildPart = BuildPart.WHOLE): Promise<void> {
     const all = await this.listAllAsync(variant.isTest);
     const packages = all.filter(t => !t.isAngular && !PackageBuild.buildsOnAngular(t, all));
     if (packages.length === 0)
@@ -209,7 +216,7 @@ export class PackageBuild {
     }
 
     const installed = PackageBuild.hashInstalled(packages, archiveHashes);
-    for (const manifest of this.listTested(packages)) {
+    for (const manifest of part.hasPackageTests ? this.listTested(packages) : []) {
       const inputs = await this.hashTestInputsAsync(manifest, common, installed);
       if (!await PackageBuild.isCurrentAsync(this.layout.locateTestRecord(manifest), inputs, [this.layout.locateTestOutput(manifest)]))
         stale.push(Resources.formatTestsSubject(manifest.name));

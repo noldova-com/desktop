@@ -17,6 +17,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { BuildCommandLine } from "@noldova/desktop.build";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
+import { BuildPart } from "../../../src/models/build-part.js";
 import { BuildVariant } from "../../../src/models/modules/build-variant.js";
 import { PackageManifest } from "../../../src/models/packages/package-manifest.js";
 import { Resources } from "../../../src/resources.js";
@@ -272,6 +273,29 @@ export class PackageBuildTests {
     Assert.areEqual(Resources.formatArtifactsStale([`${protocol} tests`]), testsStale.message);
     Assert.areEqual(Resources.formatArtifactsStale([protocol, runtime, `${protocol} tests`]), allStale.message);
     Assert.areEqual(`${protocol}: built\n${runtime}: built\n${protocol} tests: compiled\n`, rebuilt);
+  }
+
+  @TestMethod
+  public async buildsAndRequiresThePackagesWithoutTheirTestsOrTheFixturesForTheFirstPart(): Promise<void> {
+    const { PROTOCOL, FIXTURES } = PackageBuildTests;
+    await using tree = await SourceTreeFixture.createAsync({
+      ...PackageBuildTests.BUILD_ROOT,
+      ...PackageBuildTests.describePackage(PROTOCOL),
+      [`${PROTOCOL}/tests/tsconfig.json`]: "{}",
+      [`${PROTOCOL}/tests/protocol.test.ts`]: "export {};\n",
+      ...PackageBuildTests.describePackage(`${FIXTURES}/runtime`, [PROTOCOL])
+    });
+    const runner = new PackageToolsRunnerFixture(tree.path);
+    const build = PackageBuildTests.create(tree, runner);
+    const protocol = PackageManifest.formatName(PROTOCOL);
+
+    const output = await PackageBuildTests.collectAsync(t => build.buildAsync(t, BuildVariant.REGULAR, BuildPart.of(1)));
+    await build.requireCurrentAsync(BuildVariant.REGULAR, BuildPart.of(1));
+    const whole = await Assert.throwsAsync(() => build.requireCurrentAsync(), BuildException);
+
+    Assert.areEqual(`${protocol}: built\n`, output);
+    Assert.areEqual(JSON.stringify([`compile ${PROTOCOL}/src/tsconfig.json`, "pack noldova.desktop.protocol", "install"]), JSON.stringify(runner.calls));
+    Assert.areEqual(Resources.formatArtifactsStale([`${protocol} tests`]), whole.message);
   }
 
   @TestMethod

@@ -25,8 +25,18 @@ export class InstallTests {
     const exitCode = await steps.createInstall(tmpdir(), output).runAsync([]);
 
     Assert.areEqual(0, exitCode);
-    Assert.areEqual("angular-install", steps.steps.join());
+    Assert.areEqual("angular-install null", steps.steps.join());
     Assert.isNull(output.read(output.readableLength));
+  }
+
+  @TestMethod
+  public async installsForTheBuildPartItIsGivenAsync(): Promise<void> {
+    const steps = new BuildStepsFixture();
+
+    const exitCodes = [await steps.createInstall(tmpdir(), new PassThrough()).runAsync(["--shard=1/2"]), await steps.createInstall(tmpdir(), new PassThrough()).runAsync(["--shard=2/2"])];
+
+    Assert.areEqual("0,0", exitCodes.join());
+    Assert.areEqual("angular-install 1,angular-install 2", steps.steps.join());
   }
 
   @TestMethod
@@ -34,10 +44,15 @@ export class InstallTests {
     const steps = new BuildStepsFixture();
     const output = new PassThrough();
 
-    const exitCode = await steps.createInstall(tmpdir(), output).runAsync(["--quick"]);
+    const exitCodes: number[] = [];
+    const outputs: string[] = [];
+    for (const installArguments of [["--quick"], ["--shard=3/2"], ["--shard=1/3"], ["--shard=1/2", "--shard=2/2"]]) {
+      exitCodes.push(await steps.createInstall(tmpdir(), output).runAsync(installArguments));
+      outputs.push(output.read(output.readableLength)?.toString() ?? String.empty);
+    }
 
-    Assert.areEqual(2, exitCode);
-    Assert.areEqual("Usage: noldova-desktop-build install\n", output.read(output.readableLength)?.toString() ?? String.empty);
+    Assert.areEqual("2,2,2,2", exitCodes.join());
+    Assert.areEqual(Array(4).fill("Usage: noldova-desktop-build install [--shard=<1 or 2>/2]\n").join("|"), outputs.join("|"));
     Assert.areEqual(0, steps.steps.length);
   }
 
