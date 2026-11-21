@@ -21,6 +21,8 @@ export class ProcessTimeoutExceptionTests {
     Assert.areEqual("\"npm\" did not finish within 5000 ms.", exception.message);
     Assert.areEqual("npm", exception.command);
     Assert.areEqual(5000, exception.timeout);
+    Assert.isUndefined(exception.processId);
+    Assert.areEqual(4242, new ProcessTimeoutException("npm", 5000, null, 4242).processId);
     Assert.isUndefined(exception.cause);
     Assert.isInstanceOf(exception, BuildException);
   }
