@@ -5,7 +5,7 @@
  * This source code is licensed under the license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import type { Locator, Page } from "@playwright/test";
+import { type Locator, type Page, expect } from "@playwright/test";
 
 export class TabRowFixture {
   public static readonly CLEAR: string = "clear";
@@ -16,11 +16,22 @@ export class TabRowFixture {
       const box = scroller?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
       const actions = scroller?.querySelector(".nol-tab-group-actions")?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
       const rect = t.getBoundingClientRect();
-      const isClear = scroller !== null && getComputedStyle(scroller).direction === "rtl"
+      const isClear = scroller !== null && getComputedStyle(t).visibility !== "hidden" && getComputedStyle(scroller).direction === "rtl"
         ? rect.right <= box.right + 1 && rect.left >= actions.right - 1
-        : rect.left >= box.left - 1 && rect.right <= actions.left + 1;
+        : scroller !== null && getComputedStyle(t).visibility !== "hidden" && rect.left >= box.left - 1 && rect.right <= actions.left + 1;
       return isClear ? clear : JSON.stringify({ tab: [rect.left, rect.right], scroller: [box.left, box.right], actions: [actions.left, actions.right] });
     }, TabRowFixture.CLEAR);
+  }
+
+  public static async showAsync(window: Page, tab: Locator): Promise<void> {
+    const key = await tab.getAttribute("data-tab-key");
+    if (key === null)
+      throw new Error("The tab has no data-tab-key.");
+    if (await tab.evaluate(t => t.classList.contains("nol-tab-overflowed"))) {
+      await tab.locator("xpath=ancestor::nol-tab-group").locator(".nol-tab-group-overflow").click();
+      await window.locator(`.cdk-overlay-container .nol-tab-group-overflow-tab[data-tab="${key}"]`).click();
+    }
+    await expect(tab).not.toHaveClass(/nol-tab-overflowed/);
   }
 
   public static async setDirectionAsync(window: Page, direction: "ltr" | "rtl"): Promise<void> {

@@ -90,10 +90,12 @@ test.describe("the harness's reading of the main process's error output", () => 
   test("a web view's line on its scroll is a diagnostic, and a line that only names a web view still fails", () => {
     const unkept = "2026-11-20T21:00:00.000Z Web view 1 of pages kept no scroll position: its page did not answer.";
     const unrestored = "2026-11-20T21:00:01.000Z Web view 1 of pages was not scrolled back to (0, 1200): an input came while its page loaded.";
+    const pending = "2026-11-20T21:00:03.000Z Web view 1 of pages kept the scroll position (0, 1200) its restored page had not been scrolled back to yet, rather than where that page showed.";
+    const failed = "2026-11-20T21:00:04.000Z Web view 1 of pages restored its page with an error (Error: ERR_FAILED (-2)) but shows the kept address, so it is still scrolled back.";
     const other = "2026-11-20T21:00:02.000Z Web view 1 of pages lost its defaults.";
 
-    expect(new ErrorOutputClassifier().classify(`${unkept}\n${unrestored}\n${other}\n`))
-      .toEqual([{ kind: "diagnostic", text: unkept }, { kind: "diagnostic", text: unrestored }, { kind: "failure", text: other }]);
+    expect(new ErrorOutputClassifier().classify(`${unkept}\n${unrestored}\n${pending}\n${failed}\n${other}\n`))
+      .toEqual([...[unkept, unrestored, pending, failed].map(t => ({ kind: "diagnostic", text: t })), { kind: "failure", text: other }]);
   });
 
   test("any other output still fails, including GTK's continuation text without a GTK warning before it", () => {

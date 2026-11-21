@@ -134,7 +134,7 @@ export class TabGroupComponent {
     this.layout.close(tab);
     const next = this.layout.layout().group(this.group().id)?.active ?? this.layout.currentGroup().active;
     if (hadFocus && !Object.isNull(next))
-      this.tabFocus.focus(next, true);
+      this.tabFocus.focus(next);
   }
 
   protected onTabDoubleClick(tab: Tab): void {

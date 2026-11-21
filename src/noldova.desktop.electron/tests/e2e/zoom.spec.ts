@@ -12,6 +12,7 @@ import { ClockWorkFixture } from "./fixtures/clock-work.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 import { LayoutFixture } from "./fixtures/layout.fixture.ts";
 import { SettingsFixture } from "./fixtures/settings.fixture.ts";
+import { TabRowFixture } from "./fixtures/tab-row.fixture.ts";
 
 async function openMenuAsync(window: Page): Promise<Locator> {
   await window.locator("nol-tab-group:has(nol-tab[data-tab-key=\"document/notes.note/1\"]) .nol-tab-group-menu").click();
@@ -68,7 +69,9 @@ test.describe("200% zoom", () => {
     const left = window.locator("nol-dock[data-side=Left]");
     await left.locator(".nol-dock-strip-view").first().click();
     await expect(left).not.toHaveClass(/nol-dock-collapsed/);
-    await window.locator("nol-tab[data-tab-key=\"view/notes.outline\"]").click();
+    const outline = window.locator("nol-tab[data-tab-key=\"view/notes.outline\"]");
+    await TabRowFixture.showAsync(window, outline);
+    await outline.click();
     const group = window.locator("nol-tab-group:has(nol-tab[data-tab-key=\"view/notes.outline\"])");
     await expect(group.locator(".nol-tab-group-overflow")).toBeVisible();
 

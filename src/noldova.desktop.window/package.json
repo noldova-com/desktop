@@ -42,10 +42,10 @@
     "@angular/common": "22.3.0",
     "@angular/core": "22.3.0",
     "@angular/platform-browser": "22.3.0",
-    "@noldova/context.core": ">=0.0.8 <0.1.0",
-    "@noldova/context.exceptions": ">=0.0.8 <0.1.0",
-    "@noldova/context.json": ">=0.0.8 <0.1.0",
+    "@noldova/context.core": ">=0.0.10 <0.1.0",
+    "@noldova/context.exceptions": ">=0.0.10 <0.1.0",
+    "@noldova/context.json": ">=0.0.9 <0.1.0",
     "@noldova/desktop.protocol": ">=__VERSION__ <__NEXT_MINOR__",
-    "@noldova/ui.components.angular": ">=0.0.20 <0.1.0"
+    "@noldova/ui.components.angular": ">=0.0.24 <0.1.0"
   }
 }

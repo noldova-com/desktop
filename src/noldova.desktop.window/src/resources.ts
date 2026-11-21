@@ -62,6 +62,7 @@ export class Resources {
   };
   public static readonly leadingEdges: readonly PanelEdge[] = [PanelEdge.Left, PanelEdge.Top];
   public static readonly layoutSaveDelay: number = 500;
+  public static readonly pageHideEvent: string = "pagehide";
   public static readonly primaryButton: number = 0;
   public static readonly middleButton: number = 1;
   public static readonly escapeKey: string = "Escape";
@@ -123,10 +124,7 @@ export class Resources {
   public static readonly tabGroupData: string = "group";
   public static readonly tabCloseSelector: string = ".nol-tab-close";
   public static readonly selectedTabSelector: string = ".nol-tab-selected";
-  public static readonly tabStripEndSelector: string = ".nol-tab-group-end";
-  public static readonly tabScrollerSelector: string = ".nol-tab-group-scroller";
   public static readonly tabActionsWidthProperty: string = "--nol-tab-group-actions-width";
-  public static readonly revealOptions: ScrollIntoViewOptions = { block: "nearest", inline: "nearest" };
   public static readonly arrowLeftKey: string = "ArrowLeft";
   public static readonly arrowRightKey: string = "ArrowRight";
   public static readonly homeKey: string = "Home";
@@ -1272,6 +1270,14 @@ export class Resources {
 
   public static formatPatternPreview(text: string): string {
     return `Shows as ${text}`;
+  }
+
+  public static formatSettingRowControlSelector(name: string): string {
+    return `[data-setting="${CSS.escape(name)}"] .nol-setting-row-control :is(${Resources.tabbableSelector})`;
+  }
+
+  public static formatNotificationDismissSelector(id: string): string {
+    return `[data-notification="${CSS.escape(id)}"] .nol-notifications-dismiss`;
   }
 
   public static formatAttributeSelector(attribute: string, value: string): string {

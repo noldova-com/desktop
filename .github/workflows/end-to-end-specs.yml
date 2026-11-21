@@ -27,7 +27,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@c18622b1479d896f22483f8091bd862526cb4df4 # v2.41.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@420ac04362aa51bd2b8d302578b0ec2f52c72bb3 # v2.41.1
     permissions: {}
 
   end-to-end:
@@ -83,7 +83,7 @@ jobs:
           folder="$RUNNER_TEMP/ms-playwright"
           echo "PLAYWRIGHT_BROWSERS_PATH=$folder" >> "$GITHUB_ENV"
           echo "folder=$folder" >> "$GITHUB_OUTPUT"
-          echo "key=angular-test-browser-chromium-headless-shell-$RUNNER_OS-$RUNNER_ARCH-playwright-$version" >> "$GITHUB_OUTPUT"
+          echo "key=playwright-chromium-headless-shell-$RUNNER_OS-$RUNNER_ARCH-$version" >> "$GITHUB_OUTPUT"
 
       - name: Restore the browser for the Angular tests, kept by its Playwright version
         timeout-minutes: 5

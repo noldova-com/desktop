@@ -79,7 +79,8 @@ function createHandoff(installation: Installation, updater: IUpdater, verifyAsyn
       await promisify(execFile)(program, [...args]);
     }, verifyReadyAsync);
   const image = AppImageSource.find(process.env, process.execPath);
-  return new AppImageHandoff(Object.isNull(image) ? null : new AppImageReplacement(image.file, log), verifyReadyAsync);
+  const replacement = Object.isNull(image) ? null : new AppImageReplacement(image.file, log);
+  return new AppImageHandoff(replacement, verifyReadyAsync, replacement?.refusal ?? null);
 }
 
 const commandLine = CommandLineRelay.readArguments(process.argv);

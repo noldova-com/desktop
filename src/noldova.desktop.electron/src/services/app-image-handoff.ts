@@ -20,14 +20,17 @@ import { UpdateController } from "./update-controller.js";
 export class AppImageHandoff implements IUpdateHandoff {
   private readonly replacement: Pick<AppImageReplacement, "replaceAsync"> | null;
   private readonly verifyAsync: (record: UpdateReadyRecord) => Promise<string | null>;
+  private readonly folderRefusal: string | null;
 
-  public constructor(replacement: Pick<AppImageReplacement, "replaceAsync"> | null, verifyAsync: (record: UpdateReadyRecord) => Promise<string | null>) {
+  public constructor(replacement: Pick<AppImageReplacement, "replaceAsync"> | null, verifyAsync: (record: UpdateReadyRecord) => Promise<string | null>,
+    folderRefusal: string | null = null) {
     this.replacement = replacement;
     this.verifyAsync = verifyAsync;
+    this.folderRefusal = folderRefusal;
   }
 
   public get refusal(): string | null {
-    return Object.isNull(this.replacement) ? Resources.notAnAppImage : null;
+    return Object.isNull(this.replacement) ? Resources.notAnAppImage : this.folderRefusal;
   }
 
   public async handOffAsync(record: UpdateReadyRecord): Promise<null> {

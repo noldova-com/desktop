@@ -141,7 +141,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@c18622b1479d896f22483f8091bd862526cb4df4 # v2.41.0
+    uses: noldova-com/.github/.github/workflows/versions.yml@420ac04362aa51bd2b8d302578b0ec2f52c72bb3 # v2.41.1
     permissions: {}
 
   fetch:
@@ -586,7 +586,7 @@ jobs:
         id: release-token
         if: steps.release-repository.outputs.name != ''
         timeout-minutes: 2
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}

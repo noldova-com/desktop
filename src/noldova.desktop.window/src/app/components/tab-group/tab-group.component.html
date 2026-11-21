@@ -27,7 +27,7 @@ LICENSE file in the root directory of this source tree.
             @let look = labels.lookOf(tab);
             <nol-tab [label]="label.title" [icon]="label.icon" [badge]="badge?.description ?? null" [badgeCount]="badge?.count ?? null" [selected]="tab.equals(group().active)" [preview]="tab.equals(group().preview)" [working]="labels.isWorking(tab)" [waiting]="labels.isWaiting(tab)" [editing]="tab.equals(renames.editing())" [attr.data-tab-index]="index"
               [image]="look.image" [imageGlyph]="look.imageGlyph" [status]="look.status" [marker]="look.marker" [leadingSpinner]="tab.leadsSpinner"
-              [attr.id]="tabId(index)" [attr.data-tab-key]="tab.key" [class.nol-drop-line-before]="drag.isDropBefore(group().id, index)" [class.nol-tab-dragged]="tab.equals(drag.dragging())"
+              [attr.id]="tabId(index)" [attr.data-tab-key]="tab.key" [class.nol-drop-line-before]="drag.isDropBefore(group().id, index)" [class.nol-tab-dragged]="tab.equals(drag.dragging())" [class.nol-tab-overflowed]="scroller.isHidden(tab.key) && !tab.equals(group().active)"
               [nolTooltip]="label.title" [nolTooltipSide]="below" [nolTooltipTruncated]="true"
               [nolContextMenuTriggerFor]="menu.menu()" (activate)="layout.activate(tab)" (click)="onTabClick(tab, $event)" (close)="close(tab)" (pointerdown)="onTabPointerDown(tab, $event)" (dblclick)="onTabDoubleClick(tab)"
               (labelKept)="renames.keep($event)" (labelCancelled)="renames.cancel()" />

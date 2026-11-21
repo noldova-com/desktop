@@ -37,87 +37,29 @@ describe("TabFocusService", () => {
     expect([before, document.activeElement]).toEqual([document.body, elements[1]]);
   });
 
-  it("scrolls a partly hidden tab it focuses into view, clear of the actions at its scroller's end", () => {
+  it("focuses a tab without scrolling the row that holds it, also when focus was lost, and nothing for a tab that isn't shown", () => {
     const focus = TestBed.inject(TabFocusService);
-    const scroller = document.body.appendChild(document.createElement("div"));
-    scroller.style.cssText = "display: flex; width: 120px; overflow-x: scroll; scroll-padding-inline-end: 30px";
-    elements.forEach(t => {
-      t.style.cssText = "flex: 0 0 80px";
-      scroller.appendChild(t);
-    });
-    const actions = scroller.appendChild(document.createElement("div"));
-    actions.style.cssText = "flex: 0 0 30px; position: sticky; inset-inline-end: 0";
-    try {
-      focus.focus(plan);
-      TestBed.tick();
-      const tab = elements[1]?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
-      const box = scroller.getBoundingClientRect();
-      const end = actions.getBoundingClientRect();
-
-      expect(document.activeElement).toBe(elements[1]);
-      expect([tab.left >= box.left, tab.right <= end.left]).toEqual([true, true]);
-    }
-    finally {
-      scroller.remove();
-    }
-  });
-
-  function rowOf(width: number, direction: string): HTMLElement {
     const row = document.body.appendChild(document.createElement("div"));
-    row.className = "nol-tab-group-scroller";
-    row.dir = direction;
-    row.style.cssText = `display: flex; width: ${width}px; overflow-x: scroll; scroll-padding-inline-end: 30px`;
+    row.style.cssText = "display: flex; width: 100px; overflow: hidden";
     elements.forEach(t => {
       t.style.cssText = "flex: 0 0 100px";
       row.appendChild(t);
     });
-    return row;
-  }
+    try {
+      focus.focus(plan);
+      TestBed.tick();
+      focus.focus(new ViewTab("files.tree"));
+      TestBed.tick();
+      const asked = [document.activeElement, row.scrollLeft];
+      elements[1]?.blur();
+      focus.focusIfLost(plan);
+      TestBed.tick();
 
-  it("keeps a row where it is when the tab to focus is at least partly shown beside the row's actions, in either direction", () => {
-    const focus = TestBed.inject(TabFocusService);
-    const kept = ["ltr", "rtl"].map(direction => {
-      const row = rowOf(150, direction);
-      try {
-        focus.focus(plan, true);
-        TestBed.tick();
-        return [document.activeElement === elements[1], row.scrollLeft];
-      }
-      finally {
-        row.remove();
-      }
-    });
-
-    expect(kept).toEqual([[true, 0], [true, 0]]);
-  });
-
-  it("reveals the tab to focus when it is wholly outside the row, past its actions or before its start, in either direction, though the row is to be kept", () => {
-    const focus = TestBed.inject(TabFocusService);
-    const revealAt = (direction: string, tab: DocumentTab | ViewTab, scrolled: number): number => {
-      const row = rowOf(100, direction);
-      try {
-        row.scrollLeft = scrolled;
-        focus.focus(tab, true);
-        TestBed.tick();
-        return row.scrollLeft;
-      }
-      finally {
-        row.remove();
-      }
-    };
-
-    expect([revealAt("ltr", plan, 0) > 0, revealAt("ltr", new ViewTab("notes.list"), 100) < 100, revealAt("rtl", plan, 0) < 0]).toEqual([true, true, true]);
-  });
-
-  it("focuses a tab outside any row, and nothing for a tab that isn't shown, when the row is to be kept", () => {
-    const focus = TestBed.inject(TabFocusService);
-
-    focus.focus(plan, true);
-    TestBed.tick();
-    focus.focus(new ViewTab("files.tree"), true);
-    TestBed.tick();
-
-    expect(document.activeElement).toBe(elements[1]);
+      expect([...asked, document.activeElement, row.scrollLeft]).toEqual([elements[1], 0, elements[1], 0]);
+    }
+    finally {
+      row.remove();
+    }
   });
 
   it("focuses a tab after the next render only when focus was lost, and nothing for a tab that isn't shown", () => {

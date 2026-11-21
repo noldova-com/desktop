@@ -82,7 +82,7 @@ The calls that raise requests are in [TOOLS.md](TOOLS.md).
 ## Events
 
 - `revoked(action, subject, scope)` reaches the runtime part of the module whose remembered answer was revoked, through `context.permissions.onRevoked(listener)`, so it can bring what it shows up to date; the next request already follows the revocation without it.
-- A session's end withdraws its waiting requests, as [TOOLS.md](TOOLS.md#events) says.
+- A session's end or stop withdraws its waiting requests, also one whose call has already returned, as [TOOLS.md](TOOLS.md#events) says.
 
 ## Limits
 

@@ -8,6 +8,8 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 ## The boundary
 
 - The window shows confirmed state and keeps only transient state itself; durable state goes to its owner in [RUNTIME.md](RUNTIME.md#state) after a pause in changes and when the window closes.
+  A layout change still waiting on its pause when the page hides, as a reload does, is sent at once, and the main process answers the reloaded page's read of the layout only once every write sent before it has landed or failed.
+  A write that doesn't answer fails after its five-second limit and the connection's five-second grace for a late answer, so it holds the read for about ten seconds at most; a write that failed or went unanswered may leave the layout kept before it, though one that went unanswered can still land before the read, and the read writes a line to the main process log saying so.
 - Every privileged request crosses the preload bridge and the main process's authenticated connection to the runtime.
   Window parts get no token, socket, process or file handle.
 - The main process sends each window's requests with the window's id, which a reload keeps, passes it only the events for it or for every window, and tells the runtime when the window closes, as [RUNTIME.md](RUNTIME.md#messages) says; a closed window's late requests go nowhere.
@@ -52,7 +54,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   The main process takes either only from the window's current page, follows a link to the file it names, refuses a folder, a FIFO, a socket and a device, and grants each other file to the part's module for that page, as [RUNTIME.md](RUNTIME.md#file-grants) says; it never opens the file.
   A dropped file is granted by the path the preload reads with Electron's `webUtils.getPathForFile`, and a pasted one without a path by its bytes, which the main process stages, at most 64 MiB in one call and 256 MiB staged in all.
   The part gets each file's grant, name, media type and size, never its path, and a sentence for each file it didn't get, naming it and why; it passes the grants to its runtime part, which redeems them at once.
-  The context ends the part's grants when the part discards them or is withdrawn, and the main process ends a page's grants when the next page names itself.
+  The context ends the part's grants when the part discards them or is withdrawn, and the main process ends a page's grants when the next page names itself or its renderer goes away.
 - A window part loads a file its runtime part shares with it by address, with no bytes passing as text: the runtime part answers the share's grant, and the context's `fileAddressOf` turns it into `desktop-file://<grant>/`, which the page loads as an image's source.
   The context holds the share as it holds a grant, so `discardFileGrants` ends it, and withdrawing the part ends it at once.
   The window's content security policy lets images, and nothing else, load from that scheme.
@@ -84,8 +86,10 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A dock opened from its strip or its toggle, or by showing one of its views, whether the person or a window part shows it, opens anyway, at what the document's minimum leaves, down to its groups' own minimum, such as 6.25 rem for a bottom dock of one group, and stays closed when even that doesn't fit.
   The window keeps one such dock open at a time, so opening another lets it close the one before, and it stops keeping it once the window has room for it.
 - A view shows in a dock or in the middle, and a document in a tab of a document group.
-- A group's tabs keep their width, and its tab row scrolls sideways when they don't all fit, its buttons staying at its end.
-  A tab is never wider than the room the row reveals a chosen tab in, which ends where those buttons start, even as buttons come and go, so a longer title ends with an ellipsis and shows whole as its tooltip.
+- A group's tabs keep their width, and its tab row shows only whole tabs, never part of one, its buttons staying at its end.
+  When they don't all fit, the row shows the tabs that fit in order and hides the rest, which "Show all tabs" lists with every other tab; the active tab always shows, in place of the last tabs before it that fit, and the row never scrolls.
+  This holds for the documents' groups as for the docks', and the arrow keys, Home and End reach a hidden tab as "Show all tabs" does, making it the active tab, which then shows; a hidden tab never takes the focus.
+  A tab is never wider than the row's room before those buttons, even as buttons come and go, so a longer title ends with an ellipsis and shows whole as its tooltip.
 - Each open tab has one live view, made the first time the tab shows and kept until the tab closes or its window part deactivates, so typed text, a selection or a scroll position stays when the person switches tabs, moves a tab or collapses its dock.
   A view behind another tab of its group stays in the page, hidden by `visibility` and `opacity` and inert, so it takes no pointer or focus and a module's web view keeps its page; a view whose tab moves to another group, a dock or a dialog, or whose dock collapses, leaves the page until it shows in its new place, where a web view gets a new page, which after a move restores its form fields and scroll but not its script's state, as [WEB-VIEWS.md](WEB-VIEWS.md#the-window-bridge) says, and after a collapse loads its address again.
 - A page's components read two signals of `WindowPartTokens`: `shown`, true while the page is in view, so a hidden page can pause its timers, and `activeDocument`, true while the page is the window's active document, the active tab of the active document group.
@@ -96,7 +100,8 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A module's web view is a page of its own, whose focus and presses the window doesn't see, so they don't end the wait.
   Choosing a tab with the keyboard keeps the focus on the tab.
   A tab the person drops, or moves with the keyboard or a menu, keeps the focus on the tab, in its new place.
-  Pressing a view's button in a dock's strip with the pointer, when the press shows the view, with instances or without, moves the focus into the view the same way, waiting the same way for a view that shows its focusable element later; a keyboard press on the button, or a press that hides the dock, leaves the focus where it is.
+  Pressing a view's button in a dock's strip with the pointer, when the press shows the view, with instances or without, moves the focus into the view the same way, waiting the same way for a view that shows its focusable element later; a keyboard press on the button, or a press that hides the dock, leaves the focus where it is, except that a keyboard press that opens a dock with no rail, whose strip then goes away, moves the focus to the view's tab.
+  The same holds wherever a control that holds the focus goes away: a setting's Reset moves the focus to its row's control, the one Tab reaches, a search result's Open page to the opened page's first control Tab reaches once the page loads, or to the page list when it has none, unless the person moved the focus or picked or searched for another page meanwhile, and a notification's Dismiss to the next row's Dismiss, else the previous row's, else the popover.
 - While no document is open, the document group shows the placeholder one window part registers, such as a start page with ways to begin, padded like a document; without a placeholder, it shows the product's name and "No modules" when no view is registered either, and nothing otherwise.
   The placeholder goes when a document opens and comes back when the last one closes.
   When the last document closes and takes the focus with it, the focus moves to the placeholder's first focusable element once the placeholder shows; otherwise the placeholder leaves the focus where it is, at startup too.
@@ -168,6 +173,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On macOS nothing changes, since Cmd is the window's.
 - While a modal dialog is open, only the Edit commands run from keys, and a view's dialog adds its own module's commands.
 - On macOS the main process builds the native menu bar from the rows the window gives it, keeping the system's own items; choosing a row runs it in the window, and the window's key handling stays the only one.
+  Once the window whose rows it shows closes, the main process puts back the standard menu bar it starts with, the app, Edit and Window menus with the system's items, so no row is left that runs nowhere.
 - On Windows and Linux the menus show at the start of the window row, as a menu bar or a menu button, or not at all, as the shared setting `desktop.menuBar` chooses.
 - The window row shows the search field in its middle and no heading: the window takes the title of the document area's active tab when that tab is a document or a view's instance, and a tab in a dock never names it, whichever group has focus.
   A document's title shows in its tab, and its part draws its title and breadcrumb in its own content where it wants them; the window keeps the breadcrumb but shows it nowhere.
@@ -323,6 +329,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On Windows the runtime starts through an Electron utility process, which Electron creates only once it is ready, so there the start's own work runs at once and the runtime process waits for Electron to be ready.
   Until the window is open, the main process holds the start's state and the runtime's events; the window then reads the current state as it loads, as any window does, and gets the held events in order, so it works the same whether the runtime is ready before it or after, and its saved bounds are restored once.
 - A new window is 1280 by 800 pixels, at most nine tenths of the primary display's work area on each side, and centred; saved bounds keep their size where they fit, and the window is never smaller than 640 by 480 pixels.
+  Saved bounds whose top row has less than 160 pixels on any display's work area, such as above the top of the only display or all but a sliver past its side, move by the least into the work area of the display that shows most of them, so the window row stays in reach.
   Under Wayland the compositor places each window it shows, so the window opens at its saved size wherever the compositor puts it.
   There its saves keep the saved position, with the window's size and maximized state, since the window's position is the compositor's: a later X11 session still opens it where the person left it.
   So a move the person makes under Wayland isn't kept, and until the saved bounds have been read nothing is saved, so a failed read never erases the saved position.

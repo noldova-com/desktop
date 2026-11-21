@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import { FocusTrapFactory } from "@angular/cdk/a11y";
-import { Component, type Signal, type WritableSignal, inject, signal } from "@angular/core";
+import { Component, EnvironmentInjector, type Signal, type WritableSignal, afterNextRender, inject, signal } from "@angular/core";
 import { type ComponentFixture, TestBed } from "@angular/core/testing";
 
 import { AppearanceService, DefaultTheme, ThemeMode, Typography } from "@noldova/ui.components.angular";
@@ -196,6 +196,31 @@ describe("WorkspaceComponent", () => {
 
     expect(whileLoading).toBe(true);
     expect(document.activeElement).toBe(tab);
+  });
+
+  it("leaves the focus where the person moved it before the next render, rather than giving it back to the active tab it was restoring", async () => {
+    const registry = LayoutFixture.createRegistry();
+    const fixture = await renderAsync(registry, Layout.createDefault(registry).openDocument(LayoutFixture.plan));
+    const host = DomFixture.host(fixture);
+    const tab = DomFixture.one(host, `[data-tab-key="${LayoutFixture.plan.key}"]`);
+    const focused = DomFixture.closest(tab, "nol-tab-group").appendChild(document.createElement("button"));
+    const field = document.body.appendChild(document.createElement("input"));
+    try {
+      focused.focus();
+      focused.remove();
+      let asked: Element | null = null;
+      parts.generation.update(t => t + 1);
+      afterNextRender(() => {
+        asked = document.activeElement;
+        field.focus();
+      }, { injector: TestBed.inject(EnvironmentInjector) });
+      await settleAsync(fixture);
+
+      expect([asked, document.activeElement]).toEqual([document.body, field]);
+    }
+    finally {
+      field.remove();
+    }
   });
 
   it("moves the focus into a document or view whose tab the pointer chooses, back to where it was in it, and leaves it on a tab chosen by keyboard and on a document with nothing to focus", async () => {
@@ -447,6 +472,26 @@ describe("WorkspaceComponent", () => {
     expect(keyedActive).toEqual(view);
     expect(hiddenCollapsed).toBe(true);
     expect(layout.geometry().isCollapsed(DockSide.Left)).toBe(false);
+  });
+
+  it("moves the focus to the view's tab when a keyboard press on a collapsed dock's strip opens a dock with no rail, which removes the strip", async () => {
+    const registry = LayoutFixture.createRegistry();
+    const { files, terminal } = LayoutFixture;
+    const opened = Layout.createDefault(registry).openView(terminal, registry);
+    const left = opened.dock(DockSide.Left).root?.groups[0]?.id ?? 0;
+    const fixture = await renderAsync(registry, opened.moveTab(terminal, left, 1).activate(files));
+    const layout = TestBed.inject(LayoutService);
+    layout.toggleDock(DockSide.Left);
+    await settleAsync(fixture);
+    const button = DomFixture.one(document, `nol-dock[data-side="Left"] .nol-dock-strip-view[data-view="${terminal.key}"]`);
+
+    button.focus();
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+    await settleAsync(fixture);
+
+    expect(layout.geometry().isCollapsed(DockSide.Left)).toBe(false);
+    expect(button.isConnected).toBe(false);
+    expect(document.activeElement).toBe(DomFixture.one(document, `nol-tab[data-tab-key="${terminal.key}"]`));
   });
 
   it.each([
@@ -708,7 +753,7 @@ describe("WorkspaceComponent", () => {
     appearance.setTheme(DefaultTheme.theme);
     await settleAsync(fixture);
 
-    expect(standard).toEqual([0.25, 26, 25, 0.25, 10, 2.75, 13.75, 10, 6.25, 16.25]);
+    expect(standard).toEqual([0.25, 26, 25, 0.25, 10, 2.75, 13.75, 10, 6.25, 12.5]);
     expect(themed).toEqual([0.375, 20, 18, 0.375, 8, 3, 11, 8.5, 5, 12]);
     AppearanceFixture.expectPixels(x ?? 0, AppearanceFixture.toPixels(0.375));
     AppearanceFixture.expectPixels(width ?? 0, AppearanceFixture.toPixels(20));

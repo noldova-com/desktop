@@ -35,13 +35,8 @@ export class TabFocusService {
     });
   }
 
-  public focus(tab: Tab, isRowKept: boolean = false): void {
-    afterNextRender(() => {
-      const element = this.elementOf(tab);
-      element?.focus({ preventScroll: isRowKept });
-      if (!isRowKept || this.isOutOfRow(element))
-        element?.scrollIntoView(Resources.revealOptions);
-    }, { injector: this.environment });
+  public focus(tab: Tab): void {
+    afterNextRender(() => this.elementOf(tab)?.focus({ preventScroll: true }), { injector: this.environment });
   }
 
   public focusContent(tab: Tab): void {
@@ -68,7 +63,7 @@ export class TabFocusService {
     afterNextRender(() => {
       const active = this.document.activeElement;
       if (Object.isNull(active) || active === this.document.body)
-        this.elementOf(tab)?.focus();
+        this.elementOf(tab)?.focus({ preventScroll: true });
     }, { injector: this.environment });
   }
 
@@ -84,16 +79,6 @@ export class TabFocusService {
     clearTimeout(this.timer);
     this.timer = undefined;
     this.contentValue.set(null);
-  }
-
-  private isOutOfRow(element: HTMLElement | undefined): boolean {
-    const row = element?.closest<HTMLElement>(Resources.tabScrollerSelector);
-    if (Object.isNullOrUndefined(element) || Object.isNullOrUndefined(row))
-      return false;
-    const [box, rect, style] = [row.getBoundingClientRect(), element.getBoundingClientRect(), getComputedStyle(row)];
-    const actions = Number.parseFloat(style.scrollPaddingInlineEnd);
-    const [start, end] = style.direction === Resources.rightToLeft ? [box.left + actions, box.right] : [box.left, box.right - actions];
-    return rect.right <= start || rect.left >= end;
   }
 
   private elementOf(tab: Tab): HTMLElement | undefined {

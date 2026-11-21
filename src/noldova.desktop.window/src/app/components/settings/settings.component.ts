@@ -6,9 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { InteractivityChecker } from "@angular/cdk/a11y";
 import { NgComponentOutlet, NgTemplateOutlet } from "@angular/common";
-import { Component, DestroyRef, ElementRef, ErrorHandler, Injector, PendingTasks, type Signal, type Type, type WritableSignal, afterNextRender, computed, effect, inject, signal,
-  untracked, viewChild } from "@angular/core";
+import { Component, DestroyRef, ElementRef, ErrorHandler, Injector, PendingTasks, type Signal, type Type, type WritableSignal, afterNextRender, afterRenderEffect, computed, effect, inject,
+  signal, untracked, viewChild } from "@angular/core";
 
 import "@noldova/context.core";
 import { ButtonComponent, ButtonVariant, SelectComponent, SelectOption, TextFieldComponent, TreeComponent, TreeNode } from "@noldova/ui.components.angular";
@@ -62,12 +63,15 @@ export class SettingsComponent {
   private readonly errors: ErrorHandler = inject(ErrorHandler);
   private readonly bridge: PreloadBridgeService = inject(PreloadBridgeService);
   private readonly clock: ClockSettingService = inject(ClockSettingService);
+  private readonly checker: InteractivityChecker = inject(InteractivityChecker);
   private readonly selected: WritableSignal<string> = signal(Resources.generalPage);
   private readonly pageList: Signal<ElementRef<HTMLElement>> = viewChild.required<ElementRef<HTMLElement>>("pageList");
   private readonly column: Signal<ElementRef<HTMLElement>> = viewChild.required<ElementRef<HTMLElement>>("column");
   private readonly pageTree: Signal<TreeComponent> = viewChild.required(TreeComponent);
   private readonly pageSelect: Signal<ElementRef<HTMLElement>> = viewChild.required("pageSelect", { read: ElementRef<HTMLElement> });
   private readonly pageChooser: Signal<SelectComponent> = viewChild.required("pageSelect", { read: SelectComponent });
+  private readonly pageHost: Signal<SettingsPageHostComponent | undefined> = viewChild(SettingsPageHostComponent);
+  private readonly isOpening: WritableSignal<boolean> = signal(false);
   private readonly isTrayAvailable: WritableSignal<boolean> = signal(true);
   private readonly drafts: WritableSignal<ReadonlyMap<string, readonly [string, string]>> = signal(new Map());
   private readonly now: Date = new Date();
@@ -150,6 +154,14 @@ export class SettingsComponent {
     destroyRef.onDestroy(this.bridge.onTrayAvailable(t => this.isTrayAvailable.set(t)));
     destroyRef.onDestroy(() => this.unmark());
     void inject(PendingTasks).run(() => this.bridge.readTrayAvailableAsync().then(t => this.isTrayAvailable.set(t), (error: unknown) => this.errors.handleError(error)));
+    afterRenderEffect(() => {
+      if (this.isOpening() && this.pageHost()?.isSettled() === true)
+        untracked(() => {
+          this.isOpening.set(false);
+          if (document.activeElement === document.body)
+            this.focusControl(this.firstControl(Resources.tabbableSelector));
+        });
+    });
     afterNextRender(() => {
       const switched = new ResizeObserver(() => this.keepFocus());
       switched.observe(this.pageList().nativeElement);
@@ -172,11 +184,13 @@ export class SettingsComponent {
     if (!(event.target instanceof HTMLInputElement))
       return;
     this.unmark();
+    this.isOpening.set(false);
     this.query.set(event.target.value);
   }
 
   protected select(title: string): void {
     this.unmark();
+    this.isOpening.set(false);
     this.query.set(String.empty);
     this.selected.set(title);
   }
@@ -184,6 +198,11 @@ export class SettingsComponent {
   protected matchingRows(entry: SettingsPageEntry): readonly SettingsRow[] {
     const query = this.query();
     return entry.rows.filter(t => [t.title, t.description].some(u => !Object.isNull(u) && TextMatch.contains(u, query)));
+  }
+
+  protected openPage(page: string): void {
+    this.select(page);
+    this.isOpening.set(true);
   }
 
   protected openRow(page: string, id: string): void {
@@ -223,6 +242,7 @@ export class SettingsComponent {
 
   protected reset(definition: SettingDefinition): void {
     this.dropDraft(definition);
+    this.focusControl(this.firstControl(Resources.formatSettingRowControlSelector(definition.name.text)));
     const resetting = definition === this.clock.definition ? this.clock.resetAsync() : this.switches.resetAsync(definition);
     resetting.catch((error: unknown) => this.errors.handleError(error));
   }
@@ -258,6 +278,24 @@ export class SettingsComponent {
     this.revealer = revealer;
   }
 
+  private firstControl(selector: string): HTMLElement | null {
+    return [...this.column().nativeElement.querySelectorAll<HTMLElement>(selector)].find(t => this.checker.isFocusable(t) && this.checker.isTabbable(t)) ?? null;
+  }
+
+  private focusControl(control: HTMLElement | null): void {
+    if (Object.isNull(control))
+      this.focusPages();
+    else
+      control.focus();
+  }
+
+  private focusPages(): void {
+    if (this.pageList().nativeElement.checkVisibility())
+      this.pageTree().focus();
+    else
+      this.pageChooser().focus();
+  }
+
   private unmark(): void {
     this.revealer?.disconnect();
     this.marked?.classList.remove(Resources.foundRowClass);
@@ -280,10 +318,7 @@ export class SettingsComponent {
     const active = document.activeElement;
     if (this.focusedControl !== hidden || !(active === document.body || hidden.contains(active) || this.pageChooser().isExpanded()))
       return;
-    if (hidden === list)
-      this.pageChooser().focus();
-    else
-      this.pageTree().focus();
+    this.focusPages();
   }
 
   private static matches(definition: SettingDefinition, query: string): boolean {

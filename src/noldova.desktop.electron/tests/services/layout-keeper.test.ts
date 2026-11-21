@@ -9,7 +9,7 @@
 import "@noldova/context.core";
 import { type JsonObject, JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { PreShellData, ShellMethods } from "@noldova/desktop.protocol";
+import { Failure, FailureCode, PreShellData, Response, ShellMethods } from "@noldova/desktop.protocol";
 import { CallUnansweredException, ConnectionClosedException, PreShellDataFoundException } from "@noldova/desktop.runtime";
 import type { IIpcEvent } from "@noldova/desktop.electron";
 
@@ -106,6 +106,68 @@ export class LayoutKeeperTests {
         { code: "Disconnected", message: "The connection to the runtime is closed." }
       ]),
       JSON.stringify([unconnected["failure"], busy["failure"], late["failure"], closed["failure"]]));
+  }
+
+  @TestMethod
+  public async readsTheLayoutOnlyOnceAWriteStillInFlightHasLanded(): Promise<void> {
+    const connection = new FakeRuntimeConnection();
+    const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(connection));
+    const event = MainProcessStartFixture.trustedEvent("linux");
+    const held = Promise.withResolvers<Response>();
+    connection.deferred.set(ShellMethods.writeWindowLayout.text, () => held.promise);
+
+    const written = LayoutKeeperTests.invokeAsync(electron, "desktop:writeLayout", event, { version: 2 });
+    await Condition.waitAsync(() => connection.calls.includes(ShellMethods.writeWindowLayout.text));
+    const read = LayoutKeeperTests.invokeAsync(electron, "desktop:readLayout", event);
+    const first = await Promise.race([read.then(() => "read"), new Promise<string>(resolve => setImmediate(() => resolve("held")))]);
+    connection.states.set(`writeWindowLayout:${FakeDeviceIdentity.ID}:main`, { version: 2 });
+    held.resolve(Response.success("r", null));
+
+    Assert.areEqual("held", first);
+    Assert.areEqual(JSON.stringify({ payload: null }), JSON.stringify(await written));
+    Assert.areEqual(JSON.stringify({ payload: { version: 2 } }), JSON.stringify(await read));
+  }
+
+  @TestMethod
+  public async readsTheLayoutKeptBeforeAWriteThatFailedOrThrewAndLogsIt(): Promise<void> {
+    const connection = new FakeRuntimeConnection();
+    const process = new FakeMainProcessEnvironment("linux");
+    const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(connection), new FakeElectron(), new FakeDeviceIdentity(), process);
+    const event = MainProcessStartFixture.trustedEvent("linux");
+    await LayoutKeeperTests.invokeAsync(electron, "desktop:writeLayout", event, { version: 1 });
+    connection.deferred.set(ShellMethods.writeWindowLayout.text, () => Promise.resolve(Response.failure("r", new Failure(FailureCode.Internal, "The database is busy."))));
+
+    const refused = LayoutKeeperTests.invokeAsync(electron, "desktop:writeLayout", event, { version: 2 });
+    const afterRefused = await LayoutKeeperTests.invokeAsync(electron, "desktop:readLayout", event);
+    connection.deferred.set(ShellMethods.writeWindowLayout.text, () => Promise.reject(new TypeError("A defect.")));
+    const thrown = Assert.throwsAsync(() => LayoutKeeperTests.invokeAsync(electron, "desktop:writeLayout", event, { version: 3 }), TypeError);
+    const afterThrown = await LayoutKeeperTests.invokeAsync(electron, "desktop:readLayout", event);
+    const again = await LayoutKeeperTests.invokeAsync(electron, "desktop:readLayout", event);
+
+    Assert.areEqual(JSON.stringify({ code: "Internal", message: "The database is busy." }), JSON.stringify((await refused)["failure"]));
+    await thrown;
+    Assert.areEqual(JSON.stringify([{ payload: { version: 1 } }, { payload: { version: 1 } }, { payload: { version: 1 } }]), JSON.stringify([afterRefused, afterThrown, again]));
+    Assert.areEqual(JSON.stringify([
+      "The window's layout was read after its last write failed or went unanswered, so it may be the layout kept before that write: The database is busy.",
+      "The window's layout was read after its last write failed or went unanswered, so it may be the layout kept before that write: TypeError: A defect."
+    ]), JSON.stringify(MainProcessStartFixture.readErrors(process, "The window's layout")));
+  }
+
+  @TestMethod
+  public async givesALayoutWriteFiveSecondsAndTheConnectionsAnswerGraceSoAWriteThatNeverAnswersHoldsAReadOnlyThatLong(): Promise<void> {
+    const connection = new FakeRuntimeConnection();
+    const process = new FakeMainProcessEnvironment("linux");
+    const electron = await MainProcessStartFixture.startReadyAsync("linux", new FakeRuntimeLauncher(connection), new FakeElectron(), new FakeDeviceIdentity(), process);
+    const event = MainProcessStartFixture.trustedEvent("linux");
+    connection.deferred.set(ShellMethods.writeWindowLayout.text, () => Promise.reject(new CallUnansweredException("desktop.writeWindowLayout")));
+
+    const written = await LayoutKeeperTests.invokeAsync(electron, "desktop:writeLayout", event, { version: 1 });
+    const read = await LayoutKeeperTests.invokeAsync(electron, "desktop:readLayout", event);
+
+    Assert.areEqual(5000, connection.timeouts[connection.calls.lastIndexOf(ShellMethods.writeWindowLayout.text)]);
+    Assert.areEqual(JSON.stringify({ code: "Unavailable", message: "The runtime did not answer desktop.writeWindowLayout in time." }), JSON.stringify(written["failure"]));
+    Assert.areEqual(JSON.stringify({ payload: null }), JSON.stringify(read));
+    Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The window's layout was read after its last write failed or went unanswered").length);
   }
 
   private static async invokeAsync(electron: FakeElectron, channel: string, event: IIpcEvent, ...values: unknown[]): Promise<JsonObject> {

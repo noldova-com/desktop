@@ -38,11 +38,11 @@ export class RuntimeStartup {
   private readonly now: () => number;
   private readonly wait: (milliseconds: number, signal: AbortSignal) => Promise<void>;
   private readonly updates: IUpdateHost;
-  private readonly listener: IRuntimeClientListener;
   private readonly closing: AbortController = new AbortController();
   private state: StartupState = StartupState.connecting();
   private beforeUpdate: StartupState = StartupState.ready();
   private connectionValue: IRuntimeConnection | null = null;
+  private listener: IRuntimeClientListener | null = null;
   private readyAt: number = 0;
   private unstableEnds: number = 0;
   private barrierChange: PromiseWithResolvers<void> = Promise.withResolvers<void>();
@@ -66,10 +66,6 @@ export class RuntimeStartup {
     this.now = now;
     this.wait = wait;
     this.updates = updates;
-    this.listener = {
-      onEvent: t => this.receive(t),
-      onDisconnected: t => this.reconnect(t)
-    };
   }
 
   public get current(): StartupState {
@@ -87,7 +83,7 @@ export class RuntimeStartup {
   public async actAsync(action: unknown): Promise<boolean> {
     const kind = this.state.kind;
     if (action === Resources.moveAsideAction && kind === StartupStateKind.PreShellData)
-      await this.runAsync(() => this.launcher.moveAsideAsync(Resources.clientName, this.listener, StopPolicy.IfIdle));
+      await this.runAsync(t => this.launcher.moveAsideAsync(Resources.clientName, t, StopPolicy.IfIdle));
     else if (action === Resources.stopWorkAction && kind === StartupStateKind.WorkInProgress)
       await this.attachAsync(StopPolicy.StopWork);
     else if (action === Resources.waitAction && kind === StartupStateKind.WorkInProgress)
@@ -115,18 +111,31 @@ export class RuntimeStartup {
     return this.closing.signal.aborted;
   }
 
-  private attach(policy: StopPolicy): Promise<IRuntimeConnection> {
-    return this.launcher.attachAsync(Resources.clientName, this.listener, policy);
+  private listen(): IRuntimeClientListener {
+    const listener: IRuntimeClientListener = {
+      onEvent: t => this.receive(t),
+      onDisconnected: t => {
+        if (listener === this.listener)
+          this.reconnect(t);
+      }
+    };
+    return listener;
+  }
+
+  private attach(policy: StopPolicy, listener: IRuntimeClientListener): Promise<IRuntimeConnection> {
+    return this.launcher.attachAsync(Resources.clientName, listener, policy);
   }
 
   private attachAsync(policy: StopPolicy): Promise<void> {
-    return this.runAsync(() => this.attach(policy));
+    return this.runAsync(t => this.attach(policy, t));
   }
 
   private async waitForWorkAsync(): Promise<void> {
+    this.update(StartupState.connecting());
     while (!this.isClosed) {
+      const listener = this.listen();
       try {
-        this.accept(await this.attach(StopPolicy.IfIdle));
+        this.accept(await this.attach(StopPolicy.IfIdle, listener), listener);
         return;
       }
       catch (error) {
@@ -149,26 +158,30 @@ export class RuntimeStartup {
     }
   }
 
-  private async runAsync(attach: () => Promise<IRuntimeConnection>): Promise<void> {
+  private async runAsync(attach: (listener: IRuntimeClientListener) => Promise<IRuntimeConnection>): Promise<void> {
     this.update(StartupState.connecting());
     await this.connectAsync(attach);
   }
 
-  private async connectAsync(attach: () => Promise<IRuntimeConnection>): Promise<void> {
+  private async connectAsync(attach: (listener: IRuntimeClientListener) => Promise<IRuntimeConnection>): Promise<void> {
+    const listener = this.listen();
     try {
-      this.accept(await attach());
+      this.accept(await attach(listener), listener);
     }
     catch (error) {
       await this.refuseAsync(error);
     }
   }
 
-  private accept(connection: IRuntimeConnection): void {
+  private accept(connection: IRuntimeConnection, listener: IRuntimeClientListener): void {
     if (this.isClosed) {
       connection.close();
       return;
     }
+    const replaced = this.connectionValue;
     this.connectionValue = connection;
+    this.listener = listener;
+    replaced?.close();
     this.readyAt = this.now();
     this.update(StartupState.ready());
   }
@@ -260,7 +273,7 @@ export class RuntimeStartup {
     if (delay > 0)
       await this.pauseAsync(delay);
     if (!this.isClosed)
-      await this.connectAsync(() => this.attach(StopPolicy.IfIdle));
+      await this.connectAsync(t => this.attach(StopPolicy.IfIdle, t));
   }
 
   private stopReconnecting(failure: Failure | null): void {

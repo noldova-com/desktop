@@ -12,6 +12,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 import { MediaFixture } from "./fixtures/media.fixture.ts";
 import { ScrollAreaFixture } from "./fixtures/scroll-area.fixture.ts";
+import { TabRowFixture } from "./fixtures/tab-row.fixture.ts";
 
 const documentsGroup = "nol-tab-group:has(nol-tab[data-tab-key='document/notes.note/1'])";
 const bottomGroup = "nol-tab-group:has(nol-tab[data-tab-key='view/notes.terminal'])";
@@ -35,7 +36,7 @@ test.describe("the window's look", () => {
     const window = mainProcess.window;
     const long = window.locator(`${documentsGroup} nol-tab[aria-label="${architectureTitle}"]`);
     const short = window.locator(`${documentsGroup} nol-tab[aria-label="Bugs"]`);
-    await long.scrollIntoViewIfNeeded();
+    await TabRowFixture.showAsync(window, long);
 
     const shape = await long.evaluate(t => {
       const label = t.querySelector<HTMLElement>(".nol-tab-label");
@@ -49,7 +50,7 @@ test.describe("the window's look", () => {
     await expect(tooltip(window)).toHaveText(architectureTitle);
     expect((await boxOf(tooltip(window))).top).toBeGreaterThan((await boxOf(long)).bottom);
 
-    await short.scrollIntoViewIfNeeded();
+    await TabRowFixture.showAsync(window, short);
     await short.hover();
     await expect(tooltip(window)).toHaveCount(0);
     expect(await short.locator(".nol-tab-label").evaluate(t => t.scrollWidth <= t.clientWidth)).toBe(true);
@@ -69,7 +70,7 @@ test.describe("the window's look", () => {
     expect((await boxOf(tooltip(window))).left).toBeGreaterThanOrEqual((await boxOf(strip)).right);
   });
 
-  test("scroll areas have 0.375rem scrollbars whose thumb shows only while hovered, without moving their content", async ({ mainProcess }) => {
+  test("scroll areas have 0.375rem scrollbars whose thumb shows only while hovered, without moving their content, and a tab row has none, overflowing or not", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const content = window.locator(`${documentsGroup} nol-tab-content`);
     const scroller = window.locator(`${documentsGroup} .nol-tab-group-scroller`);
@@ -78,18 +79,18 @@ test.describe("the window's look", () => {
     const strip = await ScrollAreaFixture.scrollbarSizesAsync(scroller);
     const quietStrip = await ScrollAreaFixture.scrollbarSizesAsync(window.locator(`${bottomGroup} .nol-tab-group-scroller`));
     expect(area.vertical).toBeCloseTo(0.375 * area.rem, 0);
-    expect(strip.horizontal).toBeCloseTo(0.375 * strip.rem, 0);
-    expect(quietStrip.horizontal).toBeCloseTo(0.375 * strip.rem, 0);
+    expect([strip.horizontal, quietStrip.horizontal]).toEqual([0, 0]);
     const before = await boxOf(content.locator("h1"));
     expect(await ScrollAreaFixture.thumbChangesOnHoverAsync(window, content, "vertical")).toBe(true);
     expect(await boxOf(content.locator("h1"))).toEqual(before);
-    expect(await ScrollAreaFixture.thumbChangesOnHoverAsync(window, scroller, "horizontal")).toBe(true);
   });
 
   test("a heading that wraps keeps its lines apart", async ({ mainProcess }) => {
     await mainProcess.useViewportAsync(900, 700);
     const window = mainProcess.window;
-    await window.locator(`${documentsGroup} nol-tab[aria-label="${architectureTitle}"]`).click();
+    const long = window.locator(`${documentsGroup} nol-tab[aria-label="${architectureTitle}"]`);
+    await TabRowFixture.showAsync(window, long);
+    await long.click();
     const heading = window.locator(`${documentsGroup} h1`, { hasText: architectureTitle });
     await expect(heading).toHaveText(architectureTitle);
 

@@ -21,12 +21,12 @@ export class RuntimeCaller {
     this.readConnection = readConnection;
   }
 
-  public async callAsync(method: QualifiedName, payload: JsonValue, window?: number, signal?: AbortSignal, page?: number): Promise<Response> {
+  public async callAsync(method: QualifiedName, payload: JsonValue, window?: number, signal?: AbortSignal, page?: number, timeout?: number): Promise<Response> {
     const connection = this.readConnection();
     if (Object.isNull(connection))
       return Response.failure(null, new Failure(FailureCode.Disconnected, Resources.runtimeNotConnected));
     try {
-      return await connection.callAsync(method, payload, undefined, signal, window, page);
+      return await connection.callAsync(method, payload, timeout, signal, window, page);
     }
     catch (error) {
       if (!(error instanceof ConnectionException))

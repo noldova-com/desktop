@@ -40,7 +40,8 @@ test.describe("a module with only a runtime part", () => {
     await SettingsFixture.openPageAsync(window, "Notifications");
     await expect(modules.getByRole("checkbox", { name: "Reminder notifications" })).toBeChecked();
     await mainProcess.checkpointAsync("runtime-only-module-notifications");
-    await modules.getByRole("checkbox", { name: "Reminder notifications" }).uncheck();
+    await modules.getByRole("checkbox", { name: "Reminder notifications" }).click();
+    await expect(modules.getByRole("checkbox", { name: "Reminder notifications" })).not.toBeChecked();
     await runAsync(mainProcess, "Remind me", "reminder.remind");
     await runAsync(mainProcess, "Tick", "clock.tick");
 

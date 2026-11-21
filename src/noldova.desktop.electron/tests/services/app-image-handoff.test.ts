@@ -90,6 +90,19 @@ export class AppImageHandoffTests {
     });
   }
 
+  @TestMethod
+  public refusesWithTheFolderRefusalItWasGivenOnlyForAnAppImage(): void {
+    const replacement = { replaceAsync: () => Promise.resolve() };
+    const verifyAsync = (): Promise<string | null> => Promise.resolve(null);
+
+    const refusals = [new AppImageHandoff(replacement, verifyAsync, "The folder /opt/apps cannot be written."), new AppImageHandoff(replacement, verifyAsync),
+      new AppImageHandoff(null, verifyAsync, "unused")]
+      .map(t => t.refusal);
+
+    Assert.areEqual(JSON.stringify(["The folder /opt/apps cannot be written.", null,
+      "This copy of Noldova Desktop Sample doesn't run from an AppImage, so it can't install the update."]), JSON.stringify(refusals));
+  }
+
   private static async withDownloadAsync(run: (download: string) => Promise<void>): Promise<void> {
     const folder = await mkdtemp(join(tmpdir(), "desktop-app-image-handoff-"));
     try {
