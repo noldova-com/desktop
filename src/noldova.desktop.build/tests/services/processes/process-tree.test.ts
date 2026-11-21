@@ -11,7 +11,6 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { Resources } from "../../../src/resources.js";
 import { ProcessTree } from "../../../src/services/processes/process-tree.js";
-import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 
 @TestClass
 export class ProcessTreeTests {
@@ -208,8 +207,7 @@ export class ProcessTreeTests {
   }
 
   @TestMethod
-  @PlatformFixture.posixOnly()
-  public async endsNothingOnWindowsWhereNeitherTaskkillNorPowerShellRuns(): Promise<void> {
+  public async endsNothingOnWindowsWhenNeitherTheRealTaskkillNorTheListingSucceeds(): Promise<void> {
     let lists = 0;
     const tree = new ProcessTree("win32", () => undefined, async () => {
       lists += 1;
