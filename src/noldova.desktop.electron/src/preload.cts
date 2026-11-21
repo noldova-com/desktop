@@ -95,7 +95,7 @@ class Preload {
       readMaximized: (): Promise<unknown> => this.invokeAsync("readMaximized"),
       onMaximized: (listener: (isMaximized: boolean) => void): (() => void) => this.listen("maximized", listener),
       actOnWindow: (action: string): Promise<unknown> => this.invokeAsync("windowAction", action),
-      openWebView: (moduleId: string, pane: unknown, profileKey: string): Promise<unknown> => this.invokeAsync("webViewOpen", moduleId, pane, profileKey),
+      openWebView: (moduleId: string, pane: unknown, profileKey: string, name: string | null): Promise<unknown> => this.invokeAsync("webViewOpen", moduleId, pane, profileKey, name),
       attachWebView: (moduleId: string, view: string, contentsId: number): Promise<unknown> => this.invokeAsync("webViewAttach", moduleId, view, contentsId),
       navigateWebView: (moduleId: string, view: string, url: string): Promise<unknown> => this.invokeAsync("webViewNavigate", moduleId, view, url),
       actOnWebView: (moduleId: string, view: string, action: string): Promise<unknown> => this.invokeAsync("webViewAct", moduleId, view, action),

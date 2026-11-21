@@ -62,7 +62,7 @@ export interface IPreloadBridge {
   readMaximized(): Promise<unknown>;
   onMaximized(listener: (isMaximized: unknown) => void): () => void;
   actOnWindow(action: string): Promise<unknown>;
-  openWebView(moduleId: string, pane: JsonObject, profileKey: string): Promise<unknown>;
+  openWebView(moduleId: string, pane: JsonObject, profileKey: string, name: string | null): Promise<unknown>;
   attachWebView(moduleId: string, view: string, contentsId: number): Promise<unknown>;
   navigateWebView(moduleId: string, view: string, url: string): Promise<unknown>;
   actOnWebView(moduleId: string, view: string, action: string): Promise<unknown>;

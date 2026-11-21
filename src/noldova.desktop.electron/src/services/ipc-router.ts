@@ -78,7 +78,7 @@ export class IpcRouter {
   private listenToWebViews(): void {
     const ipc = this.ipc;
     const views = this.owners.webViews;
-    ipc.handle(Resources.webViewOpenChannel, (event, module, pane, profileKey) => this.onWebView(event, null, t => views.openAsync(t, module, pane, profileKey)));
+    ipc.handle(Resources.webViewOpenChannel, (event, module, pane, profileKey, name) => this.onWebView(event, null, t => views.openAsync(t, module, pane, profileKey, name)));
     ipc.handle(Resources.webViewAttachChannel, (event, module, view, contentsId) => this.onWebView(event, null, t => views.attachAsync(t, module, view, contentsId)));
     ipc.handle(Resources.webViewNavigateChannel, (event, module, view, url) => this.onWebView(event, null, t => views.navigateAsync(t, module, view, url)));
     ipc.handle(Resources.webViewActChannel, (event, module, view, action) => this.onWebView(event, null, t => views.actAsync(t, module, view, action)));
