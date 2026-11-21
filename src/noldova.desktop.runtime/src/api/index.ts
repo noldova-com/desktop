@@ -76,6 +76,7 @@ export { MethodRegisteredException } from "../exceptions/method-registered.excep
 export { MigrationException } from "../exceptions/migration.exception.js";
 export { ModuleActivationException } from "../exceptions/module-activation.exception.js";
 export { ModuleDatabaseException } from "../exceptions/module-database.exception.js";
+export { ModuleDeactivatedException } from "../exceptions/module-deactivated.exception.js";
 export { ModuleIdDeviceException } from "../exceptions/module-id-device.exception.js";
 export { ModuleLoadException } from "../exceptions/module-load.exception.js";
 export { ModuleStoppingException } from "../exceptions/module-stopping.exception.js";

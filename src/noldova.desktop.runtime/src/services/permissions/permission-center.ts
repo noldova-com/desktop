@@ -102,6 +102,11 @@ export class PermissionCenter {
     });
   }
 
+  public requirePermissionsModule(module: string): void {
+    if (module !== this.permissionsModule)
+      throw new PermissionsModuleOnlyException(module);
+  }
+
   public listRemembered(module: string): readonly RememberedPermission[] {
     this.requirePermissionsModule(module);
     return this.requireStore().list();
@@ -190,11 +195,6 @@ export class PermissionCenter {
     if (Object.isNull(this.store))
       throw new PermissionsClosedException();
     return this.store;
-  }
-
-  private requirePermissionsModule(module: string): void {
-    if (module !== this.permissionsModule)
-      throw new PermissionsModuleOnlyException(module);
   }
 
   private static checkAnswer(log: IModuleLog, request: IPermissionRequest, decision: PermissionDecision): PermissionDecision {

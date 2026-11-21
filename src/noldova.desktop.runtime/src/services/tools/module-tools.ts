@@ -8,6 +8,7 @@
 
 import type { JsonObject } from "@noldova/context.json";
 
+import { ModuleDeactivatedException } from "../../exceptions/module-deactivated.exception.js";
 import { NotContributedException } from "../../exceptions/not-contributed.exception.js";
 import type { IModuleLog } from "../../interfaces/i-module-log.js";
 import type { IPortBlocker } from "../../interfaces/i-port-blocker.js";
@@ -52,13 +53,15 @@ export class ModuleTools implements IToolsContext {
     const tools = this.declaration.listContributions(Resources.toolsKind);
     if (!tools.includes(descriptor.name))
       throw new NotContributedException(this.declaration.id, Resources.toolsKind, descriptor.name);
+    if (this.stopping.aborted)
+      return ModuleTools.released();
 
-    const registration = this.registry.register(this.declaration.id, new ToolDescriptor(descriptor, tools), handler, tools, this.log);
-    this.registrations.push(registration);
-    return registration;
+    return this.keep(this.registry.register(this.declaration.id, new ToolDescriptor(descriptor, tools), handler, tools, this.log));
   }
 
   public openSession(scope: string, bindings: JsonObject): ToolSession {
+    if (this.stopping.aborted)
+      throw new ModuleDeactivatedException(this.declaration.id);
     const session = this.registry.openSession(scope, bindings);
     this.sessions.add(session);
     this.open.set(session.id, session);
@@ -79,9 +82,7 @@ export class ModuleTools implements IToolsContext {
   }
 
   public onSessionEnded(listener: (session: string) => void): Registration {
-    const registration = this.registry.onSessionEnded(listener, this.log);
-    this.registrations.push(registration);
-    return registration;
+    return this.stopping.aborted ? ModuleTools.released() : this.keep(this.registry.onSessionEnded(listener, this.log));
   }
 
   public stopAll(reason: string): void {
@@ -93,9 +94,7 @@ export class ModuleTools implements IToolsContext {
   }
 
   public onSessionStopped(listener: (session: string, reason: string) => void): Registration {
-    const registration = this.registry.onSessionStopped(listener, this.log);
-    this.registrations.push(registration);
-    return registration;
+    return this.stopping.aborted ? ModuleTools.released() : this.keep(this.registry.onSessionStopped(listener, this.log));
   }
 
   public resumeAll(): void {
@@ -103,13 +102,18 @@ export class ModuleTools implements IToolsContext {
   }
 
   public onStopped(listener: (reason: string) => void): Registration {
-    const registration = this.registry.onStopped(listener, this.log);
-    this.registrations.push(registration);
-    return registration;
+    return this.stopping.aborted ? ModuleTools.released() : this.keep(this.registry.onStopped(listener, this.log));
   }
 
   public onResumed(listener: () => void): Registration {
-    const registration = this.registry.onResumed(listener, this.log);
+    return this.stopping.aborted ? ModuleTools.released() : this.keep(this.registry.onResumed(listener, this.log));
+  }
+
+  private static released(): Registration {
+    return new Registration(() => undefined);
+  }
+
+  private keep(registration: Registration): Registration {
     this.registrations.push(registration);
     return registration;
   }

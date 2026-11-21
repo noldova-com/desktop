@@ -24,6 +24,7 @@ What a module asks the person before an agent acts is in [PERMISSIONS.md](PERMIS
 - Once a part's deactivation starts, its tools take no new call and leave `session.listTools()`, while their calls in flight go on until it disposes every registration it holds.
   A new call fails as `Unavailable`, and so does a call still waiting for its resource's turn when the deactivation starts, without reaching the handler.
   The tools stay closed for the rest of the run, even if the module registers them again.
+- Once a part's context is disposed, work of the part that still runs registers nothing: a tool, a listener or an answerer it registers then is not registered, and its `Registration` releases nothing, and `openSession` throws `ModuleDeactivatedException`.
 - Withdrawing a tool, or the app switching it off, ends its calls in flight with the abort reason `SwitchedOff`.
 
 ### The descriptor
