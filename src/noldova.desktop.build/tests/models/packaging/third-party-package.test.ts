@@ -30,6 +30,15 @@ export class ThirdPartyPackageTests {
   private static readonly UNREACHABLE: string = "http://127.0.0.1:9/sample-1.0.0.tgz";
 
   @TestMethod
+  public async joinsItsLicenseFilesInCodePointOrder(): Promise<void> {
+    const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "license-APACHE": "Second\n", "LICENSE-mit": "First\n" });
+
+    const prepared = await ThirdPartyPackageTests.prepareKeptAsync(tarball);
+
+    Assert.areEqual("sample@1.0.0\nLicense: MIT\n\nFirst\n\nSecond\n", prepared.formatNotice());
+  }
+
+  @TestMethod
   public async preparesAKeptTarballWithItsLicenseFilesInOrder(): Promise<void> {
     const tarball = TarballFixture.create({ "package.json": ThirdPartyPackageTests.MANIFEST, "LICENSE.md": "Second\n", "COPYING": "First\n", "index.js": "module.exports = 1;\n" });
 
