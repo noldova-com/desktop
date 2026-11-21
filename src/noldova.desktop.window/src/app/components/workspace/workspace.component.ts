@@ -120,7 +120,7 @@ export class WorkspaceComponent {
     }
     const tab = this.layout.layout().groups.find(t => t.id === this.focusedGroup)?.active;
     if (!Object.isNullOrUndefined(tab))
-      this.tabFocus.focus(tab);
+      this.tabFocus.focusIfLost(tab);
   }
 
   private focusPlaceholder(content: PlaceholderContentComponent): void {

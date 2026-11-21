@@ -63,7 +63,7 @@ export class TabFocusService {
     afterNextRender(() => {
       const active = this.document.activeElement;
       if (Object.isNull(active) || active === this.document.body)
-        this.elementOf(tab)?.focus();
+        this.elementOf(tab)?.focus({ preventScroll: true });
     }, { injector: this.environment });
   }
 
