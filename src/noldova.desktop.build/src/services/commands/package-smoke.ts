@@ -259,7 +259,7 @@ export class PackageSmoke {
 
   private async installDebianAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<InstalledPackage> {
     const file = path.join(new PackageLayout(this.root).output, target.formatFileName(product.name, version, Resources.debianPackageTarget));
-    this.system = await DebianInstall.installAsync(this.runner, file, product.slug, product.installFolder, folder);
+    this.system = await DebianInstall.installAsync(this.runner, file, product.slug, product.installFolder, folder, product.applicationId);
     return this.system.installed;
   }
 

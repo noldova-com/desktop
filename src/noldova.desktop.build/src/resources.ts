@@ -1410,6 +1410,7 @@ export class Resources {
   public static readonly testCommand: string = "test";
   public static readonly testMissingOption: string = "!";
   public static readonly testExistsOption: string = "-e";
+  public static readonly testFolderOption: string = "-d";
   public static readonly cmpCommand: string = "cmp";
   public static readonly cmpSilentOption: string = "--silent";
   public static readonly grepCommand: string = "grep";
@@ -4198,10 +4199,26 @@ export class Resources {
       "      <allow_inactive>auth_admin</allow_inactive>",
       "      <allow_active>auth_admin</allow_active>",
       "    </defaults>",
-      `    <annotate key="org.freedesktop.policykit.exec.path">${Resources.debianTemplateProductPath}resources/${Resources.debianUpdateInstallerFile}</annotate>`,
+      Resources.formatDebianUpdateExecPath(`${Resources.debianTemplateProductPath}resources/${Resources.debianUpdateInstallerFile}`),
       "  </action>",
       "</policyconfig>"
     ].join(Resources.lineSeparator);
+  }
+
+  public static formatDebianUpdateExecPath(installer: string): string {
+    return `    <annotate key="org.freedesktop.policykit.exec.path">${installer}</annotate>`;
+  }
+
+  public static formatDebianUpdatePolicyChecked(policy: string, installer: string): string {
+    return `${policy} names ${installer} as its program, so polkit asks for the update installer in the package's own words.`;
+  }
+
+  public static formatDebianUpdatePolicyWrong(policy: string, installer: string): string {
+    return `${policy} doesn't name ${installer} as its program, so pkexec would ask for the update installer with its command line in place of the package's message.`;
+  }
+
+  public static formatDebianUpdatePolicySkipped(folder: string): string {
+    return `${folder} doesn't exist, so the package wrote no polkit action and pkexec asks for the update installer in its own words.`;
   }
 
   public static formatDebianUpdatePolicyInstall(applicationId: string, name: string): string {

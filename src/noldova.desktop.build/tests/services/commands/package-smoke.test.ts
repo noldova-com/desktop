@@ -511,6 +511,7 @@ export class PackageSmokeTests {
       Resources.formatOutputLine([
         Resources.formatDebianSandboxHelperChecked(`${runner.debianFolder}/chrome-sandbox`, "0:755", true),
         Resources.formatDebianUpdateInstallerChecked(`${runner.debianFolder}/resources/linux-update-install`, "0:755"),
+        Resources.formatDebianUpdatePolicyChecked("/usr/share/polkit-1/actions/com.example.sample.update.policy", `${runner.debianFolder}/resources/linux-update-install`),
         Resources.formatDebianProfileInstalled(profile),
         Resources.formatDebianPackageTypeChecked(`${runner.debianFolder}/resources/package-type`)
       ].join("\n")),

@@ -462,19 +462,20 @@ export class PackageConfigurationTests {
   @PlatformFixture.linuxOnly()
   public async refusesOnItsOwnCopyAnythingButTheCheckedPackageAndRemovesTheCopyAsync(): Promise<void> {
     await PackageConfigurationTests.withUpdateInstallerAsync(async (folder, runAsync) => {
+      const target = `${folder}${"/.".repeat(8)}/checked.deb`;
+      const content = "the checked package".padEnd(target.length, ".");
       const file = path.join(folder, "update.deb");
-      await writeFile(file, "the checked package");
-      const checked = createHash("sha512").update("the checked package").digest("hex");
-      const size = String("the checked package".length);
-      await writeFile(path.join(folder, "checked.deb"), "the checked package");
+      await writeFile(file, content);
+      const checked = createHash("sha512").update(content).digest("hex");
+      const size = String(content.length);
+      await writeFile(path.join(folder, "checked.deb"), content);
       const link = path.join(folder, "link.deb");
-      const target = "././././checked.deb";
-      Assert.areEqual(Number(size), target.length);
+      Assert.isTrue(path.isAbsolute(target) && target.length === content.length, target);
       await symlink(target, link);
       const directory = path.join(folder, "directory.deb");
       await mkdir(directory);
       const swapped = path.join(folder, "swapped.deb");
-      await writeFile(swapped, "the swapped package");
+      await writeFile(swapped, "the swapped package".padEnd(target.length, "."));
       const cases: readonly (readonly string[])[] = [
         [link, checked, size],
         [directory, checked, size],
