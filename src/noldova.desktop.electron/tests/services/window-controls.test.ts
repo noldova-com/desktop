@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url";
 
 import "@noldova/context.core";
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
+import type { MenuItemConstructorOptions } from "electron";
 
 import { Condition } from "../fixtures/condition.fixture.js";
 import { MainProcessStartFixture } from "../fixtures/main-process-start.fixture.js";
@@ -34,6 +35,39 @@ export class WindowControlsTests {
     MainProcessStartFixture.click(file[0]);
 
     Assert.areEqual(0, window.webContents.sent.filter(t => t[0] === "desktop:menuCommand").length);
+  }
+
+  @TestMethod
+  public async putsBackTheStandardMenuBarOnMacOsOnceTheWindowWhoseMenuItShowsHasClosed(): Promise<void> {
+    const electron = await MainProcessStartFixture.startReadyAsync("darwin");
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const standard = electron.menu.menu;
+    electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"),
+      { menus: [{ place: "desktop.file", title: "File", rows: [{ type: "Command", id: "desktop.file/desktop.close/0", label: "Close the tab", key: null, enabled: true, check: "None", checked: false }] }] });
+    const shown = electron.menu.menu;
+
+    window.destroy();
+
+    const templateOf = (menu: unknown): readonly MenuItemConstructorOptions[] => electron.menu.templates.find(t => t === menu) ?? [];
+    const labels = (menu: unknown): string => templateOf(menu).map(t => t.label).join(",");
+    const app = templateOf(electron.menu.menu)[0]?.submenu;
+    Assert.areEqual("File", templateOf(shown).slice(1).map(t => t.label).join(","));
+    Assert.areEqual("Edit,Window", templateOf(electron.menu.menu).slice(1).map(t => t.label).join(","));
+    Assert.areEqual(labels(standard), labels(electron.menu.menu));
+    Assert.isFalse(standard === electron.menu.menu);
+    Assert.isTrue(Array.isArray(app) && app.some(t => t.role === "quit"));
+  }
+
+  @TestMethod
+  public async keepsTheMenuBarWhenAWindowWhoseMenuItDoesNotShowCloses(): Promise<void> {
+    const electron = await MainProcessStartFixture.startReadyAsync("darwin");
+    const standard = electron.menu.menu;
+    const built = electron.menu.templates.length;
+
+    MainProcessStartFixture.firstWindow(electron).destroy();
+
+    Assert.isTrue(standard === electron.menu.menu);
+    Assert.areEqual(built, electron.menu.templates.length);
   }
 
   @TestMethod

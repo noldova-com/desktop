@@ -168,6 +168,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On macOS nothing changes, since Cmd is the window's.
 - While a modal dialog is open, only the Edit commands run from keys, and a view's dialog adds its own module's commands.
 - On macOS the main process builds the native menu bar from the rows the window gives it, keeping the system's own items; choosing a row runs it in the window, and the window's key handling stays the only one.
+  Once the window whose rows it shows closes, the main process puts back the standard menu bar it starts with, the app, Edit and Window menus with the system's items, so no row is left that runs nowhere.
 - On Windows and Linux the menus show at the start of the window row, as a menu bar or a menu button, or not at all, as the shared setting `desktop.menuBar` chooses.
 - The window row shows the search field in its middle and no heading: the window takes the title of the document area's active tab when that tab is a document or a view's instance, and a tab in a dock never names it, whichever group has focus.
   A document's title shows in its tab, and its part draws its title and breadcrumb in its own content where it wants them; the window keeps the breadcrumb but shows it nowhere.
