@@ -16,6 +16,7 @@ import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testin
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { UnpackedFiles } from "../../../src/services/packaging/unpacked-files.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { Resources } from "../../../src/resources.js";
 
@@ -260,7 +261,7 @@ export class UnpackedFilesTests {
     const folder = await mkdtemp(path.join(tmpdir(), "unpacked-files-"));
     for (const [name, content] of Object.entries(files)) {
       const file = path.join(folder, ...name.split("/"));
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(file));
       await writeFile(file, content);
     }
     return { path: folder, [Symbol.asyncDispose]: () => rm(folder, { recursive: true, force: true }) };

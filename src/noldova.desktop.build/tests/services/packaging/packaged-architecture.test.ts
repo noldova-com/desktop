@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -15,6 +15,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackagedArchitecture } from "../../../src/services/packaging/packaged-architecture.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 type Place = "program" | "framework" | "library" | "helperTool" | "helper" | "nestedFramework" | "addon";
 
@@ -208,7 +209,7 @@ export class PackagedArchitectureTests {
     try {
       for (const [name, data] of Object.entries(files)) {
         const file = path.join(folder, ...name.split("/"));
-        await mkdir(path.dirname(file), { recursive: true });
+        await FolderFixture.ensureAsync(path.dirname(file));
         await writeFile(file, data);
       }
       await run(folder);
@@ -243,7 +244,7 @@ export class PackagedArchitectureTests {
       const application = path.join(folder, "Sample App.app");
       const write = async (segments: readonly string[], data: Buffer): Promise<void> => {
         const file = path.join(application, ...segments);
-        await mkdir(path.dirname(file), { recursive: true });
+        await FolderFixture.ensureAsync(path.dirname(file));
         await writeFile(file, data);
       };
       for (const place of PackagedArchitectureTests.PLACE_NAMES) {

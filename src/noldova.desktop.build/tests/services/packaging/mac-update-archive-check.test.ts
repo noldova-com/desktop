@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -17,6 +17,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { MacUpdateArchiveCheck } from "../../../src/services/packaging/mac-update-archive-check.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 type Tree = { readonly isCurrentLinked: boolean | null; readonly program: string; readonly hasHelper: boolean; readonly added?: string };
 
@@ -129,7 +130,7 @@ export class MacUpdateArchiveCheckTests {
   public static async writeAppAsync(application: string, tree: Tree): Promise<void> {
     const write = async (segments: readonly string[], text: string): Promise<void> => {
       const file = path.join(application, ...segments);
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(file));
       await writeFile(file, text);
     };
     const framework = path.join(application, ...MacUpdateArchiveCheckTests.FRAMEWORK);

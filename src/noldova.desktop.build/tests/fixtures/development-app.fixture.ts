@@ -13,6 +13,8 @@ import path from "node:path";
 
 import { JsonReader } from "@noldova/context.json";
 
+import { FolderFixture } from "./folder.fixture.js";
+
 export class DevelopmentAppFixture implements AsyncDisposable {
   private static readonly RELABELLED_PLATFORM: string = "win32";
   private static readonly BUNDLELESS_PLATFORM: string = "linux";
@@ -65,7 +67,7 @@ export class DevelopmentAppFixture implements AsyncDisposable {
 
   private async writeAsync(segments: readonly string[], text: string): Promise<void> {
     const file = path.join(this.path, ...segments);
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, text);
   }
 }

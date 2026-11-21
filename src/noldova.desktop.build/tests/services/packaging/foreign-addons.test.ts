@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -15,6 +15,7 @@ import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testin
 
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { ForeignAddons } from "../../../src/services/packaging/foreign-addons.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 
 @TestClass
 export class ForeignAddonsTests {
@@ -169,7 +170,7 @@ export class ForeignAddonsTests {
     };
     for (const [name, content] of Object.entries(written)) {
       const file = path.join(folder, ...name.split("/"));
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderFixture.ensureAsync(path.dirname(file));
       await writeFile(file, content);
     }
     return { path: folder, [Symbol.asyncDispose]: () => rm(folder, { recursive: true, force: true }) };

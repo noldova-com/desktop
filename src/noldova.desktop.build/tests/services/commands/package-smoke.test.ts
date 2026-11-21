@@ -23,6 +23,7 @@ import { ProcessResult } from "../../../src/models/processes/process-result.js";
 import { Resources } from "../../../src/resources.js";
 import { PackageSmoke } from "../../../src/services/commands/package-smoke.js";
 import { AppImageCopyRunnerFixture } from "../../fixtures/app-image-copy-runner.fixture.js";
+import { FolderFixture } from "../../fixtures/folder.fixture.js";
 import { InstalledAppFixture } from "../../fixtures/installed-app.fixture.js";
 import { PausedClockFixture } from "../../fixtures/paused-clock.fixture.js";
 import { RecordingTemporaryFolderFixture } from "../../fixtures/recording-temporary-folder.fixture.js";
@@ -1188,7 +1189,7 @@ export class PackageSmokeTests {
   private static async createRestrictionAsync(folder: string, value: string): Promise<string> {
     const processes = path.join(folder, "proc");
     const file = path.join(processes, ...PackageSmokeTests.RESTRICTION.split("/").slice(2));
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, `${value}\n`);
     return processes;
   }

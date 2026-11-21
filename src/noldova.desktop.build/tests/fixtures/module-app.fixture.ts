@@ -8,7 +8,7 @@
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -17,6 +17,7 @@ import "@noldova/context.core";
 import { JsonReader, type JsonValue } from "@noldova/context.json";
 import { BuildCommandLine } from "@noldova/desktop.build";
 
+import { FolderFixture } from "./folder.fixture.js";
 import { TarballFixture } from "./tarball.fixture.js";
 
 export class ModuleAppFixture implements AsyncDisposable {
@@ -320,7 +321,7 @@ export class ModuleAppFixture implements AsyncDisposable {
     const target = path.join(this.path, "linked", ...name.split("/"));
     await this.writeJsonAsync(["linked", ...name.split("/"), "package.json"], { name, version: ModuleAppFixture.MODULE_VERSION });
     const link = path.join(this.path, ...folder, "node_modules", ...installedAs.split("/"));
-    await mkdir(path.dirname(link), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(link));
     await symlink(target, link, "junction");
   }
 
@@ -418,7 +419,7 @@ export class ModuleAppFixture implements AsyncDisposable {
 
   private async writeAsync(segments: readonly string[], text: string | Buffer): Promise<void> {
     const file = path.join(this.path, ...segments);
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderFixture.ensureAsync(path.dirname(file));
     await writeFile(file, text);
   }
 }
