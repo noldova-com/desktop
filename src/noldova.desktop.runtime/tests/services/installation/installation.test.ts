@@ -430,7 +430,7 @@ export class InstallationTests {
   }
 
   @TestMethod
-  public async removesOnlyTheBarrierItReadAndPutsBackOneThatReplacedIt(): Promise<void> {
+  public async removesOnlyTheBarrierItReadAndKeepsOneThatReplacedIt(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
     const installation = InstallationTests.open(folder.path);
     await InstallationTests.writeAsync(installation, new UpdateBarrier(InstallationTests.GONE, "0.3.0", UpdateBarrierState.HandedOff, null));
@@ -447,50 +447,57 @@ export class InstallationTests {
   }
 
   @TestMethod
-  public async dropsTheBarrierItMovedAsideWhenAnotherTookItsPlaceMeanwhile(): Promise<void> {
+  public async letsOnlyOneOfThreeProcessesHoldInPlaceOfAStaleBarrier(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
-    const installation = InstallationTests.open(folder.path);
-    const newest = JSON.stringify(new UpdateBarrier(InstallationTests.RUNNING, "0.4.0", UpdateBarrierState.Preparing, null).toJson());
-    await InstallationTests.writeAsync(installation, new UpdateBarrier(InstallationTests.RUNNING, "0.3.0", UpdateBarrierState.Preparing, null));
+    const isRunningAsync = (t: UpdateProcess): Promise<boolean> => Promise.resolve(t.processId !== InstallationTests.GONE.processId);
+    const checked = Promise.withResolvers<void>();
+    const resumed = Promise.withResolvers<void>();
+    let isPaused = false;
+    const first = new Installation(path.join(folder.path, "installation"), async t => {
+      if (t.processId === InstallationTests.GONE.processId && !isPaused) {
+        isPaused = true;
+        checked.resolve();
+        await resumed.promise;
+      }
+      return await isRunningAsync(t);
+    });
+    const second = new Installation(first.folder, isRunningAsync);
+    const third = new Installation(first.folder, isRunningAsync);
+    const firstBarrier = new UpdateBarrier(new UpdateProcess(5001, 1500, 1501, "main"), "0.3.0", UpdateBarrierState.Preparing, null);
+    const secondBarrier = new UpdateBarrier(new UpdateProcess(5002, 1500, 1501, "main"), "0.3.0", UpdateBarrierState.Preparing, null);
+    const thirdBarrier = new UpdateBarrier(new UpdateProcess(5003, 1500, 1501, "main"), "0.3.0", UpdateBarrierState.Preparing, null);
+    await InstallationTests.writeAsync(first, new UpdateBarrier(InstallationTests.GONE, "0.3.0", UpdateBarrierState.Closing, null));
     const link = fs.promises.link;
+    const thirdHolds: Promise<boolean>[] = [];
+    let isArmed = false;
     fs.promises.link = async (existing, target) => {
-      await writeFile(target, newest);
+      if (isArmed && thirdHolds.length === 0) {
+        thirdHolds.push(third.holdAsync(thirdBarrier, "0.2.0"));
+        await Promise.all(thirdHolds);
+      }
       await link(existing, target);
     };
     syncBuiltinESMExports();
-    let removed: boolean;
+    const held: boolean[] = [];
     try {
-      removed = await installation.removeAsync("{}");
+      const firstHeld = first.holdAsync(firstBarrier, "0.2.0");
+      await checked.promise;
+      held.push(await second.holdAsync(secondBarrier, "0.2.0"));
+      isArmed = true;
+      resumed.resolve();
+      held.unshift(await firstHeld);
+      if (thirdHolds.length === 0)
+        thirdHolds.push(third.holdAsync(thirdBarrier, "0.2.0"));
+      held.push(...await Promise.all(thirdHolds));
     }
     finally {
       fs.promises.link = link;
       syncBuiltinESMExports();
     }
 
-    Assert.isFalse(removed);
-    Assert.areEqual(newest, await installation.readTextAsync());
-    Assert.areEqual("barrier.json", (await readdir(installation.folder)).join(","));
-  }
-
-  @TestMethod
-  public async keepsTheBarrierItMovedAsideWhenItCannotPutItBack(): Promise<void> {
-    await using folder = await TemporaryFolderFixture.createAsync();
-    const installation = InstallationTests.open(folder.path);
-    await InstallationTests.writeAsync(installation, new UpdateBarrier(InstallationTests.RUNNING, "0.3.0", UpdateBarrierState.Preparing, null));
-    const link = fs.promises.link;
-    fs.promises.link = () => Promise.reject(Object.assign(new Error("EPERM: operation not permitted, link"), { code: "EPERM" }));
-    syncBuiltinESMExports();
-    let error: Error;
-    try {
-      error = await Assert.throwsAsync(() => installation.removeAsync("{}"), Error);
-    }
-    finally {
-      fs.promises.link = link;
-      syncBuiltinESMExports();
-    }
-
-    Assert.areEqual("EPERM: operation not permitted, link", error.message);
-    Assert.areEqual(1, (await readdir(installation.folder)).filter(t => t.startsWith("barrier.json.")).length);
+    Assert.areEqual("false,true,false", held.join(","));
+    Assert.areEqual(JSON.stringify(secondBarrier.toJson()), await first.readTextAsync());
+    Assert.areEqual("barrier.json", (await readdir(first.folder)).join(","));
   }
 
   @TestMethod

@@ -23,10 +23,13 @@ import { UpdateBarrier } from "../../models/update-barrier.js";
 import { Resources } from "../../resources.js";
 import { FilePresence } from "../files/file-presence.js";
 import { FileRenamer } from "../files/file-renamer.js";
+import { StaleFileRemoval } from "../files/stale-file-removal.js";
+import { ProcessPresence } from "./process-presence.js";
 
 export class Installation {
   private readonly isRunningAsync: (holder: UpdateProcess) => Promise<boolean>;
   private readonly renamer: FileRenamer = new FileRenamer();
+  private readonly removal: StaleFileRemoval;
 
   public readonly folder: string;
   public readonly barrierFile: string;
@@ -39,6 +42,8 @@ export class Installation {
     this.recordFolder = path.join(folder, Resources.dataDirectoriesFolderName);
     this.mainProcessFolder = path.join(folder, Resources.mainProcessesFolderName);
     this.isRunningAsync = isRunningAsync;
+    const presence = ProcessPresence.create(process.platform);
+    this.removal = new StaleFileRemoval(this.barrierFile, async () => (await presence.stampAsync([[process.pid, Resources.removerRole]])).at(0), isRunningAsync);
   }
 
   public static locate(deviceFolder: string, programPath: string, platform: string): string {
@@ -152,29 +157,12 @@ export class Installation {
     return barrier.state !== UpdateBarrierState.HandedOff && !await this.isRunningAsync(barrier.holder);
   }
 
-  public async removeAsync(text: string): Promise<boolean> {
-    const claimed = path.join(this.folder, Resources.formatTemporaryName(Resources.barrierFileName, randomUUID()));
-    if (Object.isNull(await FilePresence.unlessMissingAsync(this.renamer.renameAsync(this.barrierFile, claimed).then(() => claimed))))
-      return true;
-    const isJudged = await readFile(claimed, Resources.utf8Encoding) === text;
-    if (!isJudged)
-      await Installation.putBackAsync(claimed, this.barrierFile);
-    await rm(claimed, { force: true });
-    return isJudged;
+  public removeAsync(text: string): Promise<boolean> {
+    return this.removal.removeAsync(text);
   }
 
   private async removeStaleAsync(text: string, version: string): Promise<UpdateBarrierStatus> {
     return await this.removeAsync(text) ? UpdateBarrierStatus.None : await this.checkAsync(version);
-  }
-
-  private static async putBackAsync(claimed: string, file: string): Promise<void> {
-    try {
-      await link(claimed, file);
-    }
-    catch (error) {
-      if (!SystemErrorCode.is(error, Resources.existingFileErrorCode))
-        throw error;
-    }
   }
 
   private static parse(text: string): UpdateBarrier | null {
