@@ -202,6 +202,10 @@ The runtime part sends its views calls of the window's web engine's debugging pr
   Before each such call, the host turns on `Emulation.setFocusEmulationEnabled` for the page, once until it is released, so the page keeps its focus state: it sees no `blur` when the focus leaves it, or between an agent's click and the typing after it, and its field keeps its focus.
   The page reads `document.hasFocus()` as true while the emulation is on.
   The host tells the window when the call starts; once the engine answers, the host makes a round trip to the page's renderer, in a world the page's scripts can't reach, and only then tells the window the call has ended.
+  The module gets the call's answer once the engine answered and the round trip ended, or earlier, once the engine answered and the main frame requested a navigation to another document, since its renderer then answers the round trip only once the next document comes.
+  A module can rely on this order: when a call starts the main frame's navigation to another document, its `Page.frameRequestedNavigation` or `Page.frameStartedNavigating` reaches the module before the call's answer, with two exceptions: while an earlier requested navigation is pending, the call is answered as soon as the engine answers it, and an event the module's declaration doesn't name never reaches it.
+  While such a navigation is pending, from its request until the main frame commits a document, stops loading or fails to load, each call is answered when the engine answers it.
+  The host knows the main frame from `Page.frameNavigated` and from the module's `Page.getFrameTree`; until it knows it, every call waits for the round trip.
   A call that times out is answered as `TimedOut` at its deadline, but the window hears that it ended only once the call and the round trip settle, so a focus change that lands late still finds the call open.
 - A mouse press, `DOM.focus` or a script can focus one of the page's elements, which makes the view the window's focused element.
   The window gives the focus back to the element that held the focus when the call started, or takes it out of the view when nothing held it.

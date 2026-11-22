@@ -211,6 +211,9 @@ export class Resources {
   public static readonly webViewAbortedLoadCode: number = -3;
   public static readonly webViewRtcPolicy: "disable_non_proxied_udp" = "disable_non_proxied_udp";
   public static readonly pageEnableMethod: string = "Page.enable";
+  public static readonly getFrameTreeMethod: string = "Page.getFrameTree";
+  public static readonly frameNavigatedEvent: string = "Page.frameNavigated";
+  public static readonly navigationStartEvents: readonly string[] = ["Page.frameRequestedNavigation", "Page.frameStartedNavigating"];
   public static readonly interceptFileChooserMethod: string = "Page.setInterceptFileChooserDialog";
   public static readonly fileChooserOpenedEvent: string = "Page.fileChooserOpened";
   public static readonly dispatchKeyEventMethod: string = "Input.dispatchKeyEvent";
@@ -293,6 +296,11 @@ export class Resources {
   public static readonly requestField: string = "request";
   public static readonly isRedirectField: string = "isRedirect";
   public static readonly frameIdField: string = "frameId";
+  public static readonly frameTreeField: string = "frameTree";
+  public static readonly frameField: string = "frame";
+  public static readonly parentIdField: string = "parentId";
+  public static readonly navigationTypeField: string = "navigationType";
+  public static readonly sameDocumentNavigationTypes: readonly string[] = ["sameDocument", "historySameDocument"];
   public static readonly hadRecentInputField: string = "hadRecentInput";
   public static readonly methodField: string = "method";
   public static readonly paramsField: string = "params";

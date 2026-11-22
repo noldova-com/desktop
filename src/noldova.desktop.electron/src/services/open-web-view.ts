@@ -81,6 +81,10 @@ export class OpenWebView {
   private refusedPages: ReadonlyMap<number, string> = new Map();
   private admittedPages: ReadonlyMap<number, string> = new Map();
   private openPageCalls: number = 0;
+  private navigationWaits: Set<() => void> = new Set();
+  private mainFrameId: string | null = null;
+  private isNavigating: boolean = false;
+  private isRequested: boolean = false;
   private releases: Set<() => void> = new Set();
   private allowed: readonly string[] = [];
   private guest: IWebViewContents | null = null;
@@ -201,6 +205,10 @@ export class OpenWebView {
     this.isCrashed = false;
     this.refusedPages = new Map();
     this.admittedPages = new Map();
+    this.navigationWaits = new Set();
+    this.mainFrameId = null;
+    this.isNavigating = false;
+    this.isRequested = false;
     if (!Object.isNull(previous) && !previous.isDestroyed() && previous.debugger.isAttached())
       previous.debugger.detach();
     this.listen(guest);
@@ -445,15 +453,51 @@ export class OpenWebView {
       const settle = this.untilReleased(() => this.settleInput(press, isUncounted));
       void sent.then(settle, settle);
     }
-    const handled = isPageCall ? OpenWebView.afterRendererAsync(guest, sent) : sent;
-    if (isPageCall) {
-      const end = this.untilReleased(() => this.endPageCall());
-      void handled.then(end, end);
-    }
+    this.noteModuleCall(guest, method, sent);
+    const handled = isPageCall ? this.afterPageCallAsync(guest, sent) : sent;
     handled.then(
       reply => finish(OpenWebView.answer(call, reply)),
       (error: unknown) => finish(new WebViewAnswered(call, null,
         new WebViewFailure(WebViewFailureKind.Protocol, Resources.webViewServerErrorCode, error instanceof Error ? error.message : String(error)))));
+  }
+
+  private afterPageCallAsync(guest: IWebViewContents, sent: Promise<unknown>): Promise<unknown> {
+    const navigated = Promise.withResolvers<void>();
+    this.navigationWaits.add(navigated.resolve);
+    const pending = (): void => {
+      if (this.isBound(guest) && this.isNavigating && this.isRequested)
+        navigated.resolve();
+    };
+    void sent.then(pending, pending);
+    const rendered = OpenWebView.afterRendererAsync(guest, sent);
+    const end = this.untilReleased(() => this.endPageCall());
+    const forget = (): void => {
+      this.navigationWaits.delete(navigated.resolve);
+      end();
+    };
+    void rendered.then(forget, forget);
+    return Promise.race([rendered, navigated.promise.then(() => sent)]);
+  }
+
+  private noteModuleCall(guest: IWebViewContents, method: string, sent: Promise<unknown>): void {
+    if (method !== Resources.getFrameTreeMethod)
+      return;
+    void sent.then(reply => {
+      if (this.isBound(guest))
+        this.mainFrameId = OpenWebView.readFrameTreeId(reply) ?? this.mainFrameId;
+    }, () => undefined);
+  }
+
+  private endNavigation(): void {
+    this.isNavigating = false;
+    this.isRequested = false;
+  }
+
+  private signalNavigation(): void {
+    const waits = this.navigationWaits;
+    this.navigationWaits = new Set();
+    for (const resolve of waits)
+      resolve();
   }
 
   private listen(guest: IWebViewContents): void {
@@ -492,6 +536,8 @@ export class OpenWebView {
           this.reportState();
       });
     guest.on(Resources.didFailLoadEvent, (_event, code, description, url, isMainFrame) => {
+      if (this.isBound(guest) && isMainFrame)
+        this.endNavigation();
       if (this.isBound(guest) && isMainFrame && code !== Resources.webViewAbortedLoadCode && !OpenWebView.isSourceDocument(url))
         this.emit(WebViewEventKind.LoadFailed, { [Resources.addressField]: url, [Resources.codeField]: code, [Resources.descriptionField]: description });
     });
@@ -502,6 +548,7 @@ export class OpenWebView {
     guest.on(Resources.didNavigateEvent, () => {
       if (!this.isBound(guest))
         return;
+      this.endNavigation();
       this.noteCommitted(guest);
       this.endFind();
       this.restoreZoom();
@@ -509,8 +556,10 @@ export class OpenWebView {
     });
     guest.on(Resources.didStopLoadingEvent, () => {
       this.settleLoadStop(guest);
-      if (this.isBound(guest))
-        this.favicon.noteStop();
+      if (!this.isBound(guest))
+        return;
+      this.endNavigation();
+      this.favicon.noteStop();
     });
     guest.on(Resources.pageFaviconUpdatedEvent, (_event, favicons) => {
       if (this.isBound(guest))
@@ -869,6 +918,8 @@ export class OpenWebView {
       this.refusedPages = new Map();
       this.admittedPages = new Map();
     }
+    if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument)
+      this.isNavigating = true;
     if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument && OpenWebView.isSourceDocument(navigation.url))
       this.emitRefusedNavigation(navigation.url, false);
   }
@@ -1004,14 +1055,23 @@ export class OpenWebView {
       return;
     if (method === Resources.fileChooserOpenedEvent)
       this.refuse(Resources.fileChooserRequest);
-    if (!this.declaration.allowsEvent(method))
-      return;
     const fields = OpenWebView.readObject(params);
     if (Object.isNull(fields))
       return;
-    const event = WebViewEventCut.fit(this.info.module, this.info.id, method, fields, Resources.webViewEventLimit);
+    if (method === Resources.frameNavigatedEvent)
+      this.mainFrameId = OpenWebView.readMainFrameId(fields) ?? this.mainFrameId;
+    const event = this.declaration.allowsEvent(method) ? WebViewEventCut.fit(this.info.module, this.info.id, method, fields, Resources.webViewEventLimit) : null;
     if (!Object.isNull(event))
       this.report(event);
+    if (this.startsMainFrame(method, fields)) {
+      this.isRequested = true;
+      this.signalNavigation();
+    }
+  }
+
+  private startsMainFrame(method: string, fields: JsonObject): boolean {
+    return Resources.navigationStartEvents.includes(method) && !Object.isNull(this.mainFrameId) && fields[Resources.frameIdField] === this.mainFrameId
+      && !Resources.sameDocumentNavigationTypes.includes(String(fields[Resources.navigationTypeField]));
   }
 
   private judgeInput(guest: IWebViewContents, event: IPreventableEvent, input: IWebViewInput): void {
@@ -1164,6 +1224,21 @@ export class OpenWebView {
   private static readTouchPointId(point: unknown, method: string): unknown {
     const id = OpenWebView.readObject(point)?.[Resources.touchPointIdField];
     return Number.isSafeInteger(id) ? id : Symbol(method);
+  }
+
+  private static readFrameTreeId(reply: unknown): string | null {
+    const tree = OpenWebView.readObject(OpenWebView.readObject(reply)?.[Resources.frameTreeField]);
+    return OpenWebView.readId(OpenWebView.readObject(tree?.[Resources.frameField]));
+  }
+
+  private static readMainFrameId(fields: JsonObject): string | null {
+    const frame = OpenWebView.readObject(fields[Resources.frameField]);
+    return Object.isUndefined(frame?.[Resources.parentIdField]) ? OpenWebView.readId(frame) : null;
+  }
+
+  private static readId(frame: JsonObject | null): string | null {
+    const id = frame?.[Resources.idField];
+    return Object.isString(id) ? id : null;
   }
 
   private static readObject(value: unknown): JsonObject | null {

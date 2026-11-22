@@ -139,6 +139,16 @@ export class OpenWebViewTests {
   });
 
   private static readonly PAGE_CALLS_AND_WINDOWS: WebViewDeclaration = new WebViewDeclaration(OpenWebViewTests.PAGE_CALLS.methods, OpenWebViewTests.PAGE_CALLS.events, [], true);
+  private static readonly NAVIGATIONS: WebViewDeclaration = WebViewDeclaration.fromJson({
+    methods: [
+      { name: "Input.dispatchMouseEvent", parameters: { type: { required: true }, x: {}, y: {} } },
+      { name: "Page.getFrameTree", parameters: {} }
+    ],
+    events: ["Page.frameNavigated", "Page.frameRequestedNavigation", "Page.frameStartedNavigating"]
+  });
+  private static readonly REQUESTED: string = "Page.frameRequestedNavigation";
+  private static readonly STARTED: string = "Page.frameStartedNavigating";
+  private static readonly NAVIGATED: string = "Page.frameNavigated";
 
   @TestMethod
   public async bindsItsPageWithoutLoadingItAndAttachesToTheProtocolWithItsDefaults(): Promise<void> {
@@ -1614,6 +1624,146 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async answersAPageCallWhoseEngineAnsweredBeforeTheRoundTripOnlyOnceTheMainFramesNavigationRequestWasReportedAndEndsTheWindowsNoticeAfterTheRoundTrip(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NAVIGATIONS).startAsync();
+    harness.contents.debugger.receive(OpenWebViewTests.NAVIGATED, { frame: { id: "main", url: "https://example.com/" } });
+    const release = OpenWebViewTests.holdRoundTrips(harness.contents);
+    const engine = Promise.withResolvers<unknown>();
+    harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, () => engine.promise);
+    let reportedAtAnswer = -1;
+
+    const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mouseReleased", x: 4, y: 5 }, 1000).finally(() => {
+      reportedAtAnswer = harness.events.length;
+    });
+    engine.resolve({});
+    await OpenWebViewTests.drainAsync();
+    const beforeRequest = reportedAtAnswer;
+    harness.contents.debugger.receive(OpenWebViewTests.REQUESTED, { frameId: "main", reason: "anchorClick", url: "https://example.com/next", disposition: "currentTab" });
+    const answer = await answering;
+    const inputsAtAnswer = [...harness.inputs];
+    release();
+    await OpenWebViewTests.drainAsync();
+
+    Assert.areEqual(-1, beforeRequest);
+    Assert.areEqual(2, reportedAtAnswer);
+    Assert.areEqual("1 {} none", OpenWebViewTests.describe(answer));
+    Assert.areEqual("[\"Start\"]", JSON.stringify(inputsAtAnswer));
+    Assert.areEqual("[\"Start\",\"End\"]", JSON.stringify(harness.inputs));
+  }
+
+  @TestMethod
+  public async answersAPageCallWhoseMainFrameRequestedANavigationBeforeTheEngineAnsweredWithTheEnginesAnswerOnceItCame(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NAVIGATIONS).startAsync();
+    harness.contents.debugger.receive(OpenWebViewTests.NAVIGATED, { frame: { id: "main", url: "https://example.com/" } });
+    const release = OpenWebViewTests.holdRoundTrips(harness.contents);
+    const engine = Promise.withResolvers<unknown>();
+    harness.contents.debugger.replies.set(OpenWebViewTests.MOUSE, () => engine.promise);
+    let isAnswered = false;
+
+    const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mouseReleased", x: 4, y: 5 }, 1000).finally(() => {
+      isAnswered = true;
+    });
+    await OpenWebViewTests.drainAsync();
+    harness.contents.debugger.receive(OpenWebViewTests.STARTED, { frameId: "main", url: "https://example.com/next", loaderId: "2", navigationType: "differentDocument" });
+    await OpenWebViewTests.drainAsync();
+    const beforeEngine = isAnswered;
+    engine.resolve({ handled: true });
+    const answer = await answering;
+    release();
+
+    Assert.isFalse(beforeEngine);
+    Assert.areEqual("1 {\"handled\":true} none", OpenWebViewTests.describe(answer));
+  }
+
+  @TestMethod
+  public async answersAPageCallAtTheEnginesAnswerWhileTheMainFramesRequestedNavigationIsPendingUntilItCommitsStopsOrFails(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NAVIGATIONS).startAsync();
+    harness.contents.debugger.receive(OpenWebViewTests.NAVIGATED, { frame: { id: "main", url: "https://example.com/" } });
+    const release = OpenWebViewTests.holdRoundTrips(harness.contents);
+    const ends: (() => void)[] = [
+      () => harness.contents.show("https://example.com/next"),
+      () => harness.contents.emit("did-stop-loading"),
+      () => harness.contents.emit("did-fail-load", {}, -105, "ERR_NAME_NOT_RESOLVED", "https://example.com/next", true)
+    ];
+    const results: string[] = [];
+
+    for (const [index, end] of ends.entries()) {
+      harness.contents.emit("did-start-navigation", { url: "https://example.com/next", isMainFrame: true, isSameDocument: false });
+      const beforeRequest = await OpenWebViewTests.isAnsweredBeforeRoundTripAsync(harness, index * 3 + 1);
+      harness.contents.debugger.receive(OpenWebViewTests.REQUESTED, { frameId: "main", reason: "scriptInitiated", url: "https://example.com/next", disposition: "currentTab" });
+      const pending = await OpenWebViewTests.isAnsweredBeforeRoundTripAsync(harness, index * 3 + 2);
+      end();
+      const ended = await OpenWebViewTests.isAnsweredBeforeRoundTripAsync(harness, index * 3 + 3);
+      results.push(`${beforeRequest} ${pending} ${ended}`);
+      release();
+      await OpenWebViewTests.drainAsync();
+    }
+
+    Assert.areEqual("false true false|false true false|false true false", results.join("|"));
+  }
+
+  @TestMethod
+  public async waitsForTheRoundTripOfAPageCallWhenANavigationStartsInAnotherFrameOrSessionWithinTheDocumentOrBeforeTheMainFrameIsKnown(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NAVIGATIONS).startAsync();
+    const release = OpenWebViewTests.holdRoundTrips(harness.contents);
+    let isAnswered = false;
+
+    const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mouseReleased", x: 4, y: 5 }, 1000).finally(() => {
+      isAnswered = true;
+    });
+    await OpenWebViewTests.drainAsync();
+    harness.contents.debugger.receive(OpenWebViewTests.REQUESTED, { frameId: "main", reason: "anchorClick", url: "https://example.com/next" });
+    harness.contents.debugger.receive(OpenWebViewTests.NAVIGATED, { type: "Navigation" });
+    harness.contents.debugger.receive(OpenWebViewTests.NAVIGATED, { frame: { id: 5, url: "https://example.com/" } });
+    harness.contents.debugger.receive(OpenWebViewTests.NAVIGATED, { frame: { id: "main", url: "https://example.com/" } });
+    harness.contents.debugger.receive(OpenWebViewTests.NAVIGATED, { frame: { id: "child", parentId: "main", url: "https://example.com/frame" } });
+    harness.contents.debugger.receive(OpenWebViewTests.REQUESTED, { frameId: "child", reason: "anchorClick", url: "https://example.com/other" });
+    harness.contents.debugger.receive(OpenWebViewTests.STARTED, { frameId: "main", url: "https://example.com/#part", loaderId: "1", navigationType: "sameDocument" });
+    harness.contents.debugger.receive(OpenWebViewTests.STARTED, { frameId: "main", url: "https://example.com/", loaderId: "1", navigationType: "historySameDocument" });
+    harness.contents.debugger.receive(OpenWebViewTests.REQUESTED, { frameId: "main", reason: "anchorClick", url: "https://example.com/next" }, "child-session");
+    await OpenWebViewTests.drainAsync();
+    const whileHeld = isAnswered;
+    release();
+    const answer = await answering;
+
+    Assert.isFalse(whileHeld);
+    Assert.areEqual("1 {} none", OpenWebViewTests.describe(answer));
+  }
+
+  @TestMethod
+  public async learnsTheMainFrameFromTheModulesReadOfTheFrameTreeKeepingTheKnownOneWhenTheReadFailsOrNamesNoneAndNotForAPageItNoLongerShows(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NAVIGATIONS).startAsync();
+    const trees: (() => Promise<unknown>)[] = [
+      () => Promise.reject(new Error("Not attached.")),
+      () => Promise.resolve([]),
+      () => Promise.resolve({}),
+      () => Promise.resolve({ frameTree: { frame: { id: 7 } } })
+    ];
+    const results: string[] = [];
+
+    for (const [index, tree] of trees.entries()) {
+      harness.contents.debugger.replies.set("Page.getFrameTree", tree);
+      await harness.open.sendAsync(index + 1, "Page.getFrameTree", {}, 1000);
+    }
+    results.push(String(await OpenWebViewTests.isAnsweredOnRequestAsync(harness, harness.contents, 10)));
+    harness.contents.debugger.replies.set("Page.getFrameTree", () => Promise.resolve({ frameTree: { frame: { id: "main" }, childFrames: [] } }));
+    await harness.open.sendAsync(11, "Page.getFrameTree", {}, 1000);
+    harness.contents.debugger.replies.set("Page.getFrameTree", () => Promise.resolve({}));
+    await harness.open.sendAsync(12, "Page.getFrameTree", {}, 1000);
+    results.push(String(await OpenWebViewTests.isAnsweredOnRequestAsync(harness, harness.contents, 13)));
+    const late = Promise.withResolvers<unknown>();
+    harness.contents.debugger.replies.set("Page.getFrameTree", () => late.promise);
+    void harness.open.sendAsync(14, "Page.getFrameTree", {}, 1000);
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    Assert.isTrue(await harness.open.bindAsync(fresh));
+    late.resolve({ frameTree: { frame: { id: "main" } } });
+    await OpenWebViewTests.drainAsync();
+    results.push(String(await OpenWebViewTests.isAnsweredOnRequestAsync(harness, fresh, 15)));
+
+    Assert.areEqual("false|true|false", results.join("|"));
+  }
+
+  @TestMethod
   public async letsThePersonsKeysReachThePageWhileACallToThePageIsOpenTheStatedLimit(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS).startAsync();
     let roundTrip: (value: unknown) => void = () => undefined;
@@ -1979,6 +2129,42 @@ export class OpenWebViewTests {
 
   private static readPage(page: string): string {
     return Buffer.from(page.slice("data:text/html;base64,".length), "base64").toString("utf8");
+  }
+
+  private static holdRoundTrips(contents: FakeWebViewContents): () => void {
+    const held: ((value: unknown) => void)[] = [];
+    contents.onIsolated = () => new Promise(resolve => {
+      held.push(resolve);
+    });
+    return () => {
+      for (const release of held.splice(0))
+        release(0);
+    };
+  }
+
+  private static async isAnsweredBeforeRoundTripAsync(harness: OpenWebViewHarness, call: number): Promise<boolean> {
+    let isAnswered = false;
+    void harness.open.sendAsync(call, OpenWebViewTests.MOUSE, { type: "mouseMoved", x: 1, y: 1 }, 1000).finally(() => {
+      isAnswered = true;
+    });
+    await OpenWebViewTests.drainAsync();
+    return isAnswered;
+  }
+
+  private static async isAnsweredOnRequestAsync(harness: OpenWebViewHarness, contents: FakeWebViewContents, call: number): Promise<boolean> {
+    const release = OpenWebViewTests.holdRoundTrips(contents);
+    let isAnswered = false;
+    const answering = harness.open.sendAsync(call, OpenWebViewTests.MOUSE, { type: "mouseReleased", x: 4, y: 5 }, 1000).finally(() => {
+      isAnswered = true;
+    });
+    await OpenWebViewTests.drainAsync();
+    contents.debugger.receive(OpenWebViewTests.REQUESTED, { frameId: "main", reason: "anchorClick", url: "https://example.com/next" });
+    await OpenWebViewTests.drainAsync();
+    const answered = isAnswered;
+    release();
+    await answering;
+    contents.onIsolated = () => Promise.resolve(0);
+    return answered;
   }
 
   private static drainAsync(): Promise<void> {
