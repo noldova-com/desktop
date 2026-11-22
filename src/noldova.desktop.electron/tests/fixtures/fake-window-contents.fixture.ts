@@ -102,6 +102,10 @@ export class FakeWindowContents implements IWindowContents {
     this.listeners.emit("did-start-navigation", { url, isMainFrame: true, isSameDocument: false });
   }
 
+  public commitLoading(url: string = this.url): void {
+    this.listeners.emit("did-navigate", {}, url);
+  }
+
   public startFrameLoading(isMainFrame: boolean): void {
     this.listeners.emit("did-start-loading");
     this.listeners.emit("did-start-navigation", { url: this.url, isMainFrame, isSameDocument: isMainFrame });

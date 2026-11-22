@@ -459,6 +459,10 @@ export class MainProcess {
       this.notifier.hold();
       this.webViews.host.closeWindow(contentsId);
     });
+    window.webContents.on(Resources.didNavigateEvent, (_event, url) => {
+      if (this.policy.isWindowUrl(url))
+        this.webViews.host.closeWindow(contentsId);
+    });
     window.webContents.on(Resources.renderProcessGoneEvent, () => {
       const ended = this.windows.endPage(contentsId);
       if (!Object.isNull(ended))

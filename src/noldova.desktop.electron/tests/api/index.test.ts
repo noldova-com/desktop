@@ -72,6 +72,7 @@ export class MainProcessApiTests {
         "PathCommandException",
         "PathCommandOutcome",
         "ProcessesNotExitedException",
+        "ProfileNotClearedException",
         "ProgramException",
         "PublisherCheck",
         "QuitChoice",

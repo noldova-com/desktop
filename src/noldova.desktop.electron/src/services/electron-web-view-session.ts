@@ -7,8 +7,10 @@
  */
 
 import "@noldova/context.core";
+import { ExceptionOptions } from "@noldova/context.exceptions";
 import { type Session, webContents } from "electron";
 
+import { ProfileNotClearedException } from "../exceptions/profile-not-cleared.exception.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewRedirect } from "../interfaces/i-web-view-redirect.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
@@ -80,7 +82,12 @@ export class ElectronWebViewSession implements IWebViewSession {
   }
 
   public async clearStorageDataAsync(): Promise<void> {
-    await this.profile.clearStorageData();
-    await this.profile.clearCache();
+    try {
+      await this.profile.clearStorageData();
+      await this.profile.clearCache();
+    }
+    catch (error) {
+      throw new ProfileNotClearedException(new ExceptionOptions(error));
+    }
   }
 }

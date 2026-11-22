@@ -15,6 +15,7 @@ import { type JsonObject, JsonReader, type JsonValue } from "@noldova/context.js
 import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 import { Event, Failure, FailureCode, Response, ShellEvents, WebViewAction, WebViewCommand, WebViewDeclaration } from "@noldova/desktop.protocol";
 
+import { ProfileNotClearedException } from "../../src/exceptions/profile-not-cleared.exception.js";
 import { WebViewHost } from "../../src/services/web-view-host.js";
 import { WebViewOriginCheck } from "../../src/services/web-view-origin-check.js";
 import { Condition } from "../fixtures/condition.fixture.js";
@@ -28,6 +29,8 @@ import type { FakeWebView } from "../fixtures/fake-web-view.fixture.js";
 import { FakeWebViewFrame } from "../fixtures/fake-web-view-frame.fixture.js";
 import { FakeWebViewEngine } from "../fixtures/fake-web-view-engine.fixture.js";
 import { MainProcessStartFixture } from "../fixtures/main-process-start.fixture.js";
+import { UnlistableKeysFixture } from "../fixtures/unlistable-keys.fixture.js";
+import { UnreadableSessionEngineFixture } from "../fixtures/unreadable-session-engine.fixture.js";
 
 @TestClass
 export class WebViewHostTests {
@@ -137,6 +140,37 @@ export class WebViewHostTests {
     Assert.isNull(fromOther);
     Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(fromOwn));
     Assert.areEqual(0, inOther.contents.debugger.versions.length);
+  }
+
+  @TestMethod
+  public async opensNoViewForAWindowThatClosedOrReloadedWhileTheDeclarationsWereRead(): Promise<void> {
+    const engine = new FakeWebViewEngine();
+    const declarations = Promise.withResolvers<ReadonlyMap<string, WebViewDeclaration>>();
+    const sent: string[] = [];
+    const host = new WebViewHost(engine, new WebViewOriginCheck(), () => declarations.promise, "linux", (windowId, event) => sent.push(`${windowId}:${event.kind}`),
+      () => undefined, () => undefined, () => false, () => undefined, () => undefined, () => null);
+    const closing = host.openAsync(1, "browser", WebViewHostTests.PANE, "workspace-1");
+    const other = host.openAsync(2, "browser", WebViewHostTests.PANE, "workspace-1");
+    host.closeWindow(1);
+    declarations.resolve(new Map([["browser", WebViewHostTests.DECLARATION]]));
+    const closed = await closing;
+    const opened = await other;
+    const reopened = await host.openAsync(1, "browser", WebViewHostTests.PANE, "workspace-1");
+
+    Assert.isNull(closed);
+    Assert.areEqual("1", JsonReader.fromValue(opened).readObject("view").readString("id"));
+    Assert.areEqual("2", JsonReader.fromValue(reopened).readObject("view").readString("id"));
+    Assert.areEqual("2:Opened,1:Opened", sent.join(","));
+  }
+
+  @TestMethod
+  public async passesOnAFailureOtherThanAnInvalidValueWhileReadingAnOpen(): Promise<void> {
+    const host = new WebViewHost(new FakeWebViewEngine(), new WebViewOriginCheck(), () => Promise.resolve(new Map([["browser", WebViewHostTests.DECLARATION]])), "linux",
+      () => undefined, () => undefined, () => undefined, () => false, () => undefined, () => undefined, () => null);
+
+    const thrown = await Assert.throwsAsync(async () => await host.openAsync(1, "browser", new Proxy({}, new UnlistableKeysFixture()), "workspace-1"), TypeError);
+
+    Assert.areEqual(UnlistableKeysFixture.MESSAGE, thrown.message);
   }
 
   @TestMethod
@@ -323,6 +357,22 @@ export class WebViewHostTests {
     window.webContents.startLoading();
 
     Assert.areEqual(0, before);
+    Assert.areEqual("1", WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").map(t => t["view"]).join(","));
+  }
+
+  @TestMethod
+  public async closesAViewTheOldPageOpensBetweenItsNavigationsStartAndCommitAndKeepsTheNewPagesViews(): Promise<void> {
+    const [electron] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+
+    window.webContents.startLoading();
+    await WebViewHostTests.openUnattachedAsync(electron);
+    const beforeCommit = WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length;
+    window.webContents.commitLoading();
+    await WebViewHostTests.openUnattachedAsync(electron);
+    window.webContents.commitLoading(pathToFileURL(join(tmpdir(), "dropped.txt")).href);
+
+    Assert.areEqual(0, beforeCommit);
     Assert.areEqual("1", WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").map(t => t["view"]).join(","));
   }
 
@@ -1354,12 +1404,34 @@ export class WebViewHostTests {
 
     const browser = await this.commandAsync(launcher, connection, WebViewAction.List);
     const notes = await this.commandAsync(launcher, connection, WebViewAction.List, null, null, "notes");
-    electron.webViews.session("persist:notes.a").clearFailure = new Error("The profile is in use.");
+    electron.webViews.session("persist:notes.a").clearFailure = new ProfileNotClearedException();
     const refused = await this.commandAsync(launcher, connection, WebViewAction.ClearProfile, null, "a", "notes");
 
     Assert.areEqual(JSON.stringify([{ id: "1", module: "browser", pane: WebViewHostTests.PANE, profileKey: "workspace-1" }]), JSON.stringify(browser["value"]));
     Assert.areEqual(JSON.stringify([{ id: "2", module: "notes", pane: { name: "notes.page", instance: "n1" }, profileKey: "a" }]), JSON.stringify(notes["value"]));
     Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(refused["failure"]));
+  }
+
+  @TestMethod
+  public async passesOnAFailureToReadTheProfileRatherThanAnsweringUnavailable(): Promise<void> {
+    const host = new WebViewHost(new UnreadableSessionEngineFixture(), new WebViewOriginCheck(), () => Promise.resolve(new Map([["browser", WebViewHostTests.DECLARATION]])), "linux",
+      () => undefined, () => undefined, () => undefined, () => false, () => undefined, () => undefined, () => null);
+
+    const thrown = await Assert.throwsAsync(async () => await host.commandAsync(new WebViewCommand(1, "browser", WebViewAction.ClearProfile, null, "a")), RangeError);
+
+    Assert.areEqual(UnreadableSessionEngineFixture.MESSAGE, thrown.message);
+  }
+
+  @TestMethod
+  public async passesOnAFailureOfTheClearOtherThanTheProfileNotClearedRatherThanAnsweringUnavailable(): Promise<void> {
+    const engine = new FakeWebViewEngine();
+    engine.readSession(WebViewHostTests.PARTITION).clearFailure = new RangeError("The engine stopped.");
+    const host = new WebViewHost(engine, new WebViewOriginCheck(), () => Promise.resolve(new Map([["browser", WebViewHostTests.DECLARATION]])), "linux",
+      () => undefined, () => undefined, () => undefined, () => false, () => undefined, () => undefined, () => null);
+
+    const thrown = await Assert.throwsAsync(async () => await host.commandAsync(new WebViewCommand(1, "browser", WebViewAction.ClearProfile, null, "workspace-1")), RangeError);
+
+    Assert.areEqual("The engine stopped.", thrown.message);
   }
 
   @TestMethod

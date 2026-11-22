@@ -21,6 +21,7 @@ export interface IWindowContents {
   on(event: "will-redirect", listener: (event: IPreventableEvent, url: string) => void): unknown;
   on(event: "render-process-gone", listener: (event: unknown, details: RenderProcessGoneDetails) => void): unknown;
   on(event: "did-start-navigation", listener: (navigation: IWindowNavigation) => void): unknown;
+  on(event: "did-navigate", listener: (event: unknown, url: string) => void): unknown;
   on(event: "context-menu", listener: (event: unknown, params: IContextMenuParams) => void): unknown;
   setWindowOpenHandler(handler: () => WindowOpenHandlerResponse): void;
   send(channel: string, ...values: unknown[]): void;

@@ -1046,6 +1046,10 @@ export class Resources {
     return `Another update of ${Resources.applicationName} is under way.`;
   }
 
+  public static get profileNotCleared(): string {
+    return "The web view profile's data or cache couldn't be cleared.";
+  }
+
   public static get installerNotCopied(): string {
     return `${Resources.applicationName} couldn't make a protected copy of the update's installer.`;
   }

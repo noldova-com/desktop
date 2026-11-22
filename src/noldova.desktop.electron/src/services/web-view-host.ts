@@ -7,7 +7,8 @@
  */
 
 import "@noldova/context.core";
-import { type JsonObject, JsonReader } from "@noldova/context.json";
+import { ArgumentException } from "@noldova/context.exceptions";
+import { JsonException, type JsonObject, JsonReader } from "@noldova/context.json";
 import {
   KeyChord,
   WebViewAction,
@@ -23,10 +24,13 @@ import {
   type WebViewCommand,
   type WebViewDeclaration
 } from "@noldova/desktop.protocol";
+import { ProfileNotClearedException } from "../exceptions/profile-not-cleared.exception.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewEngine } from "../interfaces/i-web-view-engine.js";
 import type { IWebViewRequest } from "../interfaces/i-web-view-request.js";
 import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
+import { ShortcutPress } from "../models/shortcut-press.js";
+import { WebViewFindRequest } from "../models/web-view-find-request.js";
 import { WebViewRefusedPage } from "../models/web-view-refused-page.js";
 import type { WindowAppearance } from "../models/window-appearance.js";
 import { Resources } from "../resources.js";
@@ -56,7 +60,8 @@ export class WebViewHost {
   private readonly closedContents: Set<number> = new Set();
   private readonly sessions: Map<string, IWebViewSession> = new Map();
   private readonly shortcuts: Map<number, readonly KeyChord[]> = new Map();
-  private readonly shortcutPresses: Map<string, readonly [OpenWebView, (hasRun: boolean) => void]> = new Map();
+  private readonly windowCloses: Map<number, number> = new Map();
+  private readonly shortcutPresses: Map<string, ShortcutPress> = new Map();
   private readonly backlog: WebViewEventBacklog = new WebViewEventBacklog(Resources.webViewBacklogLimit);
   private nextId: number = 0;
   private lastPress: number = 0;
@@ -93,10 +98,12 @@ export class WebViewHost {
   public async openAsync(windowId: number, module: unknown, pane: unknown, profileKey: unknown, name?: unknown): Promise<JsonObject | null> {
     if (!Object.isString(module) || !Object.isString(profileKey))
       return null;
-    const [owner, key]: [string, string] = [module, profileKey];
+    const owner: string = module;
+    const key: string = profileKey;
+    const closes = this.closesOf(windowId);
     const declaration = (await this.readDeclarationsAsync()).get(owner);
     const info = WebViewHost.read(() => new WebViewInfo(String(this.nextId + 1), owner, WebViewPane.fromJson(pane), key));
-    if (Object.isUndefined(declaration) || Object.isNull(info) || this.inPane(windowId, info).length >= Resources.webViewsPerPane)
+    if (Object.isUndefined(declaration) || Object.isNull(info) || this.closesOf(windowId) !== closes || this.inPane(windowId, info).length >= Resources.webViewsPerPane)
       return null;
     const partition = Resources.formatWebViewPartition(owner, key);
     const session = this.readSession(partition);
@@ -174,7 +181,7 @@ export class WebViewHost {
       return open.stepFindAsync(request === Resources.webViewFindNext);
     const find = WebViewHost.read(() => {
       const reader = JsonReader.fromValue(request);
-      return { text: reader.readString(Resources.textField), matchCase: reader.readBoolean(Resources.matchCaseField) };
+      return new WebViewFindRequest(reader.readString(Resources.textField), reader.readBoolean(Resources.matchCaseField));
     });
     return Object.isNull(find) ? null : open.findAsync(find.text, find.matchCase);
   }
@@ -208,7 +215,7 @@ export class WebViewHost {
     if (Object.isUndefined(forwarded) || !Object.isBoolean(hasRun))
       return false;
     this.shortcutPresses.delete(key);
-    forwarded[1](hasRun);
+    forwarded.answer(hasRun);
     return true;
   }
 
@@ -216,6 +223,7 @@ export class WebViewHost {
     for (const open of [...this.views.values()].filter(t => t.windowId === windowId))
       this.end(open);
     this.shortcuts.delete(windowId);
+    this.windowCloses.set(windowId, this.closesOf(windowId) + 1);
   }
 
   public async commandAsync(command: WebViewCommand): Promise<WebViewAnswered> {
@@ -268,11 +276,14 @@ export class WebViewHost {
     const views = [...this.views.values()].filter(t => t.info.module === command.module && t.info.profileKey === profileKey);
     for (const open of views)
       open.clearProfile();
+    const session = this.readSession(partition);
     try {
-      await this.readSession(partition).clearStorageDataAsync();
+      await session.clearStorageDataAsync();
     }
-    catch {
-      return WebViewHost.fail(command.call, WebViewFailureKind.Unavailable);
+    catch (error) {
+      if (error instanceof ProfileNotClearedException)
+        return WebViewHost.fail(command.call, WebViewFailureKind.Unavailable);
+      throw error;
     }
     for (const open of views)
       this.report(open, WebViewHost.createEvent(open, WebViewEventKind.ProfileCleared, { [Resources.profileKeyField]: profileKey }));
@@ -371,12 +382,16 @@ export class WebViewHost {
 
   private forwardShortcut(open: OpenWebView, stroke: IKeyStroke, answer: (hasRun: boolean) => void): void {
     this.lastPress += 1;
-    this.shortcutPresses.set(Resources.formatShortcutPress(open.windowId, this.lastPress), [open, answer]);
+    this.shortcutPresses.set(Resources.formatShortcutPress(open.windowId, this.lastPress), new ShortcutPress(open, answer));
     this.pressShortcut(open.windowId, stroke, this.lastPress);
   }
 
   private isShortcut(windowId: number, stroke: IKeyStroke): boolean {
     return (this.shortcuts.get(windowId) ?? []).some(t => t.matches(stroke, this.platform));
+  }
+
+  private closesOf(windowId: number): number {
+    return this.windowCloses.get(windowId) ?? 0;
   }
 
   private report(open: OpenWebView, event: WebViewEvent): void {
@@ -404,8 +419,8 @@ export class WebViewHost {
 
   private end(open: OpenWebView): void {
     this.views.delete(open.info.id);
-    for (const [press, [owner]] of [...this.shortcutPresses])
-      if (owner === open)
+    for (const press of [...this.shortcutPresses.keys()])
+      if (this.shortcutPresses.get(press)?.view === open)
         this.shortcutPresses.delete(press);
     this.forget(open);
     const contents = open.contents;
@@ -424,8 +439,10 @@ export class WebViewHost {
     try {
       return create();
     }
-    catch {
-      return null;
+    catch (error) {
+      if (error instanceof JsonException || error instanceof ArgumentException)
+        return null;
+      throw error;
     }
   }
 

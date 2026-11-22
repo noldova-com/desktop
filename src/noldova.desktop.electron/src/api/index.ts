@@ -107,6 +107,7 @@ export { InstallerUnsignedException } from "../exceptions/installer-unsigned.exc
 export { NotAnAppImageException } from "../exceptions/not-an-app-image.exception.js";
 export { PathCommandException } from "../exceptions/path-command.exception.js";
 export { ProcessesNotExitedException } from "../exceptions/processes-not-exited.exception.js";
+export { ProfileNotClearedException } from "../exceptions/profile-not-cleared.exception.js";
 export { ProgramException } from "../exceptions/program.exception.js";
 export { RestartArgumentsNotWrittenException } from "../exceptions/restart-arguments-not-written.exception.js";
 export { RuntimeStarterEndedException } from "../exceptions/runtime-starter-ended.exception.js";

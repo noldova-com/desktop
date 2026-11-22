@@ -3964,6 +3964,7 @@ export interface IWebViewSession {
    * Clears the session's cookies, storage and cache.
    *
    * @returns A promise that settles once they are cleared.
+   * @throws ProfileNotClearedException asynchronously when the engine can't clear them; the host answers the module's clear as `Unavailable`.
    * @example
    * ```ts
    * import type { IWebViewSession } from "@noldova/desktop.electron";
@@ -3974,6 +3975,24 @@ export interface IWebViewSession {
    * ```
    */
   clearStorageDataAsync(): Promise<void>;
+}
+
+/**
+ * The exception thrown when the engine can't clear a web view profile's data or cache.
+ */
+export declare class ProfileNotClearedException extends ElectronException {
+  /**
+   * Creates the exception, with its message from the package's own text.
+   *
+   * @param options The engine's error, if any.
+   * @example
+   * ```ts
+   * import { ProfileNotClearedException } from "@noldova/desktop.electron";
+   *
+   * export const failure: ProfileNotClearedException = new ProfileNotClearedException();
+   * ```
+   */
+  public constructor(options?: ExceptionOptions);
 }
 
 /**
@@ -4185,6 +4204,15 @@ export interface IWindowContents {
    * ```
    */
   on(event: "did-start-navigation", listener: (navigation: IWindowNavigation) => void): unknown;
+
+  /**
+   * Listens for the page itself committing a new document, after which the old document no longer runs.
+   *
+   * @param event The event's name.
+   * @param listener Receives Electron's event, which the main process does not use, and the committed URL.
+   * @returns Electron's own return value, which the main process does not use.
+   */
+  on(event: "did-navigate", listener: (event: unknown, url: string) => void): unknown;
 
   /**
    * Listens for the page asking for a context menu, which Electron reports only when the page did not cancel the
