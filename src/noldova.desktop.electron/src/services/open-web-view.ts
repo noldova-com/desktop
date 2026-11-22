@@ -405,9 +405,9 @@ export class OpenWebView {
     this.emit(WebViewEventKind.RequestRefused, { [Resources.requestField]: request, [Resources.originField]: OpenWebView.originOf(url) });
   }
 
-  public end(kind: WebViewFailureKind): void {
-    for (const end of [...this.endings])
-      end(kind);
+  public clearProfile(): void {
+    this.end(WebViewFailureKind.ProfileCleared);
+    this.endAttachWaits(WebViewFailureKind.ProfileCleared);
   }
 
   public close(): void {
@@ -656,6 +656,11 @@ export class OpenWebView {
 
   private lookupsAsync(): Promise<void> {
     return new Promise(resolve => this.lookupsSettled.push(resolve));
+  }
+
+  private end(kind: WebViewFailureKind): void {
+    for (const end of [...this.endings])
+      end(kind);
   }
 
   private endAttachWaits(kind: WebViewFailureKind): void {

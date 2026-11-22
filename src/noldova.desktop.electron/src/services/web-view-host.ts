@@ -267,7 +267,7 @@ export class WebViewHost {
     const partition = Resources.formatWebViewPartition(command.module, profileKey);
     const views = [...this.views.values()].filter(t => t.info.module === command.module && t.info.profileKey === profileKey);
     for (const open of views)
-      open.end(WebViewFailureKind.ProfileCleared);
+      open.clearProfile();
     try {
       await this.readSession(partition).clearStorageDataAsync();
     }

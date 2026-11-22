@@ -281,6 +281,19 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async answersACallWaitingForAPageAsProfileClearedWhenTheViewsProfileIsClearedBeforeAPageAttaches(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openUnattachedAsync(electron);
+
+    const sending = this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Page.captureScreenshot", params: {}, timeoutMilliseconds: 10000 });
+    await setImmediate();
+    const cleared = await this.commandAsync(launcher, connection, WebViewAction.ClearProfile, null, "workspace-1");
+
+    Assert.areEqual(JSON.stringify({ kind: "ProfileCleared" }), JSON.stringify((await sending)["failure"]));
+    Assert.isUndefined(cleared["failure"]);
+  }
+
+  @TestMethod
   public async closesOnlyAViewItKnowsByItsModuleAndId(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
