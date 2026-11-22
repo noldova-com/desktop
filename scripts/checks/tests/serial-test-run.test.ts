@@ -101,6 +101,20 @@ const HANGING_PACKAGING = [
   "TestClass(OtherTests);"
 ].join("\n");
 
+const HANGING_PACKAGING_WITH_ITS_OWN_LIMIT = [
+  "import \"@noldova/context.core\";",
+  "import { Category, TestClass, TestMethod, Timeout } from \"@noldova/context.testing\";",
+  "export class PackagingTests {",
+  "  waitsForATimerThatNeverFires() {",
+  "    return new Promise(resolve => setTimeout(resolve, 600_000));",
+  "  }",
+  "}",
+  "Timeout(250)(PackagingTests.prototype.waitsForATimerThatNeverFires);",
+  "TestMethod(PackagingTests.prototype.waitsForATimerThatNeverFires);",
+  "Category(\"Packaging\")(PackagingTests);",
+  "TestClass(PackagingTests);"
+].join("\n");
+
 const PASSING_SUITES = [
   "import \"@noldova/context.core\";",
   "import { Category, TestClass, TestMethod } from \"@noldova/context.testing\";",
@@ -116,6 +130,33 @@ const PASSING_SUITES = [
   "Category(\"Packaging\")(PackagingTests);",
   "TestClass(PackagingTests);",
   "TestMethod(OtherTests.prototype.passes);",
+  "TestClass(OtherTests);"
+].join("\n");
+
+const REJECTING_DURING_PACKAGING = [
+  "import \"@noldova/context.core\";",
+  "import { Category, TestClass, TestMethod } from \"@noldova/context.testing\";",
+  "let open = () => {};",
+  "const gate = new Promise(resolve => {",
+  "  open = resolve;",
+  "});",
+  "export class PackagingTests {",
+  "  async opensTheGateTheOtherTestWaitsOn() {",
+  "    open();",
+  "    await new Promise(resolve => setImmediate(resolve));",
+  "  }",
+  "}",
+  "export class OtherTests {",
+  "  leavesWorkThatRejectsLater() {",
+  "    gate.then(() => {",
+  "      throw new Error(\"The general test's work failed late\");",
+  "    });",
+  "  }",
+  "}",
+  "TestMethod(PackagingTests.prototype.opensTheGateTheOtherTestWaitsOn);",
+  "Category(\"Packaging\")(PackagingTests);",
+  "TestClass(PackagingTests);",
+  "TestMethod(OtherTests.prototype.leavesWorkThatRejectsLater);",
   "TestClass(OtherTests);"
 ].join("\n");
 
@@ -298,6 +339,21 @@ describe("SerialTestRun", () => {
     assert.match(errors, /The test Hanging\/hanging\.test\.js › PackagingTests\.waitsForATimerThatNeverFires exceeded its time limit of 300 ms while waiting on [^;]*\bTimeout\b[^;]*;/u);
     assert.match(output, /General suite, limit 200 ms:\nSlowest tests:\n {2}\d+ ms {2}Hanging\/hanging\.test\.js — OtherTests\.passes\n/u);
     assert.match(output, /Packaging suite, limit 300 ms:\nSlowest tests:\n {2}\d+ ms {2}Hanging\/hanging\.test\.js — PackagingTests\.waitsForATimerThatNeverFires\n/u);
+  });
+
+  it("keeps a Packaging test's own time limit over the Packaging suite's", async () => {
+    const { code, output, errors } = await runAsync(HANGING_PACKAGING_WITH_ITS_OWN_LIMIT, { [Resources.serialTestPackagingTimeoutVariable]: "300" });
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(errors, /The test Hanging\/hanging\.test\.js › PackagingTests\.waitsForATimerThatNeverFires exceeded its time limit of 250 ms while waiting on [^;]*\bTimeout\b[^;]*;/u);
+    assert.match(output, /Packaging suite, limit 300 ms:\nSlowest tests:\n {2}\d+ ms {2}Hanging\/hanging\.test\.js — PackagingTests\.waitsForATimerThatNeverFires\n/u);
+  });
+
+  it("fails the run, naming the test, when a general test's promise rejects unhandled while a Packaging class runs", async () => {
+    const { code, errors } = await runAsync(REJECTING_DURING_PACKAGING, { [Resources.serialTestPackagingTimeoutVariable]: "300" });
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(errors, /leavesWorkThatRejectsLater left a promise that rejected after the test ended, unhandled;/u);
   });
 
   it("names the test that reaches its time limit though the run's temporary folder can't be removed while it holds it", async () => {
