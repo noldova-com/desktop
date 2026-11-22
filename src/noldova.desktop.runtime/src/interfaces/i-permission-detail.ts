@@ -12,4 +12,5 @@ export interface IPermissionDetail {
   readonly label: string;
   readonly kind: PermissionDetailKind;
   readonly value: string;
+  readonly isBare?: boolean | undefined;
 }

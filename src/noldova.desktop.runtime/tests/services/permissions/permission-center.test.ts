@@ -209,7 +209,7 @@ export class PermissionCenterTests {
       const text = (value: string): IPermissionDetail => ({ label: "Item", kind: PermissionDetailKind.Code, value });
       const subject = "The subject, when there is one, must be a string of at most 1,024 characters.";
       const title = "The title must be one line that isn't blank, of at most 200 characters.";
-      const details = "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, and a string value, and at most 80 KiB as JSON.";
+      const details = "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, a string value and, when present, an isBare of true or false, and at most 80 KiB as JSON.";
       const options = "The options must be a list of distinct options from AllowOnce, AllowAlways, Deny, DenyAlways and TakeOver, and not empty.";
       const cases: readonly (readonly [unknown, string])[] = [
         [{ ...request, action: "tasks.deleteItem" }, "The action must be notes, a dot and a camelCase name."],
@@ -392,6 +392,24 @@ export class PermissionCenterTests {
       Assert.isTrue(log.lines[1]?.startsWith("The answer for notes.deleteItem could not be remembered, so it holds for this call only: PermissionsClosedException") === true, log.lines[1]);
       Assert.areEqual("Noldova Desktop's database is not open.", list.message);
       Assert.areEqual("Noldova Desktop's database is not open.", revoke.message);
+    });
+  }
+
+  @TestMethod
+  public givesTheAnswererEachDetailsIsBareExactlyAsTheModuleGaveIt(): Promise<void> {
+    return PermissionCenterTests.withCenterAsync(async center => {
+      const answerer = new PermissionAnswererFixture();
+      center.registerAnswerer(PermissionCenterTests.APP, answerer, new ModuleLogFixture());
+      const details: IPermissionDetail[] = [
+        { label: "Message", kind: PermissionDetailKind.AgentText, value: "Fix the tray icon", isBare: true },
+        { label: "Branch", kind: PermissionDetailKind.Text, value: "main", isBare: false },
+        { label: "Note", kind: PermissionDetailKind.Text, value: "Plans" }
+      ];
+
+      await PermissionCenterTests.requestAsync(center, { ...PermissionCenterTests.REQUEST, details });
+
+      Assert.areEqual(JSON.stringify(details), JSON.stringify(answerer.questions[0]?.request.details));
+      Assert.areEqual("true|false|undefined", answerer.questions[0]?.request.details.map(t => String(t.isBare)).join("|"));
     });
   }
 

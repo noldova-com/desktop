@@ -1207,6 +1207,7 @@ export class Resources {
   public static readonly permissionDetailLabelField: string = "label";
   public static readonly permissionDetailKindField: string = "kind";
   public static readonly permissionDetailValueField: string = "value";
+  public static readonly permissionDetailIsBareField: string = "isBare";
   public static readonly permissionRiskField: string = "risk";
   public static readonly permissionIsAskingField: string = "isAsking";
   public static readonly permissionIsRememberedOnlyField: string = "isRememberedOnly";
@@ -1233,7 +1234,7 @@ export class Resources {
   public static readonly permissionSubjectInvalid: string = "The subject, when there is one, must be a string of at most 1,024 characters.";
   public static readonly permissionTitleInvalid: string = "The title must be one line that isn't blank, of at most 200 characters.";
   public static readonly permissionDetailsInvalid: string =
-    "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, and a string value, and at most 80 KiB as JSON.";
+    "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, a string value and, when present, an isBare of true or false, and at most 80 KiB as JSON.";
   public static readonly permissionFlagsInvalid: string = "isAsking and isRememberedOnly, when present, must be true or false.";
   public static readonly permissionOptionsInvalid: string = "The options must be a list of distinct options from AllowOnce, AllowAlways, Deny, DenyAlways and TakeOver, and not empty.";
   public static readonly permissionAlwaysAtHighRisk: string = "A High-risk request that gives labels or offers TakeOver may offer neither AllowAlways nor DenyAlways.";

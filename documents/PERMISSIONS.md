@@ -20,7 +20,7 @@ The calls that raise requests are in [TOOLS.md](TOOLS.md).
 | `action` | The action's name, `<id>.<name>` in camelCase, such as `notes.deleteItem`; the module lists its actions in its document. |
 | `subject` | Optional: an opaque string, at most 1,024 characters, naming what the action is on, such as an item or an origin; remembered answers match it exactly, and a module refuses an action whose subject would be longer. |
 | `title` | One line that tells the person what the agent wants to do. |
-| `details` | Labeled items, each `text`, `code`, `secret` or `agentText`; the window shows a `secret` item hidden, and an `agentText` item as words the agent wrote. |
+| `details` | Labeled items, each `text`, `code`, `secret` or `agentText`; the window shows a `secret` item hidden, and an `agentText` item as words the agent wrote. An item may set `isBare` to `true`: a permissions module then shows its value without its label, as a commit message or a diff reads on its own, and the label still names the item to assistive technology. Absent means `false`; any other value refuses the request. |
 | `risk` | `low`, `medium` or `high`, within the tool's `risk.maximum`. |
 | `isAsking` | Optional: `false` when the module would let the app's policy answer without asking the person; `true` when absent. |
 | `options` | The answers the person may give, a non-empty subset of `allowOnce`, `allowAlways`, `deny`, `denyAlways` and `takeOver`; a `high` request that gives `labels` with at least one entry or offers `takeOver` offers neither `allowAlways` nor `denyAlways`, and a remembered `allowedAlways` never decides it, while a remembered `deniedAlways` still does. |

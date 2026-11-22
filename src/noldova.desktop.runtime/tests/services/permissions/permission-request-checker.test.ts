@@ -114,12 +114,22 @@ export class PermissionRequestCheckerTests {
   @TestMethod
   public refusesTooManyDetailsOrADetailWithABlankLabel(): void {
     const detail: IPermissionDetail = { label: "Note", kind: PermissionDetailKind.Text, value: "Plans" };
-    const expected = "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, and a string value, and at most 80 KiB as JSON.";
+    const expected = "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, a string value and, when present, an isBare of true or false, and at most 80 KiB as JSON.";
 
     Assert.areEqual(expected, PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: Array.from({ length: 65 }, () => detail) }));
     Assert.areEqual(expected, PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: [{ ...detail, label: " " }] }));
     Assert.areEqual(expected, PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: [{ ...detail, value: "v".repeat(80 * 1_024) }] }));
     Assert.isNull(PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: Array.from({ length: 64 }, () => detail) }));
+  }
+
+  @TestMethod
+  public countsADetailsIsBareInTheDetailsSizeLimit(): void {
+    const empty: IPermissionDetail = { label: "Note", kind: PermissionDetailKind.Text, value: "" };
+    const detail: IPermissionDetail = { ...empty, value: "v".repeat(80 * 1_024 - JSON.stringify([empty]).length) };
+    const expected = "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, a string value and, when present, an isBare of true or false, and at most 80 KiB as JSON.";
+
+    Assert.isNull(PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: [detail] }));
+    Assert.areEqual(expected, PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: [{ ...detail, isBare: false }] }));
   }
 
   @TestMethod
@@ -132,8 +142,33 @@ export class PermissionRequestCheckerTests {
   }
 
   @TestMethod
+  public keepsEachDetailsIsBareAsGivenAndLeavesItOutWhenAbsent(): void {
+    const details: IPermissionDetail[] = [
+      { label: "Message", kind: PermissionDetailKind.AgentText, value: "Fix the tray icon", isBare: true },
+      { label: "Branch", kind: PermissionDetailKind.Text, value: "main", isBare: false },
+      { label: "Note", kind: PermissionDetailKind.Text, value: "Plans" },
+      { label: "Files", kind: PermissionDetailKind.Code, value: "a.ts", isBare: undefined }
+    ];
+
+    const copy = PermissionRequestCheckerTests.read({ ...PermissionRequestCheckerTests.REQUEST, details });
+
+    Assert.areEqual(JSON.stringify(details), JSON.stringify(copy.details));
+    Assert.areEqual("true|true|false|false", copy.details.map(t => String("isBare" in t)).join("|"));
+  }
+
+  @TestMethod
+  public refusesADetailWhoseIsBareIsNotTrueOrFalse(): void {
+    const detail: IPermissionDetail = { label: "Message", kind: PermissionDetailKind.AgentText, value: "Fix the tray icon" };
+    const expected = "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, a string value and, when present, an isBare of true or false, and at most 80 KiB as JSON.";
+
+    Assert.areEqual(expected, PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: [{ ...detail, isBare: "yes" }] }));
+    Assert.areEqual(expected, PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: [{ ...detail, isBare: null }] }));
+    Assert.areEqual(expected, PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: [{ ...detail, isBare: 1 }] }));
+  }
+
+  @TestMethod
   public refusesARequestOrDetailThatIsNotAnObjectOrHasNoFields(): void {
-    const expected = "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, and a string value, and at most 80 KiB as JSON.";
+    const expected = "The details must be at most 64 items, each with a label that isn't blank, a kind of Text, Code, Secret or AgentText, a string value and, when present, an isBare of true or false, and at most 80 KiB as JSON.";
 
     Assert.areEqual("The action must be notes, a dot and a camelCase name.", PermissionRequestCheckerTests.check({}));
     Assert.areEqual(expected, PermissionRequestCheckerTests.check({ ...PermissionRequestCheckerTests.REQUEST, details: [{}] }));

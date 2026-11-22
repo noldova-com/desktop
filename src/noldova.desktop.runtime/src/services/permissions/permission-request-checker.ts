@@ -84,7 +84,8 @@ export class PermissionRequestChecker {
     return {
       ...("label" in detail ? { label: detail.label } : {}),
       ...("kind" in detail ? { kind: detail.kind } : {}),
-      ...("value" in detail ? { value: detail.value } : {})
+      ...("value" in detail ? { value: detail.value } : {}),
+      ...("isBare" in detail ? { isBare: detail.isBare } : {})
     };
   }
 
@@ -113,9 +114,10 @@ export class PermissionRequestChecker {
       const label = PermissionRequestChecker.tryRead(() => item.readString(Resources.permissionDetailLabelField));
       const kind = PermissionRequestChecker.tryRead(() => item.readOneOf(Resources.permissionDetailKindField, Resources.permissionDetailKinds));
       const value = PermissionRequestChecker.tryRead(() => item.readString(Resources.permissionDetailValueField));
-      if (Object.isUndefined(label) || String.isNullOrWhitespace(label) || Object.isUndefined(kind) || Object.isUndefined(value))
+      const isBare = PermissionRequestChecker.readFlag(item, Resources.permissionDetailIsBareField);
+      if (Object.isUndefined(label) || String.isNullOrWhitespace(label) || Object.isUndefined(kind) || Object.isUndefined(value) || Object.isNull(isBare))
         return undefined;
-      details.push({ label, kind, value });
+      details.push(Object.isUndefined(isBare) ? { label, kind, value } : { label, kind, value, isBare });
     }
     return Buffer.byteLength(JSON.stringify(details), Resources.utf8Encoding) <= Resources.maximumPermissionDetailBytes ? details : undefined;
   }

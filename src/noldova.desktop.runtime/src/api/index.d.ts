@@ -14766,6 +14766,11 @@ export interface IPermissionDetail {
    * The value.
    */
   readonly value: string;
+
+  /**
+   * `true` when a permissions module shows the value without its label, which still names the item; `false` when absent.
+   */
+  readonly isBare?: boolean | undefined;
 }
 
 /**
