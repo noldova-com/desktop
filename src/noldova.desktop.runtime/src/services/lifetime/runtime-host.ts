@@ -20,10 +20,12 @@ import { DataDirectoryState } from "../../enums/data-directory-state.js";
 import { UpdateBarrierStatus } from "../../enums/update-barrier-status.js";
 import { WindowStateKind } from "../../enums/window-state-kind.js";
 import { DataDirectoryOwnedException } from "../../exceptions/data-directory-owned.exception.js";
+import { MethodFailureException } from "../../exceptions/method-failure.exception.js";
 import { UpdateInProgressException } from "../../exceptions/update-in-progress.exception.js";
 import type { IIdleParticipant } from "../../interfaces/i-idle-participant.js";
 import { AppImageSource } from "../../models/app-image-source.js";
 import { CapabilityToken } from "../../models/capability-token.js";
+import { CaughtFailure } from "../../models/caught-failure.js";
 import type { Endpoint } from "../../models/endpoint.js";
 import type { EventChannel } from "../../models/event-channel.js";
 import type { ModuleDeclaration } from "../../models/module-declaration.js";
@@ -150,6 +152,7 @@ export class RuntimeHost implements IIdleParticipant {
   private readonly webViews: WebViewCenter;
   private readonly grants: FileGrantTable;
   private readonly secrets: MachineSecretBackend;
+  private isAskingDevice: boolean = false;
 
   public readonly identity: BuildIdentity;
   public readonly work: WorkTracker;
@@ -306,6 +309,19 @@ export class RuntimeHost implements IIdleParticipant {
     const mainProcess = this.server.clients.find(t => t.client === ShellClients.mainProcess)?.connection ?? null;
     this.webViews.check(mainProcess);
     this.secrets.check(mainProcess);
+    this.learnDevice();
+  }
+
+  private learnDevice(): void {
+    const settings = this.settings;
+    if (!this.server.clients.some(t => t.client === ShellClients.mainProcess) || Object.isNull(settings) || !Object.isNull(settings.device) || this.isAskingDevice)
+      return;
+    this.isAskingDevice = true;
+    void this.secrets.readDeviceAsync().then(t => settings.useDevice(t),
+      (error: unknown) => this.log.writeLine(Resources.formatDeviceUnknown(CaughtFailure.expect(error, MethodFailureException).message)))
+      .finally(() => {
+        this.isAskingDevice = false;
+      });
   }
 
   private workChanged(): void {
@@ -417,6 +433,7 @@ export class RuntimeHost implements IIdleParticipant {
     this.methods.register(ShellMethods.setSetting, new SettingWriteMethod(settings));
     this.methods.register(ShellMethods.resetSetting, new SettingResetMethod(settings));
     this.settings = settings;
+    this.learnDevice();
     this.methods.register(ShellMethods.readWindowBounds, new WindowStateReadMethod(store, WindowStateKind.Bounds));
     this.methods.register(ShellMethods.writeWindowBounds, new WindowStateWriteMethod(store, WindowStateKind.Bounds));
     this.methods.register(ShellMethods.readWindowLayout, new WindowStateReadMethod(store, WindowStateKind.Layout));

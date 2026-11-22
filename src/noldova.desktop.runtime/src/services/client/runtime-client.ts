@@ -63,6 +63,8 @@ export class RuntimeClient {
   private isRefused: boolean = false;
   private failure: Failure | null = null;
   private isEstablished: boolean = false;
+  private isAnswered: boolean = false;
+  private readonly held: Event[] = [];
   private isClosed: boolean = false;
   private nextId: number = 1;
 
@@ -178,6 +180,8 @@ export class RuntimeClient {
     try {
       await this.handshake.promise;
       this.isEstablished = true;
+      for (const event of this.held.splice(0))
+        this.listener.onEvent(event);
     }
     catch (error) {
       this.socket.destroy();
@@ -209,6 +213,8 @@ export class RuntimeClient {
       this.handleResponse(message);
     else if (message instanceof Event && this.isEstablished)
       this.listener.onEvent(message);
+    else if (message instanceof Event && this.isAnswered)
+      this.held.push(message);
   }
 
   private handleResponse(response: Response): void {
@@ -226,6 +232,7 @@ export class RuntimeClient {
   }
 
   private handleHandshake(response: Response): void {
+    this.isAnswered = true;
     const failure = response.failure;
     if (Object.isUndefined(failure)) {
       const runtime = BuildIdentity.fromJson(response.payload);

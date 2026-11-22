@@ -287,6 +287,18 @@ export class RuntimeClientTests {
   }
 
   @TestMethod
+  public deliversAnEventThatArrivesWithTheHandshakeAnswerOnceConnected(): Promise<void> {
+    const event = new Event(RuntimeServerFixture.ECHO, "with").toText();
+    return RuntimeClientFixture.runRawAsync(
+      () => [`${RuntimeClientFixture.AUTHENTICATED}\n${event}`],
+      async (server, listener) => {
+        await RuntimeClient.connectAsync(server.endpoint, "token", RuntimeServerFixture.IDENTITY, "main", listener, RuntimeClientFixture.SETTINGS);
+
+        Assert.areEqual("[\"with\"]", JSON.stringify(listener.events.map(t => t.payload)));
+      });
+  }
+
+  @TestMethod
   public disconnectsFromARuntimeThatSendsAnInvalidFrame(): Promise<void> {
     return RuntimeClientFixture.runRawAsync(
       (_frame, index) => index === 0 ? [RuntimeClientFixture.AUTHENTICATED] : ["{\"kind\":"],

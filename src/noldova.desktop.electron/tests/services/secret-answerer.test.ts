@@ -9,7 +9,7 @@
 import "@noldova/context.core";
 import { type JsonObject, JsonReader, type JsonValue } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { Event, FailureCode, Response, SecretAction, SecretCommand, ShellEvents } from "@noldova/desktop.protocol";
+import { Event, Failure, FailureCode, Response, SecretAction, SecretCommand, ShellEvents } from "@noldova/desktop.protocol";
 
 import { Condition } from "../fixtures/condition.fixture.js";
 import { MainProcessStartFixture } from "../fixtures/main-process-start.fixture.js";
@@ -18,6 +18,8 @@ import { FakeDeviceIdentity } from "../fixtures/fake-device-identity.fixture.js"
 import { FakeElectron } from "../fixtures/fake-electron.fixture.js";
 import { FakeRuntimeConnection } from "../fixtures/fake-runtime-connection.fixture.js";
 import { FakeRuntimeLauncher } from "../fixtures/fake-runtime-launcher.fixture.js";
+import { KeyringBackendFixture } from "../fixtures/keyring-backend.fixture.js";
+import { StartedMainProcessFixture } from "../fixtures/started-main-process.fixture.js";
 
 @TestClass
 export class SecretAnswererTests {
@@ -25,7 +27,7 @@ export class SecretAnswererTests {
 
   @TestMethod
   public async namesTheDeviceAndEncryptsAndDecryptsWithTheSystemsKeyring(): Promise<void> {
-    const [electron, launcher, connection] = await SecretAnswererTests.startAsync();
+    const { electron, launcher, connection } = await SecretAnswererTests.startAsync();
 
     const device = await this.commandAsync(launcher, connection, SecretAction.Device);
     const sealed = await this.commandAsync(launcher, connection, SecretAction.Encrypt, "s3cret");
@@ -41,7 +43,7 @@ export class SecretAnswererTests {
   public async refusesWithoutADeviceIdentityAKeyringOrACiphertextItCanDecrypt(): Promise<void> {
     const identity = new FakeDeviceIdentity();
     identity.failure = new Error("The device folder can't be read.");
-    const [electron, launcher, connection] = await SecretAnswererTests.startAsync("linux", identity);
+    const { electron, launcher, connection } = await SecretAnswererTests.startAsync("linux", identity);
 
     const noDevice = await this.commandAsync(launcher, connection, SecretAction.Device);
     const undecryptable = await this.commandAsync(launcher, connection, SecretAction.Decrypt, "AAEC");
@@ -61,9 +63,11 @@ export class SecretAnswererTests {
   @TestMethod
   public async refusesLinuxsFallbackTextKeyButNotTheBackendNameElsewhere(): Promise<void> {
     const answers: JsonValue[] = [];
-    for (const [platform, backend] of [["linux", "basic_text"], ["linux", "unknown"], ["linux", "kwallet6"], ["win32", "unknown"], ["darwin", "unknown"]] as const) {
-      const [electron, launcher, connection] = await SecretAnswererTests.startAsync(platform);
-      electron.safeStorage.backend = backend;
+    const keyrings = [new KeyringBackendFixture("linux", "basic_text"), new KeyringBackendFixture("linux", "unknown"), new KeyringBackendFixture("linux", "kwallet6"),
+      new KeyringBackendFixture("win32", "unknown"), new KeyringBackendFixture("darwin", "unknown")];
+    for (const keyring of keyrings) {
+      const { electron, launcher, connection } = await SecretAnswererTests.startAsync(keyring.platform);
+      electron.safeStorage.backend = keyring.backend;
       const answer = await this.commandAsync(launcher, connection, SecretAction.Encrypt, "s3cret");
       answers.push(answer["failure"] ?? "sealed");
     }
@@ -73,7 +77,7 @@ export class SecretAnswererTests {
 
   @TestMethod
   public async refusesToDecryptWithoutAKeyringOrWithLinuxsFallbackTextKeyAndDecryptsNothing(): Promise<void> {
-    const [electron, launcher, connection] = await SecretAnswererTests.startAsync("linux");
+    const { electron, launcher, connection } = await SecretAnswererTests.startAsync("linux");
     const sealed = Buffer.from("sealed:s3cret").toString("base64");
 
     electron.safeStorage.isAvailable = false;
@@ -93,7 +97,7 @@ export class SecretAnswererTests {
 
   @TestMethod
   public async logsACommandThatIsNotValidWithoutItsValueAndLeavesItUnanswered(): Promise<void> {
-    const [, launcher, connection, process] = await SecretAnswererTests.startAsync();
+    const { launcher, connection, process } = await SecretAnswererTests.startAsync();
 
     launcher.listener?.onEvent(new Event(ShellEvents.secretCommand, { call: 1, action: "Device", value: "s3cret" }));
     await Condition.waitAsync(() => MainProcessStartFixture.readErrors(process, "The runtime sent a secret command that is not valid, so it was not answered: ").length === 1);
@@ -106,7 +110,7 @@ export class SecretAnswererTests {
   @TestMethod
   public async letsAWindowSaveRemoveAndCheckASecretButNeverAnswerOne(): Promise<void> {
     const platform = "linux";
-    const [electron, , connection] = await SecretAnswererTests.startAsync(platform);
+    const { electron, connection } = await SecretAnswererTests.startAsync(platform);
     const event = MainProcessStartFixture.trustedEvent(platform, MainProcessStartFixture.firstWindow(electron).webContents.id);
     electron.ipcMain.send("desktop:page", event, "first");
 
@@ -121,8 +125,29 @@ export class SecretAnswererTests {
     Assert.areEqual(FailureCode.Unauthorized, answered.failure?.code);
   }
 
-  private static async startAsync(platform: string = "linux", identity: FakeDeviceIdentity = new FakeDeviceIdentity()):
-    Promise<[FakeElectron, FakeRuntimeLauncher, FakeRuntimeConnection, FakeMainProcessEnvironment]> {
+  @TestMethod
+  public async answersTheDeviceAskThatComesWithTheHandshakeOnAFirstStartAndOnAReconnect(): Promise<void> {
+    const first = new FakeRuntimeConnection();
+    const second = new FakeRuntimeConnection();
+    const attaches = [Promise.withResolvers<FakeRuntimeConnection>(), Promise.withResolvers<FakeRuntimeConnection>()];
+    const launcher = new FakeRuntimeLauncher(...attaches.map(t => t.promise));
+    launcher.onListening = t => {
+      t.onEvent(new Event(ShellEvents.secretCommand, new SecretCommand(1, SecretAction.Device, null).toJson()));
+      const attach = attaches.shift();
+      setImmediate(() => attach?.resolve(launcher.listeners.length === 1 ? first : second));
+    };
+    await MainProcessStartFixture.startReadyAsync("linux", launcher, new FakeElectron(), new FakeDeviceIdentity(), new FakeMainProcessEnvironment("linux"));
+    await Condition.waitAsync(() => SecretAnswererTests.answers(first).length === 1);
+
+    launcher.listener?.onDisconnected(new Failure(FailureCode.FrameTooLarge, "A frame exceeds the maximum length."));
+    await Condition.waitAsync(() => SecretAnswererTests.answers(second).length === 1);
+
+    const answer = JSON.stringify({ call: 1, value: FakeDeviceIdentity.ID });
+    Assert.areEqual(JSON.stringify([answer, answer, 2]),
+      JSON.stringify([JSON.stringify(SecretAnswererTests.answers(first)[0]), JSON.stringify(SecretAnswererTests.answers(second)[0]), launcher.calls.length]));
+  }
+
+  private static async startAsync(platform: string = "linux", identity: FakeDeviceIdentity = new FakeDeviceIdentity()): Promise<StartedMainProcessFixture> {
     const connection = new FakeRuntimeConnection();
     for (const method of ["desktop.saveSecret", "desktop.removeSecret"])
       connection.answers.set(method, Response.success("r", null));
@@ -130,11 +155,11 @@ export class SecretAnswererTests {
     const launcher = new FakeRuntimeLauncher(connection);
     const process = new FakeMainProcessEnvironment(platform);
     const electron = await MainProcessStartFixture.startReadyAsync(platform, launcher, new FakeElectron(), identity, process);
-    return [electron, launcher, connection, process];
+    return new StartedMainProcessFixture(electron, launcher, connection, process);
   }
 
   private static answers(connection: FakeRuntimeConnection): JsonObject[] {
-    return connection.calls.map((t, i) => [t, connection.payloads[i]] as const).filter(t => t[0] === "desktop.secretAnswered").map(t => JsonReader.fromValue(t[1]).toJson());
+    return connection.calls.flatMap((t, i) => t === "desktop.secretAnswered" ? [JsonReader.fromValue(connection.payloads[i]).toJson()] : []);
   }
 
   private async commandAsync(launcher: FakeRuntimeLauncher, connection: FakeRuntimeConnection, action: SecretAction, value: string | null = null): Promise<JsonObject> {

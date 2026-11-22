@@ -12,6 +12,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { FailureCode, QualifiedName, SecretAnswered, SecretFailureKind } from "@noldova/desktop.protocol";
 
 import { MethodFailureException } from "../../../src/exceptions/method-failure.exception.js";
+import { CaughtFailure } from "../../../src/models/caught-failure.js";
 import { EventChannel } from "../../../src/models/event-channel.js";
 import { RequestContext } from "../../../src/models/request-context.js";
 import { DataDirectory } from "../../../src/services/data-directory/data-directory.js";
@@ -72,6 +73,21 @@ export class SecretAnsweredMethodTests {
     const method = new SecretAnsweredMethod(new MachineSecretBackend());
 
     await Assert.throwsAsync(() => method.handleAsync(new RequestContext("main", { call: 1 }, new AbortController().signal, SecretAnsweredMethodTests.MAIN)), Error);
+  }
+
+  @TestMethod
+  public async givesUpOnADeviceAskTheAppDoesNotAnswerInTimeAndAsksAgainNextTime(): Promise<void> {
+    const published: JsonValue[] = [];
+    const backend = new MachineSecretBackend(new EventChannel(t => published.push(t), () => undefined), 10);
+    backend.check(SecretAnsweredMethodTests.MAIN);
+
+    const lapsed = await backend.readDeviceAsync().then(() => null, (error: unknown) => CaughtFailure.expect(error, MethodFailureException).failure);
+    const again = backend.readDeviceAsync();
+    backend.answer(SecretAnsweredMethodTests.MAIN, new SecretAnswered(2, "device-1"));
+
+    Assert.areEqual(JSON.stringify([FailureCode.Unavailable, "Noldova Desktop Sample did not say in time which device it runs on, so this machine's secret store was not used."]),
+      JSON.stringify([lapsed?.code, lapsed?.message]));
+    Assert.areEqual(JSON.stringify(["device-1", [{ call: 1, action: "Device" }, { call: 2, action: "Device" }]]), JSON.stringify([await again, published]));
   }
 
   private static createBackend(database: ShellDatabase, published: JsonValue[]): MachineSecretBackend {

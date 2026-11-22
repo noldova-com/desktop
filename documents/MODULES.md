@@ -410,6 +410,7 @@ A module adds settings only through `settings.json`, whose field `settings` list
   With no check supplied, the value is saved.
   A check that throws accepts the value, and the part's log names the setting and the error's name, or the type of what was thrown, never the value.
 - A part reads the settings of its module, its dependencies and Noldova Desktop, and changes only its own module's.
+  A runtime part that reads a device setting with no device gets the value for the device its runtime serves, which the runtime asks the app for once the app's main process connects, and the default until it knows; `onChanged` with no device passes only that device's changes to a device setting, and once the runtime learns the device it passes that device's stored value as a change; the device's id stays inside the runtime.
 - Noldova Desktop's `desktop.timeFormat` and `desktop.dateTimeFormat` are the patterns every time a module shows follows, and a part formats a date in one with `DatePattern.format` from `@noldova/desktop.protocol`, and the kit's messages and permission cards follow them without it; a change reaches its readers as any setting's does.
   A pattern's letters that are no token, such as `Q` or a third `y`, show as text, as quoted text does.
 - Setting a value equal to the default where the setting would otherwise take its default removes the stored value.

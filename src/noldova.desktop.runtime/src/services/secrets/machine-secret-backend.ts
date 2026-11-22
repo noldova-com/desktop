@@ -13,20 +13,25 @@ import { MethodFailureException } from "../../exceptions/method-failure.exceptio
 import type { ISecretBackend } from "../../interfaces/i-secret-backend.js";
 import type { EventChannel } from "../../models/event-channel.js";
 import { ProductInfo } from "../../models/product-info.js";
+import { SecretCall } from "../../models/secret-call.js";
+import { SecretStore } from "../../models/secret-store.js";
+import { SecretTarget } from "../../models/secret-target.js";
 import { Resources } from "../../resources.js";
 import type { SecretTable } from "./secret-table.js";
 
 export class MachineSecretBackend implements ISecretBackend {
   private readonly channel: EventChannel | null;
-  private readonly calls: Map<number, { readonly connection: number; readonly action: SecretAction; readonly name: QualifiedName | null; readonly wait: PromiseWithResolvers<string> }> = new Map();
+  private readonly answerLimit: number;
+  private readonly calls: Map<number, SecretCall> = new Map();
   private readonly writes: Map<string, Promise<void>> = new Map();
-  private target: { readonly connection: number; readonly channel: EventChannel } | null = null;
+  private target: SecretTarget | null = null;
   private table: SecretTable | null = null;
-  private device: string | null = null;
+  private device: Promise<string> | null = null;
   private nextCall: number = 1;
 
-  public constructor(channel: EventChannel | null = null) {
+  public constructor(channel: EventChannel | null = null, answerLimit: number = Resources.secretAnswerLimit) {
     this.channel = channel;
+    this.answerLimit = answerLimit;
   }
 
   public open(table: SecretTable): void {
@@ -35,27 +40,27 @@ export class MachineSecretBackend implements ISecretBackend {
 
   public async saveAsync(name: QualifiedName, value: string): Promise<void> {
     await this.writeInOrderAsync(name, async () => {
-      const [table, device] = await this.requireStoreAsync();
-      table.save(device, name, await this.commandAsync(SecretAction.Encrypt, value, name));
+      const store = await this.requireStoreAsync();
+      store.table.save(store.device, name, await this.commandAsync(SecretAction.Encrypt, value, name));
     });
   }
 
   public async readAsync(name: QualifiedName): Promise<string | null> {
-    const [table, device] = await this.requireStoreAsync();
-    const ciphertext = table.read(device, name);
+    const store = await this.requireStoreAsync();
+    const ciphertext = store.table.read(store.device, name);
     return Object.isNull(ciphertext) ? null : await this.commandAsync(SecretAction.Decrypt, ciphertext, name);
   }
 
   public async removeAsync(name: QualifiedName): Promise<void> {
     await this.writeInOrderAsync(name, async () => {
-      const [table, device] = await this.requireStoreAsync();
-      table.remove(device, name);
+      const store = await this.requireStoreAsync();
+      store.table.remove(store.device, name);
     });
   }
 
   public async isSetAsync(name: QualifiedName): Promise<boolean> {
-    const [table, device] = await this.requireStoreAsync();
-    return !Object.isNull(table.read(device, name));
+    const store = await this.requireStoreAsync();
+    return !Object.isNull(store.table.read(store.device, name));
   }
 
   public answer(connection: number, answered: SecretAnswered): void {
@@ -64,21 +69,29 @@ export class MachineSecretBackend implements ISecretBackend {
       return;
     this.calls.delete(answered.call);
     if (!Object.isNull(answered.value))
-      call.wait.resolve(answered.value);
+      call.complete(answered.value);
     else if (!Object.isNull(answered.failure))
-      call.wait.reject(MachineSecretBackend.failureOf(answered.failure, call.action, call.name));
+      call.fail(MachineSecretBackend.failureOf(answered.failure, call.action, call.name));
   }
 
   public check(connection: number | null): void {
     const channel = this.channel;
-    const target = Object.isNull(connection) || Object.isNull(channel) ? null : { connection, channel };
+    const target = Object.isNull(connection) || Object.isNull(channel) ? null : new SecretTarget(connection, channel);
     if (target?.connection === this.target?.connection)
       return;
     const calls = [...this.calls.values()];
     this.calls.clear();
     for (const call of calls)
-      call.wait.reject(MachineSecretBackend.needsApp());
+      call.fail(MachineSecretBackend.needsApp());
     this.target = target;
+  }
+
+  public readDeviceAsync(): Promise<string> {
+    this.device ??= this.commandAsync(SecretAction.Device, null, null).catch((error: unknown) => {
+      this.device = null;
+      throw error;
+    });
+    return this.device;
   }
 
   private async writeInOrderAsync(name: QualifiedName, write: () => Promise<void>): Promise<void> {
@@ -95,16 +108,11 @@ export class MachineSecretBackend implements ISecretBackend {
     }
   }
 
-  private async requireStoreAsync(): Promise<[SecretTable, string]> {
+  private async requireStoreAsync(): Promise<SecretStore> {
     const table = this.table;
     if (Object.isNull(table))
       throw MachineSecretBackend.needsApp();
-    return [table, await this.requireDeviceAsync()];
-  }
-
-  private async requireDeviceAsync(): Promise<string> {
-    this.device ??= await this.commandAsync(SecretAction.Device, null, null);
-    return this.device;
+    return new SecretStore(table, await this.readDeviceAsync());
   }
 
   private commandAsync(action: SecretAction, value: string | null, name: QualifiedName | null): Promise<string> {
@@ -114,9 +122,17 @@ export class MachineSecretBackend implements ISecretBackend {
     const command = new SecretCommand(this.nextCall, action, value);
     this.nextCall += 1;
     const wait = Promise.withResolvers<string>();
-    this.calls.set(command.call, { connection: target.connection, action, name, wait });
+    const call = new SecretCall(target.connection, action, name, wait);
+    if (action === SecretAction.Device)
+      call.expireAfter(setTimeout(() => this.giveUp(command.call, call), this.answerLimit));
+    this.calls.set(command.call, call);
     target.channel.publishTo(target.connection, null, command.toJson());
     return wait.promise;
+  }
+
+  private giveUp(id: number, call: SecretCall): void {
+    this.calls.delete(id);
+    call.fail(MachineSecretBackend.unavailable(SecretFailureReason.NotConnected, Resources.formatSecretsNotAnswered(ProductInfo.current.name)));
   }
 
   private static needsApp(): MethodFailureException {

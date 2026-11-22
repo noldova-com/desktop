@@ -43,6 +43,8 @@ export class RuntimeStartup {
   private beforeUpdate: StartupState = StartupState.ready();
   private connectionValue: IRuntimeConnection | null = null;
   private listener: IRuntimeClientListener | null = null;
+  private attaching: IRuntimeClientListener | null = null;
+  private readonly held: Event[] = [];
   private readyAt: number = 0;
   private unstableEnds: number = 0;
   private barrierChange: PromiseWithResolvers<void> = Promise.withResolvers<void>();
@@ -113,12 +115,19 @@ export class RuntimeStartup {
 
   private listen(): IRuntimeClientListener {
     const listener: IRuntimeClientListener = {
-      onEvent: t => this.receive(t),
+      onEvent: t => {
+        if (listener === this.attaching)
+          this.held.push(t);
+        else
+          this.receive(t);
+      },
       onDisconnected: t => {
         if (listener === this.listener)
           this.reconnect(t);
       }
     };
+    this.attaching = listener;
+    this.held.length = 0;
     return listener;
   }
 
@@ -184,6 +193,9 @@ export class RuntimeStartup {
     replaced?.close();
     this.readyAt = this.now();
     this.update(StartupState.ready());
+    this.attaching = null;
+    for (const event of this.held.splice(0))
+      this.receive(event);
   }
 
   private async refuseAsync(error: unknown): Promise<void> {

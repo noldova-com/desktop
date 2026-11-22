@@ -249,7 +249,6 @@ export class Resources {
   public static readonly millisecondsPerSecond: number = 1_000;
   public static readonly grantByteLength: number = 16;
   public static readonly stopEndCount: number = 3;
-  public static readonly settingDeviceColumnIndex: 3 = 3;
   public static readonly missingFileCode: string = "ENOENT";
   public static readonly lineSeparator: string = "\n";
   public static readonly lineBreakPattern: RegExp = /\r?\n/;
@@ -492,7 +491,7 @@ export class Resources {
   public static readonly spellCheckDescription: string = "Underline misspelled words in the text you type and offer corrections in the text field's menu. Code is never checked.";
   public static readonly spellCheckLanguagesTitle: string = "Spelling languages";
   public static readonly updateChecksTitle: string = "Check for updates";
-  public static readonly updateChecksDescription: string = "When this device looks for a newer version: shortly after starting and then every 10 minutes, only shortly after starting, or only when you choose Check for updates. A newer version downloads by itself; installing it waits for you.";
+  public static readonly updateChecksDescription: string = "When this device looks for a newer version: shortly after starting and then every 10 minutes, only shortly after starting, or only when you choose Check for updates. A newer version downloads by itself; installing it waits for you. Modules that look for newer versions of the tools they use follow the same choice: with Only when I ask, they wait for you to ask too.";
   public static readonly updateChecksOptions: readonly (readonly [string, string])[] = [["Automatic", "Automatically"], ["AtStart", "Only at start"], ["OnRequest", "Only when I ask"]];
   public static readonly defaultUpdateChecks: string = "Automatic";
   public static readonly spellCheckLanguagesDescription: string = "The languages words are checked in on this device. With none chosen, the operating system's languages that have a dictionary are used, or else the first language offered. On macOS the system chooses the languages.";
@@ -536,6 +535,7 @@ export class Resources {
   public static readonly maximumRequestTimeout: number = 3_600_000;
   public static readonly answerGrace: number = 5_000;
   public static readonly closeGrace: number = 2_000;
+  public static readonly secretAnswerLimit: number = 30_000;
   public static readonly idleGrace: number = 30_000;
   public static readonly takeover: number = 5_000;
   public static readonly takeoverInterval: number = 50;
@@ -1659,6 +1659,10 @@ export class Resources {
     return `The runtime could not list the web views of the module ${moduleId}: ${reason}\n`;
   }
 
+  public static formatSecretsNotAnswered(productName: string): string {
+    return `${productName} did not say in time which device it runs on, so this machine's secret store was not used.`;
+  }
+
   public static formatSecretsNeedApp(productName: string): string {
     return `Open ${productName} to use secrets on this machine: only its main process reaches this machine's secret store.`;
   }
@@ -1669,6 +1673,10 @@ export class Resources {
 
   public static formatSecretUnreadable(productName: string, name: string): string {
     return `This machine has no secret store that ${productName} can read the secret ${name} from safely, such as a keyring on Linux, so it was not read.`;
+  }
+
+  public static formatDeviceUnknown(reason: string): string {
+    return `The runtime doesn't know which device it serves, so a module reading a device setting gets its default: ${reason}`;
   }
 
   public static formatSecretsNoDevice(productName: string): string {

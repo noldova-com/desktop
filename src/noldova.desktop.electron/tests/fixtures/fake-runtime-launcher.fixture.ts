@@ -22,6 +22,7 @@ export class FakeRuntimeLauncher implements IRuntimeLauncher {
   public readonly listeners: IRuntimeClientListener[] = [];
   public readonly logs: ((text: string) => void)[] = [];
   public onAttach: () => void = () => undefined;
+  public onListening: (listener: IRuntimeClientListener) => void = () => undefined;
 
   public constructor(...outcomes: (Error | FakeRuntimeConnection | Promise<FakeRuntimeConnection>)[]) {
     this.outcomes = outcomes;
@@ -41,6 +42,7 @@ export class FakeRuntimeLauncher implements IRuntimeLauncher {
     this.calls.push(call);
     this.listener = listener;
     this.listeners.push(listener);
+    this.onListening(listener);
     const outcome = this.outcomes.shift() ?? new FakeRuntimeConnection();
     if (outcome instanceof Error)
       return Promise.reject(outcome);

@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-import { QualifiedName, SettingKey, SettingScope, SettingValue } from "@noldova/desktop.protocol";
+import { QualifiedName, SettingDefinition, SettingKey, SettingLocality, SettingScope, SettingType, SettingValue } from "@noldova/desktop.protocol";
 import {
   EventRegistry, MethodRegistry, ServiceRegistry, SettingNotReadableException, SettingNotWritableException, SettingScopeNotAllowedException, SettingScopeNotOwnedException, SettingUnknownException
 } from "@noldova/desktop.runtime";
@@ -63,5 +63,45 @@ export class ModuleSettingsTests {
 
     Assert.areEqual("c", seen.join(","));
     Assert.throws(() => context.settings.onChanged("clock.speed", () => undefined), SettingNotReadableException);
+  }
+
+  @TestMethod
+  public async readsAndFollowsADeviceSettingForTheRuntimesOwnDeviceOnceItKnowsIt(): Promise<void> {
+    const width = new SettingDefinition(QualifiedName.parse("tasks.width"), "tasks.width", "A setting.", SettingType.text(20), "a", SettingLocality.Device, [], "Page", "Group");
+    await using settings = await SettingsFixture.createAsync([...ModuleContextFixture.SETTINGS, width]);
+    const context = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry());
+    const write = (device: string, value: string): void => settings.service.write(new SettingValue(new SettingKey(width.name, null, device), value));
+    const seen: string[] = [];
+    write("d1", "b");
+    write("d2", "c");
+
+    const unknown = [settings.service.device, context.settings.read("tasks.width")];
+    settings.service.useDevice("d1");
+    context.settings.onChanged("tasks.width", t => seen.push(`${String(t.key.device)}:${String(t.value)}`));
+    const known = [settings.service.device, context.settings.read("tasks.width"), context.settings.read("tasks.width", null, "d2")];
+    write("d2", "e");
+    write("d1", "f");
+    settings.service.write(new SettingValue(new SettingKey(QualifiedName.parse("tasks.size")), "g"));
+
+    Assert.areEqual("null,a d1,b,c d1:f", [unknown, known, seen].map(t => t.map(u => String(u)).join(",")).join(" "));
+  }
+
+  @TestMethod
+  public async tellsAModuleFollowingADeviceSettingItsStoredValueOnceTheRuntimeLearnsItsDevice(): Promise<void> {
+    const width = new SettingDefinition(QualifiedName.parse("tasks.width"), "tasks.width", "A setting.", SettingType.text(20), "a", SettingLocality.Device, [], "Page", "Group");
+    const height = new SettingDefinition(QualifiedName.parse("tasks.height"), "tasks.height", "A setting.", SettingType.text(20), "h", SettingLocality.Device, [], "Page", "Group");
+    await using settings = await SettingsFixture.createAsync([...ModuleContextFixture.SETTINGS, width, height]);
+    const context = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry());
+    settings.service.write(new SettingValue(new SettingKey(width.name, null, "d1"), "b"));
+    settings.service.write(new SettingValue(new SettingKey(width.name, null, "d2"), "c"));
+    settings.service.write(new SettingValue(new SettingKey(QualifiedName.parse("tasks.size")), "g"));
+    const seen: string[] = [];
+    for (const name of ["tasks.width", "tasks.height", "tasks.size"])
+      context.settings.onChanged(name, t => seen.push(`${t.key.name.text}:${String(t.key.device)}:${String(t.value)}`));
+
+    const before = context.settings.read("tasks.width");
+    settings.service.useDevice("d1");
+
+    Assert.areEqual("a tasks.width:d1:b b", [before, seen.join(","), context.settings.read("tasks.width")].join(" "));
   }
 }

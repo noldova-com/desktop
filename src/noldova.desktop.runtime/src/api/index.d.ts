@@ -7297,11 +7297,15 @@ export interface IModuleSettings {
   /**
    * Reads a setting's value in effect: the value set for the scope object,
    * else for each enclosing scope, else for the application, else the
-   * default. A device setting reads the given device's value.
+   * default. A device setting reads the given device's value, or with no
+   * device the value of the device this runtime serves, which the runtime
+   * asks the app's main process for once it connects; until then it reads
+   * the default.
    *
    * @param name The setting's name.
    * @param scope The scope object; `null` by default, the application.
-   * @param device The device, for a device setting; `null` by default.
+   * @param device The device, for a device setting; `null` by default, the
+   * device this runtime serves.
    * @returns The value in effect.
    * @throws {RegistrationException} When the setting is another module's that
    * is not a dependency.
@@ -7363,8 +7367,11 @@ export interface IModuleSettings {
 
   /**
    * Follows a readable setting: the listener receives each change, a value
-   * set or reset for any scope or device, with the value then in effect for
-   * that key. It stops when the part deactivates.
+   * set or reset for any scope, with the value then in effect for that key.
+   * For a device setting it receives only the changes to the device this
+   * runtime serves, and none until the runtime knows that device. Once it
+   * knows it, the listener receives that device's stored value, when one is
+   * stored, as a change. It stops when the part deactivates.
    *
    * @param name The setting's name.
    * @param listener Called after each change commits.
@@ -12127,6 +12134,38 @@ export declare class SettingsService {
    * ```
    */
   public constructor(database: ShellDatabase, definitions: readonly SettingDefinition[], diagnostics: Writable);
+
+  /**
+   * The device this runtime serves, which a module's read of a device
+   * setting with no device takes, or `null` until the app's main process
+   * has said which.
+   *
+   * @example
+   * ```ts
+   * import "@noldova/context.core";
+   * import type { SettingsService } from "@noldova/desktop.runtime";
+   *
+   * export function knowsDevice(settings: SettingsService): boolean {
+   *   return !Object.isNull(settings.device);
+   * }
+   * ```
+   */
+  public get device(): string | null;
+
+  /**
+   * Takes the device this runtime serves, as the app's main process names it.
+   *
+   * @param device The device's id.
+   * @example
+   * ```ts
+   * import type { SettingsService } from "@noldova/desktop.runtime";
+   *
+   * export function serve(settings: SettingsService, device: string): void {
+   *   settings.useDevice(device);
+   * }
+   * ```
+   */
+  public useDevice(device: string): void;
 
   /**
    * Finds a setting's definition.

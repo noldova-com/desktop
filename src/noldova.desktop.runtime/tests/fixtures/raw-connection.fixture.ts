@@ -10,11 +10,12 @@ import { once } from "node:events";
 import { type Socket, connect } from "node:net";
 
 import "@noldova/context.core";
-import { Event, Response, type WireMessage, WireDecoder } from "@noldova/desktop.protocol";
+import { Event, Request, Response, SecretAction, SecretAnswered, SecretCommand, ShellEvents, ShellMethods, type WireMessage, WireDecoder } from "@noldova/desktop.protocol";
 import type { Endpoint } from "@noldova/desktop.runtime";
 
 export class RawConnectionFixture implements Disposable {
   private static readonly ANSWER_TIMEOUT: number = 10_000;
+  private static readonly DEVICE_CALL: string = "device:";
 
   private readonly socket: Socket;
   private readonly frames: string[] = [];
@@ -22,6 +23,7 @@ export class RawConnectionFixture implements Disposable {
   private readonly ended: Promise<unknown>;
   private pending: string = String.empty;
   private arrival: PromiseWithResolvers<void> | null = null;
+  private device: string | null = null;
 
   private constructor(socket: Socket) {
     this.socket = socket;
@@ -48,6 +50,10 @@ export class RawConnectionFixture implements Disposable {
 
   public get isClosed(): boolean {
     return this.socket.closed;
+  }
+
+  public answerDevice(device: string): void {
+    this.device = device;
   }
 
   public send(text: string): void {
@@ -107,11 +113,29 @@ export class RawConnectionFixture implements Disposable {
     this.pending += chunk;
     let index = this.pending.indexOf("\n");
     while (index >= 0) {
-      this.frames.push(this.pending.slice(0, index));
+      const frame = this.pending.slice(0, index);
+      if (!this.isDeviceExchange(frame))
+        this.frames.push(frame);
       this.pending = this.pending.slice(index + 1);
       index = this.pending.indexOf("\n");
     }
     if (this.frames.length > 0)
       this.arrival?.resolve();
+  }
+
+  private isDeviceExchange(frame: string): boolean {
+    if (Object.isNull(this.device))
+      return false;
+    const message = new WireDecoder().decode(frame);
+    if (message instanceof Response)
+      return message.id?.startsWith(RawConnectionFixture.DEVICE_CALL) === true;
+    if (!(message instanceof Event) || !message.name.equals(ShellEvents.secretCommand))
+      return false;
+    const command = SecretCommand.fromJson(message.payload);
+    if (command.action !== SecretAction.Device)
+      return false;
+    this.sendMessages(new Request(`${RawConnectionFixture.DEVICE_CALL}${String(command.call)}`, ShellMethods.secretAnswered,
+      new SecretAnswered(command.call, this.device).toJson()));
+    return true;
   }
 }

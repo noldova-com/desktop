@@ -14,7 +14,7 @@ import "@noldova/context.core";
 import type { JsonValue } from "@noldova/context.json";
 import {
   type BuildIdentity, Event, Handshake, NotificationBroadcast, NotificationPost, NotificationReference, NotificationSeverity, NotificationState, NotificationsQuery, QualifiedName, Request, Response,
-  ShellMethods, WireDecoder
+  ShellClients, ShellMethods, WireDecoder
 } from "@noldova/desktop.protocol";
 import {
   DataDirectory, DiscoveryReader, Endpoint, ProcessPresence, type RuntimeDiscovery, RuntimeEntry, RuntimeHost, RuntimeOptions, ServerSettings
@@ -24,6 +24,7 @@ import { RawConnectionFixture } from "./raw-connection.fixture.js";
 import { SocketFolderFixture } from "./socket-folder.fixture.js";
 
 export class RuntimeHostFixture implements AsyncDisposable {
+  public static readonly DEVICE: string = "00000000-0000-4000-8000-000000000001";
   public static readonly PART: string = [
     "import { mkdir, writeFile } from \"node:fs/promises\";",
     "import path from \"node:path\";",
@@ -93,10 +94,12 @@ export class RuntimeHostFixture implements AsyncDisposable {
     return discovery;
   }
 
-  public async handshakeAsync(client: string, identity: BuildIdentity): Promise<[RawConnectionFixture, Response]> {
+  public async handshakeAsync(client: string, identity: BuildIdentity, answersDevice: boolean = client === ShellClients.mainProcess): Promise<[RawConnectionFixture, Response]> {
     const discovery = await this.readDiscoveryAsync();
     const connection = await RawConnectionFixture.connectAsync(Endpoint.parse(discovery.endpoint));
     this.connections.push(connection);
+    if (answersDevice)
+      connection.answerDevice(RuntimeHostFixture.DEVICE);
     connection.sendMessages(new Handshake(`${client}:0`, identity, discovery.token, client));
     return [connection, await connection.readResponseAsync()];
   }

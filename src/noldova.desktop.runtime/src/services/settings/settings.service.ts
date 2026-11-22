@@ -28,6 +28,8 @@ import { SettingScopeNotAllowedException } from "../../exceptions/setting-scope-
 import { SettingUnknownException } from "../../exceptions/setting-unknown.exception.js";
 import { SettingValueInvalidException } from "../../exceptions/setting-value-invalid.exception.js";
 import { CaughtFailure } from "../../models/caught-failure.js";
+import { SettingColumns } from "../../models/setting-columns.js";
+import { StoredSetting } from "../../models/stored-setting.js";
 import { Resources } from "../../resources.js";
 import type { ShellDatabase } from "../database/shell-database.js";
 
@@ -37,11 +39,26 @@ export class SettingsService {
   private readonly definitions: ReadonlyMap<string, SettingDefinition>;
   private readonly listeners: Set<(change: SettingChange) => void> = new Set();
   private readonly reported: Set<string> = new Set();
+  private ownDevice: string | null = null;
 
   public constructor(database: ShellDatabase, definitions: readonly SettingDefinition[], diagnostics: Writable) {
     this.database = database;
     this.diagnostics = diagnostics;
     this.definitions = new Map(definitions.map(t => [t.name.text, t]));
+  }
+
+  public get device(): string | null {
+    return this.ownDevice;
+  }
+
+  public useDevice(device: string): void {
+    this.ownDevice = device;
+    for (const definition of [...this.definitions.values()].filter(t => t.locality === SettingLocality.Device)) {
+      const key = new SettingKey(definition.name, null, device);
+      const stored = this.resolve(definition, key);
+      if (!Object.isUndefined(stored))
+        this.notify(new SettingChange(key, stored.value, true));
+    }
   }
 
   public define(name: QualifiedName): SettingDefinition {
@@ -91,13 +108,13 @@ export class SettingsService {
       this.reset(key);
       return;
     }
-    this.database.run(Resources.writeSettingStatement, ...SettingsService.columns(key), JSON.stringify(write.value));
+    this.database.run(Resources.writeSettingStatement, ...SettingsService.columns(key).values, JSON.stringify(write.value));
     this.notify(new SettingChange(key, write.value, true));
   }
 
   public reset(key: SettingKey): void {
     const normalized = this.normalize(this.define(key.name), key);
-    this.database.run(Resources.resetSettingStatement, ...SettingsService.columns(normalized));
+    this.database.run(Resources.resetSettingStatement, ...SettingsService.columns(normalized).values);
     this.notify(new SettingChange(normalized, this.read(normalized), false));
   }
 
@@ -120,8 +137,8 @@ export class SettingsService {
     return { [Symbol.dispose]: () => this.listeners.delete(listener) };
   }
 
-  private static columns(key: SettingKey): readonly [string, string, string, string] {
-    return [key.name.text, key.scope?.name.text ?? Resources.applicationScope, key.scope?.id ?? Resources.applicationScope, key.device ?? Resources.sharedDevice];
+  private static columns(key: SettingKey): SettingColumns {
+    return new SettingColumns(key.name.text, key.scope?.name.text ?? Resources.applicationScope, key.scope?.id ?? Resources.applicationScope, key.device ?? Resources.sharedDevice);
   }
 
   private static requireListedScope(definition: SettingDefinition, key: SettingKey): void {
@@ -138,7 +155,7 @@ export class SettingsService {
     return key;
   }
 
-  private resolve(definition: SettingDefinition, key: SettingKey, inherited: boolean = false): { readonly value: JsonValue; readonly isOwn: boolean } | undefined {
+  private resolve(definition: SettingDefinition, key: SettingKey, inherited: boolean = false): StoredSetting | undefined {
     const device = definition.locality === SettingLocality.Device ? key.device : null;
     if (definition.locality === SettingLocality.Device && Object.isNull(device))
       return undefined;
@@ -146,10 +163,10 @@ export class SettingsService {
       if (!Object.isNull(scope) && !definition.isScopedBy(scope.name))
         continue;
       const columns = SettingsService.columns(new SettingKey(definition.name, scope, device));
-      const text = this.database.read(Resources.readSettingStatement, ...columns)?.[Resources.valueColumn];
-      const value = Object.isString(text) ? this.accept(definition, text, Object.isNull(scope) ? Resources.applicationScope : Resources.formatScopeName(scope.name.text, scope.id), columns[Resources.settingDeviceColumnIndex]) : undefined;
+      const text = this.database.read(Resources.readSettingStatement, ...columns.values)?.[Resources.valueColumn];
+      const value = Object.isString(text) ? this.accept(definition, text, Object.isNull(scope) ? Resources.applicationScope : Resources.formatScopeName(scope.name.text, scope.id), columns.device) : undefined;
       if (!Object.isUndefined(value))
-        return { value, isOwn: !inherited && index === 0 };
+        return new StoredSetting(value, !inherited && index === 0);
     }
     return undefined;
   }
