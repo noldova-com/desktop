@@ -7,6 +7,7 @@
  */
 
 import assert from "node:assert/strict";
+import childProcess from "node:child_process";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 
 import "@noldova/context.core";
@@ -16,77 +17,168 @@ import type { IBrowserCommandContext } from "../interfaces/i-browser-command-con
 import type { IBrowserPage } from "../interfaces/i-browser-page.ts";
 import type { IBrowserRequest } from "../interfaces/i-browser-request.ts";
 import type { IBrowserResponse } from "../interfaces/i-browser-response.ts";
+import type { IFailedRequest } from "../interfaces/i-failed-request.ts";
+import type { IVitestLogger } from "../interfaces/i-vitest-logger.ts";
+import type { IVitestPluginContext } from "../interfaces/i-vitest-plugin-context.ts";
+import type { IVitestRun } from "../interfaces/i-vitest-run.ts";
+import { SocketSummary } from "../socket-summary.ts";
 
 const NOW = Date.UTC(2026, 10, 16, 5, 40, 41, 619);
 const AT = "2026-11-16T05:40:41.619Z";
 const ADDRESS = "http://localhost:63315/@fs/a.spec.ts?import";
 
-type BrowserEvent = IBrowserRequest & IBrowserResponse;
+class FakeFailure implements IFailedRequest {
+  public readonly errorText: string;
+
+  public constructor(errorText: string) {
+    this.errorText = errorText;
+  }
+}
+
+class FakeEvent implements IBrowserRequest, IBrowserResponse {
+  private readonly address: string;
+  private readonly type: string;
+  private readonly errorText: string | null;
+  private readonly code: number;
+  private readonly fields: Record<string, string>;
+
+  public constructor(address: string, type: string, errorText: string | null, code: number, fields: Record<string, string>) {
+    this.address = address;
+    this.type = type;
+    this.errorText = errorText;
+    this.code = code;
+    this.fields = fields;
+  }
+
+  public url(): string {
+    return this.address;
+  }
+
+  public resourceType(): string {
+    return this.type;
+  }
+
+  public failure(): IFailedRequest | null {
+    return Object.isNull(this.errorText) ? null : new FakeFailure(this.errorText);
+  }
+
+  public status(): number {
+    return this.code;
+  }
+
+  public headers(): Record<string, string> {
+    return this.fields;
+  }
+
+  public request(): IBrowserRequest {
+    return this;
+  }
+}
 
 class FakePage implements IBrowserPage {
-  public readonly listeners: Map<string, ((value: BrowserEvent) => void)[]> = new Map();
+  public readonly listeners: Map<string, ((value: FakeEvent) => void)[]> = new Map();
 
-  public on(event: string, listener: (value: BrowserEvent) => void): this {
+  public on(event: string, listener: (value: FakeEvent) => void): this {
     this.listeners.set(event, [...this.listeners.get(event) ?? [], listener]);
     return this;
   }
 
   public fail(resourceType: string, errorText: string | null, url: string = ADDRESS): void {
-    this.emit("requestfailed", FakePage.event(url, resourceType, errorText, 0, {}));
+    this.emit("requestfailed", new FakeEvent(url, resourceType, errorText, 0, {}));
   }
 
   public answer(resourceType: string, status: number, headers: Record<string, string>, url: string = ADDRESS): void {
-    this.emit("response", FakePage.event(url, resourceType, null, status, headers));
+    this.emit("response", new FakeEvent(url, resourceType, null, status, headers));
   }
 
-  public open(resourceType: string, url: string, errorText: string | null = null): BrowserEvent {
-    const event = FakePage.event(url, resourceType, errorText, 0, {});
+  public open(resourceType: string, url: string, errorText: string | null = null): FakeEvent {
+    const event = new FakeEvent(url, resourceType, errorText, 0, {});
     this.emit("request", event);
     return event;
   }
 
-  public finish(event: BrowserEvent): void {
+  public finish(event: FakeEvent): void {
     this.emit("requestfinished", event);
   }
 
-  public failOpen(event: BrowserEvent): void {
+  public failOpen(event: FakeEvent): void {
     this.emit("requestfailed", event);
   }
 
   public answerThenCancel(status: number, headers: Record<string, string>): void {
-    const event = FakePage.event(ADDRESS, "script", "net::ERR_ABORTED", status, headers);
+    const event = new FakeEvent(ADDRESS, "script", "net::ERR_ABORTED", status, headers);
     this.emit("response", event);
     this.emit("requestfailed", event);
   }
 
-  private emit(name: string, value: BrowserEvent): void {
+  private emit(name: string, value: FakeEvent): void {
     for (const listener of this.listeners.get(name) ?? [])
       listener(value);
   }
+}
 
-  private static event(url: string, resourceType: string, errorText: string | null, status: number, headers: Record<string, string>): BrowserEvent {
-    const event: BrowserEvent = {
-      url: () => url,
-      resourceType: () => resourceType,
-      failure: () => Object.isNull(errorText) ? null : { errorText },
-      status: () => status,
-      headers: () => headers,
-      request: () => event
-    };
-    return event;
+class FakeLogger implements IVitestLogger {
+  private readonly logged: string[];
+
+  public constructor(logged: string[]) {
+    this.logged = logged;
+  }
+
+  public log(message: string): void {
+    this.logged.push(message);
   }
 }
 
-const contextOf = (page: FakePage, logged: string[], closes: (() => void)[] = []): IBrowserCommandContext => ({ page, project: { vitest: { logger: { log: message => logged.push(message) }, onClose: listener => closes.push(listener) } } });
+class FakeRun implements IVitestRun {
+  public readonly logger: IVitestLogger;
+  private readonly closes: (() => void)[];
 
-const watch = (): { recorder: FailedModuleRequests; page: FakePage; logged: string[]; closes: (() => void)[] } => {
-  const recorder = new FailedModuleRequests();
-  const page = new FakePage();
-  const logged: string[] = [];
-  const closes: (() => void)[] = [];
-  recorder.watch(contextOf(page, logged, closes));
-  return { recorder, page, logged, closes };
-};
+  public constructor(logged: string[], closes: (() => void)[]) {
+    this.logger = new FakeLogger(logged);
+    this.closes = closes;
+  }
+
+  public onClose(listener: () => void): void {
+    this.closes.push(listener);
+  }
+}
+
+class FakeProject implements IVitestPluginContext {
+  public readonly vitest: IVitestRun;
+
+  public constructor(vitest: IVitestRun) {
+    this.vitest = vitest;
+  }
+}
+
+class FakeContext implements IBrowserCommandContext {
+  public readonly page: IBrowserPage;
+  public readonly project: IVitestPluginContext;
+
+  public constructor(page: FakePage, logged: string[], closes: (() => void)[]) {
+    this.page = page;
+    this.project = new FakeProject(new FakeRun(logged, closes));
+  }
+}
+
+class WatchedPage {
+  public readonly recorder: FailedModuleRequests = new FailedModuleRequests();
+  public readonly page: FakePage = new FakePage();
+  public readonly logged: string[] = [];
+  public readonly closes: (() => void)[] = [];
+
+  public constructor() {
+    this.recorder.watch(new FakeContext(this.page, this.logged, this.closes));
+  }
+}
+
+const contextOf = (page: FakePage, logged: string[], closes: (() => void)[] = []): FakeContext => new FakeContext(page, logged, closes);
+
+const watch = (): WatchedPage => new WatchedPage();
+
+const SOCKET_STATE = process.platform === "win32"
+  ? /^\d+ TCP sockets, .+; to or from port 63315: .+; most held outside TIME_WAIT by process .+; dynamic ports from \d+, \d+ of them$/u
+  : /^unread, Socket state is read on Windows only\.$/u;
 
 const STYLES = "http://localhost:63315/styles.css";
 const CHUNK = "http://localhost:63315/chunk-GKUIELHC.js";
@@ -106,6 +198,56 @@ describe("FailedModuleRequests", () => {
     const line = `Failed module request at ${AT}: net::ERR_CONNECTION_RESET ${ADDRESS}`;
     assert.deepEqual(logged, [line]);
     assert.deepEqual(recorder.watch(contextOf(page, [])), [line]);
+  });
+
+  it("prints the socket state after a module request that fails for want of buffer space or ports, with how long after the request started: its summary on Windows, why it is unread elsewhere", () => {
+    const { recorder, page, logged } = watch();
+    const failed = page.open("script", CHUNK, "net::ERR_NO_BUFFER_SPACE");
+    mock.timers.tick(2_500);
+
+    page.failOpen(failed);
+
+    const line = `Failed module request at ${at(2_500)}: net::ERR_NO_BUFFER_SPACE ${CHUNK}`;
+    const prefix = `Socket state at ${at(2_500)}, 2.5 s after it started at ${AT}: `;
+    assert.deepEqual(logged.map(t => t.startsWith(prefix) ? prefix : t), [line, prefix]);
+    assert.match(logged.at(-1)?.slice(prefix.length) ?? String.empty, SOCKET_STATE);
+    assert.deepEqual(recorder.watch(contextOf(page, [])), [line]);
+  });
+
+  it("reads the socket state for the first such failure alone, saying when its request's start went unseen, and counts the later ones when the run closes", () => {
+    const { page, logged, closes } = watch();
+
+    page.fail("script", "net::ERR_INSUFFICIENT_RESOURCES", CHUNK);
+    page.fail("script", "net::ERR_ADDRESS_IN_USE", CHUNK);
+    page.fail("script", "net::ERR_NO_BUFFER_SPACE", CHUNK);
+    for (const close of closes)
+      close();
+
+    const prefix = `Socket state at ${AT}, its start unseen: `;
+    assert.deepEqual(logged.filter(t => t.startsWith("Socket")).map(t => t.startsWith(prefix) ? prefix : t), [prefix, "Socket errors after the first, their state unread: 2"]);
+  });
+
+  it("lets a failure other than an unread socket state out of the listener rather than print it as unread", t => {
+    t.mock.property(process, "platform", "win32");
+    t.mock.method(childProcess, "execFileSync", () => String.empty);
+    t.mock.method(SocketSummary, "format", () => {
+      throw new RangeError("summary broke");
+    });
+    const { page, logged } = watch();
+
+    assert.throws(() => page.fail("script", "net::ERR_NO_BUFFER_SPACE", CHUNK), RangeError);
+    assert.deepEqual(logged.filter(u => u.startsWith("Socket")), []);
+  });
+
+  it("reads no socket state for a module request that fails otherwise, such as refused or cancelled, and counts none when the run closes", () => {
+    const { page, logged, closes } = watch();
+
+    page.fail("script", "net::ERR_CONNECTION_REFUSED", CHUNK);
+    page.fail("script", "net::ERR_ABORTED", CHUNK);
+    for (const close of closes)
+      close();
+
+    assert.deepEqual(logged.filter(t => t.startsWith("Socket")), []);
   });
 
   it("says no network error was given when the browser gives none", () => {
