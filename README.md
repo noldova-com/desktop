@@ -198,6 +198,7 @@ Declarations without types runs last: for each of the build, command-line, Elect
 "All targets" also runs on every push to `main`.
 
 `npm test -- documents` runs only the document checks, and `npm run format:documents` puts each sentence of the Markdown documents on its own line.
+`npm test -- scripts` runs only the script tests, and `npm test -- scripts <file>.test.ts...` only those files of them, each a path from the repository's root, without glob characters, under a script test folder; a file that is missing stops the run before any test, and a filtered run is not the complete gate either.
 `npm test -- --filter <text>` runs the package tests that `@noldova/context.testing` selects by the text, `--repeat <count>` runs the selection that many times and stops at the first failure, and `--rerun-failed` runs failed tests once more and records those that pass in `_build/flaky-tests.json`, those of every package test process together once they have all ended.
 `npm test -- --shard=1/2` runs every check but the package tests, with Packages, and `--shard=2/2` Packages and the package tests, after `npm run build` with `SHARD` set to the same option, which builds only what that part needs, or a whole build; it takes `--repeat`, `--rerun-failed` and the details options, but no `--filter`, and only both parts together are the complete gate.
 `--skip-test-details` leaves passed tests out of the package tests' output, and `--skip-coverage-details` is accepted for the shared workflow, since the coverage report already leaves fully covered files out.
@@ -298,6 +299,12 @@ An end-to-end spec runs through `test:ui:ci`, which starts the same screen and a
 
 ```bash
 gh workflow run flake-proof.yml --ref <branch> -f script=test:ui:ci -f "filter=<file>.spec.ts:<line>" -f runs=10 -f "targets=linux-x64 windows-x64 macos-arm64"
+```
+
+A script test runs through `npm test -- scripts`, whose filter is the test's file, since `--filter` selects only package and Angular tests:
+
+```bash
+gh workflow run flake-proof.yml --ref <branch> -f "filter=scripts scripts/tests/<file>.test.ts" -f runs=10 -f "targets=linux-x64"
 ```
 
 | Input | What it takes | Default |

@@ -10,6 +10,7 @@ import { Resources } from "./resources.ts";
 
 export class TestOptionsProblem {
   public static readonly DOCUMENTS_ALONE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsDocumentsAlone);
+  public static readonly SCRIPT_FILE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsScriptFile);
   public static readonly FILTER_VALUE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsFilterValue);
   public static readonly REPEAT_VALUE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsRepeatValue);
   public static readonly REPEAT_ONCE: TestOptionsProblem = new TestOptionsProblem(() => Resources.testOptionsRepeatOnce);

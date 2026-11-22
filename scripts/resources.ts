@@ -61,6 +61,10 @@ export class Resources {
   public static readonly totalsEmptyField: string = "empty";
   public static readonly testIdentitySeparator: string = " › ";
   public static readonly testOptionsDocuments: string = "documents";
+  public static readonly testOptionsScripts: string = "scripts";
+  public static readonly testOptionsGlobPattern: RegExp = /[*?[\]{}!]/;
+  public static readonly testOptionsWindowsSeparator: string = "\\";
+  public static readonly testOptionsSeparator: string = "/";
   public static readonly testOptionsFilterOption: string = "--filter";
   public static readonly testOptionsRepeatOption: string = "--repeat";
   public static readonly testOptionsRerunFailedOption: string = "--rerun-failed";
@@ -69,6 +73,7 @@ export class Resources {
   public static readonly testOptionsOptionPrefix: string = "--";
   public static readonly testOptionsCountPattern: RegExp = /^[1-9]\d*$/;
   public static readonly testOptionsDocumentsAlone: string = "documents takes no other option.";
+  public static readonly testOptionsScriptFile: string = "scripts takes only script test files, each a path from the repository's root, with no glob characters, that a script test pattern matches: scripts/angular/tests, scripts/checks/tests, scripts/tests or src/noldova.desktop.window/scripts/angular/tests, then **/*.test.ts.";
   public static readonly testOptionsFilterValue: string = "--filter takes a text that is not blank and does not start with --.";
   public static readonly testOptionsRepeatValue: string = "--repeat takes a whole number from 1.";
   public static readonly testOptionsRepeatOnce: string = "--repeat may be given only once.";
@@ -264,7 +269,8 @@ export class Resources {
   public static readonly testWaitQuotes: readonly string[] = ["\"", "'", "`"];
   public static readonly testWaitEscape: string = "\\";
   public static readonly testWaitCheckTitle: string = "Test waits";
-  public static readonly scriptTestArguments: readonly string[] = ["--test", "--test-timeout=10000", "scripts/angular/tests/**/*.test.ts", "scripts/checks/tests/**/*.test.ts", "scripts/tests/**/*.test.ts", "src/noldova.desktop.window/scripts/angular/tests/**/*.test.ts"];
+  public static readonly scriptTestOptions: readonly string[] = ["--test", "--test-timeout=10000"];
+  public static readonly scriptTestFiles: readonly string[] = ["scripts/angular/tests/**/*.test.ts", "scripts/checks/tests/**/*.test.ts", "scripts/tests/**/*.test.ts", "src/noldova.desktop.window/scripts/angular/tests/**/*.test.ts"];
   public static readonly scriptTestCheckTitle: string = "Script tests";
   public static readonly typeCheckProjectArguments: readonly string[] = ["--project", "scripts/tsconfig.json"];
   public static readonly typeCheckTitle: string = "Script types";
@@ -1258,5 +1264,9 @@ export class Resources {
 
   public static npmCiDropped(requests: readonly string[]): string {
     return `npm ci stopped on a read that stalled or a connection that was reset, which npm doesn't retry, so it runs once more in ${Resources.npmCiRetryPause / 1000} seconds. Its last requests:${Resources.lineEnd}${requests.join(Resources.lineEnd)}${Resources.lineEnd}`;
+  }
+
+  public static formatScriptTestFileMissing(file: string): string {
+    return `scripts names ${file}, which is not a file under the repository's root, so no script test ran.${Resources.lineEnd}`;
   }
 }

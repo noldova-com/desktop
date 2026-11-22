@@ -14,12 +14,13 @@ import { Resources } from "./resources.ts";
 import type { RunnerTotals } from "./totals/runner-totals.ts";
 
 export class TestResources {
-  public static readonly usage: string = "Usage: npm test [-- documents | [--filter <text>]... [--repeat <count>] [--rerun-failed] [--skip-test-details] [--skip-coverage-details] | --shard=<part>/2 [--repeat <count>] [--rerun-failed] [--skip-test-details] [--skip-coverage-details]]\n";
+  public static readonly usage: string = "Usage: npm test [-- documents | scripts [<file>.test.ts]... | [--filter <text>]... [--repeat <count>] [--rerun-failed] [--skip-test-details] [--skip-coverage-details] | --shard=<part>/2 [--repeat <count>] [--rerun-failed] [--skip-test-details] [--skip-coverage-details]]\n";
   public static readonly skipTestDetailsVariable: string = "NOLDOVA_TEST_SKIP_TEST_DETAILS";
   public static readonly skipTestDetailsValue: string = "1";
   public static readonly summaryHeader: string = "| Check | Result |\n|---|---|\n";
   public static readonly filteredSummaryHeader: string = "| Check | Result | Unit | Discovered | Selected | Unselected |\n|---|---|---|---|---|---|\n";
   public static readonly documentsNotice: string = "Filtered run: documents. A filtered run is not the complete gate.\n";
+  public static readonly scriptsNotice: string = "Filtered run: script tests. A filtered run is not the complete gate.\n";
   public static readonly noMatch: string = "No test matched the filters.\n";
   public static readonly passedResult: string = "passed";
   public static readonly failedResult: string = "failed";

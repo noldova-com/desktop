@@ -8,6 +8,8 @@
 
 import "@noldova/context.core";
 
+import path from "node:path";
+
 import { Resources } from "./resources.ts";
 import { TestOptionsProblem } from "./test-options-problem.ts";
 import { TestOptionsException } from "./test-options.exception.ts";
@@ -19,14 +21,16 @@ export class TestOptions {
   public readonly isRerunningFailed: boolean;
   public readonly isSkippingTestDetails: boolean;
   public readonly part: number | null;
+  public readonly scriptFiles: readonly string[] | null;
 
-  private constructor(isDocuments: boolean, filters: readonly string[], repeat: number, isRerunningFailed: boolean, isSkippingTestDetails: boolean, part: number | null) {
+  private constructor(isDocuments: boolean, filters: readonly string[], repeat: number, isRerunningFailed: boolean, isSkippingTestDetails: boolean, part: number | null, scriptFiles: readonly string[] | null = null) {
     this.isDocuments = isDocuments;
     this.filters = filters;
     this.repeat = repeat;
     this.isRerunningFailed = isRerunningFailed;
     this.isSkippingTestDetails = isSkippingTestDetails;
     this.part = part;
+    this.scriptFiles = scriptFiles;
   }
 
   public static parse(args: readonly string[]): TestOptions {
@@ -34,6 +38,13 @@ export class TestOptions {
       if (args.length !== 1)
         throw new TestOptionsException(TestOptionsProblem.DOCUMENTS_ALONE, args[1]);
       return new TestOptions(true, [], Resources.testOptionsDefaultRepeat, false, false, null);
+    }
+    if (args[0] === Resources.testOptionsScripts) {
+      const files = args.slice(1);
+      const refused = files.find(t => Resources.testOptionsGlobPattern.test(t) || !TestOptions.isScriptTest(t));
+      if (!Object.isUndefined(refused))
+        throw new TestOptionsException(TestOptionsProblem.SCRIPT_FILE, refused);
+      return new TestOptions(false, [], Resources.testOptionsDefaultRepeat, false, false, null, files);
     }
 
     const filters: string[] = [];
@@ -71,6 +82,11 @@ export class TestOptions {
     if (!Object.isNull(part) && filters.length > 0)
       throw new TestOptionsException(TestOptionsProblem.SHARD_FILTERED, Resources.testOptionsFilterOption);
     return new TestOptions(false, filters, repeat ?? Resources.testOptionsDefaultRepeat, isRerunningFailed, isSkippingTestDetails, part);
+  }
+
+  private static isScriptTest(file: string): boolean {
+    const normalized = file.replaceAll(Resources.testOptionsWindowsSeparator, Resources.testOptionsSeparator);
+    return Resources.scriptTestFiles.some(t => path.posix.matchesGlob(normalized, t));
   }
 
   private static readPart(option: string): number {

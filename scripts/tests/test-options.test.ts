@@ -69,4 +69,28 @@ describe("TestOptions", () => {
   it("keeps a documents run whole", () => {
     assert.equal(TestOptions.parse(["documents"]).part, null);
   });
+
+  it("reads a scripts run's test files, none naming every script test, and no files for any other run", () => {
+    assert.deepEqual(TestOptions.parse(["scripts"]).scriptFiles, []);
+    assert.deepEqual(TestOptions.parse(["scripts", "scripts/tests/a.test.ts", "scripts/checks/tests/b.test.ts"]).scriptFiles, ["scripts/tests/a.test.ts", "scripts/checks/tests/b.test.ts"]);
+    assert.equal(TestOptions.parse([]).scriptFiles, null);
+    assert.equal(TestOptions.parse(["documents"]).scriptFiles, null);
+    assert.equal(TestOptions.parse(["--filter", "scripts"]).scriptFiles, null);
+  });
+
+  it("refuses an option or a file that is not a test in a scripts run", () => {
+    assert.equal(refusal(["scripts", "--filter", "a.test.ts"]).problem, TestOptionsProblem.SCRIPT_FILE);
+    assert.equal(refusal(["scripts", "scripts/tests/a.ts"]).problem, TestOptionsProblem.SCRIPT_FILE);
+    assert.equal(refusal(["scripts", "--a.test.ts"]).problem, TestOptionsProblem.SCRIPT_FILE);
+  });
+
+  it("refuses a package test or a glob in a scripts run, since only the script test patterns run under node --test", () => {
+    assert.equal(refusal(["scripts", "scripts/tests/a.test.ts", "src/noldova.desktop.build/tests/api/index.test.ts"]).argument, "src/noldova.desktop.build/tests/api/index.test.ts");
+    assert.equal(refusal(["scripts", "scripts/tests/nothing*.test.ts"]).problem, TestOptionsProblem.SCRIPT_FILE);
+    assert.equal(refusal(["scripts", "scripts/tests/{a,b}.test.ts"]).problem, TestOptionsProblem.SCRIPT_FILE);
+  });
+
+  it("takes a script test file written with Windows separators", () => {
+    assert.deepEqual(TestOptions.parse(["scripts", "scripts\\checks\\tests\\b.test.ts"]).scriptFiles, ["scripts\\checks\\tests\\b.test.ts"]);
+  });
 });

@@ -91,6 +91,8 @@ export class Test {
       this.environment[TestResources.skipTestDetailsVariable] = TestResources.skipTestDetailsValue;
     if (options.isDocuments)
       return await this.runChecksAsync([this.createDocumentChecks()], TestResources.documentsNotice, null);
+    if (!Object.isNull(options.scriptFiles))
+      return await this.runChecksAsync([[new ScriptTestCheck(this.root, this.runner, options.scriptFiles)]], TestResources.scriptsNotice, null);
 
     const flaky = options.isRerunningFailed ? new FlakyRecord(this.root, this.environment) : null;
     await flaky?.clearAsync();
