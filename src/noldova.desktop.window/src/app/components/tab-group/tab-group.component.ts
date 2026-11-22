@@ -132,9 +132,8 @@ export class TabGroupComponent {
   protected close(tab: Tab): void {
     const hadFocus = this.host.contains(this.host.ownerDocument.activeElement);
     this.layout.close(tab);
-    const next = this.layout.layout().group(this.group().id)?.active ?? this.layout.currentGroup().active;
-    if (hadFocus && !Object.isNull(next))
-      this.tabFocus.focus(next);
+    if (hadFocus)
+      this.focusAfterClose();
   }
 
   protected onTabDoubleClick(tab: Tab): void {
@@ -146,6 +145,13 @@ export class TabGroupComponent {
 
   protected closeAll(): void {
     this.layout.closeTabs(this.group().tabs);
+    this.focusAfterClose();
+  }
+
+  private focusAfterClose(): void {
+    const next = this.layout.layout().group(this.group().id)?.active ?? this.layout.currentGroup().active;
+    if (!Object.isNull(next))
+      this.tabFocus.focus(next);
   }
 
   protected onStripKey(event: KeyboardEvent): void {

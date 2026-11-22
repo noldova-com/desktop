@@ -1193,6 +1193,28 @@ describe("TabGroupComponent", () => {
     expect(document.querySelector(".cdk-overlay-container nol-menu")).toBeNull();
   });
 
+  it("moves focus to the current group's active tab when the overflow list's Close all closes the group", async () => {
+    const many = Array.from({ length: 12 }, (_, index) => new DocumentTab("notes.note", `note ${index}`));
+    const split = prepared.splitGroup(LayoutFixture.todo, prepared.documents.id, PanelEdge.Right);
+    await renderAsync(many.reduce((current, t) => current.openDocument(t, false, LayoutFixture.todo), split), 60);
+    update();
+    await fixture.whenStable();
+    update();
+    const closing = layout.layout().groupOf(LayoutFixture.todo)?.id ?? -1;
+    tab(closing, 0).focus();
+    group(closing).querySelector<HTMLButtonElement>(".nol-tab-group-overflow")?.click();
+    update();
+    await fixture.whenStable();
+
+    document.querySelector<HTMLButtonElement>(".cdk-overlay-container .nol-tab-group-overflow-close-all")?.click();
+    update();
+    await fixture.whenStable();
+
+    expect(layout.layout().group(closing)).toBeNull();
+    expect(document.activeElement?.getAttribute("data-tab-key")).toBe(LayoutFixture.plan.key);
+    expect(layout.currentGroup().active?.key).toBe(LayoutFixture.plan.key);
+  });
+
   it("reports that its tabs overflow, opens its overflow list on request with the first row focused, and stops reporting once gone", async () => {
     const strips = TestBed.inject(TabStripService);
     const many = Array.from({ length: 12 }, (_, index) => new DocumentTab("notes.note", `note ${index}`));

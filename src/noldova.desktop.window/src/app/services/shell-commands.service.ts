@@ -31,6 +31,8 @@ import { ViewTab } from "../models/layout/view-tab.js";
 import { SearchRequest } from "../models/search-request.js";
 import { ShellDocuments } from "../models/shell-documents.js";
 import { TabTarget } from "../models/tab-target.js";
+import { TabMove } from "../models/tab-move.js";
+import { FocusableGroup } from "../models/focusable-group.js";
 import { ProductName } from "../models/product-name.js";
 import { Resources } from "../../resources.js";
 import { SearchPaletteService } from "./search-palette.service.js";
@@ -79,7 +81,7 @@ export class ShellCommandsService {
       t => this.closeKeeping(t.group.tabs.filter(u => !u.equals(t.tab)), t.tab), t => t.group.tabs.length > 1),
     this.tabCommand(Resources.closeTabsToTheRightCommand, Resources.closeTabsToTheRightTitle, Resources.closeToTheRightGlyph,
       t => this.closeKeeping(t.group.tabs.slice(t.index + 1), t.tab), t => !t.isLast),
-    this.tabCommand(Resources.closeAllTabsCommand, Resources.closeAllTabsTitle, Resources.closeAllGlyph, t => this.layout.closeTabs(t.group.tabs), () => true),
+    this.tabCommand(Resources.closeAllTabsCommand, Resources.closeAllTabsTitle, Resources.closeAllGlyph, t => this.closeAll(t), () => true),
     this.tabCommand(Resources.moveTabLeftCommand, Resources.moveTabLeftTitle, Resources.moveEarlierGlyph,
       t => this.place(t.tab, new TabDropTarget(t.group.id, t.index - 1)), t => !t.isFirst),
     this.tabCommand(Resources.moveTabRightCommand, Resources.moveTabRightTitle, Resources.moveLaterGlyph,
@@ -252,13 +254,13 @@ export class ShellCommandsService {
     return true;
   }
 
-  private moveOf(commandArguments: JsonValue): { readonly target: TabTarget; readonly group: TabGroup } | null {
+  private moveOf(commandArguments: JsonValue): TabMove | null {
     const target = this.targetOf(commandArguments);
     if (Object.isNull(target) || Object.isNull(commandArguments))
       return null;
     const reader = JsonReader.fromValue(commandArguments);
     const group = reader.hasField(Resources.groupArgument) ? this.layout.layout().group(reader.readInteger(Resources.groupArgument)) : null;
-    return Object.isNull(group) || !group.accepts(target.tab) || group.has(target.tab) ? null : { target, group };
+    return Object.isNull(group) || !group.accepts(target.tab) || group.has(target.tab) ? null : new TabMove(target, group);
   }
 
   private targetOf(commandArguments: JsonValue): TabTarget | null {
@@ -339,21 +341,30 @@ export class ShellCommandsService {
       this.place(target.tab, new TabDropTarget(group.id, group.tabs.length));
   }
 
-  private focusable(): readonly (readonly [TabGroup, Tab])[] {
-    return this.layout.geometry().frames.flatMap(t => Object.isNull(t.group.active) ? [] : [[t.group, t.group.active] as const]);
+  private focusable(): readonly FocusableGroup[] {
+    return this.layout.geometry().frames.flatMap(t => Object.isNull(t.group.active) ? [] : [new FocusableGroup(t.group, t.group.active)]);
   }
 
   private focusGroup(step: number): void {
     const groups = this.focusable();
-    const next = (groups.findIndex(([group]) => group.id === this.layout.currentGroup().id) + step + groups.length) % groups.length;
-    for (const [group, tab] of groups.slice(next, next + 1)) {
-      this.layout.focusGroup(group.id);
-      this.tabFocus.focus(tab);
+    const next = (groups.findIndex(t => t.group.id === this.layout.currentGroup().id) + step + groups.length) % groups.length;
+    for (const focusable of groups.slice(next, next + 1)) {
+      this.layout.focusGroup(focusable.group.id);
+      this.tabFocus.focus(focusable.tab);
     }
   }
 
   private close(target: TabTarget): void {
     this.layout.close(target.tab);
+    this.focusAfterClose(target);
+  }
+
+  private closeAll(target: TabTarget): void {
+    this.layout.closeTabs(target.group.tabs);
+    this.focusAfterClose(target);
+  }
+
+  private focusAfterClose(target: TabTarget): void {
     const next = this.layout.layout().group(target.group.id)?.active ?? this.layout.currentGroup().active;
     if (!Object.isNull(next))
       this.tabFocus.focus(next);

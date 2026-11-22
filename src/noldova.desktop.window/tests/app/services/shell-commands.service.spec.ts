@@ -29,6 +29,7 @@ import { SearchPaletteService } from "../../../src/app/services/search-palette.s
 import { SettingsPageService } from "../../../src/app/services/settings-page.service";
 import { ShellCommandsService } from "../../../src/app/services/shell-commands.service";
 import { TabRenameService } from "../../../src/app/services/tab-rename.service";
+import { TabFocusService } from "../../../src/app/services/tab-focus.service";
 import { TabStripService } from "../../../src/app/services/tab-strip.service";
 import { ToolbarService } from "../../../src/app/services/toolbar.service";
 import { UpdateService } from "../../../src/app/services/update.service";
@@ -457,6 +458,17 @@ describe("ShellCommandsService", () => {
       .toEqual([[true, true], [false, true], [true, true]]);
     expect([applies("desktop.closeTab", tab(plan.key)), applies("desktop.closeTab", tab("missing")), applies("desktop.moveTabToGroup", tab("missing"))])
       .toEqual([true, false, false]);
+  });
+
+  it("focuses the active tab of the group that takes over when Close all closes a group", async () => {
+    const focus = vi.spyOn(TestBed.inject(TabFocusService), "focus");
+    await runAsync("desktop.splitTabRight", tab(todo.key));
+    const remaining = layout.layout().documentGroups[0];
+    focus.mockClear();
+
+    await runAsync("desktop.closeAllTabs", tab(todo.key));
+
+    expect([layout.layout().documentGroups.map(t => t.id), layout.layout().isOpen(todo), focus.mock.calls]).toEqual([[remaining?.id], false, [[remaining?.active]]]);
   });
 
   it("closes a group's only tab, which closes the group and leaves no tab of it to focus", async () => {
