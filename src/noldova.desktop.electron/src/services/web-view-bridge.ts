@@ -6,8 +6,20 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { inspect } from "node:util";
+
 import { JsonException, type JsonValue } from "@noldova/context.json";
-import { type IKeyStroke, ShellMethods, WebViewBlockedPorts, WebViewCommand, type WebViewDeclaration, type WebViewEvent } from "@noldova/desktop.protocol";
+import {
+  type IKeyStroke,
+  ShellMethods,
+  WebViewAnswered,
+  WebViewBlockedPorts,
+  WebViewCommand,
+  type WebViewDeclaration,
+  type WebViewEvent,
+  WebViewFailure,
+  WebViewFailureKind
+} from "@noldova/desktop.protocol";
 
 import type { IMainProcessEnvironment } from "../interfaces/i-main-process-environment.js";
 import type { IMainProcessOptions } from "../interfaces/i-main-process-options.js";
@@ -51,7 +63,7 @@ export class WebViewBridge {
       this.log.write(Resources.formatWebViewCommandInvalid(CaughtFailure.expect(error, JsonException).message));
       return;
     }
-    const answer = await this.host.commandAsync(command);
+    const answer = await this.host.commandAsync(command).catch((error: unknown) => this.fail(command, error));
     await this.runtime.callAsync(ShellMethods.webViewAnswered, answer.toJson());
   }
 
@@ -107,5 +119,10 @@ export class WebViewBridge {
       return new Map<string, WebViewDeclaration>();
     });
     return this.declarations;
+  }
+
+  private fail(command: WebViewCommand, error: unknown): WebViewAnswered {
+    this.log.write(Resources.formatWebViewCommandFailed(command.module, command.action, inspect(error)));
+    return new WebViewAnswered(command.call, null, new WebViewFailure(WebViewFailureKind.Unavailable));
   }
 }

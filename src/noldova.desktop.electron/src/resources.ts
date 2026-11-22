@@ -1224,6 +1224,10 @@ export class Resources {
     return `This main process could not be recorded in its installation, so an update may not wait for it: ${message}`;
   }
 
+  public static formatWebViewCommandFailed(module: string, action: string, reason: string): string {
+    return `The ${module} module's web view command ${action} failed, so it was answered as unavailable: ${reason}`;
+  }
+
   public static formatWebViewCommandInvalid(reason: string): string {
     return `The runtime sent a web view command that is not valid, so it was not answered: ${reason}`;
   }

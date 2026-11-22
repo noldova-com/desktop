@@ -732,6 +732,114 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async goesBackOnTheMovedPageWhenTheViewMovesWhileItsBackChecksTheAddress(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    const old = WebViewHostTests.view(electron, 0);
+    const lookup = await this.holdLookupAsync(electron, launcher, connection);
+    const going = this.commandAsync(launcher, connection, WebViewAction.Back, "1");
+    await setImmediate();
+    const guest = await WebViewHostTests.moveAsync(electron);
+    await Condition.waitAsync(() => guest.contents.history.length > 0);
+    lookup.resolve(["93.184.215.14"]);
+
+    Assert.areEqual(JSON.stringify({ kind: "Started" }), JSON.stringify((await going)["value"]));
+    Assert.areEqual("restore 1 https://example.com/a state of https://example.com/a https://example.org/b state of https://example.org/b,back", guest.contents.calls.join(","));
+    Assert.isFalse(old.contents.calls.includes("back"));
+  }
+
+  @TestMethod
+  public async reloadsTheMovedPageOnceItsRestoredWhenTheViewMovesWhileItsReloadChecksTheAddress(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    const old = WebViewHostTests.view(electron, 0);
+    const lookup = await this.holdLookupAsync(electron, launcher, connection);
+    old.contents.show("https://example.com/c");
+    const reloading = this.commandAsync(launcher, connection, WebViewAction.Reload, "1");
+    await setImmediate();
+    const moving = WebViewHostTests.moveAsync(electron);
+    await Condition.waitAsync(() => electron.webViews.views[1]?.contents.debugger.methods().includes("Page.enable") === true);
+    lookup.resolve(["93.184.215.14"]);
+    const guest = await moving;
+
+    Assert.areEqual(JSON.stringify({ kind: "Started" }), JSON.stringify((await reloading)["value"]));
+    Assert.areEqual("https://example.com/c", guest.contents.getURL());
+    Assert.isTrue(guest.contents.calls.at(-1) === "reload", guest.contents.calls.join(","));
+    Assert.isFalse(old.contents.calls.includes("reload"));
+  }
+
+  @TestMethod
+  public async answersAReloadAsUnavailableWhenTheViewClosesWhileItWaitsForTheMovedPage(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    const old = WebViewHostTests.view(electron, 0);
+    const lookup = await this.holdLookupAsync(electron, launcher, connection);
+    old.contents.show("https://example.com/c");
+    const reloading = this.commandAsync(launcher, connection, WebViewAction.Reload, "1");
+    await setImmediate();
+    const moving = WebViewHostTests.moveAsync(electron);
+    await Condition.waitAsync(() => electron.webViews.views[1]?.contents.debugger.methods().includes("Page.enable") === true);
+    const guest = electron.webViews.views[1];
+    Assert.isDefined(guest);
+    const restore = Promise.withResolvers<void>();
+    guest.contents.restoreAnswer = () => restore.promise;
+    lookup.resolve(["93.184.215.14"]);
+    await Condition.waitAsync(() => guest.contents.calls.some(t => t.startsWith("restore ")));
+    electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "1");
+    restore.resolve();
+    await moving;
+
+    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify((await reloading)["failure"]));
+    Assert.isFalse([...old.contents.calls, ...guest.contents.calls].includes("reload"));
+  }
+
+  @TestMethod
+  public async answersABackAsUnavailableWithoutActingWhenTheViewClosesWhileItChecksTheAddress(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    const old = WebViewHostTests.view(electron, 0);
+    const lookup = await this.holdLookupAsync(electron, launcher, connection);
+    const going = this.commandAsync(launcher, connection, WebViewAction.Back, "1");
+    await setImmediate();
+    electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "1");
+    lookup.resolve(["93.184.215.14"]);
+
+    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify((await going)["failure"]));
+    Assert.isFalse(old.contents.calls.includes("back"));
+  }
+
+  @TestMethod
+  public async answersAReloadAsUnavailableWithoutActingWhenThePageIsDestroyedWhileItChecksTheAddress(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    const old = WebViewHostTests.view(electron, 0);
+    const lookup = await this.holdLookupAsync(electron, launcher, connection);
+    old.contents.show("https://example.com/c");
+    const reloading = this.commandAsync(launcher, connection, WebViewAction.Reload, "1");
+    await setImmediate();
+    old.contents.destroyed = true;
+    lookup.resolve(["93.184.215.14"]);
+
+    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify((await reloading)["failure"]));
+    Assert.isFalse(old.contents.calls.includes("reload"));
+  }
+
+  @TestMethod
+  public async answersARuntimeCommandTheMainProcessFailsToCarryOutAsUnavailableAndLogsIt(): Promise<void> {
+    const [electron, launcher, connection, process] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    WebViewHostTests.view(electron, 0).contents.isLoading = () => {
+      throw new Error("The page is gone.");
+    };
+
+    const stopped = await this.commandAsync(launcher, connection, WebViewAction.Stop, "1");
+
+    Assert.areEqual(JSON.stringify({ kind: "Unavailable" }), JSON.stringify(stopped["failure"]));
+    Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The browser module's web view command Stop failed, so it was answered as unavailable: Error: The page is gone.").length);
+    Assert.isTrue(process.errors.includes("web-view-host.test.ts:"), process.errors);
+  }
+
+  @TestMethod
   public async navigatesOnlyToAnAllowedOriginWhoseNameResolvesToAddressesTheCheckAllows(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const event = MainProcessStartFixture.trustedEvent("linux");
@@ -2108,6 +2216,20 @@ export class WebViewHostTests {
     return event.returnValue;
   }
 
+  private static async moveAsync(electron: FakeElectron): Promise<FakeWebView> {
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const old = WebViewHostTests.view(electron, 0);
+    await WebViewHostTests.keepAsync(electron, [["browser", "1"]]);
+    WebViewHostTests.expect(electron, "1");
+    const guest = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
+    electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION);
+    electron.webViews.attached(window.webContents.id, guest.contents);
+    old.contents.destroyed = true;
+    old.contents.emit("destroyed");
+    await WebViewHostTests.attachAsync(electron, "1", guest.contents.id);
+    return guest;
+  }
+
   private static async takeNewPageAsync(electron: FakeElectron, prepare: (guest: FakeWebView) => void = () => undefined): Promise<FakeWebView> {
     const window = MainProcessStartFixture.firstWindow(electron);
     const old = WebViewHostTests.view(electron, 0);
@@ -2162,6 +2284,18 @@ export class WebViewHostTests {
 
   private static details(event: JsonObject | undefined): JsonObject {
     return JsonReader.fromValue(event).readObject("details").toJson();
+  }
+
+  private async holdLookupAsync(electron: FakeElectron, launcher: FakeRuntimeLauncher, connection: FakeRuntimeConnection): Promise<PromiseWithResolvers<readonly string[]>> {
+    const view = WebViewHostTests.view(electron, 0);
+    const session = electron.webViews.session(WebViewHostTests.PARTITION);
+    const lookup = Promise.withResolvers<readonly string[]>();
+    session.lookups.set("example.com", lookup.promise);
+    session.addresses.set("example.org", ["93.184.215.15"]);
+    await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", ["https://example.com", "https://example.org"]);
+    view.contents.show("https://example.com/a");
+    view.contents.show("https://example.org/b");
+    return lookup;
   }
 
   private async commandAsync(launcher: FakeRuntimeLauncher, connection: FakeRuntimeConnection, action: WebViewAction, view: string | null = null, value: JsonValue = null,

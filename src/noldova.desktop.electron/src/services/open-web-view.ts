@@ -102,6 +102,8 @@ export class OpenWebView {
   private isAttached: boolean = false;
   private isReady: boolean = false;
   private lookupCount: number = 0;
+  private pageReady: Promise<void> = Promise.resolve();
+  private historyRestored: Promise<void> = Promise.resolve();
   private isFocusHeld: boolean = false;
   private isClosed: boolean = false;
   private isControlled: boolean = false;
@@ -201,6 +203,18 @@ export class OpenWebView {
       this.releaseCalls();
     }
     this.guest = guest;
+    const ready = Promise.withResolvers<void>();
+    this.pageReady = ready.promise;
+    this.historyRestored = Promise.resolve();
+    try {
+      return await this.startGuestAsync(guest, previous, isPristine);
+    }
+    finally {
+      void this.historyRestored.then(() => ready.resolve());
+    }
+  }
+
+  private async startGuestAsync(guest: IWebViewContents, previous: IWebViewContents | null, isPristine: boolean): Promise<boolean> {
     this.isAttached = false;
     this.isReady = false;
     this.isFocusHeld = false;
@@ -267,18 +281,21 @@ export class OpenWebView {
 
   public async actAsync(action: WebViewAction): Promise<JsonObject | null> {
     const contents = this.guest;
-    if (Object.isNull(contents))
+    if (Object.isNull(contents) || contents.isDestroyed())
       return null;
     switch (action) {
       case WebViewAction.Back:
-        return this.moveAsync(contents, -1, () => contents.goBack());
+        return this.moveAsync(contents, action, -1, () => contents.goBack());
       case WebViewAction.Forward:
-        return this.moveAsync(contents, 1, () => contents.goForward());
+        return this.moveAsync(contents, action, 1, () => contents.goForward());
       case WebViewAction.Reload: {
         const url = contents.getURL();
         if (url.length === 0 || this.isCrashed)
           return OpenWebView.noHistory();
-        if (!(await this.allowsAsync(url)))
+        const allows = await this.allowsAsync(url);
+        if (this.guest !== contents || contents.isDestroyed())
+          return this.actOnNewPageAsync(action);
+        if (!allows)
           return OpenWebView.refused(url);
         this.navigationCount += 1;
         contents.reload();
@@ -796,7 +813,9 @@ export class OpenWebView {
       return this.goToAsync(this.committedUrl);
     this.isCrashed = false;
     this.pendingScroll = Object.isNull(scroll) ? null : { guest, scroll, url, count, inputs };
-    void guest.restoreHistoryAsync(kept).then(() => this.scrollBackAsync(guest, kept, count, inputs, scroll), (error: unknown) => {
+    const restored = guest.restoreHistoryAsync(kept);
+    this.historyRestored = restored.then(() => undefined, () => undefined);
+    void restored.then(() => this.scrollBackAsync(guest, kept, count, inputs, scroll), (error: unknown) => {
       if (this.navigationCount !== count || this.guest !== guest || this.isClosed)
         return Promise.resolve();
       if (guest.getURL() === String.empty) {
@@ -879,11 +898,20 @@ export class OpenWebView {
     return Number.isSafeInteger(x) && Number.isSafeInteger(y) ? [Number(x), Number(y)] : null;
   }
 
-  private async moveAsync(guest: IWebViewContents, offset: number, move: () => void): Promise<JsonObject> {
+  private async actOnNewPageAsync(action: WebViewAction): Promise<JsonObject | null> {
+    const guest = this.guest;
+    await this.pageReady;
+    return this.guest === guest ? this.actAsync(action) : this.actOnNewPageAsync(action);
+  }
+
+  private async moveAsync(guest: IWebViewContents, action: WebViewAction, offset: number, move: () => void): Promise<JsonObject | null> {
     const url = guest.readHistoryEntry(offset);
     if (Object.isNull(url))
       return OpenWebView.noHistory();
-    if (!(await this.allowsAsync(url)))
+    const allows = await this.allowsAsync(url);
+    if (this.guest !== guest || guest.isDestroyed())
+      return this.actOnNewPageAsync(action);
+    if (!allows)
       return OpenWebView.refused(url);
     this.isCrashed = false;
     this.navigationCount += 1;
