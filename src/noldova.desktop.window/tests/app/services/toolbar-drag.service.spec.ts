@@ -77,8 +77,10 @@ describe("ToolbarDragService", () => {
     expect(drag.dragging()).toBe("a");
   });
 
-  it("starts no drag from outside a toolbar band", () => {
+  it("starts no drag from outside a toolbar band or from an event with no target element", () => {
     start("a", 0, root);
+    moveTo(150, 20);
+    drag.begin("a", new PointerEvent("pointerdown", { pointerId: 1, button: 0, clientX: 10, clientY: 20 }));
     moveTo(150, 20);
 
     expect([drag.dragging(), drag.band(), drag.target()]).toEqual([null, null, null]);
