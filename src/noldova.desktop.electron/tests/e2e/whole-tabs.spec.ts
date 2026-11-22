@@ -65,16 +65,16 @@ test.describe("a side group's tab row at the default window size", () => {
     const tabs = group.locator(".nol-tab-group-strip > nol-tab");
     const menu = window.locator(".cdk-overlay-container nol-menu");
     const byTitle = (title: string): Locator => group.locator(`.nol-tab-group-strip > nol-tab[aria-label="${title}"]`);
-    const closeAsync = async (title: string, label: string): Promise<void> => {
+    const closeAsync = async (title: string, label: string, left: readonly string[]): Promise<void> => {
       await TabRowFixture.showAsync(window, byTitle(title));
       await byTitle(title).click({ button: "right" });
       await menu.getByRole("menuitem").filter({ has: window.locator(".nol-menu-item-label").getByText(label, { exact: true }) }).click();
       await expect(menu).toHaveCount(0);
+      await expect.poll(() => tabs.evaluateAll(t => t.map(u => u.getAttribute("aria-label")))).toEqual(left);
     };
-    await closeAsync("References and call hierarchy", "Close to the right");
-    await closeAsync("Timeline", "Close");
-    await closeAsync("Clock", "Close");
-    await expect.poll(() => tabs.evaluateAll(t => t.map(u => u.getAttribute("aria-label")))).toEqual(["Teammates", "Conversation", "References and call hierarchy"]);
+    await closeAsync("References and call hierarchy", "Close to the right", ["Clock", "Teammates", "Conversation", "Timeline", "References and call hierarchy"]);
+    await closeAsync("Timeline", "Close", ["Clock", "Teammates", "Conversation", "References and call hierarchy"]);
+    await closeAsync("Clock", "Close", ["Teammates", "Conversation", "References and call hierarchy"]);
     await byTitle("Teammates").click();
 
     for (const scheme of ["light", "dark"] as const) {
