@@ -14,10 +14,12 @@ import type { AppSurface } from "./app-surface.js";
 export class ModuleAppWindows implements IAppWindows {
   private readonly surface: AppSurface;
   private readonly registrations: Disposable[];
+  private readonly stopping: AbortSignal;
 
-  public constructor(surface: AppSurface, registrations: Disposable[]) {
+  public constructor(surface: AppSurface, registrations: Disposable[], stopping: AbortSignal) {
     this.surface = surface;
     this.registrations = registrations;
+    this.stopping = stopping;
   }
 
   public list(): readonly AppWindow[] {
@@ -25,6 +27,8 @@ export class ModuleAppWindows implements IAppWindows {
   }
 
   public onChanged(listener: () => void): () => void {
+    if (this.stopping.aborted)
+      return () => undefined;
     const registration = this.surface.onWindowsChanged(listener);
     this.registrations.push(registration);
     return () => registration[Symbol.dispose]();

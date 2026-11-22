@@ -7638,7 +7638,18 @@ export interface IModuleLog {
 /**
  * What a module's runtime part may register and use. The runtime withdraws
  * everything registered through it when the part deactivates or fails to
- * activate.
+ * activate. After that, a call that would register, publish or listen, such as
+ * one from work that finishes late, still refuses a name a live context
+ * refuses but registers nothing: a method, command or service isn't
+ * registered, an event it declares refuses to publish as a withdrawn one does,
+ * a listener, web views' included, is never called and the function it
+ * returns does nothing, a notification isn't posted and its handle changes
+ * nothing, a work item is already cancelled and isn't reported, and
+ * `tools.openSession`, `startProcessAsync`, `startPseudoTerminalAsync`, the web
+ * views' `navigateAsync`, `actAsync`, `setAllowedOriginsAsync`,
+ * `setControlledAsync` and `clearProfileAsync`, and their relay's `sendAsync`
+ * throw {@link ModuleDeactivatedException} and send nothing. So the part's next
+ * activation registers the same names again.
  */
 export interface IRuntimePartContext {
   /**
@@ -7816,6 +7827,8 @@ export interface IRuntimePartContext {
    * path, is not found or cannot start, when a batch file's argument holds
    * a line break or a null character, when a batch file is asked for
    * verbatim arguments on Windows, or once the part is deactivating.
+   * @throws {ModuleDeactivatedException} Rejected once the part has
+   * deactivated, and nothing starts.
    * @example
    * ```ts
    * import { type IRuntimePartContext, type OwnedProcess, ProcessRequest } from "@noldova/desktop.runtime";
@@ -7852,6 +7865,8 @@ export interface IRuntimePartContext {
    * cmd.exe's own parsing, when the request's command line is given on macOS
    * or Linux, beside arguments or for a batch file, or once the part is
    * deactivating.
+   * @throws {ModuleDeactivatedException} Rejected once the part has
+   * deactivated, and nothing starts.
    * @example
    * ```ts
    * import * as pty from "node-pty";
@@ -15731,6 +15746,8 @@ export interface IRuntimeWebViews {
    * @returns A promise of the answer: `Started`, or `Refused` with the origin.
    * @throws {WebViewFailureException} The promise rejects when the main
    * process refuses or fails the call, or can't be reached.
+   * @throws {ModuleDeactivatedException} The promise rejects once the part has
+   * deactivated, and nothing is sent.
    */
   navigateAsync(id: string, url: string): Promise<WebViewNavigation>;
 
@@ -15744,6 +15761,8 @@ export interface IRuntimeWebViews {
    * @throws {ArgumentException} The promise rejects for any other action.
    * @throws {WebViewFailureException} The promise rejects when the main
    * process refuses or fails the call, or can't be reached.
+   * @throws {ModuleDeactivatedException} The promise rejects once the part has
+   * deactivated, and nothing is sent.
    */
   actAsync(id: string, action: WebViewAction): Promise<WebViewNavigation>;
 
@@ -15756,6 +15775,8 @@ export interface IRuntimeWebViews {
    * @returns A promise that settles once the main process applied them.
    * @throws {WebViewFailureException} The promise rejects when the main
    * process refuses or fails the call, or can't be reached.
+   * @throws {ModuleDeactivatedException} The promise rejects once the part has
+   * deactivated, and nothing is sent.
    */
   setAllowedOriginsAsync(id: string, origins: readonly string[]): Promise<void>;
 
@@ -15771,6 +15792,8 @@ export interface IRuntimeWebViews {
    * @returns A promise that settles once the main process applied it.
    * @throws {WebViewFailureException} The promise rejects when the main
    * process refuses or fails the call, or can't be reached.
+   * @throws {ModuleDeactivatedException} The promise rejects once the part has
+   * deactivated, and nothing is sent.
    */
   setControlledAsync(id: string, isControlled: boolean): Promise<void>;
 
@@ -15782,6 +15805,8 @@ export interface IRuntimeWebViews {
    * @returns A promise that settles once the profile is cleared.
    * @throws {WebViewFailureException} The promise rejects when the main
    * process refuses or fails the call, or can't be reached.
+   * @throws {ModuleDeactivatedException} The promise rejects once the part has
+   * deactivated, and nothing is sent.
    */
   clearProfileAsync(profileKey: string): Promise<void>;
 
@@ -15827,6 +15852,8 @@ export interface IWebViewRelay {
    * parameters or the timeout isn't valid.
    * @throws {WebViewFailureException} The promise rejects when the main
    * process refuses or fails the call, or can't be reached.
+   * @throws {ModuleDeactivatedException} The promise rejects once the part has
+   * deactivated, and nothing is sent.
    */
   sendAsync(id: string, method: string, params: JsonObject, timeout: number): Promise<JsonValue>;
 

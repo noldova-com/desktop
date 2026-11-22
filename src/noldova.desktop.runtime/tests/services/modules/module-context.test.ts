@@ -16,7 +16,7 @@ import "@noldova/context.core";
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { AppShortcut, AppShortcutList, AppWindow, AppWindowList, CommandRun, type Event, FailureCode, KeyChord, ModuleState, ModuleStatus, NotificationAction, NotificationPost, NotificationSeverity,
-  QualifiedName } from "@noldova/desktop.protocol";
+  QualifiedName, ShellEvents, WebViewAction, WebViewEvent, WebViewEventKind, WebViewEvents } from "@noldova/desktop.protocol";
 import {
   AgentControlException,
   AppSurface,
@@ -30,6 +30,7 @@ import {
   MethodFailureException,
   MethodRegistry,
   type ModuleContext,
+  ModuleDeactivatedException,
   ModuleDeclaration,
   NotContributedException,
   NotificationCenter,
@@ -48,9 +49,11 @@ import {
   ServicePublishedException,
   ServiceRegistry,
   ServiceTypeMismatchException,
+  SettingNotReadableException,
   ToolFailureCode,
   ToolRegistry,
   ToolRisk,
+  WebViewCenter,
   WorkTracker
 } from "@noldova/desktop.runtime";
 
@@ -598,6 +601,66 @@ export class ModuleContextTests {
   }
 
   @TestMethod
+  public async registersNoMethodCommandEventOrServiceOnceDisposedSoItsNextActivationRegistersThemAgain(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync();
+    const methods = new MethodRegistry();
+    const events = new EventRegistry(new EventSinkFixture());
+    const services = new ServiceRegistry();
+    const commands = new CommandRegistry();
+    const late = ModuleContextFixture.create(settings, methods, events, services, commands);
+    late[Symbol.dispose]();
+
+    late.registerMethod("notes.list", { handleAsync: async () => [] });
+    late.registerCommand(new RuntimeCommand("notes.newNote", "New note", null, null, { handleAsync: async () => null }));
+    const lateChannel = late.declareEvent("notes.changed");
+    late.publishService("notes.store", new Map());
+    const left = [methods.find(new QualifiedName("notes", "list")), commands.find(new QualifiedName("notes", "newNote")), services.find(new QualifiedName("notes", "store"))];
+    const refused = [() => lateChannel.publish(null), () => lateChannel.publishTo(1, null, null)].map(t => Assert.throws(t, EventWithdrawnException).message);
+    lateChannel[Symbol.dispose]();
+    Assert.throws(() => late.registerMethod("notes.other", { handleAsync: async () => [] }), NotContributedException);
+    const next = ModuleContextFixture.create(settings, methods, events, services, commands);
+    next.registerMethod("notes.list", { handleAsync: async () => [] });
+    next.registerCommand(new RuntimeCommand("notes.newNote", "New note", null, null, { handleAsync: async () => null }));
+    next.declareEvent("notes.changed").publish(null);
+    next.publishService("notes.store", new Map());
+
+    Assert.areEqual("undefined,undefined,undefined", left.map(String).join(","));
+    Assert.areEqual(2, refused.filter(t => t.includes("notes.changed")).length);
+    Assert.isDefined(methods.find(new QualifiedName("notes", "list")));
+    Assert.isDefined(commands.find(new QualifiedName("notes", "newNote")));
+    Assert.isDefined(services.find(new QualifiedName("notes", "store")));
+  }
+
+  @TestMethod
+  public async hearsNoClosureSettingWindowOrShortcutChangeOnceDisposed(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync(ModuleContextFixture.SETTINGS);
+    const diagnostics = new TextOutputFixture();
+    const closures = new ClientClosures(diagnostics);
+    const surface = new AppSurface(closures, "linux", diagnostics);
+    const late = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry(),
+      undefined, undefined, undefined, diagnostics, undefined, undefined, closures, undefined, undefined, undefined, surface);
+    const heard: string[] = [];
+    late[Symbol.dispose]();
+
+    late.onClientClosed(() => {
+      heard.push("closed");
+    });
+    late.settings.onChanged("notes.sortBy", () => heard.push("setting"));
+    const stopWindows = late.appWindows.onChanged(() => heard.push("windows"));
+    const stopShortcuts = late.shortcuts.onChanged(() => heard.push("shortcuts"));
+    closures.report(new ClientClosure(1, 3));
+    late.settings.write("notes.sortBy", "b");
+    surface.receiveWindows(1, new AppWindowList([new AppWindow(132_406, 4210)]));
+    surface.receiveShortcuts(1, new AppShortcutList([new AppShortcut(KeyChord.parse("Mod+Shift+Period"), "desktop.stopAgentControl", true)]));
+    stopWindows();
+    stopShortcuts();
+
+    Assert.areEqual(String.empty, heard.join(","));
+    Assert.areEqual("b", String(late.settings.read("notes.sortBy")));
+    Assert.throws(() => late.settings.onChanged("clock.speed", () => undefined), SettingNotReadableException);
+  }
+
+  @TestMethod
   public async readsTheAppsWindowsAndShortcutsAndWithdrawsItsListenersWhenThePartDeactivates(): Promise<void> {
     await using settings = await SettingsFixture.createAsync();
     const diagnostics = new TextOutputFixture();
@@ -630,6 +693,94 @@ export class ModuleContextTests {
 
     Assert.areEqual("132406 desktop.stopAgentControl true false", read);
     Assert.areEqual("windows 1|shortcuts 1", heard.join("|"));
+  }
+
+  @TestMethod
+  public async postsNoNotificationBeginsNoWorkAndStartsNoProgramOnceDisposed(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync();
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const notifications = new NotificationCenter(() => undefined, () => new Date(), randomUUID);
+    const work = new WorkTracker(() => undefined);
+    const library = new PseudoTerminalLibraryFixture();
+    const declared = new ModuleDeclaration("notes", "0.0.1", "Notes", "Keeps notes.", new Map(), "@noldova/desktop.notes.runtime", new Map(), [], null, [], null, true);
+    const late = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry(), new CommandRegistry(), notifications, work);
+    const lateTerminals = ModuleContextFixture.create(
+      settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, declared);
+    late[Symbol.dispose]();
+    lateTerminals[Symbol.dispose]();
+
+    const handle = late.postNotification(ModuleContextTests.post("notes.saved", "Saved", null));
+    const updated = handle.update(ModuleContextTests.post("notes.saved", "Saved again", null));
+    handle.dismiss();
+    Assert.throws(() => late.postNotification(ModuleContextTests.post("notes.deleted", "Deleted", null)), NotContributedException);
+    Assert.throws(() => handle.update(ModuleContextTests.post("notes.saved", "Saved", "calendar.show")), NotificationCommandNotAllowedException);
+    const item = late.beginWork("Saving the notes");
+    const reported = work.descriptions.join(",");
+    const ended = item.signal.aborted;
+    item[Symbol.dispose]();
+    Assert.throws(() => late.beginWork(" "), ArgumentException);
+    const program = await Assert.throwsAsync(() => late.startProcessAsync(ProgramFixture.request(folder.path, [ProgramFixture.EXIT, "0"])), ModuleDeactivatedException);
+    const terminal = await Assert.throwsAsync(
+      () => lateTerminals.startPseudoTerminalAsync(new PseudoTerminalRequest(library, process.execPath, [ProgramFixture.file, ProgramFixture.EXIT, "0"], folder.path, 80, 24, {})), ModuleDeactivatedException);
+
+    Assert.areEqual(0, notifications.list.notifications.length);
+    Assert.areEqual(String.empty, handle.id);
+    Assert.isFalse(updated);
+    Assert.areEqual(String.empty, reported);
+    Assert.isTrue(ended);
+    Assert.areEqual("notes,notes", [program.moduleId, terminal.moduleId].join(","));
+    Assert.areEqual(0, settings.processes.programs.length);
+    Assert.areEqual(0, library.started.length);
+  }
+
+  @TestMethod
+  public async hearsNoViewOrProtocolEventOnceDisposedThoughItsNextActivationHearsItsOwn(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync();
+    const center = new WebViewCenter(new TextOutputFixture(), new EventRegistry(new EventSinkFixture()).declare(ShellEvents.webViewCommand));
+    center.check(7);
+    const late = ModuleContextFixture.create(
+      settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, center);
+    late[Symbol.dispose]();
+    const next = ModuleContextFixture.create(
+      settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, center);
+    const heard: string[] = [];
+
+    const stopView = late.webViews.onViewEvent(t => heard.push(`late ${t.kind}`));
+    const stopProtocol = late.webViews.relay.onProtocolEvent("1", t => heard.push(`late ${t.method}`));
+    next.webViews.onViewEvent(t => heard.push(`next ${t.kind}`));
+    center.receive(7, new WebViewEvents([
+      new WebViewEvent("notes", "1", WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: { timestamp: 1 }, isCut: false }),
+      new WebViewEvent("notes", "1", WebViewEventKind.Crashed)
+    ]));
+    stopView();
+    stopProtocol();
+
+    Assert.areEqual("next Crashed", heard.join(","));
+  }
+
+  @TestMethod
+  public async drivesNoWebViewOnceDisposedThoughItStillRefusesAnInvalidMove(): Promise<void> {
+    await using settings = await SettingsFixture.createAsync();
+    const sink = new EventSinkFixture();
+    const center = new WebViewCenter(new TextOutputFixture(), new EventRegistry(sink).declare(ShellEvents.webViewCommand));
+    center.check(7);
+    const late = ModuleContextFixture.create(
+      settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, center);
+    late[Symbol.dispose]();
+    const sent = sink.sent.length;
+
+    await Assert.throwsAsync(() => late.webViews.actAsync("1", WebViewAction.Navigate), ArgumentException);
+    const refused = [
+      await Assert.throwsAsync(() => late.webViews.navigateAsync("1", "https://example.com/"), ModuleDeactivatedException),
+      await Assert.throwsAsync(() => late.webViews.actAsync("1", WebViewAction.Reload), ModuleDeactivatedException),
+      await Assert.throwsAsync(() => late.webViews.setAllowedOriginsAsync("1", ["https://example.com"]), ModuleDeactivatedException),
+      await Assert.throwsAsync(() => late.webViews.setControlledAsync("1", true), ModuleDeactivatedException),
+      await Assert.throwsAsync(() => late.webViews.clearProfileAsync("notes.main"), ModuleDeactivatedException),
+      await Assert.throwsAsync(() => late.webViews.relay.sendAsync("1", "Page.reload", {}, 2_000), ModuleDeactivatedException)
+    ];
+
+    Assert.areEqual("notes,notes,notes,notes,notes,notes", refused.map(t => t.moduleId).join(","));
+    Assert.areEqual(sent, sink.sent.length);
   }
 
   private static post(kind: string, title: string, action: string | null): NotificationPost {

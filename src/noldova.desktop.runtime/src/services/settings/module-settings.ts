@@ -22,11 +22,13 @@ export class ModuleSettings implements IModuleSettings {
   private readonly declaration: ModuleDeclaration;
   private readonly settings: SettingsService;
   private readonly registrations: Disposable[];
+  private readonly stopping: AbortSignal;
 
-  public constructor(declaration: ModuleDeclaration, settings: SettingsService, registrations: Disposable[]) {
+  public constructor(declaration: ModuleDeclaration, settings: SettingsService, registrations: Disposable[], stopping: AbortSignal) {
     this.declaration = declaration;
     this.settings = settings;
     this.registrations = registrations;
+    this.stopping = stopping;
   }
 
   public read(name: string, scope: SettingScope | null = null, device: string | null = null): JsonValue {
@@ -43,6 +45,8 @@ export class ModuleSettings implements IModuleSettings {
 
   public onChanged(name: string, listener: (change: SettingChange) => void): void {
     const watched = this.requireReadable(name);
+    if (this.stopping.aborted)
+      return;
     this.registrations.push(this.settings.onChanged(t => {
       if (t.key.name.text === watched.text)
         listener(t);

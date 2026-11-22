@@ -26,7 +26,7 @@ export class ModuleWebViewRelayTests {
   public async sendsAProtocolCallForItsModuleAndAnswersWithTheMainProcesssAnswer(): Promise<void> {
     const [center, sink] = ModuleWebViewRelayTests.create();
     center.check(ModuleWebViewRelayTests.MAIN);
-    const relay = new ModuleWebViewRelay("notes", center);
+    const relay = new ModuleWebViewRelay("notes", center, new AbortController().signal);
 
     const sending = relay.sendAsync("1", "Page.navigate", { url: "https://example.com/" }, 2_000);
     center.answer(ModuleWebViewRelayTests.MAIN, new WebViewAnswered(1, { frameId: "main" }));
@@ -43,7 +43,7 @@ export class ModuleWebViewRelayTests {
     const [center] = ModuleWebViewRelayTests.create();
     const registration = center.attach("notes");
     center.check(ModuleWebViewRelayTests.MAIN);
-    const relay = new ModuleWebViewRelay("notes", center);
+    const relay = new ModuleWebViewRelay("notes", center, new AbortController().signal);
     const heard: WebViewProtocolEvent[] = [];
 
     const stop = relay.onProtocolEvent("1", t => heard.push(t));

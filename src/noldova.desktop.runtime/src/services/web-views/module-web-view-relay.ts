@@ -9,6 +9,7 @@
 import { type JsonObject, JsonReader, type JsonValue } from "@noldova/context.json";
 import { WebViewAction, WebViewEventKind } from "@noldova/desktop.protocol";
 
+import { ModuleDeactivatedException } from "../../exceptions/module-deactivated.exception.js";
 import type { IWebViewRelay } from "../../interfaces/i-web-view-relay.js";
 import { WebViewProtocolEvent } from "../../models/web-view-protocol-event.js";
 import { Resources } from "../../resources.js";
@@ -17,19 +18,25 @@ import type { WebViewCenter } from "./web-view-center.js";
 export class ModuleWebViewRelay implements IWebViewRelay {
   private readonly moduleId: string;
   private readonly center: WebViewCenter;
+  private readonly stopping: AbortSignal;
 
-  public constructor(moduleId: string, center: WebViewCenter) {
+  public constructor(moduleId: string, center: WebViewCenter, stopping: AbortSignal) {
     this.moduleId = moduleId;
     this.center = center;
+    this.stopping = stopping;
   }
 
   public sendAsync(id: string, method: string, params: JsonObject, timeout: number): Promise<JsonValue> {
+    if (this.stopping.aborted)
+      return Promise.reject(new ModuleDeactivatedException(this.moduleId));
     return this.center.commandAsync(this.moduleId, WebViewAction.Send, id, {
       [Resources.webViewMethodField]: method, [Resources.webViewParamsField]: params, [Resources.webViewTimeoutField]: timeout
     });
   }
 
   public onProtocolEvent(id: string, listener: (event: WebViewProtocolEvent) => void): () => void {
+    if (this.stopping.aborted)
+      return () => undefined;
     return this.center.listen(this.moduleId, t => {
       if (t.kind !== WebViewEventKind.Protocol || t.view !== id)
         return;
