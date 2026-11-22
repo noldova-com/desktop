@@ -16,6 +16,8 @@ import { FakeWebViewDebugger } from "./fake-web-view-debugger.fixture.js";
 import { ListenerRegistry } from "./listener-registry.fixture.js";
 
 export class FakeWebViewContents implements IWebViewContents {
+  private static readonly LINK_WORLD: number = 1996;
+
   private readonly listeners: ListenerRegistry = new ListenerRegistry();
   private openHandler: ((details: IWindowOpenDetails) => WindowOpenHandlerResponse) | null = null;
   private begin: () => void = () => undefined;
@@ -43,6 +45,8 @@ export class FakeWebViewContents implements IWebViewContents {
   public onInput: (event: IWebViewKeyEvent) => void = () => undefined;
   public onText: (text: string) => Promise<void> = () => Promise.resolve();
   public onIsolated: () => Promise<unknown> = () => Promise.resolve(0);
+  public readonly links: string[] = [];
+  public onLink: (code: string) => Promise<unknown> = () => Promise.resolve(false);
 
   public constructor(id: number) {
     this.id = id;
@@ -150,7 +154,12 @@ export class FakeWebViewContents implements IWebViewContents {
   }
 
   public executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown> {
-    this.isolated.push(`${worldId} ${scripts.map(t => t.code).join(";")}`);
+    const code = scripts.map(t => t.code).join(";");
+    if (worldId === FakeWebViewContents.LINK_WORLD) {
+      this.links.push(code);
+      return this.onLink(code);
+    }
+    this.isolated.push(`${worldId} ${code}`);
     return this.onIsolated();
   }
 

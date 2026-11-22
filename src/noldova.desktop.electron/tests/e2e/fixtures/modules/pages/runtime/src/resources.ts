@@ -16,6 +16,10 @@ export class Resources {
   public static readonly navigationRefusedKind: string = "NavigationRefused";
   public static readonly addressField: string = "address";
   public static readonly fromPressField: string = "fromPress";
+  public static readonly windowsMethod: string = "pages.windows";
+  public static readonly newWindowRequestedKind: string = "NewWindowRequested";
+  public static readonly fromLinkField: string = "fromLink";
+  public static readonly buttonField: string = "button";
   public static readonly pressMethod: string = "pages.press";
   public static readonly typeMethod: string = "pages.type";
   public static readonly clickMethod: string = "pages.click";

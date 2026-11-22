@@ -24,7 +24,7 @@ export class WebViewEventTests {
     [WebViewEventKind.Crashed, {}],
     [WebViewEventKind.ProfileCleared, { profileKey: "workspace-1" }],
     [WebViewEventKind.RequestRefused, { request: "download", origin: "https://example.com" }],
-    [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: true, origin: "https://example.com", disposition: "background-tab", fromPress: true }],
+    [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: true, origin: "https://example.com", disposition: "background-tab", fromPress: true, fromLink: true }],
     [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: { timestamp: 1 }, isCut: false }],
     [WebViewEventKind.Dropped, { count: 3 }],
     [WebViewEventKind.Key, { name: "reload" }],
@@ -63,6 +63,16 @@ export class WebViewEventTests {
 
     Assert.areEqual(text, JSON.stringify(event.toJson()));
     Assert.isFalse(Object.hasOwn(event.details, "fromPress"));
+  }
+
+  @TestMethod
+  public carriesANewWindowRequestWithFromPressButWithoutFromLink(): void {
+    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\",\"fromPress\":true}}";
+
+    const event = WebViewEvent.fromJson(JsonReader.parse(text).toJson());
+
+    Assert.areEqual(text, JSON.stringify(event.toJson()));
+    Assert.isFalse(Object.hasOwn(event.details, "fromLink"));
   }
 
   @TestMethod
@@ -111,6 +121,7 @@ export class WebViewEventTests {
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: null }],
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: null }],
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: 1 }],
+      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: false, fromLink: "yes" }],
       [WebViewEventKind.NavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, fromPress: null }],
       [WebViewEventKind.NavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, fromPress: "yes" }],
       [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: [], isCut: false }],

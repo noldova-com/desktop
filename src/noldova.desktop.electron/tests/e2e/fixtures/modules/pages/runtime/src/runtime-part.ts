@@ -14,6 +14,7 @@ import { Resources } from "./resources.js";
 export class RuntimePart implements IRuntimePart {
   private readonly events: string[] = [];
   private readonly refusals: string[] = [];
+  private readonly windows: string[] = [];
   private release: () => void = () => undefined;
 
   public async activateAsync(context: IRuntimePartContext): Promise<void> {
@@ -22,6 +23,8 @@ export class RuntimePart implements IRuntimePart {
       this.events.push(`${t.view} ${t.kind}`);
       if (t.kind === Resources.navigationRefusedKind)
         this.refusals.push(`${t.view} ${String(t.details[Resources.addressField])} ${String(t.details[Resources.fromPressField])}`);
+      if (t.kind === Resources.newWindowRequestedKind)
+        this.windows.push(`${t.view} ${String(t.details[Resources.addressField])} ${String(t.details[Resources.fromLinkField])}`);
     });
     context.registerMethod(Resources.allowMethod, {
       handleAsync: async request => {
@@ -59,6 +62,7 @@ export class RuntimePart implements IRuntimePart {
     });
     context.registerMethod(Resources.eventsMethod, { handleAsync: async () => [...this.events] });
     context.registerMethod(Resources.refusalsMethod, { handleAsync: async () => [...this.refusals] });
+    context.registerMethod(Resources.windowsMethod, { handleAsync: async () => [...this.windows] });
     context.registerMethod(Resources.pressMethod, {
       handleAsync: async request => {
         const view = Number(RuntimePart.field(request.payload, Resources.viewField));
@@ -92,8 +96,9 @@ export class RuntimePart implements IRuntimePart {
         const view = RuntimePart.find(views, Number(RuntimePart.field(request.payload, Resources.viewField)));
         const x = Number(RuntimePart.field(request.payload, Resources.xField));
         const y = Number(RuntimePart.field(request.payload, Resources.yField));
+        const button = String(RuntimePart.field(request.payload, Resources.buttonField) ?? Resources.leftButton);
         for (const type of Resources.mouseTypes)
-          await views.relay.sendAsync(view, Resources.dispatchMouseEventMethod, { type, x, y, button: Resources.leftButton, clickCount: 1 }, Resources.captureTimeout);
+          await views.relay.sendAsync(view, Resources.dispatchMouseEventMethod, { type, x, y, button, clickCount: 1 }, Resources.captureTimeout);
         return null;
       }
     });

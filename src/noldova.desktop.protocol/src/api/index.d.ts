@@ -565,6 +565,16 @@ export declare enum WebViewEventKind {
    * included; presses don't add up, Escape and a modifier key alone give
    * none, and relayed input never counts. An event without it is accepted
    * until 0.1.0.
+   * `fromLink`: `true` only for the request that is a link's own activation
+   * by the person's press: a click, a Ctrl or Cmd click or a middle click of
+   * the person's on an `a[href]` or `area[href]` in the main frame, whose
+   * default the page didn't prevent, to the link's own address, within 5
+   * seconds of the person's press with no relayed press since. A page's
+   * `window.open`, in any handler of that press, gets `false`, even to the
+   * link's address once the page prevented the link's default, and so do a
+   * link in a frame, a form and a second request for the same click. It can
+   * be `true` when a handler's request took `fromPress` first. An event
+   * without it is accepted until 0.1.0, read as `false`.
    */
   NewWindowRequested = "NewWindowRequested",
 

@@ -352,6 +352,7 @@ export class Resources {
   public static readonly hadRecentInputField: string = "hadRecentInput";
   public static readonly dispositionField: string = "disposition";
   public static readonly fromPressField: string = "fromPress";
+  public static readonly fromLinkField: string = "fromLink";
   public static readonly requestField: string = "request";
   public static readonly paramsField: string = "params";
   public static readonly isCutField: string = "isCut";

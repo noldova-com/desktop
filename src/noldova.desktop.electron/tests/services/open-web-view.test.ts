@@ -799,13 +799,14 @@ export class OpenWebViewTests {
     asking.time = 4000;
     asking.contents.openWindow("https://example.com/other", String.empty, "background-tab");
     asking.contents.openWindow("https://example.com/third", String.empty, null);
+    await OpenWebViewTests.drainAsync();
 
     Assert.areEqual(JSON.stringify([{ action: "deny" }, { action: "deny" }]), JSON.stringify([refused, first]));
     Assert.areEqual("RequestRefused {\"request\":\"newWindow\",\"origin\":\"null\"}", refusing.describe());
     Assert.areEqual([
-      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\",\"disposition\":\"foreground-tab\",\"fromPress\":false}",
-      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\",\"fromPress\":true}",
-      "NewWindowRequested {\"address\":\"https://example.com/third\",\"hadRecentInput\":true,\"origin\":null,\"fromPress\":false}"
+      "NewWindowRequested {\"address\":\"https://example.com/new\",\"hadRecentInput\":false,\"origin\":\"https://example.com\",\"disposition\":\"foreground-tab\",\"fromPress\":false,\"fromLink\":false}",
+      "NewWindowRequested {\"address\":\"https://example.com/other\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\",\"fromPress\":true,\"fromLink\":false}",
+      "NewWindowRequested {\"address\":\"https://example.com/third\",\"hadRecentInput\":true,\"origin\":null,\"fromPress\":false,\"fromLink\":false}"
     ].join("|"), asking.describe());
   }
 
@@ -817,14 +818,15 @@ export class OpenWebViewTests {
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
     harness.contents.emit("input-event", {}, { type: "rawKeyDown", key: "a" });
     harness.time = 100;
-    const twoPresses = [OpenWebViewTests.isFromPress(harness, "https://example.com/a"), OpenWebViewTests.isFromPress(harness, "https://example.com/b")];
+    const first = await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/a");
+    const twoPresses = [first, await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/b")];
     harness.contents.emit("input-event", {}, { type: "touchStart" });
-    const inOtherView = OpenWebViewTests.isFromPress(other, "https://example.com/c");
+    const inOtherView = await OpenWebViewTests.isFromPressAsync(other, "https://example.com/c");
     harness.time = 5101;
-    const late = OpenWebViewTests.isFromPress(harness, "https://example.com/d");
+    const late = await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/d");
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
     harness.time = 10101;
-    const atTheEdge = OpenWebViewTests.isFromPress(harness, "https://example.com/e");
+    const atTheEdge = await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/e");
 
     Assert.areEqual("true,false|false|false|true", [twoPresses.join(","), inOtherView, late, atTheEdge].join("|"));
   }
@@ -867,10 +869,88 @@ export class OpenWebViewTests {
     harness.open.setAllowedOrigins(["https://example.com"]);
 
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
-    const window = OpenWebViewTests.isFromPress(harness, "https://example.com/a");
+    const window = await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/a");
     const navigation = OpenWebViewTests.isRefusedFromPress(harness, "https://other.example.net/b");
 
     Assert.areEqual("true,false", [window, navigation].join(","));
+  }
+
+  @TestMethod
+  public async marksAWindowAsFromALinkOnlyWhenThePageRecordsThePersonsClickOnThatLinkAfterTheirOwnPress(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    harness.contents.onLink = code => Promise.resolve(code.includes("https://example.com/link"));
+
+    const withoutPress = await OpenWebViewTests.isFromLinkAsync(harness, "https://example.com/link");
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    const script = await OpenWebViewTests.isFromLinkAsync(harness, "https://example.com/script");
+    const link = await OpenWebViewTests.isFromLinkAsync(harness, "https://example.com/link");
+    harness.time = 5001;
+    const late = await OpenWebViewTests.isFromLinkAsync(harness, "https://example.com/link");
+
+    Assert.areEqual("false,false,true,false", [withoutPress, script, link, late].join(","));
+    Assert.areEqual(JSON.stringify([
+      "globalThis.noldovaTakeLink?.(\"https://example.com/script\") === true",
+      "globalThis.noldovaTakeLink?.(\"https://example.com/link\") === true"
+    ]), JSON.stringify(harness.contents.links));
+  }
+
+  @TestMethod
+  public async asksThePageForNoLinkAfterARelayedPressAndReadsAFailedRecordAsNoLink(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    harness.contents.onLink = () => Promise.resolve(true);
+    harness.contents.onInput = () => harness.contents.emit("input-event", {}, { type: "mouseDown" });
+
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    await harness.open.sendAsync(1, "Input.dispatchMouseEvent", { type: "mousePressed", x: 1, y: 1, button: "left", clickCount: 1 }, 1000);
+    const relayed = await OpenWebViewTests.isFromLinkAsync(harness, "https://example.com/a");
+    const asked = harness.contents.links.length;
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    harness.contents.onLink = () => Promise.reject(new Error("The page went away."));
+    const failed = await OpenWebViewTests.isFromLinkAsync(harness, "https://example.com/b");
+
+    Assert.areEqual("false,0,false,1", [relayed, asked, failed, harness.contents.links.length].join(","));
+  }
+
+  @TestMethod
+  public async keepsTheOrderOfWindowRequestsWhileOneWaitsForItsLinkAndDropsThoseOfAPageThatWentAway(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    const record = Promise.withResolvers<unknown>();
+    harness.contents.onLink = () => record.promise;
+
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    harness.contents.openWindow("https://example.com/a");
+    harness.time = 5001;
+    harness.contents.openWindow("https://example.com/b");
+    await OpenWebViewTests.drainAsync();
+    const waiting = harness.describe();
+    record.resolve(true);
+    await OpenWebViewTests.drainAsync();
+    const answered = harness.describe().split("|").map(t => t.slice(0, t.indexOf(",")));
+    const gone = Promise.withResolvers<unknown>();
+    harness.contents.onLink = () => gone.promise;
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    harness.contents.openWindow("https://example.com/c");
+    harness.contents.destroyed = true;
+    harness.contents.emit("destroyed");
+    gone.resolve(true);
+    await OpenWebViewTests.drainAsync();
+
+    Assert.areEqual(String.empty, waiting);
+    Assert.areEqual(JSON.stringify(["NewWindowRequested {\"address\":\"https://example.com/a\"", "NewWindowRequested {\"address\":\"https://example.com/b\""]), JSON.stringify(answered));
+    Assert.isTrue(harness.describe().split("|").at(0)?.endsWith('"fromLink":true}') === true, harness.describe());
+    Assert.isFalse(harness.describe().includes("example.com/c"), harness.describe());
+  }
+
+  @TestMethod
+  public async putsTheLinkRecordInEachPageItCommitsAndStopsLoadingEvenWhenThePageRefusesIt(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    harness.contents.onLink = () => Promise.reject(new Error("The frame was removed."));
+
+    harness.contents.emit("did-navigate");
+    harness.contents.emit("did-stop-loading");
+    await OpenWebViewTests.drainAsync();
+
+    Assert.areEqual(2, harness.contents.links.filter(t => t.startsWith("(() => { if (globalThis.noldovaTakeLink !== undefined) return;")).length);
   }
 
   @TestMethod
@@ -879,10 +959,10 @@ export class OpenWebViewTests {
     const results: boolean[] = [];
 
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
-    results.push(OpenWebViewTests.isFromPress(harness, "https://example.com/a"));
+    results.push(await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/a"));
     harness.contents.emit("input-event", {}, { type: "keyDown", key: "b" });
-    results.push(OpenWebViewTests.isFromPress(harness, "https://example.com/b"));
-    results.push(OpenWebViewTests.isFromPress(harness, "https://example.com/c"));
+    results.push(await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/b"));
+    results.push(await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/c"));
 
     Assert.areEqual("true,true,false", results.join(","));
   }
@@ -896,7 +976,7 @@ export class OpenWebViewTests {
     for (const key of keys) {
       harness.time += 1000;
       harness.contents.emit("input-event", {}, { type: "rawKeyDown", key });
-      results.push(`${key}:${OpenWebViewTests.isFromPress(harness, `https://example.com/${key}`)}`);
+      results.push(`${key}:${await OpenWebViewTests.isFromPressAsync(harness, `https://example.com/${key}`)}`);
     }
 
     Assert.areEqual("Escape:false,Accel:false,Alt:false,AltGraph:false,CapsLock:false,Control:false,Fn:false,FnLock:false,Hyper:false,Meta:false,NumLock:false,"
@@ -2220,8 +2300,17 @@ export class OpenWebViewTests {
     return last.includes("\"fromPress\":true");
   }
 
-  private static isFromPress(harness: OpenWebViewHarness, address: string): boolean {
+  private static async isFromLinkAsync(harness: OpenWebViewHarness, address: string): Promise<boolean> {
     harness.contents.openWindow(address);
+    await OpenWebViewTests.drainAsync();
+    const last = harness.describe().split("|").at(-1) ?? String.empty;
+    Assert.isTrue(last.startsWith(`NewWindowRequested {"address":${JSON.stringify(address)}`), harness.describe());
+    return last.includes('"fromLink":true');
+  }
+
+  private static async isFromPressAsync(harness: OpenWebViewHarness, address: string): Promise<boolean> {
+    harness.contents.openWindow(address);
+    await OpenWebViewTests.drainAsync();
     return harness.describe().split("|").at(-1)?.includes("\"fromPress\":true") === true;
   }
 

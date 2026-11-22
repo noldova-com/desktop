@@ -1263,6 +1263,7 @@ export class WebViewHostTests {
     prevented.push(contents.prevent("before-input-event", WebViewHostTests.input("a", "KeyA", false, "linux")));
     contents.emit("input-event", {}, { type: "keyDown" });
     void contents.openWindow("https://example.com/pressed");
+    await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.windowEvents(window)).length === 2);
 
     Assert.areEqual("true,true,false,false", prevented.join(","));
     Assert.areEqual("keyDown r control", passedOn);
@@ -1648,9 +1649,9 @@ export class WebViewHostTests {
     await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.runtimeEvents(connection)).length === 3);
 
     const expected = JSON.stringify([
-      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab", fromPress: false },
-      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window", fromPress: false },
-      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab", fromPress: false }
+      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab", fromPress: false, fromLink: false },
+      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window", fromPress: false, fromLink: false },
+      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab", fromPress: false, fromLink: false }
     ]);
     Assert.areEqual("deny,deny,deny", answers.map(t => t?.action).join(","));
     Assert.areEqual(expected, JSON.stringify(WebViewHostTests.requested(WebViewHostTests.windowEvents(window))));
@@ -1709,6 +1710,7 @@ export class WebViewHostTests {
     ask();
     contents.emit("input-event", {}, { type: "keyDown" });
     ask();
+    await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.windowEvents(window)).length === 7);
 
     Assert.areEqual("false,false,true,false,false,false,true", WebViewHostTests.requested(WebViewHostTests.windowEvents(window)).map(t => String(t["hadRecentInput"])).join(","));
   }
