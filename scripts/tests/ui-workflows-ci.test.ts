@@ -19,12 +19,14 @@ import { CommandFakesFixture } from "./fixtures/command-fakes.fixture.ts";
 import { SessionBusRun } from "./fixtures/session-bus-run.ts";
 
 const IS_POSIX = process.platform !== "win32";
-const LIVE_BUS = "echo unix:path=/tmp/fake-bus >&3; echo $$ > \"$FAKES/bus.pid\"; trap 'echo stopped >> \"$FAKES/bus.log\"; exit 0' TERM; while :; do sleep 0.1; done";
+const LIVE_BUS = "trap 'echo stopped >> \"$FAKES/bus.log\"; exit 0' TERM; echo $$ > \"$FAKES/bus.pid\"; echo unix:path=/tmp/fake-bus >&3; while :; do sleep 0.1; done";
 const SILENT_BUS = "echo $$ > \"$FAKES/bus.pid\"; while :; do sleep 0.1; done";
-const DEAF_BUS = "echo unix:path=/tmp/fake-bus >&3; echo $$ > \"$FAKES/bus.pid\"; trap '' TERM; while :; do sleep 0.1; done";
+const DEAF_BUS = "trap '' TERM; echo $$ > \"$FAKES/bus.pid\"; echo unix:path=/tmp/fake-bus >&3; while :; do sleep 0.1; done";
+const WATCHED_BUS = "trap 'exit 0' TERM; echo $$ > \"$FAKES/bus.pid\"; while [ ! -e \"$FAKES/watchdog\" ]; do /bin/sleep 0.1; done; echo unix:path=/tmp/fake-bus >&3; while :; do /bin/sleep 0.1; done";
+const WATCHDOG_SLEEP = "if [ \"$1\" = 7 ]; then echo watchdog; echo watchdog >&2; : > \"$FAKES/watchdog\"; fi; exec /bin/sleep \"$@\"";
 
-async function runAsync(bus: string, command: string, startSeconds?: string): Promise<SessionBusRun> {
-  await using fakes = await CommandFakesFixture.createAsync({ "dbus-daemon": bus });
+async function runAsync(bus: string, command: string, startSeconds?: string, commands: Readonly<Record<string, string>> = {}): Promise<SessionBusRun> {
+  await using fakes = await CommandFakesFixture.createAsync({ ...commands, "dbus-daemon": bus });
   const child = spawn(Resources.uiWorkflowsCiSessionBus, [...Resources.uiWorkflowsCiSessionBusArguments, "sh", "-c", command], {
     env: { ...process.env, PATH: `${fakes.bin}${path.delimiter}${process.env["PATH"] ?? ""}`, FAKES: fakes.folder, ...(Object.isUndefined(startSeconds) ? {} : { NOLDOVA_SESSION_BUS_START_SECONDS: startSeconds }) }
   });
@@ -76,6 +78,14 @@ describe("test:ui:ci's session bus", { skip: !IS_POSIX }, () => {
     assert.equal(result.errors, "The session bus did not start.\n");
     assert.notEqual(result.busProcess, null);
     assert.equal(isRunning(Number(result.busProcess)), false);
+  });
+
+  it("gives the start limit's watchdog none of the specs' output, so a watchdog stopped before its trap leaves nothing that holds the run open", async () => {
+    const result = await runAsync(WATCHED_BUS, "exit 0", "7", { sleep: WATCHDOG_SLEEP });
+
+    assert.equal(result.status, 0);
+    assert.equal(result.output, "");
+    assert.equal(result.errors, "");
   });
 
   it("fails without running the specs when the bus does not start", async () => {
