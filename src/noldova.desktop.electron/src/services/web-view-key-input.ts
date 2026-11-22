@@ -20,7 +20,7 @@ export class WebViewKeyInput {
     const text = WebViewKeyInput.readText(params[Resources.textField]);
     const flags = Number.isSafeInteger(params[Resources.modifiersField]) ? Number(params[Resources.modifiersField]) : 0;
     const modifiers = [
-      ...Resources.keyModifierNames.filter(([flag]) => (flags & flag) !== 0).map(([, name]) => name),
+      ...Resources.keyModifiers.filter(t => t.isIn(flags)).map(t => t.name),
       ...params[Resources.autoRepeatField] === true ? [Resources.autoRepeatModifier] : []
     ];
     const keyCode = Resources.webViewKeyNames.get(key) ?? key;
@@ -38,7 +38,7 @@ export class WebViewKeyInput {
   public static fromInput(input: IWebViewInput, platform: string): readonly IWebViewKeyEvent[] {
     const flags = (input.alt ? Resources.altModifier : 0) | (input.control ? Resources.ctrlModifier : 0) | (input.meta ? Resources.metaModifier : 0) | (input.shift ? Resources.shiftModifier : 0);
     const modifiers = [
-      ...Resources.keyModifierNames.filter(([flag]) => (flags & flag) !== 0).map(([, name]) => name),
+      ...Resources.keyModifiers.filter(t => t.isIn(flags)).map(t => t.name),
       ...input.isAutoRepeat ? [Resources.autoRepeatModifier] : []
     ];
     const keyCode = Resources.webViewKeyNames.get(input.key) ?? input.key;

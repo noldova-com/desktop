@@ -13,6 +13,7 @@ import type { KeyboardInputEvent } from "electron";
 
 import { MainProcessFailureKind } from "./enums/main-process-failure-kind.js";
 import type { IPreloadChannels } from "./interfaces/i-preload-channels.js";
+import { WebViewKeyModifier } from "./models/web-view-key-modifier.js";
 
 export class Resources {
   public static readonly folderSeparator: string = "/";
@@ -260,8 +261,9 @@ export class Resources {
   public static readonly rawKeyDownType: string = "rawKeyDown";
   public static readonly charType: string = "char";
   public static readonly keyUpType: string = "keyUp";
-  public static readonly keyModifierNames: readonly (readonly [number, NonNullable<KeyboardInputEvent["modifiers"]>[number]])[] = [
-    [Resources.altModifier, "alt"], [Resources.ctrlModifier, "control"], [Resources.metaModifier, "meta"], [Resources.shiftModifier, "shift"]
+  public static readonly keyModifiers: readonly WebViewKeyModifier[] = [
+    new WebViewKeyModifier(Resources.altModifier, "alt"), new WebViewKeyModifier(Resources.ctrlModifier, "control"),
+    new WebViewKeyModifier(Resources.metaModifier, "meta"), new WebViewKeyModifier(Resources.shiftModifier, "shift")
   ];
   public static readonly autoRepeatModifier: NonNullable<KeyboardInputEvent["modifiers"]>[number] = "isautorepeat";
   public static readonly pressField: string = "press";
