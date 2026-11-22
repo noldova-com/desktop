@@ -512,7 +512,11 @@ export declare enum WebViewEventKind {
   LoadFailed = "LoadFailed",
 
   /**
-   * The origin check refused a navigation of the view's main frame; its details are the `address`, its `origin` and `isRedirect`.
+   * The origin check refused a navigation of the view's main frame; its details are the `address`, its `origin`, `isRedirect` and `fromPress`.
+   * `fromPress` is `true` for the one page navigation that uses up the view's activation, which each real press of the person's own mouse button, key
+   * or touch in the view renews for 5 seconds, shared with `NewWindowRequested`; a second navigation from the same press, a redirect and relayed input
+   * get `false`. The press counts for the view, not the link, so a script's navigation within 5 seconds of an unused press also gets `true`.
+   * An event without it is accepted until 0.1.0, read as `false`.
    */
   NavigationRefused = "NavigationRefused",
 

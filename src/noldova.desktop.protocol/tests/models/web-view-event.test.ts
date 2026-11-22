@@ -19,7 +19,7 @@ export class WebViewEventTests {
     [WebViewEventKind.Closed, {}],
     [WebViewEventKind.State, { address: "https://example.com/", title: "Example", isLoading: false, canGoBack: true, canGoForward: false }],
     [WebViewEventKind.LoadFailed, { address: "https://example.com/", code: -105, description: "ERR_NAME_NOT_RESOLVED" }],
-    [WebViewEventKind.NavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: true }],
+    [WebViewEventKind.NavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: true, fromPress: false }],
     [WebViewEventKind.FrameNavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: 7 }],
     [WebViewEventKind.Crashed, {}],
     [WebViewEventKind.ProfileCleared, { profileKey: "workspace-1" }],
@@ -53,6 +53,16 @@ export class WebViewEventTests {
 
     Assert.areEqual(text, JSON.stringify(event.toJson()));
     Assert.isFalse(Object.hasOwn(event.details, "disposition"));
+  }
+
+  @TestMethod
+  public carriesARefusedNavigationWithoutFromPress(): void {
+    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NavigationRefused\",\"details\":{\"address\":\"https://example.net/\",\"origin\":\"https://example.net\",\"isRedirect\":false}}";
+
+    const event = WebViewEvent.fromJson(JsonReader.parse(text).toJson());
+
+    Assert.areEqual(text, JSON.stringify(event.toJson()));
+    Assert.isFalse(Object.hasOwn(event.details, "fromPress"));
   }
 
   @TestMethod
@@ -101,6 +111,8 @@ export class WebViewEventTests {
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: null }],
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: null }],
       [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: 1 }],
+      [WebViewEventKind.NavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, fromPress: null }],
+      [WebViewEventKind.NavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, fromPress: "yes" }],
       [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: [], isCut: false }],
       [WebViewEventKind.Dropped, { count: 0 }],
       [WebViewEventKind.Zoom, { factor: 0.2 }],

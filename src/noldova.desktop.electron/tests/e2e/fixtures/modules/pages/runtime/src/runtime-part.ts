@@ -13,11 +13,16 @@ import { Resources } from "./resources.js";
 
 export class RuntimePart implements IRuntimePart {
   private readonly events: string[] = [];
+  private readonly refusals: string[] = [];
   private release: () => void = () => undefined;
 
   public async activateAsync(context: IRuntimePartContext): Promise<void> {
     const views = context.webViews;
-    this.release = views.onViewEvent(t => this.events.push(`${t.view} ${t.kind}`));
+    this.release = views.onViewEvent(t => {
+      this.events.push(`${t.view} ${t.kind}`);
+      if (t.kind === Resources.navigationRefusedKind)
+        this.refusals.push(`${t.view} ${String(t.details[Resources.addressField])} ${String(t.details[Resources.fromPressField])}`);
+    });
     context.registerMethod(Resources.allowMethod, {
       handleAsync: async request => {
         const payload = request.payload;
@@ -53,6 +58,7 @@ export class RuntimePart implements IRuntimePart {
       }
     });
     context.registerMethod(Resources.eventsMethod, { handleAsync: async () => [...this.events] });
+    context.registerMethod(Resources.refusalsMethod, { handleAsync: async () => [...this.refusals] });
     context.registerMethod(Resources.pressMethod, {
       handleAsync: async request => {
         const view = Number(RuntimePart.field(request.payload, Resources.viewField));

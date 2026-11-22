@@ -12,6 +12,10 @@ export class Resources {
   public static readonly listMethod: string = "pages.list";
   public static readonly captureMethod: string = "pages.capture";
   public static readonly eventsMethod: string = "pages.events";
+  public static readonly refusalsMethod: string = "pages.refusals";
+  public static readonly navigationRefusedKind: string = "NavigationRefused";
+  public static readonly addressField: string = "address";
+  public static readonly fromPressField: string = "fromPress";
   public static readonly pressMethod: string = "pages.press";
   public static readonly typeMethod: string = "pages.type";
   public static readonly clickMethod: string = "pages.click";

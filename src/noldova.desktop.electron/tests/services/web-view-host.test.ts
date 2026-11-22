@@ -700,7 +700,7 @@ export class WebViewHostTests {
     ];
 
     Assert.areEqual("true,true,true,false,false,false,false,false,false,true", passes.join(","));
-    Assert.areEqual(JSON.stringify([{ module: "browser", view: "1", kind: "NavigationRefused", details: { address: "https://example.net/", origin: "https://example.net", isRedirect: false } }]),
+    Assert.areEqual(JSON.stringify([{ module: "browser", view: "1", kind: "NavigationRefused", details: { address: "https://example.net/", origin: "https://example.net", isRedirect: false, fromPress: false } }]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "NavigationRefused")));
   }
 
@@ -888,7 +888,7 @@ export class WebViewHostTests {
     const upgrade = session.request({ id: 3, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame" });
 
     Assert.areEqual("true,false,true", [publicRedirect, privateRedirect, upgrade].join(","));
-    Assert.areEqual(JSON.stringify([{ address: "https://example.com/home", origin: "https://example.com", isRedirect: true }]),
+    Assert.areEqual(JSON.stringify([{ address: "https://example.com/home", origin: "https://example.com", isRedirect: true, fromPress: false }]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "NavigationRefused").map(t => t["details"])));
   }
 

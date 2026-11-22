@@ -344,7 +344,7 @@ export class OpenWebView {
     const allows = isAdmitted || !this.refusedRequests.delete(request.id)
       && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed));
     if (!allows && isPage)
-      this.emitRefusedNavigation(request.url, isRedirect);
+      this.emitRefusedNavigation(request.url, isRedirect, false);
     if (!allows && isFrame)
       this.refuseFrame(request.frame ?? null, request.url, isRedirect, null);
     return allows;
@@ -872,11 +872,12 @@ export class OpenWebView {
       return navigation.preventDefault();
     if (!navigation.isMainFrame && this.takesRefusedPage(navigation))
       return;
+    const isFromPress = navigation.isMainFrame && this.takePress(this.now());
     if (this.check.allowsNavigation(navigation.url, this.allowed, !navigation.isMainFrame))
       return;
     navigation.preventDefault();
     if (navigation.isMainFrame)
-      this.emitRefusedNavigation(navigation.url, false);
+      this.emitRefusedNavigation(navigation.url, false, isFromPress);
     else
       this.refuseFrame(navigation.frame, navigation.url, false, navigation.initiator ?? null);
   }
@@ -926,7 +927,7 @@ export class OpenWebView {
     if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument)
       this.isNavigating = true;
     if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument && OpenWebView.isSourceDocument(navigation.url))
-      this.emitRefusedNavigation(navigation.url, false);
+      this.emitRefusedNavigation(navigation.url, false, false);
   }
 
   private askForWindow(details: IWindowOpenDetails): void {
@@ -1169,8 +1170,10 @@ export class OpenWebView {
       this.relayKeys.splice(index, 1);
   }
 
-  private emitRefusedNavigation(url: string, isRedirect: boolean): void {
-    this.emit(WebViewEventKind.NavigationRefused, { [Resources.addressField]: url, [Resources.originField]: OpenWebView.originOf(url), [Resources.isRedirectField]: isRedirect });
+  private emitRefusedNavigation(url: string, isRedirect: boolean, isFromPress: boolean): void {
+    this.emit(WebViewEventKind.NavigationRefused, {
+      [Resources.addressField]: url, [Resources.originField]: OpenWebView.originOf(url), [Resources.isRedirectField]: isRedirect, [Resources.fromPressField]: isFromPress
+    });
   }
 
   private emit(kind: WebViewEventKind, details: JsonObject = {}): void {

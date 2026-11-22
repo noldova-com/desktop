@@ -37,7 +37,9 @@ export class WebViewEvent {
       [Resources.canGoBackField, WebViewEvent.FLAG], [Resources.canGoForwardField, WebViewEvent.FLAG]
     ]),
     [WebViewEventKind.LoadFailed]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.codeField, WebViewEvent.WHOLE], [Resources.descriptionField, WebViewEvent.TEXT]]),
-    [WebViewEventKind.NavigationRefused]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG]]),
+    [WebViewEventKind.NavigationRefused]: new Map([
+      [Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG], [Resources.fromPressField, WebViewEvent.FLAG_OR_ABSENT]
+    ]),
     [WebViewEventKind.FrameNavigationRefused]: new Map([
       [Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG], [Resources.frameIdField, WebViewEvent.FRAME]
     ]),

@@ -99,6 +99,11 @@ async function eventsAsync(window: Page): Promise<string[]> {
   return Array.isArray(events) ? events.filter(Object.isString) : [];
 }
 
+async function refusalsAsync(window: Page): Promise<string[]> {
+  const refusals = await requestAsync(window, "pages.refusals", null);
+  return Array.isArray(refusals) ? refusals.filter(Object.isString) : [];
+}
+
 async function listAsync(window: Page): Promise<JsonReader[]> {
   const views = await requestAsync(window, "pages.list", null);
   return Array.isArray(views) ? views.map(t => JsonReader.fromValue(t)) : [];
@@ -1113,6 +1118,36 @@ test.describe("web views", () => {
       await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
       await expect(view(window, 0)).toHaveText("First page");
       expect(await eventsAsync(window)).not.toContain(`${id} LoadFailed`);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view reports the person's own click on a link to an origin it doesn't allow as a refused navigation from a press, and a script's navigation right after it as not", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const port = portOf(server);
+      const origin = `http://${host}:${port}`;
+      const outside = `http://localhost:${port}/second`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      const id = await view(window, 0).getAttribute("data-view");
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("First page");
+      expect(await runInFirstViewAsync(mainProcess, `void document.body.prepend(Object.assign(document.createElement("a"), { href: ${JSON.stringify(outside)}, textContent: "Out", style: "display:block;font-size:40px" }))`)).toBe(true);
+
+      expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
+      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} true`]);
+      expect(await runInFirstViewAsync(mainProcess, `void (location.href = ${JSON.stringify(outside)})`)).toBe(true);
+      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} true`, `${id} ${outside} false`]);
+
+      await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
     }
     finally {
       await stopServerAsync(server);
