@@ -957,9 +957,18 @@ export class OpenWebView {
     if (this.isFocusHeld)
       return;
     this.isFocusHeld = true;
-    const isHeld = await guest.debugger.sendCommand(Resources.focusEmulationMethod, { [Resources.enabledParameter]: true }).then(() => true, () => false);
-    if (!isHeld && this.guest === guest)
-      this.isFocusHeld = false;
+    const navigated = Promise.withResolvers<void>();
+    if (this.isNavigating && this.isRequested)
+      navigated.resolve();
+    else
+      this.navigationWaits.add(navigated.resolve);
+    const held = guest.debugger.sendCommand(Resources.focusEmulationMethod, { [Resources.enabledParameter]: true }).then(() => true, () => false);
+    void held.then(isHeld => {
+      this.navigationWaits.delete(navigated.resolve);
+      if (!isHeld && this.guest === guest)
+        this.isFocusHeld = false;
+    });
+    await Promise.race([held, navigated.promise]);
   }
 
   private startPageCall(): void {

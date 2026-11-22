@@ -1703,6 +1703,53 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async answersTheFirstPageCallWhileTheMainFramesRequestedNavigationIsPendingWithoutWaitingForTheFocusAndHoldsTheFocusOnceItAnswers(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NAVIGATIONS).startAsync();
+    harness.contents.debugger.receive(OpenWebViewTests.NAVIGATED, { frame: { id: "main", url: "https://example.com/" } });
+    const release = OpenWebViewTests.holdRoundTrips(harness.contents);
+    const focus = Promise.withResolvers<unknown>();
+    harness.contents.debugger.replies.set(OpenWebViewTests.FOCUS_EMULATION, () => focus.promise);
+    harness.contents.emit("did-start-navigation", { url: "https://example.com/next", isMainFrame: true, isSameDocument: false });
+    harness.contents.debugger.receive(OpenWebViewTests.REQUESTED, { frameId: "main", reason: "scriptInitiated", url: "https://example.com/next", disposition: "currentTab" });
+
+    const first = await OpenWebViewTests.isAnsweredBeforeRoundTripAsync(harness, 1);
+    focus.resolve({});
+    await OpenWebViewTests.drainAsync();
+    const second = await OpenWebViewTests.isAnsweredBeforeRoundTripAsync(harness, 2);
+    release();
+    await OpenWebViewTests.drainAsync();
+
+    Assert.areEqual("true true", `${first} ${second}`);
+    Assert.areEqual(1, harness.contents.debugger.methods().filter(t => t === OpenWebViewTests.FOCUS_EMULATION).length);
+  }
+
+  @TestMethod
+  public async sendsAPageCallWaitingForTheFocusOnceTheMainFrameRequestsANavigationAndWaitsForTheFocusOtherwise(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.NAVIGATIONS).startAsync();
+    harness.contents.debugger.receive(OpenWebViewTests.NAVIGATED, { frame: { id: "main", url: "https://example.com/" } });
+    const release = OpenWebViewTests.holdRoundTrips(harness.contents);
+    const focus = Promise.withResolvers<unknown>();
+    harness.contents.debugger.replies.set(OpenWebViewTests.FOCUS_EMULATION, () => focus.promise);
+    harness.contents.emit("did-start-navigation", { url: "https://example.com/next", isMainFrame: true, isSameDocument: false });
+    let isAnswered = false;
+
+    const answering = harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mouseMoved", x: 1, y: 1 }, 1000).finally(() => {
+      isAnswered = true;
+    });
+    await OpenWebViewTests.drainAsync();
+    const whileFocusWaits = [isAnswered, harness.contents.debugger.methods().includes(OpenWebViewTests.MOUSE)];
+    harness.contents.debugger.receive(OpenWebViewTests.REQUESTED, { frameId: "main", reason: "scriptInitiated", url: "https://example.com/next", disposition: "currentTab" });
+    await OpenWebViewTests.drainAsync();
+    const onRequest = isAnswered;
+    focus.resolve({});
+    release();
+    const answer = await answering;
+
+    Assert.areEqual("[false,false] true", `${JSON.stringify(whileFocusWaits)} ${onRequest}`);
+    Assert.areEqual("1 {} none", OpenWebViewTests.describe(answer));
+  }
+
+  @TestMethod
   public async waitsForTheRoundTripOfAPageCallWhenANavigationStartsInAnotherFrameOrSessionWithinTheDocumentOrBeforeTheMainFrameIsKnown(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.NAVIGATIONS).startAsync();
     const release = OpenWebViewTests.holdRoundTrips(harness.contents);
