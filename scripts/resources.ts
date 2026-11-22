@@ -206,6 +206,8 @@ export class Resources {
   public static readonly serialTestSlowestCount: number = 10;
   public static readonly serialTestShutdownGrace: number = 1000;
   public static readonly serialTestReleaseChannel: string = "noldova.test-run.release";
+  public static readonly serialTestStepStartedChannel: string = "noldova.test-run.step-started";
+  public static readonly serialTestStepEndedChannel: string = "noldova.test-run.step-ended";
   public static readonly serialTestStandardErrorDescriptor: number = 2;
   public static readonly serialTestRemovalRetries: number = 5;
   public static readonly serialTestMethodWithoutClass: string = "A test method completed before its class started.";
@@ -632,9 +634,22 @@ export class Resources {
     return `process ${index + 1} of ${groups.length}: ${groups[index]?.join(Resources.listSeparator) ?? ""}`;
   }
 
-  public static formatSerialTestInterrupted(identity: string, limit: number, waiting: readonly string[]): string {
+  public static formatSerialTestInterrupted(identity: string, limit: number, waiting: readonly string[], steps: readonly string[] = []): string {
     const resources = waiting.length === 0 ? "no open resource that Node names" : waiting.join(Resources.listSeparator);
-    return `The test ${identity} exceeded its time limit of ${limit} ms while waiting on ${resources}; the run ended after reporting it, and the tests not yet started did not run.\n`;
+    const named = steps.length === 0 ? String.empty : `; its steps: ${steps.join(Resources.listSeparator)}`;
+    return `The test ${identity} exceeded its time limit of ${limit} ms while waiting on ${resources}${named}; the run ended after reporting it, and the tests not yet started did not run.\n`;
+  }
+
+  public static formatSerialTestStep(name: string, milliseconds: number): string {
+    return `${name} ${milliseconds} ms`;
+  }
+
+  public static formatSerialTestStepRunning(name: string, milliseconds: number): string {
+    return `${name} still running after ${milliseconds} ms`;
+  }
+
+  public static formatSerialTestNoStepRunning(lastStep: string, milliseconds: number): string {
+    return `no step running, ${milliseconds} ms after ${lastStep} ended`;
   }
 
   public static formatSerialTestSlowest(suite: string, limit: number, lines: readonly string[]): string {

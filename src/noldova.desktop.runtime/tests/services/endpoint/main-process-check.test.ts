@@ -9,7 +9,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { copyFile, writeFile } from "node:fs/promises";
-import { Socket, createServer } from "node:net";
+import { type IpcNetConnectOpts, Socket, type TcpNetConnectOpts, createServer } from "node:net";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -24,6 +24,7 @@ import { MainProcessCheck } from "../../../src/services/endpoint/main-process-ch
 import { LinuxProcessFolderFixture } from "../../fixtures/linux-process-folder.fixture.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { SocketFolderFixture } from "../../fixtures/socket-folder.fixture.js";
+import { TestStepFixture } from "../../fixtures/test-step.fixture.js";
 import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.js";
 
 @TestClass
@@ -200,7 +201,7 @@ export class MainProcessCheckTests {
     await using folder = await TemporaryFolderFixture.createAsync();
     const copy = path.join(folder.path, "node.exe");
     await copyFile(process.execPath, copy);
-    const target = { port: 0, host: "127.0.0.1" };
+    const target: TcpNetConnectOpts = { port: 0, host: "127.0.0.1" };
 
     Assert.isTrue(await MainProcessCheckTests.checkChildAsync(target, {}, MainProcessCheck.create()));
     Assert.isFalse(await MainProcessCheckTests.checkChildAsync(target, { ELECTRON_RUN_AS_NODE: "1" }, MainProcessCheck.create()));
@@ -210,13 +211,20 @@ export class MainProcessCheckTests {
   @TestMethod
   @PlatformFixture.macOnly()
   public async checksALiveChildOverALocalSocketOnMacOs(): Promise<void> {
-    await using folder = await SocketFolderFixture.createAsync("nol-main-");
+    const steps = new TestStepFixture();
+    await using folder = await steps.runAsync("making its socket folder", () => SocketFolderFixture.createAsync("nol-main-"));
     const copy = path.join(folder.path, "node");
-    await copyFile(process.execPath, copy);
+    await steps.runAsync("copying Node.js", () => copyFile(process.execPath, copy));
 
-    Assert.isTrue(await MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "a.sock") }, {}, MainProcessCheck.create()));
-    Assert.isFalse(await MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "b.sock") }, { ELECTRON_RUN_AS_NODE: "1" }, MainProcessCheck.create()));
-    Assert.isFalse(await MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "c.sock") }, {}, MainProcessCheck.create(), copy));
+    const plain = await steps.runAsync("checking Node.js", () => MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "a.sock") }, {}, MainProcessCheck.create()));
+    const runAsNode = await steps.runAsync("checking Node.js run as Node.js",
+      () => MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "b.sock") }, { ELECTRON_RUN_AS_NODE: "1" }, MainProcessCheck.create()));
+    const copied = await steps.runAsync("checking the copy of Node.js",
+      () => MainProcessCheckTests.checkChildAsync({ path: path.join(folder.path, "c.sock") }, {}, MainProcessCheck.create(), copy));
+
+    Assert.isTrue(plain);
+    Assert.isFalse(runAsNode);
+    Assert.isFalse(copied);
   }
 
   private static peers(program: string, environment: readonly string[] = []): IPeerProcessApi {
@@ -230,7 +238,7 @@ export class MainProcessCheckTests {
   }
 
   private static async checkChildAsync(
-    target: { path: string } | { port: number; host: string },
+    target: IpcNetConnectOpts | TcpNetConnectOpts,
     added: NodeJS.ProcessEnv,
     check: MainProcessCheck,
     program: string = process.execPath): Promise<boolean> {
@@ -242,7 +250,7 @@ export class MainProcessCheckTests {
       server.listen(target.port, target.host);
     await once(server, "listening");
     const listened = server.address();
-    const address = "path" in target ? target : { port: Object.isObject(listened) ? listened.port : 0, host: target.host };
+    const address: IpcNetConnectOpts | TcpNetConnectOpts = "path" in target ? target : { port: Object.isObject(listened) ? listened.port : 0, host: target.host };
     const environment = { ...process.env, ...added };
     if (Object.isUndefined(added["ELECTRON_RUN_AS_NODE"]))
       delete environment["ELECTRON_RUN_AS_NODE"];

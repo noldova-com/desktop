@@ -9,6 +9,7 @@ import { subscribe, unsubscribe } from "node:diagnostics_channel";
 import { lstatSync, mkdtempSync, readdirSync, rmSync, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import { inspect } from "node:util";
 
 import "@noldova/context.core";
@@ -144,6 +145,14 @@ export class SerialTestRun {
       releases.push(Promise.resolve(message).then(() => null, (t: unknown) => String(t)));
     };
     subscribe(Resources.serialTestReleaseChannel, release);
+    const stepStarted = (message: unknown): void => {
+      interruption.startStep(String(message), performance.now());
+    };
+    const stepEnded = (message: unknown): void => {
+      interruption.endStep(String(message), performance.now());
+    };
+    subscribe(Resources.serialTestStepStartedChannel, stepStarted);
+    subscribe(Resources.serialTestStepEndedChannel, stepEnded);
     let finished: TestRunResult | undefined;
     let unreachedCount = 0;
 
@@ -219,6 +228,8 @@ export class SerialTestRun {
       process.exitCode = Resources.failedExitCode;
     }
     unsubscribe(Resources.serialTestReleaseChannel, release);
+    unsubscribe(Resources.serialTestStepStartedChannel, stepStarted);
+    unsubscribe(Resources.serialTestStepEndedChannel, stepEnded);
     const leftovers = readdirSync(temporary).sort();
     const kept: string[] = [];
     const removal = SerialTestRun.tryRemove(temporary, kept);

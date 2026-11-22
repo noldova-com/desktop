@@ -36,6 +36,37 @@ const HANGING = [
   "TestClass(HangingTests);"
 ].join("\n");
 
+const HANGING_IN_A_STEP = [
+  "import \"@noldova/context.core\";",
+  "import { channel } from \"node:diagnostics_channel\";",
+  "import { TestClass, TestMethod } from \"@noldova/context.testing\";",
+  "export class SteppingTests {",
+  "  hangsInItsSecondStep() {",
+  `    channel(${JSON.stringify(Resources.serialTestStepStartedChannel)}).publish("copying");`,
+  `    channel(${JSON.stringify(Resources.serialTestStepEndedChannel)}).publish("copying");`,
+  `    channel(${JSON.stringify(Resources.serialTestStepStartedChannel)}).publish("checking");`,
+  "    return new Promise(resolve => setTimeout(resolve, 600_000));",
+  "  }",
+  "}",
+  "TestMethod(SteppingTests.prototype.hangsInItsSecondStep);",
+  "TestClass(SteppingTests);"
+].join("\n");
+
+const HANGING_AFTER_ITS_STEPS = [
+  "import \"@noldova/context.core\";",
+  "import { channel } from \"node:diagnostics_channel\";",
+  "import { TestClass, TestMethod } from \"@noldova/context.testing\";",
+  "export class SteppingTests {",
+  "  hangsAfterItsLastStep() {",
+  `    channel(${JSON.stringify(Resources.serialTestStepStartedChannel)}).publish("copying");`,
+  `    channel(${JSON.stringify(Resources.serialTestStepEndedChannel)}).publish("copying");`,
+  "    return new Promise(resolve => setTimeout(resolve, 600_000));",
+  "  }",
+  "}",
+  "TestMethod(SteppingTests.prototype.hangsAfterItsLastStep);",
+  "TestClass(SteppingTests);"
+].join("\n");
+
 const HANGING_LAST = [
   "import \"@noldova/context.core\";",
   "import { TestClass, TestMethod } from \"@noldova/context.testing\";",
@@ -231,6 +262,22 @@ describe("SerialTestRun", () => {
     assert.doesNotMatch(output, /wouldRunNext/u);
     assert.match(output, /Failed:\s+1\b/u);
     assert.match(errors, /The test Hanging\/hanging\.test\.js › HangingTests\.waitsForATimerThatNeverFires exceeded its time limit of 200 ms while waiting on [^;]*\bTimeout\b[^;]*;/u);
+  });
+
+  it("names the step a test was still in when it reached its time limit, and how long each earlier step took", async () => {
+    const { code, errors } = await runAsync(HANGING_IN_A_STEP);
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(errors, /SteppingTests\.hangsInItsSecondStep exceeded its time limit of 200 ms while waiting on [^;]*; its steps: copying \d+ ms, checking still running after (\d+) ms; the run ended/u);
+    assert.ok(Number(/checking still running after (\d+) ms/u.exec(errors)?.[1] ?? 0) >= 150, errors);
+  });
+
+  it("says no step was running when a test reached its time limit after its last step ended, and how long after", async () => {
+    const { code, errors } = await runAsync(HANGING_AFTER_ITS_STEPS);
+
+    assert.equal(code, Resources.failedExitCode, errors);
+    assert.match(errors, /SteppingTests\.hangsAfterItsLastStep exceeded its time limit of 200 ms while waiting on [^;]*; its steps: copying \d+ ms, no step running, (\d+) ms after copying ended; the run ended/u);
+    assert.ok(Number(/no step running, (\d+) ms after/u.exec(errors)?.[1] ?? 0) >= 150, errors);
   });
 
   it("names a test that reaches its time limit as its class's last method and counts its class once", async () => {
