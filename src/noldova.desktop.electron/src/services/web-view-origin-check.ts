@@ -83,7 +83,7 @@ export class WebViewOriginCheck {
       return false;
     if (kind === WebAddressKind.Loopback && this.isNeverAllowed(parsed))
       return false;
-    const origin = Object.isUndefined(socketScheme) ? parsed.origin : `${socketScheme}${Resources.webViewOriginSeparator}${parsed.host}`;
+    const origin = WebViewOriginCheck.originOf(parsed);
     if (kind === WebAddressKind.Loopback || kind === WebAddressKind.Private)
       return allowed.includes(origin);
     return Object.isUndefined(socketScheme) || WebViewOriginCheck.matches(origin, allowed);
@@ -108,8 +108,14 @@ export class WebViewOriginCheck {
     if (kind === WebAddressKind.LinkLocal || kind === WebAddressKind.Unspecified || (kind === WebAddressKind.Loopback && this.isNeverAllowed(parsed)))
       return false;
     const host = WebViewOriginCheck.plainHost(parsed.hostname);
-    const isLocalHost = isIP(host) !== 0 || WebViewOriginCheck.isLoopbackName(host) || this.localOrigins.has(parsed.origin);
-    return isLocalHost && allowed.includes(parsed.origin);
+    const origin = WebViewOriginCheck.originOf(parsed);
+    const isLocalHost = isIP(host) !== 0 || WebViewOriginCheck.isLoopbackName(host) || this.localOrigins.has(origin);
+    return isLocalHost && allowed.includes(origin);
+  }
+
+  private static originOf(url: URL): string {
+    const socketScheme = Resources.webViewSocketSchemes.get(url.protocol);
+    return Object.isUndefined(socketScheme) ? url.origin : `${socketScheme}${Resources.webViewOriginSeparator}${url.host}`;
   }
 
   private isNeverAllowed(url: URL): boolean {

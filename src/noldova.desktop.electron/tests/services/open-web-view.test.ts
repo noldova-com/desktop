@@ -572,13 +572,14 @@ export class OpenWebViewTests {
   public async reportsAFramesRefusedRequestAndRedirectAndSendsTheFrameThePageButNotForAFrameThatIsGone(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.session.addresses.set("example.com", ["93.184.216.34"]);
     const frame = new FakeWebViewFrame(9);
 
-    const asked = harness.open.allowsRequest({ id: 1, url: "https://other.example.net/f", resourceType: "subFrame", frame });
+    const asked = await harness.open.allowsRequestAsync({ id: 1, url: "https://other.example.net/f", resourceType: "subFrame", frame });
     harness.open.noteRedirect({ id: 2, url: "https://example.com/f", redirectURL: "https://other.example.net/r" });
-    const redirected = harness.open.allowsRequest({ id: 2, url: "https://other.example.net/r", resourceType: "subFrame", frame });
-    const gone = harness.open.allowsRequest({ id: 3, url: "https://other.example.net/g", resourceType: "subFrame", frame: null });
-    const allowed = harness.open.allowsRequest({ id: 4, url: "https://example.com/f", resourceType: "subFrame", frame });
+    const redirected = await harness.open.allowsRequestAsync({ id: 2, url: "https://other.example.net/r", resourceType: "subFrame", frame });
+    const gone = await harness.open.allowsRequestAsync({ id: 3, url: "https://other.example.net/g", resourceType: "subFrame", frame: null });
+    const allowed = await harness.open.allowsRequestAsync({ id: 4, url: "https://example.com/f", resourceType: "subFrame", frame });
 
     Assert.areEqual("false,false,false,true", [asked, redirected, gone, allowed].join(","));
     Assert.areEqual([
@@ -601,10 +602,10 @@ export class OpenWebViewTests {
     const fromParent = title();
     harness.contents.navigateFrame("https://secret.example.org/n", false, frame, null);
     const fromNobody = title();
-    harness.open.allowsRequest({ id: 1, url: "https://secret.example.org/l", resourceType: "subFrame", frame });
+    await harness.open.allowsRequestAsync({ id: 1, url: "https://secret.example.org/l", resourceType: "subFrame", frame });
     const loaded = title();
     harness.open.noteRedirect({ id: 2, url: "https://example.com/f", redirectURL: "https://secret.example.org/r" });
-    harness.open.allowsRequest({ id: 2, url: "https://secret.example.org/r", resourceType: "subFrame", frame });
+    await harness.open.allowsRequestAsync({ id: 2, url: "https://secret.example.org/r", resourceType: "subFrame", frame });
     const redirected = title();
 
     Assert.areEqual(["Browser doesn't open https://own.example.net", ...Array.from({ length: 4 }, () => "Browser doesn't open this address")].join("|"),
@@ -653,24 +654,25 @@ export class OpenWebViewTests {
   public async letsTheRefusedPageItLetThroughLoadOnceInItsFrameButNeverByARedirectOrBeforeItsNavigation(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.session.addresses.set("example.com", ["93.184.216.34"]);
     const [frame, other] = [new FakeWebViewFrame(7), new FakeWebViewFrame(8)];
     const refuse = (): string => {
       harness.contents.navigateFrame("https://other.example.net/frame", false, frame);
       return frame.pages.at(-1) ?? String.empty;
     };
 
-    const unannounced = harness.open.allowsRequest({ id: 1, url: refuse(), resourceType: "subFrame", frame });
+    const unannounced = await harness.open.allowsRequestAsync({ id: 1, url: refuse(), resourceType: "subFrame", frame });
     const first = refuse();
     const shown = harness.contents.navigateFrame(first, false, frame);
-    const inOther = harness.open.allowsRequest({ id: 2, url: first, resourceType: "subFrame", frame: other });
+    const inOther = await harness.open.allowsRequestAsync({ id: 2, url: first, resourceType: "subFrame", frame: other });
     harness.open.noteRedirect({ id: 3, url: "https://example.com/f", redirectURL: first });
-    const redirected = harness.open.allowsRequest({ id: 3, url: first, resourceType: "subFrame", frame });
-    const loaded = harness.open.allowsRequest({ id: 4, url: first, resourceType: "subFrame", frame });
-    const again = harness.open.allowsRequest({ id: 5, url: first, resourceType: "subFrame", frame });
+    const redirected = await harness.open.allowsRequestAsync({ id: 3, url: first, resourceType: "subFrame", frame });
+    const loaded = await harness.open.allowsRequestAsync({ id: 4, url: first, resourceType: "subFrame", frame });
+    const again = await harness.open.allowsRequestAsync({ id: 5, url: first, resourceType: "subFrame", frame });
     const second = refuse();
     harness.contents.navigateFrame(second, false, frame);
-    const elsewhere = harness.open.allowsRequest({ id: 6, url: "https://example.com/f", resourceType: "subFrame", frame });
-    const afterElsewhere = harness.open.allowsRequest({ id: 7, url: second, resourceType: "subFrame", frame });
+    const elsewhere = await harness.open.allowsRequestAsync({ id: 6, url: "https://example.com/f", resourceType: "subFrame", frame });
+    const afterElsewhere = await harness.open.allowsRequestAsync({ id: 7, url: second, resourceType: "subFrame", frame });
 
     Assert.areEqual("false,false,false,false,true,false,true,false",
       [unannounced, shown, inOther, redirected, loaded, again, elsewhere, afterElsewhere].join(","));
@@ -860,7 +862,7 @@ export class OpenWebViewTests {
 
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
     harness.contents.navigateFrame("https://other.example.net/link", true);
-    const refused = harness.open.allowsRequest({ id: 1, url: "https://other.example.net/fetched", resourceType: "mainFrame" });
+    const refused = await harness.open.allowsRequestAsync({ id: 1, url: "https://other.example.net/fetched", resourceType: "mainFrame" });
     await OpenWebViewTests.drainAsync();
     const waiting = harness.describe();
     record.resolve(true);
@@ -1005,13 +1007,14 @@ export class OpenWebViewTests {
   public async refusesARequestOutsideItsOriginsAndAPageRedirectedToAPrivateAddress(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.session.addresses.set("example.com", ["93.184.216.34"]);
 
-    const allowed = harness.open.allowsRequest({ id: 1, url: "https://example.com/", resourceType: "mainFrame" });
-    const outside = harness.open.allowsRequest({ id: 2, url: "https://other.example.net/", resourceType: "mainFrame" });
+    const allowed = await harness.open.allowsRequestAsync({ id: 1, url: "https://example.com/", resourceType: "mainFrame" });
+    const outside = await harness.open.allowsRequestAsync({ id: 2, url: "https://other.example.net/", resourceType: "mainFrame" });
     harness.open.noteRedirect({ id: 3, url: "https://example.com/", redirectURL: "https://example.com/next", ip: "10.0.0.2" });
-    const redirected = harness.open.allowsRequest({ id: 3, url: "https://example.com/next", resourceType: "mainFrame" });
+    const redirected = await harness.open.allowsRequestAsync({ id: 3, url: "https://example.com/next", resourceType: "mainFrame" });
     harness.open.noteRedirect({ id: 4, url: "https://example.com/", redirectURL: "https://example.com/later", ip: "93.184.216.34" });
-    const publicRedirect = harness.open.allowsRequest({ id: 4, url: "https://example.com/later", resourceType: "mainFrame" });
+    const publicRedirect = await harness.open.allowsRequestAsync({ id: 4, url: "https://example.com/later", resourceType: "mainFrame" });
 
     Assert.areEqual("true,false,false,true", [allowed, outside, redirected, publicRedirect].join(","));
     Assert.areEqual([

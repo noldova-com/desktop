@@ -359,13 +359,14 @@ export class OpenWebView {
     void guest.debugger.sendCommand(Resources.focusEmulationMethod, { [Resources.enabledParameter]: false }).catch(() => undefined);
   }
 
-  public allowsRequest(request: IWebViewRequest): boolean {
+  public async allowsRequestAsync(request: IWebViewRequest): Promise<boolean> {
     const isRedirect = this.redirects.delete(request.id);
     const isPage = request.resourceType === Resources.mainFrameResource;
     const isFrame = request.resourceType === Resources.subFrameResource;
     const isAdmitted = isFrame && !isRedirect && this.takesAdmittedPage(request);
     const allows = isAdmitted || !this.refusedRequests.delete(request.id)
-      && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed));
+      && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed))
+      && await this.connectsAsync(request.url);
     if (!allows && isPage)
       this.answerInOrder(this.guest, null, () => this.emitRefusedNavigation(request.url, isRedirect, false));
     if (!allows && isFrame)
@@ -928,11 +929,14 @@ export class OpenWebView {
   }
 
   private async allowsAsync(url: string): Promise<boolean> {
-    if (!this.check.allowsNavigation(url, this.allowed, false))
-      return false;
-    if (url === Resources.blankPage)
+    return this.check.allowsNavigation(url, this.allowed, false) && await this.connectsAsync(url);
+  }
+
+  private async connectsAsync(url: string): Promise<boolean> {
+    const parsed = new URL(url);
+    if (!Resources.webViewSchemes.includes(parsed.protocol) && !Resources.webViewSocketSchemes.has(parsed.protocol))
       return true;
-    const host = new URL(url).hostname.replace(Resources.webViewBracketsPattern, String.empty);
+    const host = parsed.hostname.replace(Resources.webViewBracketsPattern, String.empty);
     const addresses = isIP(host) !== 0 ? [host] : await this.session.resolveHostAsync(host).catch(() => []);
     return addresses.length > 0 && addresses.every(t => this.check.allowsConnection(url, this.allowed, t));
   }

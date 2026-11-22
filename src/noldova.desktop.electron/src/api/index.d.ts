@@ -7873,6 +7873,7 @@ export declare class WebViewOriginCheck {
    * Judges the address a request connected to, or its name resolved to: a public address passes, a loopback or private one only for a
    * local entry, an allowed origin whose host is an IP address, `localhost`, a name that ends in `.localhost`, or one the settings mark as
    * local; anything else, and an address the check can't judge, is refused.
+   * A WebSocket's `ws:` or `wss:` address counts as the `http:` or `https:` origin of its host and port.
    *
    * @param url The request's address.
    * @param allowed The view's allowed origins.

@@ -413,8 +413,8 @@ export class WebViewHostTests {
 
     const answer = await WebViewHostTests.attachAsync(electron, "1", fresh.contents.id);
     old.contents.show("https://example.com/stale", "Stale");
-    const fromOld = session.request({ id: 1, url: "https://example.com/late", webContentsId: old.contents.id, resourceType: "mainFrame" });
-    const fromFresh = session.request({ id: 2, url: "https://example.com/a", webContentsId: fresh.contents.id, resourceType: "mainFrame" });
+    const fromOld = await session.requestAsync({ id: 1, url: "https://example.com/late", webContentsId: old.contents.id, resourceType: "mainFrame" });
+    const fromFresh = await session.requestAsync({ id: 2, url: "https://example.com/a", webContentsId: fresh.contents.id, resourceType: "mainFrame" });
 
     Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(answer));
     Assert.areEqual(1, old.contents.debugger.detaches);
@@ -481,7 +481,7 @@ export class WebViewHostTests {
     const guest = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
     const claimed = electron.webViews.claim(window.webContents.id, WebViewHostTests.PARTITION);
     electron.webViews.attached(window.webContents.id, guest.contents);
-    const fromOld = session.request({ id: 1, url: "https://example.com/late", webContentsId: old.contents.id, resourceType: "mainFrame" });
+    const fromOld = await session.requestAsync({ id: 1, url: "https://example.com/late", webContentsId: old.contents.id, resourceType: "mainFrame" });
     old.contents.destroyed = true;
     old.contents.emit("destroyed");
     const attached = await WebViewHostTests.attachAsync(electron, "1", guest.contents.id);
@@ -927,16 +927,18 @@ export class WebViewHostTests {
     const contentsId = WebViewHostTests.view(electron, 0).contents.id;
     const session = electron.webViews.session(WebViewHostTests.PARTITION);
     await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", [...WebViewHostTests.ALLOWED]);
+    for (const host of ["example.com", "cdn.example.net", "a.example.org"])
+      session.addresses.set(host, ["93.184.215.14"]);
 
     const passes = [
-      session.request({ id: 1, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame" }),
-      session.request({ id: 2, url: "https://cdn.example.net/app.js", webContentsId: contentsId, resourceType: "script" }),
-      session.request({ id: 3, url: "https://a.example.org/frame", webContentsId: contentsId, resourceType: "subFrame" }),
-      session.request({ id: 4, url: "https://example.net/", webContentsId: contentsId, resourceType: "mainFrame" }),
-      session.request({ id: 5, url: "https://example.net/frame", webContentsId: contentsId, resourceType: "subFrame" }),
-      session.request({ id: 6, url: "http://192.168.1.1/a.png", webContentsId: contentsId, resourceType: "image" }),
-      session.request({ id: 7, url: "https://example.com/", resourceType: "mainFrame" }),
-      session.request({ id: 8, url: "https://example.com/", webContentsId: 999, resourceType: "mainFrame" }),
+      await session.requestAsync({ id: 1, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame" }),
+      await session.requestAsync({ id: 2, url: "https://cdn.example.net/app.js", webContentsId: contentsId, resourceType: "script" }),
+      await session.requestAsync({ id: 3, url: "https://a.example.org/frame", webContentsId: contentsId, resourceType: "subFrame" }),
+      await session.requestAsync({ id: 4, url: "https://example.net/", webContentsId: contentsId, resourceType: "mainFrame" }),
+      await session.requestAsync({ id: 5, url: "https://example.net/frame", webContentsId: contentsId, resourceType: "subFrame" }),
+      await session.requestAsync({ id: 6, url: "http://192.168.1.1/a.png", webContentsId: contentsId, resourceType: "image" }),
+      await session.requestAsync({ id: 7, url: "https://example.com/", resourceType: "mainFrame" }),
+      await session.requestAsync({ id: 8, url: "https://example.com/", webContentsId: 999, resourceType: "mainFrame" }),
       session.sendHeaders({ id: 9, url: "https://example.com/sw.js", webContentsId: contentsId, resourceType: "script", requestHeaders: { "Service-Worker": "script" } }),
       session.sendHeaders({ id: 10, url: "https://example.com/a.js", webContentsId: contentsId, resourceType: "script", requestHeaders: {} })
     ];
@@ -959,10 +961,10 @@ export class WebViewHostTests {
     contents.onIsolated = () => Promise.resolve(WebViewHostTests.PNG);
     const icons = (): readonly unknown[] => WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Favicon").map(t => WebViewHostTests.details(t)["image"]);
 
-    const before = session.request({ id: 1, url: "https://example.com/favicon.ico", resourceType: "other" });
+    const before = await session.requestAsync({ id: 1, url: "https://example.com/favicon.ico", resourceType: "other" });
     contents.emit("page-favicon-updated", {}, ["https://example.com/favicon.ico"]);
     await Condition.waitAsync(() => icons().length === 1);
-    const after = session.request({ id: 2, url: "https://example.com/favicon.ico", resourceType: "other" });
+    const after = await session.requestAsync({ id: 2, url: "https://example.com/favicon.ico", resourceType: "other" });
     contents.emit("did-navigate");
     contents.emit("did-stop-loading");
 
@@ -982,21 +984,21 @@ export class WebViewHostTests {
     const [electron] = await WebViewHostTests.startWithAsync(launcher);
     await WebViewHostTests.openAsync(electron);
     await this.commandAsync(launcher, first, WebViewAction.SetAllowedOrigins, "1", ["http://127.0.0.1:4600", "http://127.0.0.1:4700"]);
-    const passes = (): string => WebViewHostTests.loopbackPasses(electron, [4600, 4700]);
+    const passes = (): Promise<string> => WebViewHostTests.loopbackPassesAsync(electron, [4600, 4700]);
 
-    const beforeTheList = passes();
+    const beforeTheList = await passes();
     read.resolve(Response.success("r", { serial: 2, ports: [4600] }));
     await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(first).length === 1);
-    const fromTheRead = passes();
+    const fromTheRead = await passes();
     launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 3, ports: [4700] }));
     await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(first).length === 2);
-    const fromTheEvent = passes();
+    const fromTheEvent = await passes();
     launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 1, ports: [] }));
     await setImmediate();
-    const afterAnOlderList = passes();
+    const afterAnOlderList = await passes();
     launcher.listener?.onDisconnected(null);
     await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(second).length === 1);
-    const fromTheNextRuntime = passes();
+    const fromTheNextRuntime = await passes();
 
     Assert.areEqual("false,false|false,true|true,false|true,false|true,false", [beforeTheList, fromTheRead, fromTheEvent, afterAnOlderList, fromTheNextRuntime].join("|"));
     Assert.areEqual("{\"serial\":2,\"ports\":[4600]},{\"serial\":3,\"ports\":[4700]}", WebViewHostTests.portAcknowledgements(first).join(","));
@@ -1013,22 +1015,22 @@ export class WebViewHostTests {
     const [electron] = await WebViewHostTests.startWithAsync(launcher);
     await WebViewHostTests.openAsync(electron);
     await this.commandAsync(launcher, first, WebViewAction.SetAllowedOrigins, "1", ["http://127.0.0.1:4600", "http://127.0.0.1:4700"]);
-    const passes = (): string => WebViewHostTests.loopbackPasses(electron, [4600, 4700]);
+    const passes = (): Promise<string> => WebViewHostTests.loopbackPassesAsync(electron, [4600, 4700]);
 
     launcher.listener?.onEvent(new Event(ShellEvents.updating, null));
     launcher.listener?.onEvent(new Event(ShellEvents.webViewBlockedPorts, { serial: 5, ports: [4600] }));
     await setImmediate();
-    const whileUpdating = passes();
+    const whileUpdating = await passes();
     const window = MainProcessStartFixture.firstWindow(electron);
     await Condition.waitAsync(() => window.webContents.sent.some(t => t[0] === "desktop:updateSaveRequest"));
     const saveRequest = window.webContents.sent.find(t => t[0] === "desktop:updateSaveRequest");
     await electron.ipcMain.invoke("desktop:updateSaveAnswer", MainProcessStartFixture.trustedEvent("linux"), saveRequest?.[1], []);
     launcher.listener?.onDisconnected(null);
     await Condition.waitAsync(() => WebViewHostTests.portAcknowledgements(second).length === 1);
-    const fromTheNextRuntime = passes();
+    const fromTheNextRuntime = await passes();
     read.resolve(Response.success("r", { serial: 9, ports: [4600] }));
     await setImmediate();
-    const afterTheOldRuntimesLateAnswer = passes();
+    const afterTheOldRuntimesLateAnswer = await passes();
 
     Assert.areEqual("false,false|true,false|true,false", [whileUpdating, fromTheNextRuntime, afterTheOldRuntimesLateAnswer].join("|"));
     Assert.areEqual(0, WebViewHostTests.portAcknowledgements(first).length);
@@ -1049,7 +1051,7 @@ export class WebViewHostTests {
     await Condition.waitAsync(() => MainProcessStartFixture.readErrors(process, "The runtime sent blocked loopback ports that are not valid, so they were not acknowledged: ").length === 1);
     await Condition.waitAsync(() => MainProcessStartFixture.readErrors(emptyProcess, "The runtime's blocked loopback ports could not be read").length === 1);
 
-    Assert.areEqual("false", WebViewHostTests.loopbackPasses(electron, [4700]));
+    Assert.areEqual("false", await WebViewHostTests.loopbackPassesAsync(electron, [4700]));
     Assert.areEqual(0, WebViewHostTests.portAcknowledgements(failing).length);
     Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The runtime's blocked loopback ports could not be read, so web views refuse every loopback address: The runtime is busy.").length);
     Assert.areEqual(1, MainProcessStartFixture.readErrors(emptyProcess, "The runtime's blocked loopback ports could not be read, so web views refuse every loopback address: null").length);
@@ -1066,11 +1068,11 @@ export class WebViewHostTests {
     electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "1");
 
     const passes = [
-      session.request({ id: 1, url: "https://example.com/next", webContentsId: 999, resourceType: "mainFrame" }),
-      session.request({ id: 2, url: "https://example.com/app.js", webContentsId: 999, resourceType: "script" }),
-      session.request({ id: 3, url: "https://example.com/", resourceType: "mainFrame" }),
-      session.request({ id: 4, url: "https://example.net/", webContentsId: contentsId, resourceType: "mainFrame" }),
-      session.request({ id: 5, url: "https://example.com/late", webContentsId: closedId, resourceType: "mainFrame" })
+      await session.requestAsync({ id: 1, url: "https://example.com/next", webContentsId: 999, resourceType: "mainFrame" }),
+      await session.requestAsync({ id: 2, url: "https://example.com/app.js", webContentsId: 999, resourceType: "script" }),
+      await session.requestAsync({ id: 3, url: "https://example.com/", resourceType: "mainFrame" }),
+      await session.requestAsync({ id: 4, url: "https://example.net/", webContentsId: contentsId, resourceType: "mainFrame" }),
+      await session.requestAsync({ id: 5, url: "https://example.com/late", webContentsId: closedId, resourceType: "mainFrame" })
     ];
 
     Assert.areEqual("stop|", [WebViewHostTests.view(electron, 0).contents.calls.join(","), WebViewHostTests.view(electron, 1).contents.calls.join(",")].join("|"));
@@ -1088,7 +1090,7 @@ export class WebViewHostTests {
     contents.destroyed = true;
     electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "1");
 
-    const passes = session.request({ id: 1, url: "https://example.com/late", webContentsId: contents.id, resourceType: "mainFrame" });
+    const passes = await session.requestAsync({ id: 1, url: "https://example.com/late", webContentsId: contents.id, resourceType: "mainFrame" });
 
     Assert.isFalse(passes);
     Assert.areEqual(`A page load was refused because its web contents ${contents.id} belong to no web view Noldova Desktop opened: https://example.com/late`,
@@ -1102,15 +1104,44 @@ export class WebViewHostTests {
     const contents = WebViewHostTests.view(electron, 0).contents;
     const session = electron.webViews.session(WebViewHostTests.PARTITION);
     electron.ipcMain.send("desktop:webViewClose", MainProcessStartFixture.trustedEvent("linux"), "browser", "1");
-    session.request({ id: 1, url: "https://example.com/before", webContentsId: contents.id, resourceType: "mainFrame" });
+    await session.requestAsync({ id: 1, url: "https://example.com/before", webContentsId: contents.id, resourceType: "mainFrame" });
 
     contents.destroyed = true;
     contents.emit("destroyed");
-    const after = session.request({ id: 2, url: "https://example.com/after", webContentsId: contents.id, resourceType: "mainFrame" });
+    const after = await session.requestAsync({ id: 2, url: "https://example.com/after", webContentsId: contents.id, resourceType: "mainFrame" });
 
     Assert.isFalse(after);
     Assert.areEqual(`A page load was refused because its web contents ${contents.id} belong to no web view Noldova Desktop opened: https://example.com/after`,
       MainProcessStartFixture.readErrors(process, "A page load was refused").join("|"));
+  }
+
+  @TestMethod
+  public async refusesAPagesNavigationFetchFrameAndWebSocketToAnAllowedPublicNameThatResolvesToALoopbackAddressOrToNothing(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    const contentsId = WebViewHostTests.view(electron, 0).contents.id;
+    const session = electron.webViews.session(WebViewHostTests.PARTITION);
+    await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", ["https://example.com", "https://cdn.example.com", "https://gone.example.com"]);
+    session.addresses.set("example.com", ["93.184.215.14"]);
+    session.addresses.set("cdn.example.com", ["93.184.215.14", "127.0.0.1"]);
+    const request = (id: number, url: string, resourceType: string): Promise<boolean> => session.requestAsync({ id, url, webContentsId: contentsId, resourceType });
+
+    const passes = [
+      await request(1, "https://cdn.example.com/", "mainFrame"),
+      await request(2, "https://cdn.example.com/data.json", "xhr"),
+      await request(3, "https://cdn.example.com/frame", "subFrame"),
+      await request(4, "wss://cdn.example.com/socket", "webSocket"),
+      await request(5, "https://gone.example.com/data.json", "xhr"),
+      await request(6, "https://example.com/", "mainFrame"),
+      await request(7, "https://example.com/data.json", "xhr"),
+      await request(8, "https://example.com/frame", "subFrame"),
+      await request(9, "wss://example.com/socket", "webSocket")
+    ];
+
+    Assert.areEqual("false,false,false,false,false,true,true,true,true", passes.join(","));
+    Assert.areEqual(JSON.stringify([{ address: "https://cdn.example.com/", origin: "https://cdn.example.com", isRedirect: false, fromPress: false }]),
+      JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "NavigationRefused").map(t => t["details"])));
   }
 
   @TestMethod
@@ -1121,13 +1152,14 @@ export class WebViewHostTests {
     const contentsId = WebViewHostTests.view(electron, 0).contents.id;
     const session = electron.webViews.session(WebViewHostTests.PARTITION);
     await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", ["https://example.com"]);
+    session.addresses.set("example.com", ["93.184.215.14"]);
 
     session.redirect({ id: 1, url: "https://example.com/", redirectURL: "https://example.com/home", webContentsId: contentsId, ip: "93.184.215.14" });
-    const publicRedirect = session.request({ id: 1, url: "https://example.com/home", webContentsId: contentsId, resourceType: "mainFrame" });
+    const publicRedirect = await session.requestAsync({ id: 1, url: "https://example.com/home", webContentsId: contentsId, resourceType: "mainFrame" });
     session.redirect({ id: 2, url: "https://example.com/", redirectURL: "https://example.com/home", webContentsId: contentsId, ip: "10.0.0.5" });
-    const privateRedirect = session.request({ id: 2, url: "https://example.com/home", webContentsId: contentsId, resourceType: "mainFrame" });
+    const privateRedirect = await session.requestAsync({ id: 2, url: "https://example.com/home", webContentsId: contentsId, resourceType: "mainFrame" });
     session.redirect({ id: 3, url: "http://example.com/", redirectURL: "https://example.com/", webContentsId: contentsId });
-    const upgrade = session.request({ id: 3, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame" });
+    const upgrade = await session.requestAsync({ id: 3, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame" });
 
     Assert.areEqual("true,false,true", [publicRedirect, privateRedirect, upgrade].join(","));
     Assert.areEqual(JSON.stringify([{ address: "https://example.com/home", origin: "https://example.com", isRedirect: true, fromPress: false }]),
@@ -2158,10 +2190,10 @@ export class WebViewHostTests {
     return [await MainProcessStartFixture.startReadyAsync("linux", launcher, new FakeElectron(), new FakeDeviceIdentity(), process), process];
   }
 
-  private static loopbackPasses(electron: FakeElectron, ports: readonly number[]): string {
+  private static async loopbackPassesAsync(electron: FakeElectron, ports: readonly number[]): Promise<string> {
     const contentsId = WebViewHostTests.view(electron, 0).contents.id;
     const session = electron.webViews.session(WebViewHostTests.PARTITION);
-    return ports.map(t => session.request({ id: t, url: `http://127.0.0.1:${t}/a.png`, webContentsId: contentsId, resourceType: "image" })).join(",");
+    return (await Promise.all(ports.map(t => session.requestAsync({ id: t, url: `http://127.0.0.1:${t}/a.png`, webContentsId: contentsId, resourceType: "image" })))).join(",");
   }
 
   private static portAcknowledgements(connection: FakeRuntimeConnection): string[] {
