@@ -196,21 +196,40 @@ jobs:
               folderMoves.add(move);
             moves.set(folder, folderMoves);
           }
-          for (const [folder, folderMoves] of moves)
-            console.log(`${folder}\t${[...folderMoves].join(" ")}`);
+          const modules = "node_modules/";
+          for (const [folder, folderMoves] of moves) {
+            const moved = new Set([...folderMoves].map(t => t.slice(0, t.lastIndexOf("@"))));
+            const lockFolder = existsSync(join(folder, "package-lock.json")) ? folder : ".";
+            const lockfile = join(lockFolder, "package-lock.json");
+            const prefix = lockFolder === folder ? modules : `${folder}/${modules}`;
+            const locked = existsSync(lockfile) ? Object.entries(JSON.parse(readFileSync(lockfile, "utf8")).packages ?? {}) : [];
+            const kept = locked.flatMap(([key, entry]) => {
+              const name = key.slice(prefix.length);
+              const installed = join(lockFolder, key, "package.json");
+              const isRegistryCopy = typeof entry.resolved === "string" && entry.resolved.includes(`/${name}/-/`) && (entry.name ?? name) === name;
+              return key.startsWith(prefix) && !name.includes(`/${modules}`) && !moved.has(name) && isRegistryCopy && typeof entry.version === "string"
+                && existsSync(installed) && JSON.parse(readFileSync(installed, "utf8")).version === entry.version ? [`${name}@${entry.version}`] : [];
+            });
+            console.log(`${folder}\t${[...folderMoves].join(" ")}\t${kept.sort().join(" ")}`);
+          }
           SCRIPT
-          sort -t "$(printf '\t')" -k1,1 "$RUNNER_TEMP/moves.tsv" | while IFS="$(printf '\t')" read -r folder moves; do
-            echo "::group::$folder: $moves"
+          sort -t "$(printf '\t')" -k1,1 "$RUNNER_TEMP/moves.tsv" | while IFS="$(printf '\t')" read -r folder moves kept; do
+            echo "::group::$folder: $moves, keeping $(echo "$kept" | wc -w) locked packages"
             # shellcheck disable=SC2086
-            (cd "$folder" && npm install --no-save --no-audit --no-fund --ignore-scripts $moves < /dev/null)
-            for move in $moves; do
-              name="${move%@*}"
-              installed=$(node --print "JSON.parse(require('node:fs').readFileSync('$folder/node_modules/$name/package.json', 'utf8')).version" < /dev/null)
-              if [ "$installed" != "${move##*@}" ]; then
-                echo "::error::$folder holds $name $installed after the move, not ${move##*@}."
-                exit 1
-              fi
-            done
+            (cd "$folder" && npm install --no-save --no-audit --no-fund --ignore-scripts $moves $kept < /dev/null)
+            # shellcheck disable=SC2086
+            node --eval '
+              const { readFileSync } = require("node:fs");
+              const [folder, ...specs] = process.argv.slice(1);
+              for (const spec of specs) {
+                const name = spec.slice(0, spec.lastIndexOf("@"));
+                const wanted = spec.slice(spec.lastIndexOf("@") + 1);
+                const installed = JSON.parse(readFileSync(`${folder}/node_modules/${name}/package.json`, "utf8")).version;
+                if (installed !== wanted) {
+                  console.log(`::error::${folder} holds ${name} ${installed} after the move, not ${wanted}, the version it asked for or its lockfile holds.`);
+                  process.exit(1);
+                }
+              }' "$folder" $moves $kept < /dev/null
             echo "::endgroup::"
           done
 
