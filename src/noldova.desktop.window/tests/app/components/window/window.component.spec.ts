@@ -8,7 +8,7 @@
 
 import { Dialog } from "@angular/cdk/dialog";
 import { OverlayContainer } from "@angular/cdk/overlay";
-import { Component, ErrorHandler, signal } from "@angular/core";
+import { Component, ErrorHandler } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 
 import { AppearanceService, DefaultTheme, DialogService, ThemeMode, Typography } from "@noldova/ui.components.angular";
@@ -113,7 +113,7 @@ describe("WindowComponent", () => {
           const toolbar = new Toolbar("notes.main", "Main", [new MenuSection("notes.create", [new CommandRow("notes.newNote", {}, "New note", "note", null, true, MenuCheck.None, false)])]);
           const rows = Array.from({ length: count }, () => [toolbar]);
           PreloadBridgeFixture.install(platform);
-          TestBed.configureTestingModule({ providers: [{ provide: ToolbarService, useValue: { rows: signal(rows), hasContent: signal(count > 0) } }] });
+          TestBed.configureTestingModule({ providers: [{ provide: ToolbarService, useValue: { rowsOf: () => rows } }] });
           AppearanceFixture.apply(DefaultTheme.theme, ThemeMode.Light, panelSize);
           TestBed.inject(AppearanceService).setTypography(new Typography(panelSize));
           const fixture = TestBed.createComponent(WindowComponent);

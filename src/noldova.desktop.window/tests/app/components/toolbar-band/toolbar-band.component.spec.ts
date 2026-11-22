@@ -9,9 +9,13 @@
 import "@noldova/context.core";
 import { type WritableSignal, signal } from "@angular/core";
 import { type ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
+
+import type { JsonObject } from "@noldova/context.json";
 
 import { AppearanceService, DefaultTheme, ThemeMode, Typography } from "@noldova/ui.components.angular";
 
+import { PlaceMenuComponent } from "../../../../src/app/components/place-menu/place-menu.component";
 import { ToolbarBandComponent } from "../../../../src/app/components/toolbar-band/toolbar-band.component";
 import { CommandRow } from "../../../../src/app/models/command-row";
 import { MenuCheck } from "../../../../src/app/enums/menu-check";
@@ -28,19 +32,21 @@ describe("ToolbarBandComponent", () => {
   const section = new MenuSection("notes.create", [new CommandRow("notes.newNote", {}, "New note", "note", null, true, MenuCheck.None, false)]);
   const rows: WritableSignal<readonly (readonly Toolbar[])[]> = signal([]);
   const target: WritableSignal<ToolbarDropTarget | null> = signal(null);
-  const hasContent: WritableSignal<boolean> = signal(true);
+  const dragBand: WritableSignal<HTMLElement | null> = signal(null);
+  const rowsOf = vi.fn((band: string | null, context: JsonObject) => Object.isNull(band) || Object.keys(context).length > 0 ? rows() : []);
   let fixture: ComponentFixture<ToolbarBandComponent>;
   let element: HTMLElement;
 
   beforeEach(() => {
     rows.set([[new Toolbar("notes.main", "Main", [section]), new Toolbar("notes.empty", "Empty", [])], [new Toolbar("notes.hollow", "Hollow", [])], [new Toolbar("notes.second", "Second", [section])]]);
     target.set(null);
-    hasContent.set(true);
+    dragBand.set(null);
+    rowsOf.mockClear();
     PreloadBridgeFixture.install();
     TestBed.configureTestingModule({
       providers: [
-        { provide: ToolbarService, useValue: { rows, hasContent } },
-        { provide: ToolbarDragService, useValue: { dragging: signal(null), begin: vi.fn(), target } }
+        { provide: ToolbarService, useValue: { rowsOf } },
+        { provide: ToolbarDragService, useValue: { dragging: signal(null), begin: vi.fn(), target, band: dragBand } }
       ]
     });
     fixture = TestBed.createComponent(ToolbarBandComponent);
@@ -81,7 +87,7 @@ describe("ToolbarBandComponent", () => {
       });
 
   it("shows nothing while no toolbar has anything to show", () => {
-    hasContent.set(false);
+    rows.set([[new Toolbar("notes.empty", "Empty", [])]]);
     fixture.detectChanges();
 
     expect(element.querySelector(".nol-toolbar-band")).toBeNull();
@@ -89,6 +95,7 @@ describe("ToolbarBandComponent", () => {
 
   it("marks the drop position of a toolbar in a row by a line and of a new row by another", () => {
     expect(element.querySelector(".nol-toolbar-drop")).toBeNull();
+    dragBand.set(DomFixture.one(element, ".nol-toolbar-band"));
 
     target.set(new ToolbarDropTarget(0, 1, false, 120, 20, 0));
     fixture.detectChanges();
@@ -100,5 +107,26 @@ describe("ToolbarBandComponent", () => {
     fixture.detectChanges();
 
     expect([line?.classList.contains("nol-drop-line-row"), line?.style.width]).toEqual([true, "400px"]);
+  });
+
+  it("marks no drop position for a drag in another band", () => {
+    dragBand.set(document.createElement("div"));
+    target.set(new ToolbarDropTarget(0, 1, false, 120, 20, 0));
+    fixture.detectChanges();
+
+    expect(element.querySelector(".nol-toolbar-drop")).toBeNull();
+  });
+
+  it("shows a view's band with its page's arguments, and opens its Toolbars menu on that band", () => {
+    fixture.componentRef.setInput("band", "notes.page");
+    fixture.componentRef.setInput("context", { view: "notes.page" });
+    fixture.detectChanges();
+    const menu = fixture.debugElement.query(By.directive(PlaceMenuComponent)).componentInstance;
+
+    expect([rowsOf.mock.lastCall, menu instanceof PlaceMenuComponent ? menu.context() : null, element.querySelectorAll("nol-toolbar").length])
+      .toEqual([["notes.page", { view: "notes.page" }], { view: "notes.page", band: "notes.page" }, 2]);
+    fixture.componentRef.setInput("context", {});
+    fixture.detectChanges();
+    expect(element.querySelector(".nol-toolbar-band")).toBeNull();
   });
 });

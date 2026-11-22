@@ -23,7 +23,9 @@ import { Bounds } from "../../models/layout/bounds.js";
 import { DocumentTab } from "../../models/layout/document-tab.js";
 import type { Tab } from "../../models/layout/tab.js";
 import { ModuleFailure } from "../../models/module-failure.js";
+import { PageTokens } from "../../models/page-tokens.js";
 import { TabContent } from "../../models/tab-content.js";
+import { ToolbarBandPage } from "../../models/toolbar-band-page.js";
 import type { WindowPartContext } from "../../models/window-part-context.js";
 import { WindowPartTokens } from "../../models/window-part-tokens.js";
 import { Resources } from "../../../resources.js";
@@ -172,12 +174,17 @@ export class TabContentComponent {
       return this.failLoad(match.context, error, signal);
     }
     const page = [{ provide: WindowPartTokens.contentPadding, useValue: pagePadding }, { provide: WindowPartTokens.shown, useValue: this.isShown },
-      { provide: WindowPartTokens.activeDocument, useValue: this.isActiveDocument }];
+      { provide: WindowPartTokens.activeDocument, useValue: this.isActiveDocument }, { provide: PageTokens.toolbarBand, useValue: TabContentComponent.bandOf(tab) }];
     if (Object.isNull(match.context))
       return new TabContent(component, Injector.create({ providers: page, parent: this.injector }), {}, match.padding, pagePadding);
     const injector = Injector.create({ providers: [{ provide: WindowPartTokens.context, useValue: match.context }, ...page], parent: this.injector });
     const inputs = tab instanceof DocumentTab || !Object.isUndefined(tab.instance) ? { instance: tab.instance, title: this.labels.of(tab).title } : {};
     return new TabContent(component, injector, inputs, match.padding, pagePadding);
+  }
+
+  private static bandOf(tab: Tab): ToolbarBandPage {
+    const page = { [tab instanceof DocumentTab ? Resources.documentArgument : Resources.viewArgument]: tab.name };
+    return new ToolbarBandPage(tab.name, Object.isUndefined(tab.instance) ? page : { ...page, [Resources.instanceArgument]: tab.instance });
   }
 
   private failLoad(context: WindowPartContext | null, error: unknown, signal: AbortSignal): null {

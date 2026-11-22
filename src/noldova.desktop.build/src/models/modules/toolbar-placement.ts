@@ -13,12 +13,14 @@ export class ToolbarPlacement {
   public readonly after: string | null;
   public readonly before: string | null;
   public readonly startsRow: boolean;
+  public readonly band: string | null;
 
-  public constructor(isShown: boolean, after: string | null, before: string | null, startsRow: boolean) {
+  public constructor(isShown: boolean, after: string | null, before: string | null, startsRow: boolean, band: string | null) {
     this.isShown = isShown;
     this.after = after;
     this.before = before;
     this.startsRow = startsRow;
+    this.band = band;
   }
 
   public toJson(): Readonly<Record<string, unknown>> {
@@ -26,7 +28,8 @@ export class ToolbarPlacement {
       shown: this.isShown,
       ...Object.isNull(this.after) ? {} : { after: this.after },
       ...Object.isNull(this.before) ? {} : { before: this.before },
-      ...this.startsRow ? { newRow: true } : {}
+      ...this.startsRow ? { newRow: true } : {},
+      ...Object.isNull(this.band) ? {} : { band: this.band }
     };
   }
 }

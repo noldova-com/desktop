@@ -31,6 +31,7 @@ import { ModuleFailure } from "../../../../src/app/models/module-failure";
 import { ShellDocuments } from "../../../../src/app/models/shell-documents";
 import { WindowPartContext } from "../../../../src/app/models/window-part-context";
 import { WindowPartSource } from "../../../../src/app/models/window-part-source";
+import { PageTokens } from "../../../../src/app/models/page-tokens";
 import { WindowPartTokens } from "../../../../src/app/models/window-part-tokens";
 import { DockGrowthService } from "../../../../src/app/services/dock-growth.service";
 import { TabLabelService } from "../../../../src/app/services/tab-label.service";
@@ -259,6 +260,21 @@ describe("TabContentComponent", () => {
 
     expect(element.querySelector(".view")).toBe(shown);
     expect(TestViewComponent.contexts).toEqual([context]);
+  });
+
+  it("gives its page the toolbar band of its view or document, with the page's name and instance as arguments", async () => {
+    const bandOf = async (tab: Tab): Promise<readonly unknown[]> => {
+      host.contributions.set(tab.key, new ContributionMatch(() => Promise.resolve(TestPageComponent), null, ContentPadding.Default));
+      const fixture = TestBed.createComponent(TabContentComponent);
+      fixture.componentRef.setInput("tab", tab);
+      await fixture.whenStable();
+      const page = fixture.debugElement.query(By.directive(TestPageComponent)).injector.get(PageTokens.toolbarBand);
+      return [page.band, page.context];
+    };
+
+    expect([await bandOf(new ViewTab("notes.list")), await bandOf(new ViewTab("notes.session", "one")), await bandOf(new DocumentTab("notes.note", "1"))]).toEqual([
+      ["notes.list", { view: "notes.list" }], ["notes.session", { view: "notes.session", instance: "one" }], ["notes.note", { document: "notes.note", instance: "1" }]
+    ]);
   });
 
   it("tells its page whether the page is shown", async () => {

@@ -12,7 +12,7 @@
     "views": [
       "notes.list", "notes.outline", "notes.search", "notes.changes", "notes.tasks", "notes.bookmarks", "notes.teammates", "notes.conversation",
       "notes.timeline", "notes.references", "notes.activity", "notes.comments", "notes.reviews", "notes.history", "notes.terminal", "notes.problems",
-      "notes.output", "notes.debug", "notes.session"
+      "notes.output", "notes.debug", "notes.session", "notes.board"
     ],
     "documents": ["notes.note", "notes.feed"],
     "placeholders": ["notes.welcome"],
@@ -21,6 +21,6 @@
     "settings": ["notes.start", "notes.wrapsLines"],
     "settingScopes": ["notes.folder", "notes.entry"],
     "tools": ["notes_search"],
-    "menus": ["notes.templates", "notes.tools", "notes.sortChoice", "notes.main", "notes.second", "notes.spare"]
+    "menus": ["notes.templates", "notes.tools", "notes.sortChoice", "notes.main", "notes.second", "notes.spare", "notes.boardMain", "notes.boardMore"]
   }
 }

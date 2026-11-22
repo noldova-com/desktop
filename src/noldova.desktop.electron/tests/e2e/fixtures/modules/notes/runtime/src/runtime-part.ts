@@ -26,6 +26,7 @@ export class RuntimePart implements IRuntimePart {
     const hasWelcome = existsSync(path.join(context.moduleFolder, Resources.welcomeMarker));
     const hasSessions = existsSync(path.join(context.moduleFolder, Resources.sessionsMarker));
     const hasFeed = existsSync(path.join(context.moduleFolder, Resources.feedMarker));
+    const hasBoard = existsSync(path.join(context.moduleFolder, Resources.boardMarker));
     this.isHolding = existsSync(path.join(context.moduleFolder, Resources.holdFirstOptionsMarker));
     const runtime = randomUUID();
     const inbox = new SettingScope(QualifiedName.parse(Resources.folderScope), Resources.inbox);
@@ -37,7 +38,7 @@ export class RuntimePart implements IRuntimePart {
           this.isHolding = false;
           await new Promise<void>(resolve => this.held.push(resolve));
         }
-        return { isMany, isLongCount, hasWelcome, hasSessions, hasFeed, runtime };
+        return { isMany, isLongCount, hasWelcome, hasSessions, hasFeed, hasBoard, runtime };
       }
     });
     context.registerMethod(Resources.holdOptionsMethod, {

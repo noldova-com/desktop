@@ -9,6 +9,7 @@
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 import { JsonException, JsonReader } from "@noldova/context.json";
+import { QualifiedName } from "@noldova/desktop.protocol";
 
 import { Resources } from "../../resources.js";
 import { BottomDockSpan } from "../enums/bottom-dock-span.js";
@@ -65,6 +66,16 @@ export class LayoutReader {
     return moves;
   }
 
+  private static readViewToolbars(json: JsonReader): ReadonlyMap<string, ToolbarLayout> {
+    const bands = new Map<string, ToolbarLayout>();
+    for (const band of Object.keys(json.toJson()))
+      bands.set(band, LayoutReader.construct(json, () => {
+        QualifiedName.parse(band, Resources.nameParameter);
+        return ToolbarLayout.fromJson(json.readObject(band));
+      }));
+    return bands;
+  }
+
   private static construct<T>(json: JsonReader, create: () => T): T {
     try {
       return create();
@@ -86,7 +97,8 @@ export class LayoutReader {
     const span = json.hasField(Resources.bottomSpanField) ? json.readOneOf(Resources.bottomSpanField, Object.values(BottomDockSpan)) : BottomDockSpan.Full;
     const toolbars = json.hasField(Resources.toolbarsField) ? LayoutReader.construct(json, () => ToolbarLayout.fromJson(json.readObject(Resources.toolbarsField))) : ToolbarLayout.EMPTY;
     const middleSize = json.hasField(Resources.middleSizeField) ? json.readNumber(Resources.middleSizeField) : null;
-    return LayoutReader.construct(json, () => new Layout(read, middle, span, toolbars, documents[index]?.id, middleSize));
+    const viewToolbars = json.hasField(Resources.viewToolbarsField) ? LayoutReader.readViewToolbars(json.readObject(Resources.viewToolbarsField)) : new Map<string, ToolbarLayout>();
+    return LayoutReader.construct(json, () => new Layout(read, middle, span, toolbars, documents[index]?.id, middleSize, viewToolbars));
   }
 
   private readDock(side: DockSide, json: JsonReader): Dock {

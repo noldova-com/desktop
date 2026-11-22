@@ -272,8 +272,8 @@ export class LayoutService {
     this.update(this.layoutState().resizeSplit(handle.resize(leadingLength)));
   }
 
-  public setToolbars(toolbars: ToolbarLayout): void {
-    this.update(this.layoutState().withToolbars(toolbars));
+  public setToolbars(toolbars: ToolbarLayout, band: string | null = null): void {
+    this.update(this.layoutState().withToolbars(toolbars, band));
   }
 
   public reset(): void {

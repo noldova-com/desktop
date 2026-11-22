@@ -283,6 +283,20 @@ describe("Layout", () => {
     expect(arranged.reset(registry).toolbars).toBe(ToolbarLayout.EMPTY);
   });
 
+  it("keeps each view's toolbar arrangement apart from the window's through every change, writes those that hold a choice, and drops them on a reset", () => {
+    const page = new ToolbarLayout([["notes.pageMain"]], ["notes.pageMore"]);
+    const arranged = initial.withToolbars(page, "notes.page");
+    const changed = arranged.withToolbars(new ToolbarLayout([["notes.main"]], [])).withBottomSpan(BottomDockSpan.Between).withMiddleSize(20).openView(terminal, registry).openDocument(plan)
+      .focusDocuments(0);
+
+    expect([initial.toolbarsOf("notes.page"), initial.withToolbars(ToolbarLayout.EMPTY, "notes.page"), arranged.withToolbars(page, "notes.page")]).toEqual([ToolbarLayout.EMPTY, initial, arranged]);
+    expect([arranged.toolbarsOf("notes.page"), arranged.toolbarsOf(null), arranged.toolbarsOf("notes.other")]).toEqual([page, ToolbarLayout.EMPTY, ToolbarLayout.EMPTY]);
+    expect([changed.toolbarsOf("notes.page"), changed.toolbars.rows]).toEqual([page, [["notes.main"]]]);
+    expect(arranged.toJson()["viewToolbars"]).toEqual({ "notes.page": { rows: [{ toolbars: ["notes.pageMain"] }], hidden: ["notes.pageMore"] } });
+    expect(initial.toJson()).not.toHaveProperty("viewToolbars");
+    expect(arranged.reset(registry).viewToolbars.size).toBe(0);
+  });
+
   it("keeps the person's wanted middle through every change, writes it only once it is set, refuses one outside 0 to 30rem and drops it on a reset", () => {
     const narrowed = initial.withMiddleSize(20);
 

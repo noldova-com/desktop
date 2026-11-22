@@ -8,6 +8,7 @@
 
 export { LinkGesture } from "@noldova/ui.components.angular";
 
+export { ViewToolbarBandComponent } from "../app/components/view-toolbar-band/view-toolbar-band.component.js";
 export { KeepsCtrlKeysDirective } from "../app/directives/keeps-ctrl-keys.directive.js";
 export { ContentPadding } from "../app/enums/content-padding.js";
 export { DockSide } from "../app/enums/dock-side.js";

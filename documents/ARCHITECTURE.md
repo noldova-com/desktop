@@ -102,6 +102,8 @@ The code rules only this repository has; the organization's standards, `https://
 
 - **Package folders:** each package has its own folder directly under `src/`, named `noldova.desktop.<name>`, and is published as `@noldova/desktop.<name>`.
 - **Fixture modules:** modules that exist only for tests live with the tests that use them and enter only a test build.
+- **Toolbar bands:** `ToolbarService` keeps every band's arrangement, the window's under the layout's `toolbars` and each view's or document's under `viewToolbars` by its name, and routes a toolbar's commands by the band its place names; `ToolbarBandComponent` shows one band, and `ViewToolbarBandComponent` the band of the page whose injector holds `PageTokens.toolbarBand`.
+  `ToolbarDragService` measures only the band a drag starts in, the closest `.nol-toolbar-band` to its grip, so two bands open at once drag apart and only that band draws the drop line.
 - **Build scripts:** a package's own `scripts/build.ts` runs in Node.js at build time and is no part of the window.
 - **Node's API:** the parts an app's program runs, the main process, the runtime and the command line with the protocol they load, run on the Node.js that Electron embeds, 24.22.0 in Electron 44.9.1, so they call only what that Node has.
   The repository builds and tests on Node 26, and the root `package.json`'s `overrides` gives Electron the same `@types/node` 26 in place of the 24 it asks for, so one Node type set covers every package; the type check and the unit tests, which run on Node 26, don't catch a call that only Node 26 has, so a review checks it against Electron's Node, and a change of Electron's version updates this line.

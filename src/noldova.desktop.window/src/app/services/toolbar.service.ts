@@ -9,6 +9,7 @@
 import { Injectable, type Signal, computed, inject } from "@angular/core";
 
 import "@noldova/context.core";
+import type { JsonObject } from "@noldova/context.json";
 
 import { Resources } from "../../resources.js";
 import { ToolbarMove } from "../enums/toolbar-move.js";
@@ -22,19 +23,31 @@ import { MenuService } from "./menu.service.js";
 export class ToolbarService {
   private readonly layout: LayoutService = inject(LayoutService);
   private readonly menus: MenuService = inject(MenuService);
-  private readonly arrangement: Signal<readonly (readonly string[])[]> = computed(() => this.layout.layout().toolbars.shownRows(this.places()));
 
   public readonly places: Signal<readonly MenuPlace[]> = computed(() => this.menus.active().flatMap(t => t.places).filter(t => !Object.isNull(t.toolbar)));
-  public readonly shown: Signal<readonly string[]> = computed(() => this.arrangement().flat());
-  public readonly rows: Signal<readonly (readonly Toolbar[])[]> = computed(() => this.arrangement().map(row => row.flatMap(name => this.toolbarsOf(name))));
+  public readonly shown: Signal<readonly string[]> = computed(() => this.arrangementOf(null).flat());
+  public readonly rows: Signal<readonly (readonly Toolbar[])[]> = computed(() => this.rowsOf(null, {}));
   public readonly hasContent: Signal<boolean> = computed(() => this.rows().some(row => row.some(t => t.sections.length > 0)));
 
   public constructor() {
-    this.menus.provideGroup(Resources.toolbarListGroup, () => this.places().map(t => MenuItem.ofCommand(Resources.toggleToolbarCommand, { [Resources.toolbarArgument]: t.name }, t.title)));
+    this.menus.provideGroup(Resources.toolbarListGroup, context => this.placesOf(ToolbarService.bandIn(context))
+      .map(t => MenuItem.ofCommand(Resources.toggleToolbarCommand, { [Resources.toolbarArgument]: t.name }, t.title)));
+  }
+
+  public bandOf(name: string): string | null {
+    return this.places().find(t => t.name === name)?.toolbar?.band ?? null;
+  }
+
+  public arrangementOf(band: string | null): readonly (readonly string[])[] {
+    return this.layout.layout().toolbarsOf(band).shownRows(this.placesOf(band));
+  }
+
+  public rowsOf(band: string | null, context: JsonObject): readonly (readonly Toolbar[])[] {
+    return this.arrangementOf(band).map(row => row.flatMap(name => this.toolbarsOf(name, context)));
   }
 
   public isShown(name: string): boolean {
-    return this.shown().includes(name);
+    return this.arrangementOf(this.bandOf(name)).some(t => t.includes(name));
   }
 
   public isKnown(name: string): boolean {
@@ -42,16 +55,19 @@ export class ToolbarService {
   }
 
   public setShown(name: string, isShown: boolean): void {
-    const toolbars = this.layout.layout().toolbars;
-    this.layout.setToolbars(isShown ? toolbars.show(name, this.places()) : toolbars.hide(name, this.places()));
+    const band = this.bandOf(name);
+    const toolbars = this.layout.layout().toolbarsOf(band);
+    this.layout.setToolbars(isShown ? toolbars.show(name, this.placesOf(band)) : toolbars.hide(name, this.placesOf(band)), band);
   }
 
   public move(name: string, row: number, index: number): void {
-    this.layout.setToolbars(this.layout.layout().toolbars.move(name, row, index, this.places()));
+    const band = this.bandOf(name);
+    this.layout.setToolbars(this.layout.layout().toolbarsOf(band).move(name, row, index, this.placesOf(band)), band);
   }
 
   public moveToNewRow(name: string, row: number): void {
-    this.layout.setToolbars(this.layout.layout().toolbars.moveToNewRow(name, row, this.places()));
+    const band = this.bandOf(name);
+    this.layout.setToolbars(this.layout.layout().toolbarsOf(band).moveToNewRow(name, row, this.placesOf(band)), band);
   }
 
   public canMove(name: string, move: ToolbarMove): boolean {
@@ -69,7 +85,7 @@ export class ToolbarService {
   }
 
   private destination(name: string, move: ToolbarMove): { readonly row: number; readonly index: number; readonly isNewRow: boolean } | null {
-    const rows = this.arrangement();
+    const rows = this.arrangementOf(this.bandOf(name));
     const row = rows.findIndex(t => t.includes(name));
     const current = rows[row] ?? [];
     const index = current.indexOf(name);
@@ -88,7 +104,16 @@ export class ToolbarService {
     }
   }
 
-  private toolbarsOf(name: string): readonly Toolbar[] {
-    return this.places().filter(t => t.name === name).map(t => new Toolbar(t.name, t.title, this.menus.resolve(t.name)));
+  private placesOf(band: string | null): readonly MenuPlace[] {
+    return this.places().filter(t => (t.toolbar?.band ?? null) === band);
+  }
+
+  private toolbarsOf(name: string, context: JsonObject): readonly Toolbar[] {
+    return this.places().filter(t => t.name === name).map(t => new Toolbar(t.name, t.title, this.menus.resolve(t.name, context)));
+  }
+
+  private static bandIn(context: JsonObject): string | null {
+    const band = context[Resources.bandArgument];
+    return Object.isString(band) ? band : null;
   }
 }

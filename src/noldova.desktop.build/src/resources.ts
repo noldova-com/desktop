@@ -847,6 +847,7 @@ export class Resources {
   public static readonly afterField: string = "after";
   public static readonly beforeField: string = "before";
   public static readonly newRowField: string = "newRow";
+  public static readonly bandField: string = "band";
   public static readonly placeField: string = "place";
   public static readonly exclusiveField: string = "exclusive";
   public static readonly dynamicField: string = "dynamic";
@@ -965,7 +966,7 @@ export class Resources {
   public static readonly menuShowsToolbar: string = "toolbar";
   public static readonly menuShows: readonly string[] = [Resources.menuShowsMenu, Resources.menuShowsMenuBar, Resources.menuShowsToolbar];
   public static readonly menusFields: readonly string[] = [Resources.placesField, Resources.groupsField];
-  public static readonly menuToolbarFields: readonly string[] = [Resources.shownField, Resources.afterField, Resources.beforeField, Resources.newRowField];
+  public static readonly menuToolbarFields: readonly string[] = [Resources.shownField, Resources.afterField, Resources.beforeField, Resources.newRowField, Resources.bandField];
   public static readonly menuAnchorFields: readonly string[] = [Resources.afterField, Resources.beforeField];
   public static readonly menuPlaceFields: readonly string[] = [Resources.nameField, Resources.titleField, Resources.showsField, ...Resources.menuToolbarFields];
   public static readonly menuGroupFields: readonly string[] = [Resources.nameField, Resources.placeField, Resources.exclusiveField, Resources.dynamicField, Resources.itemsField];
@@ -3207,6 +3208,10 @@ export class Resources {
 
   public static formatMenusToolbarAnchorInvalid(name: string, field: string): string {
     return `must give the toolbar ${name} an ${field} naming another toolbar as "${Resources.qualifiedNameForm}"`;
+  }
+
+  public static formatMenusToolbarBandInvalid(name: string): string {
+    return `must give the toolbar ${name} a ${Resources.bandField} naming one of the module's views or documents`;
   }
 
   public static formatMenusGroupNameInvalid(id: string): string {

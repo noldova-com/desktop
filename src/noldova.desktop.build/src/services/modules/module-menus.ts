@@ -33,7 +33,7 @@ export class ModuleMenus {
     this.groups = groups;
   }
 
-  public static async readAsync(root: string, folder: string, id: string, declared: readonly string[]): Promise<ModuleMenus> {
+  public static async readAsync(root: string, folder: string, id: string, declared: readonly string[], pages: readonly string[]): Promise<ModuleMenus> {
     const file = Resources.formatFolderFile(folder, Resources.menusFileName);
     const fail = (problem: string): BuildException => new BuildException(Resources.formatModuleFileProblem(file, problem));
     if (!existsSync(path.join(root, file))) {
@@ -49,7 +49,7 @@ export class ModuleMenus {
       throw new BuildException(Resources.formatJsonFileUnreadable(file), new ExceptionOptions(error));
     }
     const record = ModuleMenus.readRecord(value, Resources.menusFields, fail, Resources.menusFileInvalid);
-    const places = ModuleMenus.readArray(record.get(Resources.placesField), fail, Resources.placesField).map(t => ModuleMenus.readPlace(t, declared, fail));
+    const places = ModuleMenus.readArray(record.get(Resources.placesField), fail, Resources.placesField).map(t => ModuleMenus.readPlace(t, declared, pages, fail));
     const names = places.map(t => t.name);
     if (new Set(names).size < names.length)
       throw fail(Resources.menusPlaceRepeated);
@@ -88,7 +88,7 @@ export class ModuleMenus {
     return { places: this.places.map(t => t.toJson()), groups: this.groups.map(t => t.toJson()) };
   }
 
-  private static readPlace(value: unknown, declared: readonly string[], fail: (problem: string) => BuildException): MenuPlace {
+  private static readPlace(value: unknown, declared: readonly string[], pages: readonly string[], fail: (problem: string) => BuildException): MenuPlace {
     const record = ModuleMenus.readRecord(value, Resources.menuPlaceFields, fail, Resources.menusPlaceInvalid);
     const name = record.get(Resources.nameField);
     if (!Object.isString(name) || !declared.includes(name))
@@ -104,10 +104,10 @@ export class ModuleMenus {
         throw fail(Resources.formatMenusToolbarFieldsMisplaced(name));
       return new MenuPlace(name, title, shows === Resources.menuShowsMenuBar);
     }
-    return new MenuPlace(name, title, false, ModuleMenus.readToolbar(record, name, fail));
+    return new MenuPlace(name, title, false, ModuleMenus.readToolbar(record, name, pages, fail));
   }
 
-  private static readToolbar(record: ReadonlyMap<string, unknown>, name: string, fail: (problem: string) => BuildException): ToolbarPlacement {
+  private static readToolbar(record: ReadonlyMap<string, unknown>, name: string, pages: readonly string[], fail: (problem: string) => BuildException): ToolbarPlacement {
     const isShown = record.get(Resources.shownField) ?? true;
     if (!Object.isBoolean(isShown))
       throw fail(Resources.formatMenusToolbarShownInvalid(name));
@@ -125,7 +125,10 @@ export class ModuleMenus {
         throw fail(Resources.formatMenusToolbarAnchorInvalid(name, field));
       return anchor;
     };
-    return new ToolbarPlacement(isShown, read(Resources.afterField), read(Resources.beforeField), startsRow);
+    const band = record.get(Resources.bandField) ?? null;
+    if (!Object.isNull(band) && !(Object.isString(band) && pages.includes(band)))
+      throw fail(Resources.formatMenusToolbarBandInvalid(name));
+    return new ToolbarPlacement(isShown, read(Resources.afterField), read(Resources.beforeField), startsRow, band);
   }
 
   private static readGroup(value: unknown, id: string, declared: readonly string[], fail: (problem: string) => BuildException): MenuGroup {

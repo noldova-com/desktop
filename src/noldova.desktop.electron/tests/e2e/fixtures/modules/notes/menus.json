@@ -30,6 +30,18 @@
       "shows": "toolbar",
       "shown": false,
       "after": "notes.main"
+    },
+    {
+      "name": "notes.boardMain",
+      "title": "Board",
+      "shows": "toolbar",
+      "band": "notes.board"
+    },
+    {
+      "name": "notes.boardMore",
+      "title": "More",
+      "shows": "toolbar",
+      "band": "notes.board"
     }
   ],
   "groups": [
@@ -125,6 +137,25 @@
         {
           "command": "notes.newNote",
           "label": "Add"
+        }
+      ]
+    },
+    {
+      "name": "notes.boardCreate",
+      "place": "notes.boardMain",
+      "items": [
+        {
+          "command": "notes.newNote",
+          "label": "Add to board"
+        }
+      ]
+    },
+    {
+      "name": "notes.boardWrap",
+      "place": "notes.boardMore",
+      "items": [
+        {
+          "command": "notes.wrapLines"
         }
       ]
     }

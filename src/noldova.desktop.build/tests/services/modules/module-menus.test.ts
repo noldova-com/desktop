@@ -22,6 +22,7 @@ export class ModuleMenusTests {
   private static readonly FILE: string = "notes/menus.json";
   private static readonly OWNER: string = "notes's menus.json";
   private static readonly DECLARED: readonly string[] = ["notes.file", "notes.bar", "notes.recent", "notes.tools", "notes.view", "notes.row"];
+  private static readonly PAGES: readonly string[] = ["notes.page", "notes.editor"];
   private static readonly MENUS: Readonly<Record<string, unknown>> = {
     places: [
       { name: "notes.file", title: "File" },
@@ -29,7 +30,7 @@ export class ModuleMenusTests {
       { name: "notes.recent", title: "Recent", shows: "menu" },
       { name: "notes.tools", title: "Tools", shows: "toolbar", after: "shell.main" },
       { name: "notes.view", title: "View", shows: "toolbar", shown: false, before: "notes.tools" },
-      { name: "notes.row", title: "Row", shows: "toolbar", newRow: true }
+      { name: "notes.row", title: "Row", shows: "toolbar", newRow: true, band: "notes.page" }
     ],
     groups: [
       {
@@ -48,8 +49,8 @@ export class ModuleMenusTests {
     const menus = await ModuleMenusTests.readAsync(ModuleMenusTests.MENUS, ModuleMenusTests.DECLARED);
 
     Assert.areEqual(
-      "notes.file:File:false:none notes.bar:Notes:true:none notes.recent:Recent:false:none notes.tools:Tools:false:true,shell.main,,false notes.view:View:false:false,,notes.tools,false notes.row:Row:false:true,,,true",
-      menus.places.map(t => `${t.name}:${t.title}:${t.isMenuBar}:${Object.isNull(t.toolbar) ? "none" : [t.toolbar.isShown, t.toolbar.after, t.toolbar.before, t.toolbar.startsRow].join()}`).join(" "));
+      "notes.file:File:false:none notes.bar:Notes:true:none notes.recent:Recent:false:none notes.tools:Tools:false:true,shell.main,,false, notes.view:View:false:false,,notes.tools,false, notes.row:Row:false:true,,,true,notes.page",
+      menus.places.map(t => `${t.name}:${t.title}:${t.isMenuBar}:${Object.isNull(t.toolbar) ? "none" : [t.toolbar.isShown, t.toolbar.after, t.toolbar.before, t.toolbar.startsRow, t.toolbar.band].join()}`).join(" "));
     Assert.areEqual("notes.fileItems:shell.file:true:false notes.recentItems:notes.recent:false:true", menus.groups.map(t => `${t.name}:${t.place}:${t.isExclusive}:${t.isDynamic}`).join(" "));
     Assert.areEqual(
       JSON.stringify([["notes.export", { all: true }, null, "Export all", null], ["notes.print", {}, null, null, null], [null, {}, "notes.recent", null, null], [null, {}, null, null, "notes.file"]]),
@@ -92,6 +93,9 @@ export class ModuleMenusTests {
   @TestData({ places: [{ name: "notes.file", title: "File", shows: "toolbar", after: "Shell" }], groups: [] }, Resources.formatMenusToolbarAnchorInvalid("notes.file", "after"))
   @TestData({ places: [{ name: "notes.file", title: "File", shows: "toolbar", after: "notes.file" }], groups: [] }, Resources.formatMenusToolbarAnchorInvalid("notes.file", "after"))
   @TestData({ places: [{ name: "notes.file", title: "File", shows: "toolbar", before: 1 }], groups: [] }, Resources.formatMenusToolbarAnchorInvalid("notes.file", "before"))
+  @TestData({ places: [{ name: "notes.file", title: "File", shows: "toolbar", band: "notes.other" }], groups: [] }, Resources.formatMenusToolbarBandInvalid("notes.file"))
+  @TestData({ places: [{ name: "notes.file", title: "File", shows: "toolbar", band: 1 }], groups: [] }, Resources.formatMenusToolbarBandInvalid("notes.file"))
+  @TestData({ places: [{ name: "notes.file", title: "File", band: "notes.page" }], groups: [] }, Resources.formatMenusToolbarFieldsMisplaced("notes.file"))
   @TestData({ places: [{ name: "notes.file", title: "File" }, { name: "notes.file", title: "Again" }], groups: [] }, Resources.menusPlaceRepeated)
   @TestData({ places: [], groups: [] }, Resources.formatMenusPlacesUndescribed(["notes.file"]))
   public async refusesPlacesThatBreakTheContractAsync(menus: unknown, problem: string): Promise<void> {
@@ -192,7 +196,7 @@ export class ModuleMenusTests {
         await writeFile(path.join(root, ModuleMenusTests.FILE), content);
       else if (!Object.isUndefined(content))
         await writeFile(path.join(root, ModuleMenusTests.FILE), JSON.stringify(content));
-      return await ModuleMenus.readAsync(root, ModuleMenusTests.ID, ModuleMenusTests.ID, declared);
+      return await ModuleMenus.readAsync(root, ModuleMenusTests.ID, ModuleMenusTests.ID, declared, ModuleMenusTests.PAGES);
     }
     finally {
       await rm(root, { recursive: true, force: true });
