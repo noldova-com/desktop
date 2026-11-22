@@ -35,6 +35,7 @@ import type { IWebViewSession } from "../interfaces/i-web-view-session.js";
 import type { IWindowNavigation } from "../interfaces/i-window-navigation.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 import { CaughtFailure } from "../models/caught-failure.js";
+import { EnabledDomain } from "../models/enabled-domain.js";
 import type { WebViewHistory } from "../models/web-view-history.js";
 import type { WebViewRefusedPage } from "../models/web-view-refused-page.js";
 import { Resources } from "../resources.js";
@@ -63,6 +64,7 @@ export class OpenWebView {
   private readonly redirects: Set<number> = new Set();
   private readonly refusedRequests: Set<number> = new Set();
   private readonly relayKeys: IKeyStroke[] = [];
+  private readonly enabledDomains: Map<string, EnabledDomain> = new Map();
   private readonly replays: IKeyStroke[] = [];
   private readonly finds: Map<number, (found: JsonObject | null) => void> = new Map();
   private readonly navigations: ((answer: JsonObject | null) => void)[] = [];
@@ -454,6 +456,7 @@ export class OpenWebView {
       void sent.then(settle, settle);
     }
     this.noteModuleCall(guest, method, sent);
+    this.noteDomain(method, params, sent);
     const handled = isPageCall ? this.afterPageCallAsync(guest, sent) : sent;
     handled.then(
       reply => finish(OpenWebView.answer(call, reply)),
@@ -477,6 +480,35 @@ export class OpenWebView {
     };
     void rendered.then(forget, forget);
     return Promise.race([rendered, navigated.promise.then(() => sent)]);
+  }
+
+  private noteDomain(method: string, params: JsonObject, sent: Promise<unknown>): void {
+    const dot = method.indexOf(".");
+    const domain = method.slice(0, dot);
+    const command = method.slice(dot + 1);
+    if (command === Resources.disableCommand)
+      this.enabledDomains.delete(domain);
+    if (command !== Resources.enableCommand)
+      return;
+    const enabled = new EnabledDomain(method, params, this.enabledDomains.get(domain) ?? null);
+    this.enabledDomains.delete(domain);
+    this.enabledDomains.set(domain, enabled);
+    void sent.then(() => {
+      enabled.replaced = null;
+    }, () => this.dropEnable(domain, enabled));
+  }
+
+  private dropEnable(domain: string, failed: EnabledDomain): void {
+    const current = this.enabledDomains.get(domain) ?? null;
+    if (current === failed) {
+      this.enabledDomains.delete(domain);
+      if (!Object.isNull(failed.replaced))
+        this.enabledDomains.set(domain, failed.replaced);
+      return;
+    }
+    for (let later = current; !Object.isNull(later); later = later.replaced)
+      if (later.replaced === failed)
+        later.replaced = failed.replaced;
   }
 
   private noteModuleCall(guest: IWebViewContents, method: string, sent: Promise<unknown>): void {
@@ -635,6 +667,8 @@ export class OpenWebView {
       this.isAttached = true;
       await guest.debugger.sendCommand(Resources.pageEnableMethod, {});
       await guest.debugger.sendCommand(Resources.interceptFileChooserMethod, { [Resources.enabledField]: true });
+      for (const enabled of [...this.enabledDomains.values()])
+        await guest.debugger.sendCommand(enabled.method, enabled.params);
       if (this.isBound(guest) && this.isAttached) {
         this.isReady = true;
         for (const go of [...this.attachWaits.keys()])

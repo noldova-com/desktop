@@ -211,6 +211,8 @@ export class Resources {
   public static readonly webViewAbortedLoadCode: number = -3;
   public static readonly webViewRtcPolicy: "disable_non_proxied_udp" = "disable_non_proxied_udp";
   public static readonly pageEnableMethod: string = "Page.enable";
+  public static readonly enableCommand: string = "enable";
+  public static readonly disableCommand: string = "disable";
   public static readonly getFrameTreeMethod: string = "Page.getFrameTree";
   public static readonly frameNavigatedEvent: string = "Page.frameNavigated";
   public static readonly navigationStartEvents: readonly string[] = ["Page.frameRequestedNavigation", "Page.frameStartedNavigating"];

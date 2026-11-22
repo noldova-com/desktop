@@ -45,6 +45,15 @@ export class WebViewHostTests {
     ],
     events: ["Page.loadEventFired"]
   });
+  private static readonly DOMAINS: WebViewDeclaration = WebViewDeclaration.fromJson({
+    methods: [
+      { name: "Runtime.enable" },
+      { name: "Network.enable", parameters: { maxTotalBufferSize: {} } },
+      { name: "Log.enable" },
+      { name: "Log.disable" }
+    ]
+  });
+  private static readonly DOMAIN_METHODS: readonly string[] = ["Runtime.enable", "Network.enable", "Log.enable", "Log.disable"];
   private static readonly NEW_WINDOWS: WebViewDeclaration = new WebViewDeclaration(WebViewHostTests.DECLARATION.methods, WebViewHostTests.DECLARATION.events, [], true);
   private static readonly KEYS: WebViewDeclaration = WebViewDeclaration.fromJson({
     ...WebViewHostTests.DECLARATION.toJson(),
@@ -595,6 +604,131 @@ export class WebViewHostTests {
     Assert.areEqual(JSON.stringify({ isAttached: true }), JSON.stringify(answer));
     Assert.areEqual(0, gone.contents.debugger.detaches);
     Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
+  }
+
+  @TestMethod
+  public async turnsOnTheDomainsTheModuleEnabledAgainOnAViewsNewPageInTheOrderLastSent(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync({ browser: WebViewHostTests.DOMAINS });
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Network.enable", params: { maxTotalBufferSize: 1000 }, timeoutMilliseconds: 1000 });
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Runtime.enable", params: {}, timeoutMilliseconds: 1000 });
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Log.enable", params: {}, timeoutMilliseconds: 1000 });
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Network.enable", params: { maxTotalBufferSize: 2000 }, timeoutMilliseconds: 1000 });
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Log.disable", params: {}, timeoutMilliseconds: 1000 });
+
+    const guest = await WebViewHostTests.takeNewPageAsync(electron);
+
+    Assert.areEqual(JSON.stringify([["Runtime.enable", {}], ["Network.enable", { maxTotalBufferSize: 2000 }]]), JSON.stringify(WebViewHostTests.domainCalls(guest)));
+    Assert.areEqual(0, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
+  }
+
+  @TestMethod
+  public async leavesADomainWhoseEnableFailedOffOnAViewsNewPage(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync({ browser: WebViewHostTests.DOMAINS });
+    await WebViewHostTests.openAsync(electron);
+    WebViewHostTests.view(electron, 0).contents.debugger.replies.set("Runtime.enable", () => Promise.reject(new Error("Runtime is off.")));
+    const refused = await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Runtime.enable", params: {}, timeoutMilliseconds: 1000 });
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Log.enable", params: {}, timeoutMilliseconds: 1000 });
+
+    const guest = await WebViewHostTests.takeNewPageAsync(electron);
+
+    Assert.areEqual(JSON.stringify({ kind: "Protocol", code: -32000, message: "Runtime is off." }), JSON.stringify(refused["failure"]));
+    Assert.areEqual(JSON.stringify([["Log.enable", {}]]), JSON.stringify(WebViewHostTests.domainCalls(guest)));
+  }
+
+  @TestMethod
+  public async keepsTheEnableADomainHadWhenALaterEnableOfItFails(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync({ browser: WebViewHostTests.DOMAINS });
+    await WebViewHostTests.openAsync(electron);
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Network.enable", params: { maxTotalBufferSize: 1000 }, timeoutMilliseconds: 1000 });
+    WebViewHostTests.view(electron, 0).contents.debugger.replies.set("Network.enable", () => Promise.reject(new Error("The buffer is too large.")));
+    const refused = await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Network.enable", params: { maxTotalBufferSize: 2000 }, timeoutMilliseconds: 1000 });
+
+    const guest = await WebViewHostTests.takeNewPageAsync(electron);
+
+    Assert.areEqual(JSON.stringify({ kind: "Protocol", code: -32000, message: "The buffer is too large." }), JSON.stringify(refused["failure"]));
+    Assert.areEqual(JSON.stringify([["Network.enable", { maxTotalBufferSize: 1000 }]]), JSON.stringify(WebViewHostTests.domainCalls(guest)));
+  }
+
+  @TestMethod
+  public async keepsTheEnableADomainHadWhenTwoLaterEnablesOfItFailInTheOrderSent(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync({ browser: WebViewHostTests.DOMAINS });
+    await WebViewHostTests.openAsync(electron);
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Network.enable", params: { maxTotalBufferSize: 1000 }, timeoutMilliseconds: 1000 });
+    const second = Promise.withResolvers<unknown>();
+    const third = Promise.withResolvers<unknown>();
+    const replies = [second.promise, third.promise];
+    WebViewHostTests.view(electron, 0).contents.debugger.replies.set("Network.enable", () => replies.shift() ?? Promise.resolve({}));
+    const secondAnswer = this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Network.enable", params: { maxTotalBufferSize: 2000 }, timeoutMilliseconds: 1 });
+    await Condition.waitAsync(() => electron.webViews.clock.pending === 1);
+    electron.webViews.clock.advance(1);
+    await secondAnswer;
+    const thirdAnswer = this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Network.enable", params: { maxTotalBufferSize: 3000 }, timeoutMilliseconds: 1 });
+    await Condition.waitAsync(() => electron.webViews.clock.pending === 1);
+    electron.webViews.clock.advance(1);
+    await thirdAnswer;
+    second.reject(new Error("The buffer is too large."));
+    await setImmediate();
+    third.reject(new Error("The buffer is too large."));
+    await setImmediate();
+
+    const guest = await WebViewHostTests.takeNewPageAsync(electron);
+
+    Assert.areEqual(JSON.stringify([["Network.enable", { maxTotalBufferSize: 1000 }]]), JSON.stringify(WebViewHostTests.domainCalls(guest)));
+  }
+
+  @TestMethod
+  public async leavesADomainOffWhenAnEnableThatTimedOutFailsAfterTheModuleDisabledIt(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync({ browser: WebViewHostTests.DOMAINS });
+    await WebViewHostTests.openAsync(electron);
+    const enable = Promise.withResolvers<unknown>();
+    WebViewHostTests.view(electron, 0).contents.debugger.replies.set("Log.enable", () => enable.promise);
+    const enableAnswer = this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Log.enable", params: {}, timeoutMilliseconds: 1 });
+    await Condition.waitAsync(() => electron.webViews.clock.pending === 1);
+    electron.webViews.clock.advance(1);
+    await enableAnswer;
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Log.disable", params: {}, timeoutMilliseconds: 1000 });
+    enable.reject(new Error("Log is off."));
+    await setImmediate();
+
+    const guest = await WebViewHostTests.takeNewPageAsync(electron);
+
+    Assert.areEqual(JSON.stringify([]), JSON.stringify(WebViewHostTests.domainCalls(guest)));
+  }
+
+  @TestMethod
+  public async keepsADomainOnWhenAnEnableThatTimedOutFailsAfterALaterOneSucceeded(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync({ browser: WebViewHostTests.DOMAINS });
+    await WebViewHostTests.openAsync(electron);
+    const first = Promise.withResolvers<unknown>();
+    const replies = [first.promise];
+    WebViewHostTests.view(electron, 0).contents.debugger.replies.set("Runtime.enable", () => replies.shift() ?? Promise.resolve({}));
+    const unanswered = this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Runtime.enable", params: {}, timeoutMilliseconds: 1 });
+    await Condition.waitAsync(() => electron.webViews.clock.pending === 1);
+    electron.webViews.clock.advance(1);
+    const timedOut = await unanswered;
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Runtime.enable", params: {}, timeoutMilliseconds: 1000 });
+    first.reject(new Error("Runtime is off."));
+    await setImmediate();
+
+    const guest = await WebViewHostTests.takeNewPageAsync(electron);
+
+    Assert.areEqual(JSON.stringify({ kind: "TimedOut" }), JSON.stringify(timedOut["failure"]));
+    Assert.areEqual(JSON.stringify([["Runtime.enable", {}]]), JSON.stringify(WebViewHostTests.domainCalls(guest)));
+  }
+
+  @TestMethod
+  public async closesAViewWhoseNewPageRefusesADomainTheModuleEnabled(): Promise<void> {
+    const [electron, launcher, connection, process] = await WebViewHostTests.startAsync({ browser: WebViewHostTests.DOMAINS });
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    await this.commandAsync(launcher, connection, WebViewAction.Send, "1", { method: "Runtime.enable", params: {}, timeoutMilliseconds: 1000 });
+
+    await WebViewHostTests.takeNewPageAsync(electron, t => t.contents.debugger.replies.set("Runtime.enable", () => Promise.reject(new Error("Runtime is off."))));
+
+    Assert.areEqual(1, WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Closed").length);
+    Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "A web view lost its defaults, so it was closed.").length);
   }
 
   @TestMethod
@@ -1972,6 +2106,21 @@ export class WebViewHostTests {
     electron.ipcMain.send("desktop:webViewKeep", event, views);
     await Condition.waitAsync(() => !Object.isUndefined(event.returnValue));
     return event.returnValue;
+  }
+
+  private static async takeNewPageAsync(electron: FakeElectron, prepare: (guest: FakeWebView) => void = () => undefined): Promise<FakeWebView> {
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const old = WebViewHostTests.view(electron, 0);
+    old.contents.destroyed = true;
+    old.contents.emit("destroyed");
+    const guest = electron.webViews.createGuest(window.webContents.id, WebViewHostTests.PARTITION);
+    prepare(guest);
+    await WebViewHostTests.attachAsync(electron, "1", guest.contents.id);
+    return guest;
+  }
+
+  private static domainCalls(guest: FakeWebView): readonly object[] {
+    return guest.contents.debugger.sent.filter(t => WebViewHostTests.DOMAIN_METHODS.includes(t[0]));
   }
 
   private static expect(electron: FakeElectron, view: string): unknown {
