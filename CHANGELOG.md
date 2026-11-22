@@ -4,6 +4,10 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.13
+
+- A tool call that ends with no permission request waiting gives up its resource's turn before its answer reaches the caller, so another session's call sent on that answer is no longer refused as held by another agent session, a regression in 0.0.12; a call that ends while its request waits still keeps the turn until the request is answered.
+
 ## 0.0.12
 
 - A module that reads a device setting without naming a device, through `IModuleSettings.read` or `onChanged`, reads the device this runtime serves; the runtime asks the main process for it once settings are registered, a device setting reads as its default until then, and `onChanged` then reports each setting stored for that device.
