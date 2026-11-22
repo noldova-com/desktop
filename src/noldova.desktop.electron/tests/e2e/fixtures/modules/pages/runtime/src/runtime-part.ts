@@ -96,9 +96,8 @@ export class RuntimePart implements IRuntimePart {
         const view = RuntimePart.find(views, Number(RuntimePart.field(request.payload, Resources.viewField)));
         const x = Number(RuntimePart.field(request.payload, Resources.xField));
         const y = Number(RuntimePart.field(request.payload, Resources.yField));
-        const button = String(RuntimePart.field(request.payload, Resources.buttonField) ?? Resources.leftButton);
         for (const type of Resources.mouseTypes)
-          await views.relay.sendAsync(view, Resources.dispatchMouseEventMethod, { type, x, y, button, clickCount: 1 }, Resources.captureTimeout);
+          await views.relay.sendAsync(view, Resources.dispatchMouseEventMethod, { type, x, y, button: Resources.leftButton, clickCount: 1 }, Resources.captureTimeout);
         return null;
       }
     });

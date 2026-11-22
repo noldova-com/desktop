@@ -32,7 +32,7 @@ const manualFormPage = formPage.replace("<script>", "<script>history.scrollResto
 const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><a href=\"/focus?linked\" style=\"position:absolute;left:10px;top:60px;width:150px;height:30px;display:block\">Next</a><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
-const linksPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><a id=\"l\" href=\"/first\" style=\"display:block;height:50px\">L</a><div id=\"d\" style=\"height:50px\">D</div><a id=\"p\" href=\"/second\" style=\"display:block;height:50px\">P</a><script>const d = document.getElementById(\"d\"); const p = document.getElementById(\"p\"); d.addEventListener(\"auxclick\", e => { if (e.button === 1) window.open(\"/a\"); }); for (const type of [\"auxclick\", \"click\"]) p.addEventListener(type, e => { e.preventDefault(); window.open(p.href); }); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Links\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
+const linksPage = "<!doctype html><title>Loading</title><body style=\"margin:0;display:flex\"><a id=\"l\" href=\"/first\" style=\"width:50px;height:50px\">L</a><div id=\"d\" style=\"width:50px;height:50px\">D</div><a id=\"p\" href=\"/second\" style=\"width:50px;height:50px\">P</a><script>const d = document.getElementById(\"d\"); const p = document.getElementById(\"p\"); d.addEventListener(\"mousedown\", e => { if (e.button === 1) e.preventDefault(); }); d.addEventListener(\"auxclick\", e => { if (e.button === 1) window.open(\"/a\"); }); for (const type of [\"auxclick\", \"click\"]) p.addEventListener(type, e => { e.preventDefault(); window.open(p.href); }); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Links\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
 const pressPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:200px;height:100px\">D</div><script>const d = document.getElementById(\"d\"); d.addEventListener(\"pointerdown\", e => { if (e.button === 1) { e.preventDefault(); window.open(\"/a\"); window.open(\"/b\"); } else if (e.pointerType === \"mouse\" && e.button === 0) window.open(\"/r\"); }); addEventListener(\"touchend\", () => window.open(\"/t\")); addEventListener(\"keydown\", e => window.open(\"/k/\" + e.key)); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Presses\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
 const framePage = "<!doctype html><title>Frame</title><p>Frame</p><script>globalThis.isLive = true; navigation.addEventListener(\"navigate\", event => parent.postMessage(event.destination.url, \"*\")); addEventListener(\"message\", event => { location.href = event.data; });</script>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
@@ -1178,7 +1178,7 @@ test.describe("web views", () => {
     }
   });
 
-  test("a module's web view marks a new window as from a link only for the person's own middle or Ctrl or Cmd click on the link, not for a handler's window.open on the same press, even to the link's address, or a relayed click", async ({ mainProcess }) => {
+  test("a module's web view marks a new window as from a link only for the person's own middle or Ctrl or Cmd click on the link, not for a handler's window.open on the same press, even to the link's address", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const server = await startServerAsync();
     try {
@@ -1198,13 +1198,11 @@ test.describe("web views", () => {
       await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true)]);
       expect(await commandClickInFirstViewAsync(mainProcess, 20, 25)).toBe(true);
       await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true), line("/first", true)]);
-      expect(await clickInFirstViewAsync(mainProcess, 20, 75, "middle")).toBe(true);
+      expect(await clickInFirstViewAsync(mainProcess, 75, 25, "middle")).toBe(true);
       await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true), line("/first", true), line("/a", false)]);
-      expect(await clickInFirstViewAsync(mainProcess, 20, 125, "middle")).toBe(true);
-      await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true), line("/first", true), line("/a", false), line("/second", false)]);
-      await requestAsync(window, "pages.click", { view: 0, x: 20, y: 25, button: "middle" });
+      expect(await clickInFirstViewAsync(mainProcess, 125, 25, "middle")).toBe(true);
 
-      await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true), line("/first", true), line("/a", false), line("/second", false), line("/first", false)]);
+      await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true), line("/first", true), line("/a", false), line("/second", false)]);
     }
     finally {
       await stopServerAsync(server);

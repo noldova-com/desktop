@@ -896,12 +896,12 @@ export class OpenWebViewTests {
 
   @TestMethod
   public async asksThePageForNoLinkAfterARelayedPressAndReadsAFailedRecordAsNoLink(): Promise<void> {
-    const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.PAGE_CALLS_AND_WINDOWS).startAsync();
     harness.contents.onLink = () => Promise.resolve(true);
     harness.contents.onInput = () => harness.contents.emit("input-event", {}, { type: "mouseDown" });
 
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
-    await harness.open.sendAsync(1, "Input.dispatchMouseEvent", { type: "mousePressed", x: 1, y: 1, button: "left", clickCount: 1 }, 1000);
+    await harness.open.sendAsync(1, OpenWebViewTests.MOUSE, { type: "mousePressed", x: 1, y: 1 }, 1000);
     const relayed = await OpenWebViewTests.isFromLinkAsync(harness, "https://example.com/a");
     const asked = harness.contents.links.length;
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
