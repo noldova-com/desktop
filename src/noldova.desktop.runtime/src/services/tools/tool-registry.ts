@@ -28,6 +28,7 @@ import type { PermissionRecord } from "../../models/permission-record.js";
 import { RegisteredTool } from "../../models/registered-tool.js";
 import { Registration } from "../../models/registration.js";
 import { RunningToolCall } from "../../models/running-tool-call.js";
+import { ToolAbortOutcome } from "../../models/tool-abort-outcome.js";
 import { ToolCall } from "../../models/tool-call.js";
 import type { ToolDescriptor } from "../../models/tool-descriptor.js";
 import { ToolFailure } from "../../models/tool-failure.js";
@@ -40,11 +41,13 @@ import { ToolResultValidator } from "./tool-result.validator.js";
 import { ToolSchemaValidator } from "./tool-schema.validator.js";
 
 export class ToolRegistry implements IToolSessionHost {
-  private static readonly ABORTS: ReadonlyMap<unknown, readonly [ToolFailureCode, string]> = new Map<unknown, readonly [ToolFailureCode, string]>([
-    [ToolAbortReason.Stopped, [ToolFailureCode.Stopped, Resources.toolStopped]],
-    [ToolAbortReason.DeadlineReached, [ToolFailureCode.TimedOut, Resources.toolTimedOut]],
-    [ToolAbortReason.SwitchedOff, [ToolFailureCode.Unavailable, Resources.toolSwitchedOff]]
+  private static readonly ABORTS: ReadonlyMap<unknown, ToolAbortOutcome> = new Map<unknown, ToolAbortOutcome>([
+    [ToolAbortReason.Stopped, new ToolAbortOutcome(ToolFailureCode.Stopped, Resources.toolStopped)],
+    [ToolAbortReason.DeadlineReached, new ToolAbortOutcome(ToolFailureCode.TimedOut, Resources.toolTimedOut)],
+    [ToolAbortReason.SwitchedOff, new ToolAbortOutcome(ToolFailureCode.Unavailable, Resources.toolSwitchedOff)]
   ]);
+  private static readonly WITHDRAWN: ToolAbortOutcome = new ToolAbortOutcome(ToolFailureCode.Withdrawn, Resources.toolWithdrawn);
+  private static readonly CANCELLED: ToolAbortOutcome = new ToolAbortOutcome(ToolFailureCode.Cancelled, Resources.toolCancelled);
 
   private readonly tools: Map<string, RegisteredTool> = new Map();
   private readonly sessions: Set<ToolSession> = new Set();
@@ -272,11 +275,21 @@ export class ToolRegistry implements IToolSessionHost {
     run.startDeadline(milliseconds);
     let isSettled = false;
     let answerEnd: ((own: ToolFailureException | null) => void) | null = null;
+    let isTaken = false;
+    let taken: Registration | null = null;
+    void turn.then(t => {
+      isTaken = true;
+      taken = t;
+    });
     const end = (): void => {
       isSettled = true;
       run.end();
       caller?.removeEventListener(Resources.abortEvent, cancel);
       this.running.delete(run);
+      if (isTaken && !run.isWaiting) {
+        taken?.[Symbol.dispose]();
+        return;
+      }
       this.answering.add(run);
       void Promise.all([turn, run.whenAnsweredAsync()]).then(([t]) => {
         this.answering.delete(run);
@@ -353,10 +366,10 @@ export class ToolRegistry implements IToolSessionHost {
   }
 
   private describeAbort(run: RunningToolCall): ToolFailure {
-    const [code, message] = run.isWaiting
-      ? [ToolFailureCode.Withdrawn, Resources.toolWithdrawn]
-      : ToolRegistry.ABORTS.get(run.controller.signal.reason) ?? [ToolFailureCode.Cancelled, Resources.toolCancelled];
-    return new ToolFailure(code, message);
+    const outcome = run.isWaiting
+      ? ToolRegistry.WITHDRAWN
+      : ToolRegistry.ABORTS.get(run.controller.signal.reason) ?? ToolRegistry.CANCELLED;
+    return new ToolFailure(outcome.code, outcome.message);
   }
 
   private describeEnd(run: RunningToolCall, aborted: ToolFailure, own: ToolFailureException | null): ToolFailure {

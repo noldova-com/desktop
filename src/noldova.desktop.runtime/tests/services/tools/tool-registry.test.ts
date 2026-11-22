@@ -827,6 +827,21 @@ export class ToolRegistryTests {
   }
 
   @TestMethod
+  public givesUpItsTurnBeforeItAnswersSoAnotherSessionsCallSentOnTheAnswerTakesIt(): Promise<void> {
+    return ToolRegistryTests.withRegistryAsync(async (registry, session) => {
+      const handler = new ToolHandlerFixture(() => Promise.resolve(new ToolResult([])));
+      ToolRegistryTests.register(registry, { ...ToolRegistryTests.SEARCH, resource: "/note" }, handler);
+      const other = registry.openSession("conversation-2", {});
+
+      const next = await session.callAsync("notes_search", { note: "plans" }).then(() => other.callAsync("notes_search", { note: "plans" }));
+
+      Assert.isFalse(next.isFailure);
+      Assert.areEqual(2, handler.calls.length);
+      other.end();
+    });
+  }
+
+  @TestMethod
   public takesTurnsOnABindingAndPassesTheTurnOverACallCancelledWhileItWaited(): Promise<void> {
     return ToolRegistryTests.withRegistryAsync(async (registry, session) => {
       const answers: (() => void)[] = [];
