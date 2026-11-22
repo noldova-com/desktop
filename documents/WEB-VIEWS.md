@@ -152,14 +152,13 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 
 ### A refused page navigation
 
-`NavigationRefused` holds `fromPress`, so a module can let through a page navigation the person's own press started, such as a click on a link, as it lets the person's new window through.
+`NavigationRefused` holds `fromPress`, so a module can let through a page navigation that the person's own click on a link started, as it lets the person's link open a new window.
 
-- `fromPress` follows the same rule as a new window's: the view's one activation, which each press of the person's own mouse button, key or touch renews for 5 seconds, goes to the first main-frame navigation the page starts after it, allowed or refused, and to a new-window request if that comes first; that one navigation gets `true`.
-  A second navigation from the same press gets `false`, as does one from a timer or a script that runs with no press, a form the page submits by itself after the activation was used or ran out, and a redirect.
-  A frame's navigation doesn't use the activation.
+- `fromPress` follows the rule of a new window's `fromLink`, from the same record in the page's isolated world: it is `true` only for the refused navigation that is a link's own activation by the person's press, a click of theirs on an `a[href]` or `area[href]` in the main frame, whose default the page didn't prevent, to that link's own address, within 5 seconds of the person's own press and with no press the runtime part relayed since.
+  A script's navigation gets `false`, even within a second of the person's click on something else, such as plain text or a scrollbar, and so do a form, a timer, a second navigation for the same click, and a redirect.
+  A refused navigation that waits for that read reaches the module once it answers, in the order of the view's other `NavigationRefused` and `NewWindowRequested` events, and one whose page has gone by then is dropped.
+- Each main-frame navigation the page starts, allowed or refused, uses up the view's one activation, so a new window the page asks for after it gets `fromPress: false`, as [New windows](#new-windows) says; a frame's navigation doesn't.
 - Input the runtime part relays never gives one, and Escape or a modifier key alone gives none, as for new windows.
-- A stated limit of `fromPress`: the press counts for the whole view, not for the link or frame the person pressed, so a script's navigation within 5 seconds of a press the page used for nothing else gets `true`.
-  Electron passes no gesture bit with a navigation, and the engine's own would be the same for a script that runs within the activation, so the host can't tell a link's navigation from a script's.
 - The protocol accepts an event without it until 0.1.0, read as `false`; the host always sends it.
 
 ### A frame's refused navigation
@@ -335,7 +334,7 @@ The file is an object with five optional fields: `methods`, each `{ "name": "<Do
 | Declared keys | Up to 32 names, each with up to 4 keys on each platform. |
 | New-window requests | Up to 5 a second per view; the host refuses the rest. |
 | Recent input | The person's input in the last 5 seconds, for `hadRecentInput`. |
-| A press's activation | One per press of the person's in a view, used within 5 seconds by one new window or page navigation, for `fromPress`. |
+| A press's activation | One per press of the person's in a view, used within 5 seconds by one new window or page navigation, for a new window's `fromPress`. |
 | A refused page's name | At most 64 characters; the origin it names, at most 256; longer ones are cut. |
 | Waiting refused pages | Up to 64 per view; a newer one drops the oldest. |
 

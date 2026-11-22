@@ -832,47 +832,64 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async marksOnlyTheFirstRefusedPageNavigationWithinFiveSecondsOfThePersonsPressAsFromPress(): Promise<void> {
+  public async marksARefusedPageNavigationAsFromPressOnlyWhenThePageRecordsThePersonsClickOnThatLinkAfterTheirOwnPress(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.contents.onLink = code => Promise.resolve(code.includes("https://other.example.net/link"));
 
-    const withoutPress = OpenWebViewTests.isRefusedFromPress(harness, "https://other.example.net/a");
+    const withoutPress = await OpenWebViewTests.isRefusedFromPressAsync(harness, "https://other.example.net/link");
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
-    harness.time = 5000;
-    const pressed = OpenWebViewTests.isRefusedFromPress(harness, "https://other.example.net/b");
-    const again = OpenWebViewTests.isRefusedFromPress(harness, "https://other.example.net/c");
-    harness.contents.emit("input-event", {}, { type: "rawKeyDown", key: "Enter" });
-    harness.time = 10001;
-    const late = OpenWebViewTests.isRefusedFromPress(harness, "https://other.example.net/d");
+    const script = await OpenWebViewTests.isRefusedFromPressAsync(harness, "https://other.example.net/script");
+    const link = await OpenWebViewTests.isRefusedFromPressAsync(harness, "https://other.example.net/link");
+    harness.time = 5001;
+    const late = await OpenWebViewTests.isRefusedFromPressAsync(harness, "https://other.example.net/link");
 
-    Assert.areEqual("false,true,false,false", [withoutPress, pressed, again, late].join(","));
+    Assert.areEqual("false,false,true,false", [withoutPress, script, link, late].join(","));
+    Assert.areEqual(JSON.stringify([
+      "globalThis.noldovaTakeLink?.(\"https://other.example.net/script\") === true",
+      "globalThis.noldovaTakeLink?.(\"https://other.example.net/link\") === true"
+    ]), JSON.stringify(harness.contents.links));
   }
 
   @TestMethod
-  public async usesThePressOnAnAllowedPageNavigationButNotOnAFramesSoOnlyThePagesFirstNavigationGetsIt(): Promise<void> {
+  public async keepsTheOrderOfRefusedPageNavigationsWhileOneWaitsForItsLinkSoANetworkRefusalComesAfterIt(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);
+    const record = Promise.withResolvers<unknown>();
+    harness.contents.onLink = () => record.promise;
 
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
-    harness.contents.navigateFrame("https://example.com/frame", false);
-    const afterFrame = OpenWebViewTests.isRefusedFromPress(harness, "https://other.example.net/a");
-    harness.contents.emit("input-event", {}, { type: "mouseDown" });
-    harness.contents.navigateFrame("https://example.com/next", true);
-    const afterAllowed = OpenWebViewTests.isRefusedFromPress(harness, "https://other.example.net/b");
+    harness.contents.navigateFrame("https://other.example.net/link", true);
+    const refused = harness.open.allowsRequest({ id: 1, url: "https://other.example.net/fetched", resourceType: "mainFrame" });
+    await OpenWebViewTests.drainAsync();
+    const waiting = harness.describe();
+    record.resolve(true);
+    await OpenWebViewTests.drainAsync();
 
-    Assert.areEqual("true,false", [afterFrame, afterAllowed].join(","));
+    Assert.isFalse(refused);
+    Assert.areEqual(String.empty, waiting);
+    Assert.areEqual([
+      "NavigationRefused {\"address\":\"https://other.example.net/link\",\"origin\":\"https://other.example.net\",\"isRedirect\":false,\"fromPress\":true}",
+      "NavigationRefused {\"address\":\"https://other.example.net/fetched\",\"origin\":\"https://other.example.net\",\"isRedirect\":false,\"fromPress\":false}"
+    ].join("|"), harness.describe());
   }
 
   @TestMethod
-  public async sharesThePressBetweenANewWindowAndARefusedPageNavigation(): Promise<void> {
+  public async usesThePressOnAPageNavigationAllowedOrRefusedButNotOnAFramesSoOnlyAWindowAfterAFrameGetsIt(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);
 
     harness.contents.emit("input-event", {}, { type: "mouseDown" });
-    const window = await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/a");
-    const navigation = OpenWebViewTests.isRefusedFromPress(harness, "https://other.example.net/b");
+    harness.contents.navigateFrame("https://example.com/frame", false);
+    const afterFrame = await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/a");
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    harness.contents.navigateFrame("https://example.com/next", true);
+    const afterAllowed = await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/b");
+    harness.contents.emit("input-event", {}, { type: "mouseDown" });
+    await OpenWebViewTests.isRefusedFromPressAsync(harness, "https://other.example.net/c");
+    const afterRefused = await OpenWebViewTests.isFromPressAsync(harness, "https://example.com/d");
 
-    Assert.areEqual("true,false", [window, navigation].join(","));
+    Assert.areEqual("true,false,false", [afterFrame, afterAllowed, afterRefused].join(","));
   }
 
   @TestMethod
@@ -2293,8 +2310,9 @@ export class OpenWebViewTests {
     contents.debugger.replies.set("Page.getLayoutMetrics", () => Promise.resolve({ cssLayoutViewport: { pageX: x, pageY: y } }));
   }
 
-  private static isRefusedFromPress(harness: OpenWebViewHarness, address: string): boolean {
+  private static async isRefusedFromPressAsync(harness: OpenWebViewHarness, address: string): Promise<boolean> {
     harness.contents.navigateFrame(address, true);
+    await OpenWebViewTests.drainAsync();
     const last = harness.describe().split("|").at(-1) ?? String.empty;
     Assert.isTrue(last.startsWith(`NavigationRefused {"address":${JSON.stringify(address)}`), harness.describe());
     return last.includes("\"fromPress\":true");

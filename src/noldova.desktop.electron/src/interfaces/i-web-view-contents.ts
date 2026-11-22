@@ -8,7 +8,9 @@
 
 import type { RenderProcessGoneDetails, WindowOpenHandlerResponse } from "electron";
 
+import type { IFindInPageOptions } from "./i-find-in-page-options.js";
 import type { IFrameNavigation } from "./i-frame-navigation.js";
+import type { IIsolatedScript } from "./i-isolated-script.js";
 import type { IPreventableEvent } from "./i-preventable-event.js";
 import type { IWebViewDebugger } from "./i-web-view-debugger.js";
 import type { IWebViewInput } from "./i-web-view-input.js";
@@ -40,11 +42,11 @@ export interface IWebViewContents {
   setWebRTCIPHandlingPolicy(policy: "disable_non_proxied_udp"): void;
   getZoomFactor(): number;
   setZoomFactor(factor: number): void;
-  findInPage(text: string, options: { readonly forward: boolean; readonly findNext: boolean; readonly matchCase: boolean }): number;
+  findInPage(text: string, options: IFindInPageOptions): number;
   stopFindInPage(action: "clearSelection"): void;
   sendInputEvent(event: IWebViewKeyEvent): void;
   insertText(text: string): Promise<void>;
-  executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown>;
+  executeJavaScriptInIsolatedWorld(worldId: number, scripts: IIsolatedScript[]): Promise<unknown>;
   on(event: "will-frame-navigate", listener: (navigation: IFrameNavigation) => void): unknown;
   on(event: "did-start-navigation", listener: (navigation: IWindowNavigation) => void): unknown;
   on(event: "will-attach-webview", listener: (event: IPreventableEvent) => void): unknown;

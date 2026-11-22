@@ -1147,7 +1147,7 @@ test.describe("web views", () => {
     }
   });
 
-  test("a module's web view reports the person's own click on a link to an origin it doesn't allow as a refused navigation from a press, and a script's navigation right after it as not", async ({ mainProcess }) => {
+  test("a module's web view reports the person's own click on a link to an origin it doesn't allow as a refused navigation from a press, and a script's navigation right after the person's click on plain text, or after the link, as not", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const server = await startServerAsync();
     try {
@@ -1166,10 +1166,13 @@ test.describe("web views", () => {
       expect(await runInFirstViewAsync(mainProcess, `void document.body.prepend(Object.assign(document.createElement("a"), { href: ${JSON.stringify(outside)}, textContent: "Out", style: "display:block;font-size:40px" }))`)).toBe(true);
       expect(await runInFirstViewAsync(mainProcess, "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")).toBe(true);
 
-      expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
-      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} true`]);
+      expect(await clickInFirstViewAsync(mainProcess, 20, 70)).toBe(true);
       expect(await runInFirstViewAsync(mainProcess, `void (location.href = ${JSON.stringify(outside)})`)).toBe(true);
-      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} true`, `${id} ${outside} false`]);
+      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} false`]);
+      expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
+      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} false`, `${id} ${outside} true`]);
+      expect(await runInFirstViewAsync(mainProcess, `void (location.href = ${JSON.stringify(outside)})`)).toBe(true);
+      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} false`, `${id} ${outside} true`, `${id} ${outside} false`]);
 
       await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
     }

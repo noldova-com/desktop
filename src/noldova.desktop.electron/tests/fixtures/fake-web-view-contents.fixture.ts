@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { WindowOpenHandlerResponse } from "electron";
-import { type IWebViewContents, type IWebViewFrame, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
+import { type IFindInPageOptions, type IIsolatedScript, type IWebViewContents, type IWebViewFrame, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
 
 import { FakeFrameNavigation } from "./fake-frame-navigation.fixture.js";
 import { FakePreventableEvent } from "./fake-preventable-event.fixture.js";
@@ -133,7 +133,7 @@ export class FakeWebViewContents implements IWebViewContents {
     this.calls.push(`zoom ${factor}`);
   }
 
-  public findInPage(text: string, options: { readonly forward: boolean; readonly findNext: boolean; readonly matchCase: boolean }): number {
+  public findInPage(text: string, options: IFindInPageOptions): number {
     this.findRequest += 1;
     this.calls.push(`find ${this.findRequest} ${text} ${options.forward} ${options.findNext} ${options.matchCase}`);
     return this.findRequest;
@@ -153,7 +153,7 @@ export class FakeWebViewContents implements IWebViewContents {
     return this.onText(text);
   }
 
-  public executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown> {
+  public executeJavaScriptInIsolatedWorld(worldId: number, scripts: IIsolatedScript[]): Promise<unknown> {
     const code = scripts.map(t => t.code).join(";");
     if (worldId === FakeWebViewContents.LINK_WORLD) {
       this.links.push(code);

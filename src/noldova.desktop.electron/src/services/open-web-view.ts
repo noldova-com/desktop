@@ -71,8 +71,8 @@ export class OpenWebView {
   private lastInput: number | undefined;
   private lastPress: number | undefined;
   private lastLinkPress: number | undefined;
-  private windowAnswers: Promise<void> = Promise.resolve();
-  private pendingWindows: number = 0;
+  private linkAnswers: Promise<void> = Promise.resolve();
+  private pendingAnswers: number = 0;
   private relayedInputs: number = 0;
   private relayedPresses: readonly symbol[] = [];
   private heldInputs: readonly (readonly [IWebViewContents, IWebViewInput, boolean])[] = [];
@@ -348,7 +348,7 @@ export class OpenWebView {
     const allows = isAdmitted || !this.refusedRequests.delete(request.id)
       && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed));
     if (!allows && isPage)
-      this.emitRefusedNavigation(request.url, isRedirect, false);
+      this.answerInOrder(this.guest, null, () => this.emitRefusedNavigation(request.url, isRedirect, false));
     if (!allows && isFrame)
       this.refuseFrame(request.frame ?? null, request.url, isRedirect, null);
     return allows;
@@ -880,12 +880,13 @@ export class OpenWebView {
       return navigation.preventDefault();
     if (!navigation.isMainFrame && this.takesRefusedPage(navigation))
       return;
-    const isFromPress = navigation.isMainFrame && this.takePress(this.now());
+    if (navigation.isMainFrame)
+      this.lastPress = undefined;
     if (this.check.allowsNavigation(navigation.url, this.allowed, !navigation.isMainFrame))
       return;
     navigation.preventDefault();
     if (navigation.isMainFrame)
-      this.emitRefusedNavigation(navigation.url, false, isFromPress);
+      this.answerInOrder(guest, this.readLink(guest, navigation.url), isFromPress => this.emitRefusedNavigation(navigation.url, false, isFromPress));
     else
       this.refuseFrame(navigation.frame, navigation.url, false, navigation.initiator ?? null);
   }
@@ -935,7 +936,7 @@ export class OpenWebView {
     if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument)
       this.isNavigating = true;
     if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument && OpenWebView.isSourceDocument(navigation.url))
-      this.emitRefusedNavigation(navigation.url, false, false);
+      this.answerInOrder(guest, null, () => this.emitRefusedNavigation(navigation.url, false, false));
   }
 
   private askForWindow(guest: IWebViewContents, details: IWindowOpenDetails): void {
@@ -952,16 +953,24 @@ export class OpenWebView {
       ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition },
       [Resources.fromPressField]: this.takePress(now)
     };
-    const isLinkPressed = !Object.isUndefined(this.lastLinkPress) && now - this.lastLinkPress <= Resources.recentInputMilliseconds;
-    if (!isLinkPressed && this.pendingWindows === 0)
-      return this.emit(WebViewEventKind.NewWindowRequested, { ...request, [Resources.fromLinkField]: false });
-    this.pendingWindows += 1;
-    const isFromLink = isLinkPressed ? OpenWebView.takeLinkAsync(guest, details.url) : Promise.resolve(false);
-    this.windowAnswers = this.windowAnswers.then(async () => {
-      const fromLink = await isFromLink;
-      this.pendingWindows -= 1;
-      if (this.isBound(guest))
-        this.emit(WebViewEventKind.NewWindowRequested, { ...request, [Resources.fromLinkField]: fromLink });
+    this.answerInOrder(guest, this.readLink(guest, details.url), isFromLink => this.emit(WebViewEventKind.NewWindowRequested, { ...request, [Resources.fromLinkField]: isFromLink }));
+  }
+
+  private readLink(guest: IWebViewContents, address: string): Promise<boolean> | null {
+    const isLinkPressed = !Object.isUndefined(this.lastLinkPress) && this.now() - this.lastLinkPress <= Resources.recentInputMilliseconds;
+    return isLinkPressed ? OpenWebView.takeLinkAsync(guest, address) : null;
+  }
+
+  private answerInOrder(guest: IWebViewContents | null, link: Promise<boolean> | null, answer: (isFromLink: boolean) => void): void {
+    if (Object.isNull(link) && this.pendingAnswers === 0)
+      return answer(false);
+    this.pendingAnswers += 1;
+    const read = link ?? Promise.resolve(false);
+    this.linkAnswers = this.linkAnswers.then(async () => {
+      const isFromLink = await read;
+      this.pendingAnswers -= 1;
+      if (this.guest === guest)
+        answer(isFromLink);
     });
   }
 
