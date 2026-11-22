@@ -13,7 +13,7 @@ import type { Stats } from "node:fs";
 import type { Writable } from "node:stream";
 
 import type {
-  AppDetailsOptions, BrowserWindowConstructorOptions, CustomScheme, MenuItemConstructorOptions, MessageBoxOptions, MessageBoxReturnValue, NavigationEntry, NotificationConstructorOptions, OpenDialogOptions,
+  AppDetailsOptions, BrowserWindowConstructorOptions, CustomScheme, KeyboardInputEvent, MenuItemConstructorOptions, MessageBoxOptions, MessageBoxReturnValue, NavigationEntry, NotificationConstructorOptions, OpenDialogOptions,
   OpenDialogReturnValue, Rectangle, RenderProcessGoneDetails, SaveDialogOptions, SaveDialogReturnValue, TitleBarOverlayOptions, WindowOpenHandlerResponse
 } from "electron";
 import { type CancellationToken, type Logger, type ProgressInfo, Provider, type ResolvedUpdateFileInfo, type UpdateInfo } from "electron-updater";
@@ -3299,6 +3299,71 @@ export interface IWebViewEngine {
 }
 
 /**
+ * A script a page's isolated world runs, as Electron's `executeJavaScriptInIsolatedWorld` takes it.
+ */
+export interface IIsolatedScript {
+  /**
+   * The script's source.
+   */
+  readonly code: string;
+}
+
+/**
+ * How `findInPage` searches, as Electron's `findInPage` takes it.
+ */
+export interface IFindInPageOptions {
+  /**
+   * Whether it searches forward.
+   */
+  readonly forward: boolean;
+
+  /**
+   * Whether it goes on with the current search, or starts a new one when `false`.
+   */
+  readonly findNext: boolean;
+
+  /**
+   * Whether capitals and small letters differ.
+   */
+  readonly matchCase: boolean;
+}
+
+/**
+ * A search's result, as Electron's `found-in-page` event carries it.
+ */
+export interface IFoundInPageResult {
+  /**
+   * The id `findInPage` returned for the search.
+   */
+  readonly requestId: number;
+
+  /**
+   * The position of the active match, from 1.
+   */
+  readonly activeMatchOrdinal: number;
+
+  /**
+   * How many matches the page has.
+   */
+  readonly matches: number;
+
+  /**
+   * Whether this is the search's last update.
+   */
+  readonly finalUpdate: boolean;
+}
+
+/**
+ * A request for credentials, as Electron's `login` event carries it.
+ */
+export interface ILoginDetails {
+  /**
+   * The address that asks for them.
+   */
+  readonly url: string;
+}
+
+/**
  * A page's request for a new window, as Electron's window open handler receives it.
  */
 export interface IWindowOpenDetails {
@@ -3349,9 +3414,9 @@ export interface IWebViewKeyEvent {
   readonly keyCode: string;
 
   /**
-   * The keys held with it and its flags, such as `shift`, `control` or `isautorepeat`.
+   * The keys held with it and its flags, such as `shift`, `control` or `isautorepeat`, as Electron names them.
    */
-  readonly modifiers: readonly string[];
+  readonly modifiers: readonly NonNullable<KeyboardInputEvent["modifiers"]>[number][];
 }
 
 /**
@@ -3597,7 +3662,7 @@ export interface IWebViewContents {
    * @param options `forward` for the direction, `findNext` to start a new search and `matchCase` to tell capitals apart.
    * @returns The request's id, which its `found-in-page` events carry.
    */
-  findInPage(text: string, options: { readonly forward: boolean; readonly findNext: boolean; readonly matchCase: boolean }): number;
+  findInPage(text: string, options: IFindInPageOptions): number;
 
   /**
    * Ends the running search.
@@ -3628,7 +3693,7 @@ export interface IWebViewContents {
    * @param scripts The scripts to run, in order.
    * @returns A promise that settles with the last script's result once the page's renderer has run them.
    */
-  executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown>;
+  executeJavaScriptInIsolatedWorld(worldId: number, scripts: IIsolatedScript[]): Promise<unknown>;
 
   /**
    * Listens for a frame about to navigate, which the listener may cancel.
@@ -3749,7 +3814,7 @@ export interface IWebViewContents {
    * @param listener Receives the cancellable event, the request, what asks and the callback that answers with none.
    * @returns Electron's own return value, which the main process does not use.
    */
-  on(event: "login", listener: (event: IPreventableEvent, details: { readonly url: string }, info: unknown, callback: () => void) => void): unknown;
+  on(event: "login", listener: (event: IPreventableEvent, details: ILoginDetails, info: unknown, callback: () => void) => void): unknown;
 
   /**
    * Listens for a search's result.
@@ -3758,7 +3823,7 @@ export interface IWebViewContents {
    * @param listener Receives Electron's event and the result: its request's id, the active match, the number of matches and whether it is the last update.
    * @returns Electron's own return value, which the main process does not use.
    */
-  on(event: "found-in-page", listener: (event: unknown, result: { readonly requestId: number; readonly activeMatchOrdinal: number; readonly matches: number; readonly finalUpdate: boolean }) => void): unknown;
+  on(event: "found-in-page", listener: (event: unknown, result: IFoundInPageResult) => void): unknown;
 
   /**
    * Listens for the person turning the mouse wheel to zoom the page, which the engine leaves to the listener.

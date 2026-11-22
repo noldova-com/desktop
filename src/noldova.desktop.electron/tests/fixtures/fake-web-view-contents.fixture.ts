@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { WindowOpenHandlerResponse } from "electron";
-import { type IWebViewContents, type IWebViewFrame, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
+import { type IFindInPageOptions, type IIsolatedScript, type IWebViewContents, type IWebViewFrame, type IWebViewKeyEvent, type IWindowOpenDetails, WebViewHistory } from "@noldova/desktop.electron";
 
 import { FakeFrameNavigation } from "./fake-frame-navigation.fixture.js";
 import { FakePreventableEvent } from "./fake-preventable-event.fixture.js";
@@ -16,6 +16,8 @@ import { FakeWebViewDebugger } from "./fake-web-view-debugger.fixture.js";
 import { ListenerRegistry } from "./listener-registry.fixture.js";
 
 export class FakeWebViewContents implements IWebViewContents {
+  private static readonly LINK_WORLD: number = 1996;
+
   private readonly listeners: ListenerRegistry = new ListenerRegistry();
   private openHandler: ((details: IWindowOpenDetails) => WindowOpenHandlerResponse) | null = null;
   private begin: () => void = () => undefined;
@@ -43,6 +45,8 @@ export class FakeWebViewContents implements IWebViewContents {
   public onInput: (event: IWebViewKeyEvent) => void = () => undefined;
   public onText: (text: string) => Promise<void> = () => Promise.resolve();
   public onIsolated: () => Promise<unknown> = () => Promise.resolve(0);
+  public readonly links: string[] = [];
+  public onLink: (code: string) => Promise<unknown> = () => Promise.resolve(false);
 
   public constructor(id: number) {
     this.id = id;
@@ -129,7 +133,7 @@ export class FakeWebViewContents implements IWebViewContents {
     this.calls.push(`zoom ${factor}`);
   }
 
-  public findInPage(text: string, options: { readonly forward: boolean; readonly findNext: boolean; readonly matchCase: boolean }): number {
+  public findInPage(text: string, options: IFindInPageOptions): number {
     this.findRequest += 1;
     this.calls.push(`find ${this.findRequest} ${text} ${options.forward} ${options.findNext} ${options.matchCase}`);
     return this.findRequest;
@@ -149,8 +153,13 @@ export class FakeWebViewContents implements IWebViewContents {
     return this.onText(text);
   }
 
-  public executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown> {
-    this.isolated.push(`${worldId} ${scripts.map(t => t.code).join(";")}`);
+  public executeJavaScriptInIsolatedWorld(worldId: number, scripts: IIsolatedScript[]): Promise<unknown> {
+    const code = scripts.map(t => t.code).join(";");
+    if (worldId === FakeWebViewContents.LINK_WORLD) {
+      this.links.push(code);
+      return this.onLink(code);
+    }
+    this.isolated.push(`${worldId} ${code}`);
     return this.onIsolated();
   }
 

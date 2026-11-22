@@ -72,6 +72,9 @@ export class OpenWebView {
   private windowRequests: readonly number[] = [];
   private lastInput: number | undefined;
   private lastPress: number | undefined;
+  private lastLinkPress: number | undefined;
+  private linkAnswers: Promise<void> = Promise.resolve();
+  private pendingAnswers: number = 0;
   private relayedInputs: number = 0;
   private relayedPresses: readonly symbol[] = [];
   private heldInputs: readonly (readonly [IWebViewContents, IWebViewInput, boolean])[] = [];
@@ -151,6 +154,7 @@ export class OpenWebView {
     this.log = log;
     this.lastInput = undefined;
     this.lastPress = undefined;
+    this.lastLinkPress = undefined;
     this.pendingUrl = undefined;
     this.committedUrl = undefined;
     this.search = undefined;
@@ -363,7 +367,7 @@ export class OpenWebView {
     const allows = isAdmitted || !this.refusedRequests.delete(request.id)
       && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed));
     if (!allows && isPage)
-      this.emitRefusedNavigation(request.url, isRedirect);
+      this.answerInOrder(this.guest, null, () => this.emitRefusedNavigation(request.url, isRedirect, false));
     if (!allows && isFrame)
       this.refuseFrame(request.frame ?? null, request.url, isRedirect, null);
     return allows;
@@ -461,8 +465,10 @@ export class OpenWebView {
     const isUncounted = isInput && !Resources.pressFreeInputMethods.includes(method);
     if (isInput)
       this.relayedInputs += 1;
-    if (!Object.isNull(press))
+    if (!Object.isNull(press)) {
       this.relayedPresses = [...this.relayedPresses, ...Array.from({ length: presses }, () => press)];
+      this.lastLinkPress = undefined;
+    }
     if (isUncounted)
       this.uncountedInputs += 1;
     if (isPageCall)
@@ -553,7 +559,7 @@ export class OpenWebView {
     guest.setWebRTCIPHandlingPolicy(Resources.webViewRtcPolicy);
     guest.setWindowOpenHandler(details => {
       if (this.isBound(guest))
-        this.askForWindow(details);
+        this.askForWindow(guest, details);
       return { action: Resources.denyWindowOpen };
     });
     guest.on(Resources.inputEvent, (_event, input) => {
@@ -599,6 +605,7 @@ export class OpenWebView {
         return;
       this.endNavigation();
       this.noteCommitted(guest);
+      this.watchLinks(guest);
       this.endFind();
       this.restoreZoom();
       this.favicon.noteNavigation();
@@ -608,6 +615,7 @@ export class OpenWebView {
       if (!this.isBound(guest))
         return;
       this.endNavigation();
+      this.watchLinks(guest);
       this.favicon.noteStop();
     });
     guest.on(Resources.pageFaviconUpdatedEvent, (_event, favicons) => {
@@ -934,11 +942,13 @@ export class OpenWebView {
       return navigation.preventDefault();
     if (!navigation.isMainFrame && this.takesRefusedPage(navigation))
       return;
+    if (navigation.isMainFrame)
+      this.lastPress = undefined;
     if (this.check.allowsNavigation(navigation.url, this.allowed, !navigation.isMainFrame))
       return;
     navigation.preventDefault();
     if (navigation.isMainFrame)
-      this.emitRefusedNavigation(navigation.url, false);
+      this.answerInOrder(guest, this.readLink(guest, navigation.url), isFromPress => this.emitRefusedNavigation(navigation.url, false, isFromPress));
     else
       this.refuseFrame(navigation.frame, navigation.url, false, navigation.initiator ?? null);
   }
@@ -988,23 +998,51 @@ export class OpenWebView {
     if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument)
       this.isNavigating = true;
     if (this.isBound(guest) && navigation.isMainFrame && !navigation.isSameDocument && OpenWebView.isSourceDocument(navigation.url))
-      this.emitRefusedNavigation(navigation.url, false);
+      this.answerInOrder(guest, null, () => this.emitRefusedNavigation(navigation.url, false, false));
   }
 
-  private askForWindow(details: IWindowOpenDetails): void {
+  private askForWindow(guest: IWebViewContents, details: IWindowOpenDetails): void {
     const now = this.now();
     this.windowRequests = this.windowRequests.filter(t => now - t < Resources.newWindowRequestMilliseconds);
     if (!this.declaration.newWindows || this.windowRequests.length >= Resources.newWindowRequestLimit || details.url.length > Resources.webViewAddressLimit)
       return this.refuse(Resources.newWindowRequest);
     this.windowRequests = [...this.windowRequests, now];
     const origin = URL.parse(details.referrer.url)?.origin ?? Resources.nullOrigin;
-    this.emit(WebViewEventKind.NewWindowRequested, {
+    const request: JsonObject = {
       [Resources.addressField]: details.url,
       [Resources.hadRecentInputField]: !Object.isUndefined(this.lastInput) && now - this.lastInput <= Resources.recentInputMilliseconds,
       [Resources.originField]: origin === Resources.nullOrigin ? null : origin,
       ...Object.isUndefined(details.disposition) ? {} : { [Resources.dispositionField]: details.disposition },
       [Resources.fromPressField]: this.takePress(now)
+    };
+    this.answerInOrder(guest, this.readLink(guest, details.url), isFromLink => this.emit(WebViewEventKind.NewWindowRequested, { ...request, [Resources.fromLinkField]: isFromLink }));
+  }
+
+  private readLink(guest: IWebViewContents, address: string): Promise<boolean> | null {
+    const isLinkPressed = !Object.isUndefined(this.lastLinkPress) && this.now() - this.lastLinkPress <= Resources.recentInputMilliseconds;
+    return isLinkPressed ? OpenWebView.takeLinkAsync(guest, address) : null;
+  }
+
+  private answerInOrder(guest: IWebViewContents | null, link: Promise<boolean> | null, answer: (isFromLink: boolean) => void): void {
+    if (Object.isNull(link) && this.pendingAnswers === 0)
+      return answer(false);
+    this.pendingAnswers += 1;
+    const read = link ?? Promise.resolve(false);
+    this.linkAnswers = this.linkAnswers.then(async () => {
+      const isFromLink = await read;
+      this.pendingAnswers -= 1;
+      if (this.guest === guest)
+        answer(isFromLink);
     });
+  }
+
+  private static async takeLinkAsync(guest: IWebViewContents, address: string): Promise<boolean> {
+    const taken = await guest.executeJavaScriptInIsolatedWorld(Resources.linkRecordWorld, [{ code: Resources.formatTakeLinkScript(address) }]).catch(() => false);
+    return taken === true;
+  }
+
+  private watchLinks(guest: IWebViewContents): void {
+    void guest.executeJavaScriptInIsolatedWorld(Resources.linkRecordWorld, [{ code: Resources.linkRecordScript }]).catch(() => undefined);
   }
 
   private takePress(now: number): boolean {
@@ -1063,8 +1101,10 @@ export class OpenWebView {
     else if (this.relayedInputs === 0 && isPersonInput) {
       const now = this.now();
       this.lastInput = now;
-      if (Object.isUndefined(input.key) || !Resources.nonActivatingKeys.includes(input.key))
+      if (Object.isUndefined(input.key) || !Resources.nonActivatingKeys.includes(input.key)) {
         this.lastPress = now;
+        this.lastLinkPress = now;
+      }
     }
     if (this.openPageCalls > 0 && isPress && this.uncountedInputs === 0)
       this.input(Resources.inputPressKind);
@@ -1231,8 +1271,10 @@ export class OpenWebView {
       this.relayKeys.splice(index, 1);
   }
 
-  private emitRefusedNavigation(url: string, isRedirect: boolean): void {
-    this.emit(WebViewEventKind.NavigationRefused, { [Resources.addressField]: url, [Resources.originField]: OpenWebView.originOf(url), [Resources.isRedirectField]: isRedirect });
+  private emitRefusedNavigation(url: string, isRedirect: boolean, isFromPress: boolean): void {
+    this.emit(WebViewEventKind.NavigationRefused, {
+      [Resources.addressField]: url, [Resources.originField]: OpenWebView.originOf(url), [Resources.isRedirectField]: isRedirect, [Resources.fromPressField]: isFromPress
+    });
   }
 
   private emit(kind: WebViewEventKind, details: JsonObject = {}): void {

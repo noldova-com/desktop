@@ -144,13 +144,24 @@ The runtime part reaches the module's views through `context.webViews`, by the v
 | `Controlled` | `isControlled`, when the runtime part [marks](#a-controlled-view-keeps-painting) whether an agent controls the view and the mark changes; only the window part gets it. |
 | `State` | The address, the title, whether it is loading, and `canGoBack` and `canGoForward`; sent whenever any of them changes. |
 | `LoadFailed` | The address, the engine's code and its description. |
-| `NavigationRefused` | The address, its origin, and whether a redirect led there; the main frame's only, and the page stays where it was. |
+| `NavigationRefused` | The address, its origin, whether a redirect led there, and `fromPress`, as [A refused page navigation](#a-refused-page-navigation) says; the main frame's only, and the page stays where it was. |
 | `FrameNavigationRefused` | The same for one of the page's frames, with its `frameId`, as [A frame's refused navigation](#a-frames-refused-navigation) says. |
 | `Crashed` | That the view's page stopped; the view stays closed until it is navigated again, and sends no `State` until then, even when a load the crash cut short ends after it. |
 | `ProfileCleared` | The profile key. |
 | `Dropped` | How many of the view's events the host dropped while the runtime was away. |
 | `RequestRefused` | What the host refused without asking, `download`, `newWindow`, `permission`, `fileChooser`, `authentication`, `certificate` or `nestedView`, and the origin that asked. |
-| `NewWindowRequested` | A new-window request the module takes, as [New windows](#new-windows) says: the address, `hadRecentInput`, `origin`, `disposition` and `fromPress`. |
+| `NewWindowRequested` | A new-window request the module takes, as [New windows](#new-windows) says: the address, `hadRecentInput`, `origin`, `disposition`, `fromPress` and `fromLink`. |
+
+### A refused page navigation
+
+`NavigationRefused` holds `fromPress`, so a module can let through a page navigation that the person's own click on a link started, as it lets the person's link open a new window.
+
+- `fromPress` follows the rule of a new window's `fromLink`, from the same record in the page's isolated world: it is `true` only for the refused navigation that is a link's own activation by the person's press, a click of theirs on an `a[href]` or `area[href]` in the main frame, whose default the page didn't prevent, to that link's own address, within 5 seconds of the person's own press and with no press the runtime part relayed since.
+  A script's navigation gets `false`, even within a second of the person's click on something else, such as plain text or a scrollbar, and so do a form, a timer, a second navigation for the same click, and a redirect.
+  A refused navigation that waits for that read reaches the module once it answers, in the order of the view's other `NavigationRefused` and `NewWindowRequested` events, and one whose page has gone by then is dropped.
+- Each main-frame navigation the page starts, allowed or refused, uses up the view's one activation, so a new window the page asks for after it gets `fromPress: false`, as [New windows](#new-windows) says; a frame's navigation doesn't.
+- Input the runtime part relays never gives one, and Escape or a modifier key alone gives none, as for new windows.
+- The protocol accepts an event without it until 0.1.0, read as `false`; the host always sends it.
 
 ### A frame's refused navigation
 
@@ -170,11 +181,11 @@ The origin check refuses a frame's navigation, or a frame's load or redirect, as
 A link with `target="_blank"`, a form or a script's `window.open` in a view asks for a new window; the host never opens one.
 
 - A module whose `webViews.json` says `"newWindows": true` gets each request as a `NewWindowRequested` event of that view, through the window bridge's `subscribe` and the runtime's `onViewEvent`; any other module's requests stay refused, each with a `RequestRefused` event of `newWindow`.
-- The event holds the `address` the page asked for, resolved against the page; `hadRecentInput`; `origin`, the origin of the referrer the engine would send, or `null` when it sends none, such as for `noreferrer`, never a guess; `disposition`, how the engine would open it; and `fromPress`.
+- The event holds the `address` the page asked for, resolved against the page; `hadRecentInput`; `origin`, the origin of the referrer the engine would send, or `null` when it sends none, such as for `noreferrer`, never a guess; `disposition`, how the engine would open it; `fromPress`; and `fromLink`.
 - `disposition` is the engine's own: `background-tab` for the person's middle click or Ctrl or Cmd click on a link, `foreground-tab` for a link's `target="_blank"` or a script's plain `window.open`, `new-window` for a `window.open` that asks for a popup or a Shift click on a link, and `default` or `other` otherwise.
   The engine takes it from the event the page is handling when it asks, so a page's own `auxclick` or `click` handler that runs during the person's middle click or Ctrl or Cmd click, on a link or any other element, gets `background-tab` for each `window.open` it makes, and one such click can bring several requests; a page's `window.open` at any other time, such as from a timer, gets `foreground-tab` or `new-window`.
   The host always sends it; the protocol accepts an event without it until 0.1.0, so a module's tests that build one without it keep passing within 0.0.x.
-- `fromPress` follows a browser's popup rule: a view holds one activation, which each press of the person's own mouse button, key or touch in it renews for the next 5 seconds, as long as a browser's user activation lasts, and the first request after it uses up; that request gets `true`, and every other request gets `false`, the second one from the same press included, and so does one from a timer or a script that runs with no press.
+- `fromPress` follows a browser's popup rule: a view holds one activation, which each press of the person's own mouse button, key or touch in it renews for the next 5 seconds, as long as a browser's user activation lasts, and the first request after it uses up, unless a page navigation used it first, as [A refused page navigation](#a-refused-page-navigation) says; that request gets `true`, and every other request gets `false`, the second one from the same press included, and so does one from a timer or a script that runs with no press.
   Presses don't add up: twenty keys typed, or a key held down, before the page asks still give one window, as a browser's do.
   As in Chromium, Escape and a modifier key alone, such as Shift, Control, Alt, Meta or Caps Lock, give no activation, though they count as the person's input for `hadRecentInput`.
   A module can so open one tab for the person's one click however many requests the page's handler makes, and refuse or ask about the rest, as a browser blocks a popup.
@@ -182,6 +193,12 @@ A link with `target="_blank"`, a form or a script's `window.open` in a view asks
   The protocol accepts an event without it until 0.1.0, as it does one without `disposition`.
 - A stated limit of `fromPress`: the press counts for the whole view, not for the frame the person pressed in, so an embedded frame of another site, such as an ad, can use the page's press, once, and the page then gets `false`.
   A browser ties user activation to the pressed frame and its ancestors, but Electron doesn't pass the engine's gesture bit on with a new-window request, so the host can't tell which frame asked.
+- `fromLink` says the person chose the address: it is `true` only for the request that is a link's own activation by the person's press, a click, a Ctrl or Cmd click or a middle click of theirs on an `a[href]` or `area[href]` in the main frame, whose default the page didn't prevent, to that link's own address, within 5 seconds of the person's own press and with no press the runtime part relayed since.
+  A page's `window.open` gets `false`, in any handler of that press too, even to the link's own address once the page prevented the link's default, and so do a link in a frame, a form's `target="_blank"`, and a second request for the same click.
+  It doesn't depend on `fromPress`: when a handler's `window.open` takes the press's activation first, the link's own request still gets `fromLink`, so a module can open the person's link and refuse the handler's window.
+  The host keeps the record in an isolated world of the page, which the page's scripts can't reach: a listener there notes the last trusted click or middle click and the link it hit, and the host reads it, and uses it up, when a request comes after the person's press; such a request reaches the module once that read answers, in the order the requests came, and a request whose page has gone by then is dropped.
+  The host puts the record in each page when it commits and again when it stops loading, so a click before that, or one the page stops before the record's listener sees it, gives `false`, the safe side.
+  The protocol accepts an event without it until 0.1.0, read as `false`.
 - `hadRecentInput` is the host's own judgement, not the engine's user activation: it is true when the person's own key, mouse button or touch reached that view in the last 5 seconds, and input the runtime part relayed to the view never counts.
   While an `Input.*` call the runtime part relayed is unanswered, the person's input to that view doesn't count either, so a call the engine never answers, even once the relay has timed it out, keeps `hadRecentInput` false for that view.
 - The module answers by opening the address in a view of its own, such as a new view in the same pane, with `openAsync` and `navigateAsync`, where the origin check runs as on every navigation.
@@ -320,7 +337,7 @@ The file is an object with five optional fields: `methods`, each `{ "name": "<Do
 | Declared keys | Up to 32 names, each with up to 4 keys on each platform. |
 | New-window requests | Up to 5 a second per view; the host refuses the rest. |
 | Recent input | The person's input in the last 5 seconds, for `hadRecentInput`. |
-| A press's new window | One per press of the person's in a view, used within 5 seconds, for `fromPress`. |
+| A press's activation | One per press of the person's in a view, used within 5 seconds by one new window or page navigation, for a new window's `fromPress`. |
 | A refused page's name | At most 64 characters; the origin it names, at most 256; longer ones are cut. |
 | Waiting refused pages | Up to 64 per view; a newer one drops the oldest. |
 

@@ -8,6 +8,7 @@
 
 import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
+import type { KeyboardInputEvent } from "electron";
 
 import type { IWebViewInput } from "../interfaces/i-web-view-input.js";
 import type { IWebViewKeyEvent } from "../interfaces/i-web-view-key-event.js";
@@ -19,7 +20,7 @@ export class WebViewKeyInput {
     const text = WebViewKeyInput.readText(params[Resources.textField]);
     const flags = Number.isSafeInteger(params[Resources.modifiersField]) ? Number(params[Resources.modifiersField]) : 0;
     const modifiers = [
-      ...Resources.keyModifierNames.filter(([flag]) => (flags & flag) !== 0).map(([, name]) => name),
+      ...Resources.keyModifiers.filter(t => t.isIn(flags)).map(t => t.name),
       ...params[Resources.autoRepeatField] === true ? [Resources.autoRepeatModifier] : []
     ];
     const keyCode = Resources.webViewKeyNames.get(key) ?? key;
@@ -37,7 +38,7 @@ export class WebViewKeyInput {
   public static fromInput(input: IWebViewInput, platform: string): readonly IWebViewKeyEvent[] {
     const flags = (input.alt ? Resources.altModifier : 0) | (input.control ? Resources.ctrlModifier : 0) | (input.meta ? Resources.metaModifier : 0) | (input.shift ? Resources.shiftModifier : 0);
     const modifiers = [
-      ...Resources.keyModifierNames.filter(([flag]) => (flags & flag) !== 0).map(([, name]) => name),
+      ...Resources.keyModifiers.filter(t => t.isIn(flags)).map(t => t.name),
       ...input.isAutoRepeat ? [Resources.autoRepeatModifier] : []
     ];
     const keyCode = Resources.webViewKeyNames.get(input.key) ?? input.key;
@@ -48,7 +49,7 @@ export class WebViewKeyInput {
     return [{ type: "keyDown", keyCode, modifiers }, ...typesText ? WebViewKeyInput.type(text, modifiers) : []];
   }
 
-  private static type(text: string, modifiers: readonly string[]): IWebViewKeyEvent[] {
+  private static type(text: string, modifiers: readonly NonNullable<KeyboardInputEvent["modifiers"]>[number][]): IWebViewKeyEvent[] {
     return [...text].map(t => ({ type: "char", keyCode: t, modifiers }));
   }
 

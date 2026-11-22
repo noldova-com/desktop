@@ -512,7 +512,12 @@ export declare enum WebViewEventKind {
   LoadFailed = "LoadFailed",
 
   /**
-   * The origin check refused a navigation of the view's main frame; its details are the `address`, its `origin` and `isRedirect`.
+   * The origin check refused a navigation of the view's main frame; its details are the `address`, its `origin`, `isRedirect` and `fromPress`.
+   * `fromPress` is `true` only for the navigation that is a link's own activation by the person's press: their click on an `a[href]` or `area[href]`
+   * in the main frame, whose default the page didn't prevent, to that link's address, within 5 seconds of their own press, read from the same
+   * record as `NewWindowRequested.fromLink`; a script's navigation, even right after the person's click on something else, a form, a second
+   * navigation for the same click, a redirect and relayed input get `false`.
+   * An event without it is accepted until 0.1.0, read as `false`.
    */
   NavigationRefused = "NavigationRefused",
 
@@ -561,6 +566,16 @@ export declare enum WebViewEventKind {
    * included; presses don't add up, Escape and a modifier key alone give
    * none, and relayed input never counts. An event without it is accepted
    * until 0.1.0.
+   * `fromLink`: `true` only for the request that is a link's own activation
+   * by the person's press: a click, a Ctrl or Cmd click or a middle click of
+   * the person's on an `a[href]` or `area[href]` in the main frame, whose
+   * default the page didn't prevent, to the link's own address, within 5
+   * seconds of the person's press with no relayed press since. A page's
+   * `window.open`, in any handler of that press, gets `false`, even to the
+   * link's address once the page prevented the link's default, and so do a
+   * link in a frame, a form and a second request for the same click. It can
+   * be `true` when a handler's request took `fromPress` first. An event
+   * without it is accepted until 0.1.0, read as `false`.
    */
   NewWindowRequested = "NewWindowRequested",
 

@@ -6,8 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { KeyboardInputEvent } from "electron";
+
 export interface IWebViewKeyEvent {
   readonly type: "keyDown" | "char" | "keyUp";
   readonly keyCode: string;
-  readonly modifiers: readonly string[];
+  readonly modifiers: readonly NonNullable<KeyboardInputEvent["modifiers"]>[number][];
 }

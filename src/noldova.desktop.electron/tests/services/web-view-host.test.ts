@@ -942,7 +942,7 @@ export class WebViewHostTests {
     ];
 
     Assert.areEqual("true,true,true,false,false,false,false,false,false,true", passes.join(","));
-    Assert.areEqual(JSON.stringify([{ module: "browser", view: "1", kind: "NavigationRefused", details: { address: "https://example.net/", origin: "https://example.net", isRedirect: false } }]),
+    Assert.areEqual(JSON.stringify([{ module: "browser", view: "1", kind: "NavigationRefused", details: { address: "https://example.net/", origin: "https://example.net", isRedirect: false, fromPress: false } }]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "NavigationRefused")));
   }
 
@@ -1130,7 +1130,7 @@ export class WebViewHostTests {
     const upgrade = session.request({ id: 3, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame" });
 
     Assert.areEqual("true,false,true", [publicRedirect, privateRedirect, upgrade].join(","));
-    Assert.areEqual(JSON.stringify([{ address: "https://example.com/home", origin: "https://example.com", isRedirect: true }]),
+    Assert.areEqual(JSON.stringify([{ address: "https://example.com/home", origin: "https://example.com", isRedirect: true, fromPress: false }]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "NavigationRefused").map(t => t["details"])));
   }
 
@@ -1505,6 +1505,7 @@ export class WebViewHostTests {
     prevented.push(contents.prevent("before-input-event", WebViewHostTests.input("a", "KeyA", false, "linux")));
     contents.emit("input-event", {}, { type: "keyDown" });
     void contents.openWindow("https://example.com/pressed");
+    await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.windowEvents(window)).length === 2);
 
     Assert.areEqual("true,true,false,false", prevented.join(","));
     Assert.areEqual("keyDown r control", passedOn);
@@ -1890,9 +1891,9 @@ export class WebViewHostTests {
     await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.runtimeEvents(connection)).length === 3);
 
     const expected = JSON.stringify([
-      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab", fromPress: false },
-      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window", fromPress: false },
-      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab", fromPress: false }
+      { address: "https://example.com/next", hadRecentInput: false, origin: "https://example.com", disposition: "foreground-tab", fromPress: false, fromLink: false },
+      { address: "https://example.net/other", hadRecentInput: false, origin: null, disposition: "new-window", fromPress: false, fromLink: false },
+      { address: "https://example.com/data", hadRecentInput: false, origin: null, disposition: "background-tab", fromPress: false, fromLink: false }
     ]);
     Assert.areEqual("deny,deny,deny", answers.map(t => t?.action).join(","));
     Assert.areEqual(expected, JSON.stringify(WebViewHostTests.requested(WebViewHostTests.windowEvents(window))));
@@ -1951,6 +1952,7 @@ export class WebViewHostTests {
     ask();
     contents.emit("input-event", {}, { type: "keyDown" });
     ask();
+    await Condition.waitAsync(() => WebViewHostTests.requested(WebViewHostTests.windowEvents(window)).length === 7);
 
     Assert.areEqual("false,false,true,false,false,false,true", WebViewHostTests.requested(WebViewHostTests.windowEvents(window)).map(t => String(t["hadRecentInput"])).join(","));
   }

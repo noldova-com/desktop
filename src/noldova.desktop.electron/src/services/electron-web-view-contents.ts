@@ -8,8 +8,10 @@
 
 import type { EventEmitter } from "node:events";
 
-import type { KeyboardInputEvent, NavigationHistory, WebContents, WindowOpenHandlerResponse } from "electron";
+import type { NavigationHistory, WebContents, WindowOpenHandlerResponse } from "electron";
 
+import type { IFindInPageOptions } from "../interfaces/i-find-in-page-options.js";
+import type { IIsolatedScript } from "../interfaces/i-isolated-script.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
 import type { IWebViewDebugger } from "../interfaces/i-web-view-debugger.js";
 import type { IWebViewKeyEvent } from "../interfaces/i-web-view-key-event.js";
@@ -105,7 +107,7 @@ export class ElectronWebViewContents implements IWebViewContents {
     this.page.setZoomFactor(factor);
   }
 
-  public findInPage(text: string, options: { readonly forward: boolean; readonly findNext: boolean; readonly matchCase: boolean }): number {
+  public findInPage(text: string, options: IFindInPageOptions): number {
     return this.page.findInPage(text, options);
   }
 
@@ -114,14 +116,14 @@ export class ElectronWebViewContents implements IWebViewContents {
   }
 
   public sendInputEvent(event: IWebViewKeyEvent): void {
-    this.page.sendInputEvent({ type: event.type, keyCode: event.keyCode, modifiers: [...event.modifiers] as NonNullable<KeyboardInputEvent["modifiers"]> });
+    this.page.sendInputEvent({ type: event.type, keyCode: event.keyCode, modifiers: [...event.modifiers] });
   }
 
   public insertText(text: string): Promise<void> {
     return this.page.insertText(text);
   }
 
-  public executeJavaScriptInIsolatedWorld(worldId: number, scripts: { code: string }[]): Promise<unknown> {
+  public executeJavaScriptInIsolatedWorld(worldId: number, scripts: IIsolatedScript[]): Promise<unknown> {
     return this.page.executeJavaScriptInIsolatedWorld(worldId, scripts);
   }
 

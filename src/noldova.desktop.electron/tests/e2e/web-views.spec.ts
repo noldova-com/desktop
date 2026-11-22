@@ -32,6 +32,7 @@ const manualFormPage = formPage.replace("<script>", "<script>history.scrollResto
 const formScript = "[document.querySelector(\"input\").value, Math.round(scrollY), globalThis.kept === true]";
 const focusPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><input id=\"first\" style=\"position:absolute;left:10px;top:10px;width:150px;height:30px\"><input id=\"second\" style=\"position:absolute;left:200px;top:10px;width:150px;height:30px\"><p style=\"position:absolute;left:400px;top:10px;margin:0\">Focus</p><a href=\"/focus?linked\" style=\"position:absolute;left:10px;top:60px;width:150px;height:30px;display:block\">Next</a><script>const first = document.getElementById(\"first\"); const second = document.getElementById(\"second\"); const keys = []; let painted = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Focus\", first.value || \"-\", second.value || \"-\", document.activeElement?.id || \"-\", blurs, ...keys].join(\" \"); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); for (const field of [first, second]) { field.addEventListener(\"input\", show); field.addEventListener(\"focus\", show); } addEventListener(\"blur\", () => { blurs += 1; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); });</script></body>";
 const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;height:100vh\"><script>let clicks = 0; addEventListener(\"mousedown\", () => { clicks += 1; document.title = `Clicks ${clicks}`; });</script></body>";
+const linksPage = "<!doctype html><title>Loading</title><body style=\"margin:0;display:flex\"><a id=\"l\" href=\"/first\" style=\"width:50px;height:50px\">L</a><div id=\"d\" style=\"width:50px;height:50px\">D</div><a id=\"p\" href=\"/second\" style=\"width:50px;height:50px\">P</a><script>const d = document.getElementById(\"d\"); const p = document.getElementById(\"p\"); d.addEventListener(\"mousedown\", e => { if (e.button === 1) e.preventDefault(); }); d.addEventListener(\"auxclick\", e => { if (e.button === 1) window.open(\"/a\"); }); for (const type of [\"auxclick\", \"click\"]) p.addEventListener(type, e => { e.preventDefault(); window.open(p.href); }); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Links\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
 const pressPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:200px;height:100px\">D</div><script>const d = document.getElementById(\"d\"); d.addEventListener(\"pointerdown\", e => { if (e.button === 1) { e.preventDefault(); window.open(\"/a\"); window.open(\"/b\"); } else if (e.pointerType === \"mouse\" && e.button === 0) window.open(\"/r\"); }); addEventListener(\"touchend\", () => window.open(\"/t\")); addEventListener(\"keydown\", e => window.open(\"/k/\" + e.key)); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Presses\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
 const framePage = "<!doctype html><title>Frame</title><p>Frame</p><script>globalThis.isLive = true; navigation.addEventListener(\"navigate\", event => parent.postMessage(event.destination.url, \"*\")); addEventListener(\"message\", event => { location.href = event.data; });</script>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
@@ -97,6 +98,16 @@ function requestAsync(window: Page, method: string, payload: unknown): Promise<u
 async function eventsAsync(window: Page): Promise<string[]> {
   const events = await requestAsync(window, "pages.events", null);
   return Array.isArray(events) ? events.filter(Object.isString) : [];
+}
+
+async function refusalsAsync(window: Page): Promise<string[]> {
+  const refusals = await requestAsync(window, "pages.refusals", null);
+  return Array.isArray(refusals) ? refusals.filter(Object.isString) : [];
+}
+
+async function windowsAsync(window: Page): Promise<string[]> {
+  const windows = await requestAsync(window, "pages.windows", null);
+  return Array.isArray(windows) ? windows.filter(Object.isString) : [];
 }
 
 async function listAsync(window: Page): Promise<JsonReader[]> {
@@ -253,6 +264,19 @@ function clickInFirstViewAsync(mainProcess: MainProcessFixture, x: number, y: nu
   }, [x, y, button] as const);
 }
 
+function commandClickInFirstViewAsync(mainProcess: MainProcessFixture, x: number, y: number): Promise<boolean> {
+  return mainProcess.application.evaluate(({ webContents }, point) => {
+    const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+    if (first === undefined)
+      return false;
+    const modifier = process.platform === "darwin" ? "meta" : "control";
+    const types: readonly ("mouseDown" | "mouseUp")[] = ["mouseDown", "mouseUp"];
+    for (const type of types)
+      first.sendInputEvent({ type, x: point.left, y: point.top, button: "left", clickCount: 1, modifiers: [modifier] });
+    return true;
+  }, { left: x, top: y });
+}
+
 function isFirstDebuggerAttachedAsync(mainProcess: MainProcessFixture): Promise<boolean> {
   return mainProcess.application.evaluate(({ webContents }) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
@@ -295,6 +319,10 @@ async function startServerAsync(): Promise<Server> {
     }
     if (request.url === "/clicks") {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(clicksPage);
+      return;
+    }
+    if (request.url === "/links") {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(linksPage);
       return;
     }
     if (request.url === "/presses") {
@@ -1113,6 +1141,71 @@ test.describe("web views", () => {
       await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
       await expect(view(window, 0)).toHaveText("First page");
       expect(await eventsAsync(window)).not.toContain(`${id} LoadFailed`);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view reports the person's own click on a link to an origin it doesn't allow as a refused navigation from a press, and a script's navigation right after the person's click on plain text, or after the link, as not", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const port = portOf(server);
+      const origin = `http://${host}:${port}`;
+      const outside = `http://localhost:${port}/second`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      const id = await view(window, 0).getAttribute("data-view");
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("First page");
+      expect(await runInFirstViewAsync(mainProcess, `void document.body.prepend(Object.assign(document.createElement("a"), { href: ${JSON.stringify(outside)}, textContent: "Out", style: "display:block;font-size:40px" }))`)).toBe(true);
+      expect(await runInFirstViewAsync(mainProcess, "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")).toBe(true);
+
+      expect(await clickInFirstViewAsync(mainProcess, 20, 70)).toBe(true);
+      expect(await runInFirstViewAsync(mainProcess, `void (location.href = ${JSON.stringify(outside)})`)).toBe(true);
+      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} false`]);
+      expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
+      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} false`, `${id} ${outside} true`]);
+      expect(await runInFirstViewAsync(mainProcess, `void (location.href = ${JSON.stringify(outside)})`)).toBe(true);
+      await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} false`, `${id} ${outside} true`, `${id} ${outside} false`]);
+
+      await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view marks a new window as from a link only for the person's own middle or Ctrl or Cmd click on the link, not for a handler's window.open on the same press, even to the link's address", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      const id = await view(window, 0).getAttribute("data-view");
+      await requestAsync(window, "pages.allow", [origin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/links` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("Links");
+      const line = (path: string, isFromLink: boolean): string => `${id} ${origin}${path} ${String(isFromLink)}`;
+
+      expect(await clickInFirstViewAsync(mainProcess, 20, 25, "middle")).toBe(true);
+      await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true)]);
+      expect(await commandClickInFirstViewAsync(mainProcess, 20, 25)).toBe(true);
+      await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true), line("/first", true)]);
+      expect(await clickInFirstViewAsync(mainProcess, 75, 25, "middle")).toBe(true);
+      await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true), line("/first", true), line("/a", false)]);
+      expect(await clickInFirstViewAsync(mainProcess, 125, 25, "middle")).toBe(true);
+
+      await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true), line("/first", true), line("/a", false), line("/second", false)]);
     }
     finally {
       await stopServerAsync(server);

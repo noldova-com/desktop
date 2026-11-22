@@ -37,7 +37,9 @@ export class WebViewEvent {
       [Resources.canGoBackField, WebViewEvent.FLAG], [Resources.canGoForwardField, WebViewEvent.FLAG]
     ]),
     [WebViewEventKind.LoadFailed]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.codeField, WebViewEvent.WHOLE], [Resources.descriptionField, WebViewEvent.TEXT]]),
-    [WebViewEventKind.NavigationRefused]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG]]),
+    [WebViewEventKind.NavigationRefused]: new Map([
+      [Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG], [Resources.fromPressField, WebViewEvent.FLAG_OR_ABSENT]
+    ]),
     [WebViewEventKind.FrameNavigationRefused]: new Map([
       [Resources.addressField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT], [Resources.isRedirectField, WebViewEvent.FLAG], [Resources.frameIdField, WebViewEvent.FRAME]
     ]),
@@ -45,7 +47,7 @@ export class WebViewEvent {
     [WebViewEventKind.ProfileCleared]: new Map([[Resources.profileKeyField, WebViewEvent.TEXT]]),
     [WebViewEventKind.RequestRefused]: new Map([[Resources.requestField, WebViewEvent.TEXT], [Resources.originField, WebViewEvent.TEXT]]),
     [WebViewEventKind.NewWindowRequested]: new Map([[Resources.addressField, WebViewEvent.TEXT], [Resources.hadRecentInputField, WebViewEvent.FLAG], [Resources.originField, WebViewEvent.TEXT_OR_NULL],
-      [Resources.dispositionField, WebViewEvent.TEXT_OR_ABSENT], [Resources.fromPressField, WebViewEvent.FLAG_OR_ABSENT]]),
+      [Resources.dispositionField, WebViewEvent.TEXT_OR_ABSENT], [Resources.fromPressField, WebViewEvent.FLAG_OR_ABSENT], [Resources.fromLinkField, WebViewEvent.FLAG_OR_ABSENT]]),
     [WebViewEventKind.Protocol]: new Map([[Resources.methodField, WebViewEvent.TEXT], [Resources.paramsField, WebViewEvent.OBJECT], [Resources.isCutField, WebViewEvent.FLAG]]),
     [WebViewEventKind.Dropped]: new Map([[Resources.countField, WebViewEvent.WHOLE]]),
     [WebViewEventKind.Key]: new Map([[Resources.nameField, WebViewEvent.TEXT]]),

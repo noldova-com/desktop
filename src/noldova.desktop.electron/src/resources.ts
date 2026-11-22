@@ -9,9 +9,11 @@
 import "@noldova/context.core";
 import { ShellClients, ShellMethods } from "@noldova/desktop.protocol";
 import { ProductInfo } from "@noldova/desktop.runtime";
+import type { KeyboardInputEvent } from "electron";
 
 import { MainProcessFailureKind } from "./enums/main-process-failure-kind.js";
 import type { IPreloadChannels } from "./interfaces/i-preload-channels.js";
+import { WebViewKeyModifier } from "./models/web-view-key-modifier.js";
 
 export class Resources {
   public static readonly folderSeparator: string = "/";
@@ -261,10 +263,11 @@ export class Resources {
   public static readonly rawKeyDownType: string = "rawKeyDown";
   public static readonly charType: string = "char";
   public static readonly keyUpType: string = "keyUp";
-  public static readonly keyModifierNames: readonly (readonly [number, string])[] = [
-    [Resources.altModifier, "alt"], [Resources.ctrlModifier, "control"], [Resources.metaModifier, "meta"], [Resources.shiftModifier, "shift"]
+  public static readonly keyModifiers: readonly WebViewKeyModifier[] = [
+    new WebViewKeyModifier(Resources.altModifier, "alt"), new WebViewKeyModifier(Resources.ctrlModifier, "control"),
+    new WebViewKeyModifier(Resources.metaModifier, "meta"), new WebViewKeyModifier(Resources.shiftModifier, "shift")
   ];
-  public static readonly autoRepeatModifier: string = "isautorepeat";
+  public static readonly autoRepeatModifier: NonNullable<KeyboardInputEvent["modifiers"]>[number] = "isautorepeat";
   public static readonly pressField: string = "press";
   public static readonly webViewKeyTexts: ReadonlyMap<string, string> = new Map([["Enter", "\r"]]);
   public static readonly webViewKeyNames: ReadonlyMap<string, string> = new Map([["ArrowUp", "Up"], ["ArrowDown", "Down"], ["ArrowLeft", "Left"], ["ArrowRight", "Right"], [" ", "Space"], ["+", "Plus"]]);
@@ -330,6 +333,9 @@ export class Resources {
   public static readonly inputPressKind: string = "Press";
   public static readonly recentInputMilliseconds: number = 5000;
   public static readonly fromPressField: string = "fromPress";
+  public static readonly fromLinkField: string = "fromLink";
+  public static readonly linkRecordWorld: number = 1996;
+  public static readonly linkRecordScript: string = "(() => { if (globalThis.noldovaTakeLink !== undefined) return; let record = null; const note = event => { const link = event.target instanceof Element ? event.target.closest(\"a[href], area[href]\") : null; record = link === null ? null : { event, address: link.href }; }; addEventListener(\"click\", event => { if (event.isTrusted) note(event); }, true); addEventListener(\"auxclick\", event => { if (event.isTrusted && event.button === 1) note(event); }, true); globalThis.noldovaTakeLink = address => { const isLink = record !== null && !record.event.defaultPrevented && record.address === address; if (isLink) record = null; return isLink; }; })()";
   public static readonly newWindowRequestLimit: number = 5;
   public static readonly newWindowRequestMilliseconds: number = 1000;
   public static readonly permissionRequest: string = "permission";
@@ -1070,6 +1076,10 @@ export class Resources {
 
   public static get installFolder(): string | null {
     return ProductInfo.current.installFolder;
+  }
+
+  public static formatTakeLinkScript(address: string): string {
+    return `globalThis.noldovaTakeLink?.(${JSON.stringify(address)}) === true`;
   }
 
   public static formatCommandLineNotStarted(program: string, reason: string): string {

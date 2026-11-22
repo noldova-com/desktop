@@ -19,12 +19,12 @@ export class WebViewEventTests {
     [WebViewEventKind.Closed, {}],
     [WebViewEventKind.State, { address: "https://example.com/", title: "Example", isLoading: false, canGoBack: true, canGoForward: false }],
     [WebViewEventKind.LoadFailed, { address: "https://example.com/", code: -105, description: "ERR_NAME_NOT_RESOLVED" }],
-    [WebViewEventKind.NavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: true }],
+    [WebViewEventKind.NavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: true, fromPress: false }],
     [WebViewEventKind.FrameNavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: 7 }],
     [WebViewEventKind.Crashed, {}],
     [WebViewEventKind.ProfileCleared, { profileKey: "workspace-1" }],
     [WebViewEventKind.RequestRefused, { request: "download", origin: "https://example.com" }],
-    [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: true, origin: "https://example.com", disposition: "background-tab", fromPress: true }],
+    [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: true, origin: "https://example.com", disposition: "background-tab", fromPress: true, fromLink: true }],
     [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: { timestamp: 1 }, isCut: false }],
     [WebViewEventKind.Dropped, { count: 3 }],
     [WebViewEventKind.Key, { name: "reload" }],
@@ -56,6 +56,26 @@ export class WebViewEventTests {
   }
 
   @TestMethod
+  public carriesARefusedNavigationWithoutFromPress(): void {
+    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NavigationRefused\",\"details\":{\"address\":\"https://example.net/\",\"origin\":\"https://example.net\",\"isRedirect\":false}}";
+
+    const event = WebViewEvent.fromJson(JsonReader.parse(text).toJson());
+
+    Assert.areEqual(text, JSON.stringify(event.toJson()));
+    Assert.isFalse(Object.hasOwn(event.details, "fromPress"));
+  }
+
+  @TestMethod
+  public carriesANewWindowRequestWithFromPressButWithoutFromLink(): void {
+    const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\",\"fromPress\":true}}";
+
+    const event = WebViewEvent.fromJson(JsonReader.parse(text).toJson());
+
+    Assert.areEqual(text, JSON.stringify(event.toJson()));
+    Assert.isFalse(Object.hasOwn(event.details, "fromLink"));
+  }
+
+  @TestMethod
   public carriesANewWindowRequestWithoutFromPress(): void {
     const text = "{\"module\":\"browser\",\"view\":\"7\",\"kind\":\"NewWindowRequested\",\"details\":{\"address\":\"https://example.com/next\",\"hadRecentInput\":true,\"origin\":null,\"disposition\":\"background-tab\"}}";
 
@@ -82,45 +102,77 @@ export class WebViewEventTests {
 
   @TestMethod
   public refusesDetailsThatDontFitTheKind(): void {
-    const refused: readonly [WebViewEventKind, JsonObject][] = [
-      [WebViewEventKind.Closed, { address: "x" }],
-      [WebViewEventKind.State, { address: "x", title: "t", isLoading: false, canGoBack: true }],
-      [WebViewEventKind.State, { address: "x", title: "t", isLoading: "no", canGoBack: true, canGoForward: false }],
-      [WebViewEventKind.LoadFailed, { address: "x", code: 1.5, description: "d" }],
-      [WebViewEventKind.FrameNavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false }],
-      [WebViewEventKind.FrameNavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: null }],
-      [WebViewEventKind.FrameNavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: 0 }],
-      [WebViewEventKind.FrameNavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: 2.5 }],
-      [WebViewEventKind.FrameNavigationRefused, { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: "7" }],
-      [WebViewEventKind.Opened, { pane: { name: "pane" }, profileKey: "a" }],
-      [WebViewEventKind.Opened, { pane: { name: "browser.pane" }, profileKey: "A" }],
-      [WebViewEventKind.RequestRefused, { request: "camera", origin: "https://example.com" }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: "yes", origin: null, disposition: "new-window" }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: 1, disposition: "new-window" }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, disposition: "new-window" }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: null }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: null }],
-      [WebViewEventKind.NewWindowRequested, { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: 1 }],
-      [WebViewEventKind.Protocol, { method: "Page.loadEventFired", params: [], isCut: false }],
-      [WebViewEventKind.Dropped, { count: 0 }],
-      [WebViewEventKind.Zoom, { factor: 0.2 }],
-      [WebViewEventKind.Zoom, { factor: 5.5 }],
-      [WebViewEventKind.Zoom, { factor: "1" }],
-      [WebViewEventKind.Found, { matches: 2, active: 3 }],
-      [WebViewEventKind.Found, { matches: -1, active: 0 }],
-      [WebViewEventKind.Found, { matches: 1.5, active: 0 }],
-      [WebViewEventKind.Favicon, {}],
-      [WebViewEventKind.Favicon, { image: "data:image/jpeg;base64,/9j/" }],
-      [WebViewEventKind.Favicon, { image: "https://example.com/favicon.ico" }],
-      [WebViewEventKind.Favicon, { image: "data:image/png;base64,iVBORw0KGgo" }],
-      [WebViewEventKind.Favicon, { image: `data:image/png;base64,${"A".repeat(21_852)}` }],
-      [WebViewEventKind.Favicon, { image: 1 }],
-      [WebViewEventKind.Controlled, {}],
-      [WebViewEventKind.Controlled, { isControlled: "true" }]
-    ];
+    const refused = new Map<WebViewEventKind, readonly JsonObject[]>([
+      [WebViewEventKind.Closed, [
+        { address: "x" }
+      ]],
+      [WebViewEventKind.State, [
+        { address: "x", title: "t", isLoading: false, canGoBack: true },
+        { address: "x", title: "t", isLoading: "no", canGoBack: true, canGoForward: false }
+      ]],
+      [WebViewEventKind.LoadFailed, [
+        { address: "x", code: 1.5, description: "d" }
+      ]],
+      [WebViewEventKind.FrameNavigationRefused, [
+        { address: "https://example.net/", origin: "https://example.net", isRedirect: false },
+        { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: null },
+        { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: 0 },
+        { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: 2.5 },
+        { address: "https://example.net/", origin: "https://example.net", isRedirect: false, frameId: "7" }
+      ]],
+      [WebViewEventKind.Opened, [
+        { pane: { name: "pane" }, profileKey: "a" },
+        { pane: { name: "browser.pane" }, profileKey: "A" }
+      ]],
+      [WebViewEventKind.RequestRefused, [
+        { request: "camera", origin: "https://example.com" }
+      ]],
+      [WebViewEventKind.NewWindowRequested, [
+        { address: "https://example.com/next", hadRecentInput: "yes", origin: null, disposition: "new-window" },
+        { address: "https://example.com/next", hadRecentInput: false, origin: 1, disposition: "new-window" },
+        { address: "https://example.com/next", hadRecentInput: false, disposition: "new-window" },
+        { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: null },
+        { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: null },
+        { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: 1 },
+        { address: "https://example.com/next", hadRecentInput: false, origin: null, disposition: "default", fromPress: false, fromLink: "yes" }
+      ]],
+      [WebViewEventKind.NavigationRefused, [
+        { address: "https://example.net/", origin: "https://example.net", isRedirect: false, fromPress: null },
+        { address: "https://example.net/", origin: "https://example.net", isRedirect: false, fromPress: "yes" }
+      ]],
+      [WebViewEventKind.Protocol, [
+        { method: "Page.loadEventFired", params: [], isCut: false }
+      ]],
+      [WebViewEventKind.Dropped, [
+        { count: 0 }
+      ]],
+      [WebViewEventKind.Zoom, [
+        { factor: 0.2 },
+        { factor: 5.5 },
+        { factor: "1" }
+      ]],
+      [WebViewEventKind.Found, [
+        { matches: 2, active: 3 },
+        { matches: -1, active: 0 },
+        { matches: 1.5, active: 0 }
+      ]],
+      [WebViewEventKind.Favicon, [
+        {},
+        { image: "data:image/jpeg;base64,/9j/" },
+        { image: "https://example.com/favicon.ico" },
+        { image: "data:image/png;base64,iVBORw0KGgo" },
+        { image: `data:image/png;base64,${"A".repeat(21_852)}` },
+        { image: 1 }
+      ]],
+      [WebViewEventKind.Controlled, [
+        {},
+        { isControlled: "true" }
+      ]]
+    ]);
 
-    for (const [kind, details] of refused)
-      Assert.areEqual("details", Assert.throws(() => new WebViewEvent("browser", "7", kind, details), ArgumentException).parameterName);
+    for (const [kind, cases] of refused)
+      for (const details of cases)
+        Assert.areEqual("details", Assert.throws(() => new WebViewEvent("browser", "7", kind, details), ArgumentException).parameterName);
     Assert.areEqual("module", Assert.throws(() => new WebViewEvent("desktop", "7", WebViewEventKind.Closed), ArgumentException).parameterName);
     Assert.areEqual("view", Assert.throws(() => new WebViewEvent("browser", String.empty, WebViewEventKind.Closed), ArgumentException).parameterName);
   }
