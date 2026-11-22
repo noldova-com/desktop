@@ -19,6 +19,17 @@
 !define COMMAND_FOLDER "$INSTDIR\bin"
 !define REMOVE_ATTEMPTS 60
 !define REMOVE_PAUSE 500
+!define SNAPSHOT_PROCESSES 2
+!define INVALID_HANDLE -1
+!define PROCESS_QUERY_LIMITED 0x1000
+!define PROCESS_END 0x100001
+!define FILE_WRITE 0x40000000
+!define FILE_SHARE_ALL 7
+!define FILE_OPEN_EXISTING 3
+!define SHARING_VIOLATION 32
+!define APP_END_WAIT 2000
+!define APP_CLOSE_ATTEMPTS 3
+!define APP_CLOSE_PAUSE 2000
 
 !macro announceEnvironment
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
@@ -80,6 +91,133 @@
     ClearErrors
     WinShell::SetLnkAUMI "${LINK}" "${APP_ID}"
   ${EndIf}
+!macroend
+
+!macro readAppFolder
+  System::Call 'kernel32::GetLongPathNameW(w "$INSTDIR", w .R6, i ${NSIS_MAX_STRLEN}) i .R8'
+  ${If} $R8 = 0
+  ${OrIf} $R8 >= ${NSIS_MAX_STRLEN}
+    StrCpy $R6 $INSTDIR
+  ${EndIf}
+  StrCpy $R8 $R6 1 -1
+  ${If} $R8 != "\"
+    StrCpy $R6 "$R6\"
+  ${EndIf}
+  StrLen $R8 $R6
+  System::Call 'kernel32::GetCurrentProcessId() i .R7'
+!macroend
+
+!macro findAppProcesses END
+  StrCpy $R0 0
+  StrCpy $R1 0
+  System::Call 'kernel32::CreateToolhelp32Snapshot(i ${SNAPSHOT_PROCESSES}, i 0) p .r6'
+  ${If} $6 P<> ${INVALID_HANDLE}
+    System::Call '*(&l4, i, i, p, i, i, i, i, i, &w260) p .r7'
+    System::Call 'kernel32::Process32FirstW(p r6, p r7) i .r0'
+    ${DoWhile} $0 <> 0
+      System::Call '*$7(i, i, i .r1)'
+      ${If} $1 <> $R7
+      ${AndIf} $1 <> 0
+        System::Call 'kernel32::OpenProcess(i ${PROCESS_QUERY_LIMITED}, i 0, i r1) p .r2'
+        ${If} $2 P<> 0
+          System::Call 'kernel32::QueryFullProcessImageNameW(p r2, i 0, w .r3, *i ${NSIS_MAX_STRLEN}) i .r4'
+          System::Call 'kernel32::CloseHandle(p r2)'
+          StrCpy $5 $3 $R8
+          ${If} $4 <> 0
+          ${AndIf} $5 == $R6
+            IntOp $R0 $R0 + 1
+            !if ${END} == 1
+              System::Call 'kernel32::OpenProcess(i ${PROCESS_END}, i 0, i r1) p .r2'
+              ${If} $2 P<> 0
+                System::Call 'kernel32::TerminateProcess(p r2, i 1)'
+                System::Call 'kernel32::WaitForSingleObject(p r2, i ${APP_END_WAIT})'
+                System::Call 'kernel32::CloseHandle(p r2)'
+              ${EndIf}
+            !endif
+          ${EndIf}
+        ${EndIf}
+      ${EndIf}
+      System::Call 'kernel32::Process32NextW(p r6, p r7) i .r0'
+    ${Loop}
+    System::Free $7
+    System::Call 'kernel32::CloseHandle(p r6)'
+  ${EndIf}
+  ${If} $R0 = 0
+  ${AndIf} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+    System::Call 'kernel32::CreateFileW(w "$INSTDIR\${APP_EXECUTABLE_FILENAME}", i ${FILE_WRITE}, i ${FILE_SHARE_ALL}, p 0, i ${FILE_OPEN_EXISTING}, i 0, p 0) p .r2 ?e'
+    Pop $3
+    ${If} $2 P= ${INVALID_HANDLE}
+      ${If} $3 = ${SHARING_VIOLATION}
+        StrCpy $R1 1
+      ${EndIf}
+    ${Else}
+      System::Call 'kernel32::CloseHandle(p r2)'
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+!macro customCheckAppRunning
+  Push $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+  Push $5
+  Push $6
+  Push $7
+  Push $R0
+  Push $R1
+  Push $R2
+  Push $R7
+  Push $R8
+  Push $R6
+  !insertmacro readAppFolder
+  ${If} ${isUpdated}
+    Sleep 300
+  ${EndIf}
+  !insertmacro findAppProcesses 0
+  ${If} $R0 <> 0
+  ${OrIf} $R1 = 1
+    ${If} ${isUpdated}
+      Sleep 1000
+    ${Else}
+      MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "$(appRunning)" /SD IDOK IDOK +2
+      Quit
+    ${EndIf}
+    DetailPrint "$(appClosing)"
+    StrCpy $R2 0
+    ${Do}
+      !insertmacro findAppProcesses 1
+      !insertmacro findAppProcesses 0
+      ${If} $R0 = 0
+      ${AndIf} $R1 = 0
+        ${ExitDo}
+      ${EndIf}
+      IntOp $R2 $R2 + 1
+      ${If} $R2 >= ${APP_CLOSE_ATTEMPTS}
+        MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(appCannotBeClosed)" /SD IDCANCEL IDRETRY +2
+        Quit
+        StrCpy $R2 0
+      ${Else}
+        DetailPrint `Waiting for "${PRODUCT_NAME}" to close.`
+        Sleep ${APP_CLOSE_PAUSE}
+      ${EndIf}
+    ${Loop}
+  ${EndIf}
+  Pop $R6
+  Pop $R8
+  Pop $R7
+  Pop $R2
+  Pop $R1
+  Pop $R0
+  Pop $7
+  Pop $6
+  Pop $5
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Pop $0
 !macroend
 
 !macro customInit

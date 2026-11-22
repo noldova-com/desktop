@@ -20,6 +20,7 @@ import { InstalledPackage } from "../../../src/models/packaging/installed-packag
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { ProcessResult } from "../../../src/models/processes/process-result.js";
 import { ProductIdentity } from "../../../src/models/packages/product-identity.js";
+import { Resources } from "../../../src/resources.js";
 import { PackageInstaller } from "../../../src/services/packaging/package-installer.js";
 import { UserPath } from "../../../src/services/packaging/user-path.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
@@ -521,6 +522,48 @@ export class PackageInstallerTests {
   }
 
   @TestMethod
+  public async reinstallsOverTheInstallAndReturnsWhatTheInstallerAnsweredWithoutCheckingIt(): Promise<void> {
+    await PackageInstallerTests.withFolderAsync(async folder => {
+      const runner = new ScriptedRunner(() => Promise.resolve(new ProcessResult(2, String.empty, "Sample App cannot be closed.")));
+      const installer = new PackageInstaller(folder, runner, { SystemRoot: "C:\\Windows", PSModulePath: "D:\\Modules" });
+
+      const result = await installer.reinstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.PRODUCT, "1.2.3", folder);
+
+      Assert.areEqual(2, result.exitCode);
+      Assert.areEqual("Sample App cannot be closed.", result.text);
+      Assert.areEqual("Sample App-1.2.3-windows-x64.exe /S", runner.calls.join("|"));
+      Assert.areEqual("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules;D:\\Modules", runner.environment?.["PSModulePath"]);
+    });
+  }
+
+  @TestMethod
+  public async startsTheProgramAsTheNamedUserThroughWindowsPowerShell(): Promise<void> {
+    await PackageInstallerTests.withFolderAsync(async folder => {
+      const program = path.join(folder, "Programs", "sample-app", "Sample App.exe");
+      const runner = new ScriptedRunner(() => Promise.resolve(new ProcessResult(0, "5150\r\n", String.empty)));
+      const installer = new PackageInstaller(folder, runner, { SystemRoot: "C:\\Windows", NOLDOVA_SMOKE_OTHER_USER: "noldova-smoke" });
+
+      const result = await installer.startForOtherUserAsync(program, folder);
+
+      const command = Buffer.from(Resources.otherUserStartScript, "utf16le").toString("base64");
+      Assert.areEqual("5150", result.text);
+      Assert.areEqual(`powershell.exe -NoProfile -NonInteractive -EncodedCommand ${command}`, runner.calls.join("|"));
+      Assert.areEqual(program, runner.environment?.["NOLDOVA_SMOKE_OTHER_PROGRAM"]);
+      Assert.areEqual(path.dirname(program), runner.environment?.["NOLDOVA_SMOKE_OTHER_FOLDER"]);
+      Assert.areEqual("noldova-smoke", runner.environment?.["NOLDOVA_SMOKE_OTHER_USER"]);
+      Assert.areEqual("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules", runner.environment?.["PSModulePath"]);
+      Assert.isTrue(Resources.otherUserStartScript.includes("$hold = 'set ELECTRON_RUN_AS_NODE=1&& \"' + $env:NOLDOVA_SMOKE_OTHER_PROGRAM + '\" -e \"setTimeout(() => undefined, 600000)\"'\n"));
+      Assert.isTrue(Resources.otherUserStartScript.includes("Start-Process -FilePath cmd.exe -ArgumentList '/c', $hold -WorkingDirectory $env:NOLDOVA_SMOKE_OTHER_FOLDER "
+        + "-RedirectStandardOutput other-user-output.log -RedirectStandardError other-user-errors.log -Credential $credential -LoadUserProfile -PassThru\n"));
+      Assert.isTrue(Resources.otherUserStartScript.includes("Where-Object { $before -notcontains $_.Id })\n  if ($held.Count -gt 0) { break }\n"));
+      Assert.isTrue(Resources.otherUserStartScript.includes("if ($shell.HasExited) { throw \"cmd.exe exited with $($shell.ExitCode) before the app started.\" }"));
+      Assert.isTrue(Resources.otherUserStartScript.includes("AddMilliseconds(30000)"));
+      Assert.isTrue(Resources.otherUserStartScript.endsWith("\n$held[0].Id"));
+      Assert.isFalse(Resources.otherUserStartScript.includes("Write-"));
+    });
+  }
+
+  @TestMethod
   public async describesWhatAnInstallerThatTimedOutLeft(): Promise<void> {
     await PackageInstallerTests.withFolderAsync(async (folder, installFolder, installer) => {
       const timeout = new ProcessTimeoutException("Sample App-1.2.3-windows-x64.exe", 120000);
@@ -608,7 +651,7 @@ export class PackageInstallerTests {
     const local = await Assert.throwsAsync(() => new PackageInstaller(tmpdir(), runner, { SystemRoot: "C:\\Windows" })
       .installAsync(target, PackageInstallerTests.PRODUCT, "1.2.3", tmpdir()), BuildException);
 
-    Assert.areEqual("SystemRoot must name the Windows folder, whose PowerShell modules the installer's checks search first.", system.message);
+    Assert.areEqual("SystemRoot must name the Windows folder, whose PowerShell modules the smoke's PowerShell checks search first.", system.message);
     Assert.areEqual(system.message, absent.message);
     Assert.areEqual("LOCALAPPDATA must name the folder the installer installs into for the user.", local.message);
     Assert.areEqual(0, runner.calls.length);

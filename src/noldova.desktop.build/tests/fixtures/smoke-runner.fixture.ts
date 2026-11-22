@@ -19,6 +19,7 @@ import { SmokeProcessFixture } from "./smoke-process.fixture.js";
 export class SmokeRunnerFixture extends ProcessRunner {
   public static readonly MAIN: number = 4141;
   public static readonly RUNTIME: number = 4242;
+  public static readonly HELD: number = 4343;
   public static readonly PATH: string = "C:\\Tools";
   public static readonly PRODUCT_NAME: string = "Sample App";
   public static readonly SLUG: string = "sample-app";
@@ -35,6 +36,8 @@ export class SmokeRunnerFixture extends ProcessRunner {
   public readonly running: Set<number> = new Set<number>();
   public answer: (name: string, commandArguments: readonly string[], environment: NodeJS.ProcessEnv | undefined) => ProcessResult | null = () => null;
   public main: SmokeProcessFixture | null = null;
+  public held: SmokeProcessFixture | null = null;
+  public reinstallEndsApp: boolean = true;
   public data: string | null = null;
   public userPath: string | null = SmokeRunnerFixture.PATH;
   public version: string | null = "1.2.3";
@@ -96,8 +99,10 @@ export class SmokeRunnerFixture extends ProcessRunner {
     }
     else if (name === "sudo" && commandArguments.includes("apt-get") && commandArguments.includes("remove"))
       await rm(this.debianFolder, { recursive: true, force: true });
-    if (name === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-windows-x64.exe`)
+    if (name === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-windows-x64.exe`) {
+      this.endApp();
       await this.installWindowsAsync(environment ?? {});
+    }
     else if (name.startsWith("Uninstall "))
       await this.uninstallWindowsAsync(commandArguments);
     else if (name === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-linux-x64.AppImage`)
@@ -109,6 +114,10 @@ export class SmokeRunnerFixture extends ProcessRunner {
 
   public override async startAsync(command: string, commandArguments: readonly string[], _directory: string, log: string): Promise<SmokeProcessFixture> {
     this.started.push([path.basename(command), ...commandArguments].join(" "));
+    if (path.basename(path.dirname(command)) === "smoke-held") {
+      this.held = new SmokeProcessFixture(SmokeRunnerFixture.HELD, null, () => undefined);
+      return this.held;
+    }
     await writeFile(log, "main started\n");
     const option = "--data-dir=";
     const data = commandArguments.find(t => t.startsWith(option))?.slice(option.length) ?? String.empty;
@@ -141,6 +150,14 @@ export class SmokeRunnerFixture extends ProcessRunner {
   private static createProgram(isEncrypted: boolean, hasWire: boolean): Buffer {
     const state = isEncrypted ? 0x31 : 0x30;
     return Buffer.concat([Buffer.from("electron-program-"), ...(hasWire ? [Buffer.from(SmokeRunnerFixture.SENTINEL), Buffer.from([1, 2, 0x31, state])] : [])]);
+  }
+
+  private endApp(): void {
+    if (!this.reinstallEndsApp)
+      return;
+    for (const started of [this.main, this.held])
+      if (!Object.isNull(started) && !started.hasExited)
+        started.signal("SIGKILL");
   }
 
   private endMain(): void {

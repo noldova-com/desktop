@@ -14,6 +14,7 @@ import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 
 import type { ProductIdentity } from "../../models/packages/product-identity.ts";
+import type { ProcessResult } from "../../models/processes/process-result.ts";
 import type { ProcessRunner } from "../processes/process-runner.ts";
 import { AppleSignatureCheck } from "./apple-signature-check.ts";
 import { ProcessTimeoutException } from "../../exceptions/process-timeout.exception.ts";
@@ -49,6 +50,19 @@ export class PackageInstaller {
       default:
         return this.unpackAppImageAsync(locate(Resources.appImageTarget), product, folder);
     }
+  }
+
+  public reinstallWindowsAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<ProcessResult> {
+    return this.runner.captureAsync(this.locatePackage(target, product, version, Resources.installerTarget), Resources.silentInstallArguments, folder,
+      Resources.installerTimeout, this.createInstallerEnvironment());
+  }
+
+  public startForOtherUserAsync(program: string, folder: string): Promise<ProcessResult> {
+    const command = Buffer.from(Resources.otherUserStartScript, Resources.powershellScriptEncoding).toString(Resources.powershellCommandEncoding);
+    const environment = this.createInstallerEnvironment();
+    environment[Resources.smokeOtherProgramVariable] = program;
+    environment[Resources.smokeOtherFolderVariable] = path.dirname(program);
+    return this.runner.captureAsync(Resources.windowsPowershellCommand, [...Resources.powershellOptions, command], folder, Resources.smokeCommandLimit, environment);
   }
 
   public async uninstallWindowsAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<void> {
@@ -112,19 +126,35 @@ export class PackageInstaller {
     return variable.toUpperCase() === name.toUpperCase();
   }
 
-  private findVariable(name: string): string | undefined {
-    return Object.entries(this.environment).find(([variable]) => PackageInstaller.isNamed(variable, name))?.[1];
+  public async canDebugAsync(folder: string): Promise<boolean> {
+    const program = path.win32.join(this.locateSystemRoot(), ...Resources.whoamiSegments);
+    const privileges = await this.runner.captureAsync(program, Resources.whoamiPrivilegesArguments, folder, Resources.smokeCommandLimit);
+    if (!privileges.isSuccessful)
+      throw new BuildException(Resources.formatSmokeDebugPrivilegeUnread(privileges.exitCode, privileges.text));
+    return privileges.output.split(Resources.lineSeparator).some(t => t.trim() === Resources.debugPrivilegeEnabledLine);
   }
 
-  private createInstallerEnvironment(): NodeJS.ProcessEnv {
+  private locateSystemRoot(): string {
     const systemRoot = this.findVariable(Resources.systemRootVariable) ?? String.empty;
     if (systemRoot.length === 0)
       throw new BuildException(Resources.systemRootMissing);
-    const modules = [path.win32.join(systemRoot, ...Resources.windowsPowershellModulesSegments), this.findVariable(Resources.powershellModulePathVariable) ?? String.empty]
+    return systemRoot;
+  }
+
+  private findVariable(name: string): string | undefined {
+    const variable = Object.keys(this.environment).find(t => PackageInstaller.isNamed(t, name));
+    return Object.isUndefined(variable) ? undefined : this.environment[variable];
+  }
+
+  private createInstallerEnvironment(): NodeJS.ProcessEnv {
+    const modules = [path.win32.join(this.locateSystemRoot(), ...Resources.windowsPowershellModulesSegments), this.findVariable(Resources.powershellModulePathVariable) ?? String.empty]
       .filter(t => t.length > 0)
       .join(path.win32.delimiter);
-    const others = Object.entries(this.environment).filter(([variable]) => !PackageInstaller.isNamed(variable, Resources.powershellModulePathVariable));
-    return { ...Object.fromEntries(others), [Resources.powershellModulePathVariable]: modules };
+    const environment: NodeJS.ProcessEnv = {};
+    for (const variable of Object.keys(this.environment).filter(t => !PackageInstaller.isNamed(t, Resources.powershellModulePathVariable)))
+      environment[variable] = this.environment[variable];
+    environment[Resources.powershellModulePathVariable] = modules;
+    return environment;
   }
 
   private locatePackage(target: PackageTarget, product: ProductIdentity, version: string, extension: string): string {
@@ -274,8 +304,10 @@ export class PackageInstaller {
     const domains = [...(await readFile(path.join(expanded, Resources.installerDistributionFile), Resources.textEncoding)).matchAll(Resources.installerDomainsPattern)]
       .map(t => t[0]);
     const [domain = String.empty] = domains;
-    const choices = new Map([...domain.matchAll(Resources.xmlAttributePattern)].map(([, name, value]) => [name, value]));
-    if (domains.length !== 1 || [...Resources.macInstallerDomains].some(([name, value]) => choices.get(name) !== value))
+    const choices = new Map<string | undefined, string | undefined>();
+    for (const attribute of domain.matchAll(Resources.xmlAttributePattern))
+      choices.set(attribute[1], attribute[2]);
+    if (domains.length !== 1 || [...Resources.macInstallerDomains.keys()].some(t => choices.get(t) !== Resources.macInstallerDomains.get(t)))
       throw new BuildException(Resources.formatMacInstallerDomainsOpen(installer, location, domains));
     const program = path.join(application, ...Resources.macBundleProgramSegments, product.name);
     PackageInstaller.requireFiles([program]);

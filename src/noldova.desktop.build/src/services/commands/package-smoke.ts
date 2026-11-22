@@ -88,7 +88,8 @@ export class PackageSmoke {
     if (option === Resources.smokeRemoveLeftoverOption)
       return this.removeLeftoverAsync();
 
-    this.sandboxOption = option ?? null;
+    const isRunningApp = option === Resources.smokeRunningAppOption;
+    this.sandboxOption = isRunningApp ? null : option ?? null;
     this.isDebian = isDebian;
     this.isMacInstaller = isMacInstaller;
     this.system = null;
@@ -99,7 +100,7 @@ export class PackageSmoke {
     this.hasRuntimeStopped = false;
     let hasFailed = false;
     try {
-      await this.checkAsync();
+      await (isRunningApp ? this.checkRunningAppAsync() : this.checkAsync());
     }
     catch (error) {
       const isKnown = error instanceof BuildException;
@@ -255,6 +256,95 @@ export class PackageSmoke {
     if (pathAfter !== pathBefore)
       throw new BuildException(Resources.formatSmokePathChanged(pathAfter, pathBefore));
     this.output.write(Resources.smokeUninstalled);
+  }
+
+  private async checkRunningAppAsync(): Promise<void> {
+    const running = PackageTarget.fromProcess(this.platform, this.architecture);
+    if (running.platform !== Resources.windowsTarget)
+      throw new BuildException(Resources.smokeRunningAppNotWindows);
+    const manifest = await RootManifest.readAsync(this.root);
+    const product = await ProductIdentity.readAsync(this.root);
+    const target = running.withInstallFolder(product.installFolder);
+    this.slug = product.slug;
+    const folder = await this.temporaryFolder.createAsync(this.platform, Resources.smokeFolderPrefix);
+    this.folder = folder;
+    const installer = new PackageInstaller(this.root, this.runner, this.environment);
+    this.output.write(Resources.formatOutputLine(await installer.removeWindowsLeftoverAsync(product, folder, new UserPath(this.runner, folder)) ?? Resources.smokeNothingLeft));
+    const installed = await installer.installAsync(target, product, manifest.productVersion, folder);
+    const data = path.join(folder, Resources.smokeDataFolder);
+    const log = path.join(folder, Resources.smokeMainLogFile);
+    const logs = [log, path.join(data, ...Resources.smokeDataLogSegments)];
+    const held = path.join(path.dirname(installed.mainProcess), Resources.smokeHeldFolder, path.basename(process.execPath));
+    await mkdir(path.dirname(held));
+    await copyFile(process.execPath, held);
+    const mainProcess = await this.startMainProcessAsync(installed, data, folder, log);
+    const heldProcess = await this.runner.startAsync(held, Resources.smokeHeldArguments, folder, path.join(folder, Resources.smokeHeldLogFile));
+    try {
+      this.checkStarted(await this.waitForRuntimeAsync(installed, data, folder, mainProcess, logs), manifest.productVersion, data, Resources.smokeMomentAfterStart);
+      const runtime = await PackageSmoke.readRuntimeIdAsync(data);
+      if (Object.isNull(runtime))
+        throw new BuildException(Resources.formatSmokeDiscoveryNamesNoProcess(path.join(data, ...Resources.runtimeDiscoverySegments)));
+      this.track(runtime);
+      const reinstall = await installer.reinstallWindowsAsync(target, product, manifest.productVersion, folder);
+      if (!reinstall.isSuccessful)
+        throw new BuildException(Resources.formatSmokeReinstallRefused(reinstall.exitCode, reinstall.text));
+      const left: string[] = [];
+      if (!await mainProcess.waitAsync(Resources.smokeKillLimit))
+        left.push(Resources.formatSmokeLeftProcess(Resources.smokeMainProcessName, mainProcess.id));
+      if (!await this.waitForExitAsync(runtime, Resources.smokeKillLimit))
+        left.push(Resources.formatSmokeLeftProcess(Resources.smokeRuntimeName, runtime));
+      if (!await heldProcess.waitAsync(Resources.smokeKillLimit))
+        left.push(Resources.formatSmokeLeftProcess(held, heldProcess.id));
+      if (left.length > 0)
+        throw new BuildException(Resources.formatSmokeRunningAppLeft(left));
+      this.track(null);
+      this.output.write(Resources.smokeRunningAppEnded);
+    }
+    finally {
+      if (!mainProcess.hasExited)
+        mainProcess.signal(Resources.killSignal);
+      if (!heldProcess.hasExited)
+        heldProcess.signal(Resources.killSignal);
+    }
+    await this.checkOtherUserAsync(installer, installed, target, product, manifest.productVersion, folder);
+    await installer.uninstallWindowsAsync(target, product, manifest.productVersion, folder);
+    this.output.write(Resources.smokeUninstalled);
+  }
+
+  private async checkOtherUserAsync(installer: PackageInstaller, installed: InstalledPackage, target: PackageTarget, product: ProductIdentity, version: string,
+    folder: string): Promise<void> {
+    const user = this.environment[Resources.smokeOtherUserVariable] ?? String.empty;
+    if (user.length === 0) {
+      this.output.write(Resources.smokeOtherUserSkipped);
+      return;
+    }
+    const canDebug = await installer.canDebugAsync(folder);
+    const started = await installer.startForOtherUserAsync(installed.mainProcess, folder);
+    const processId = Number(started.output.trim());
+    if (!started.isSuccessful || !Number.isSafeInteger(processId) || processId <= 0)
+      throw new BuildException(Resources.formatSmokeOtherUserNotStarted(user, started.exitCode, started.text));
+    try {
+      if (!this.runner.isRunning(processId))
+        throw new BuildException(Resources.formatSmokeOtherUserEnded(user, processId, Resources.smokeMomentBeforeReinstall));
+      const reinstall = await installer.reinstallWindowsAsync(target, product, version, folder);
+      const isRunning = this.runner.isRunning(processId);
+      if (reinstall.isSuccessful && isRunning)
+        throw new BuildException(Resources.formatSmokeOtherUserReinstalled(user));
+      if (canDebug && !reinstall.isSuccessful)
+        throw new BuildException(Resources.formatSmokeOtherUserNotClosed(user, reinstall.exitCode));
+      if (reinstall.isSuccessful && !canDebug)
+        throw new BuildException(Resources.formatSmokeOtherUserClosedWithoutDebug(user));
+      if (reinstall.isSuccessful) {
+        this.output.write(Resources.formatSmokeOtherUserClosed(user));
+        return;
+      }
+      if (!isRunning)
+        throw new BuildException(Resources.formatSmokeOtherUserEnded(user, processId, Resources.smokeMomentAfterReinstall));
+      this.output.write(Resources.formatSmokeOtherUserRefused(user, reinstall.exitCode));
+    }
+    finally {
+      await this.runner.captureAsync(Resources.taskkillCommand, [...Resources.taskkillTreeArguments, String(processId)], folder, Resources.smokeCommandLimit);
+    }
   }
 
   private async installDebianAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<InstalledPackage> {

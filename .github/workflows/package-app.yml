@@ -525,6 +525,40 @@ jobs:
             npm run package:smoke
           fi
 
+      - name: Install over the running app
+        id: running-app
+        if: steps.smoke.outcome == 'success' && runner.os == 'Windows'
+        timeout-minutes: 15
+        working-directory: ${{ inputs.app-folder }}
+        shell: pwsh
+        env:
+          NOLDOVA_SMOKE_OTHER_USER: ${{ runner.environment == 'github-hosted' && 'noldova-smoke' || '' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:NOLDOVA_SMOKE_OTHER_USER) {
+            $bytes = [byte[]]::new(24)
+            [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+            $env:NOLDOVA_SMOKE_OTHER_PASSWORD = "$([Convert]::ToBase64String($bytes))aA1!"
+            $account = ([ADSI]"WinNT://$env:COMPUTERNAME").Create('User', $env:NOLDOVA_SMOKE_OTHER_USER)
+            $account.SetPassword($env:NOLDOVA_SMOKE_OTHER_PASSWORD)
+            $account.SetInfo()
+          }
+          else {
+            Write-Output "::notice::Skipped starting the app as another user, which needs a local account this self-hosted runner should not keep; CI's run on a GitHub-hosted runner covers it."
+          }
+          npm run package:smoke -- --running-app
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Remove the smoke's other account
+        if: always() && steps.running-app.outcome != 'skipped' && runner.environment == 'github-hosted'
+        timeout-minutes: 2
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([ADSI]::Exists("WinNT://$env:COMPUTERNAME/noldova-smoke,user")) {
+            ([ADSI]"WinNT://$env:COMPUTERNAME").Delete('User', 'noldova-smoke')
+          }
+
       - name: Keep the virtual display's log
         if: always() && runner.os == 'Linux' && (steps.smoke.outcome == 'failure' || steps.smoke.outcome == 'cancelled')
         timeout-minutes: 5

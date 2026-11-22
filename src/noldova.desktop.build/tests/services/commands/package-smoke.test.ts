@@ -53,12 +53,17 @@ export class PackageSmokeTests {
   private static readonly APP_IMAGE: string = "_build/package/out/Sample App-1.2.3-linux-x64.AppImage";
   private static readonly ELF: Buffer = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01]);
   private static readonly RENDERER: number = SmokeRunnerFixture.MAIN + 2;
+  private static readonly OTHER_USER: string = "noldova-smoke";
+  private static readonly OTHER_APP: number = 5150;
+  private static readonly DEBUG_ENABLED: string = "Enabled";
+  private static readonly DEBUG_DISABLED: string = "Disabled";
   private static readonly RESTRICTION: string = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns";
 
   @TestMethod
   public async answersAnotherOptionOrMoreThanOneWithItsUsageAsync(): Promise<void> {
     for (const smokeArguments of [["--quick"], ["--remove-leftover", "--remove-leftover"], ["--deb", "--remove-leftover"], ["--deb", "--no-sandbox", "--require-sandbox"],
-      ["--no-sandbox", "--deb"], ["--pkg", "--no-sandbox"], ["--pkg", "--deb"], ["--deb", "--pkg"]]) {
+      ["--no-sandbox", "--deb"], ["--pkg", "--no-sandbox"], ["--pkg", "--deb"], ["--deb", "--pkg"],
+      ["--running-app", "--no-sandbox"], ["--deb", "--running-app"], ["--pkg", "--running-app"]]) {
       const result = await PackageSmokeTests.runAsync(tmpdir(), smokeArguments);
 
       Assert.areEqual(2, result.exitCode);
@@ -239,6 +244,154 @@ export class PackageSmokeTests {
     Assert.isTrue(result.output.endsWith(Resources.formatOutputLine(Resources.formatSmokePowerShellFailed(SmokeRunnerFixture.SLUG, 1,
       "The term 'sample-app' is not recognized."))), result.output);
     Assert.areEqual("SIGKILL", runner.main?.signals.join("|"));
+  }
+
+  @TestMethod
+  public async installsOverTheRunningAppAndEndsEveryProcessInItsFolderAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const installed = path.join(parent.path, "local", "Programs", SmokeRunnerFixture.SLUG);
+    const runner = new SmokeRunnerFixture();
+
+    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "win32", runner, ["--running-app"], PackageSmokeTests.windowsEnvironment(parent.path));
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith([Resources.smokeRunningAppEnded, Resources.smokeOtherUserSkipped, Resources.smokeUninstalled].join(String.empty)), result.output);
+    Assert.areEqual(2, runner.captured.filter(t => t === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-windows-x64.exe /S`).length, runner.captured.join("\n"));
+    Assert.areEqual(`${path.basename(process.execPath)} -e setTimeout(() => undefined, 600000)`, runner.started[1]);
+    Assert.areEqual("SIGKILL", runner.main?.signals.join("|"));
+    Assert.areEqual("SIGKILL", runner.held?.signals.join("|"));
+    Assert.isFalse(runner.running.has(SmokeRunnerFixture.RUNTIME));
+    Assert.isFalse(existsSync(installed));
+  }
+
+  @TestMethod
+  public async reportsAnInstallerThatRefusesTheRunningAppAndEndsWhatItStartedAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const runner = new SmokeRunnerFixture();
+    runner.answer = name => name === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-windows-x64.exe` && !Object.isNull(runner.main)
+      ? new ProcessResult(2, String.empty, "Sample App cannot be closed.") : null;
+
+    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "win32", runner, ["--running-app"], PackageSmokeTests.windowsEnvironment(parent.path));
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.endsWith(Resources.formatOutputLine(Resources.formatSmokeReinstallRefused(2, "Sample App cannot be closed."))), result.output);
+    Assert.areEqual("SIGKILL", runner.main?.signals.join("|"));
+    Assert.areEqual("SIGKILL", runner.held?.signals.join("|"));
+    Assert.isFalse(runner.running.has(SmokeRunnerFixture.RUNTIME));
+  }
+
+  @TestMethod
+  public async reportsEachProcessTheInstallerLeftRunningAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const held = path.join(parent.path, "local", "Programs", SmokeRunnerFixture.SLUG, "smoke-held", path.basename(process.execPath));
+    const runner = new SmokeRunnerFixture();
+    runner.reinstallEndsApp = false;
+
+    const result = await PausedClockFixture.withoutPausesAsync(() => PackageSmokeTests.smokeAsync(app, parent.path, "win32", runner, ["--running-app"],
+      PackageSmokeTests.windowsEnvironment(parent.path)), Resources.smokePollInterval);
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.endsWith(Resources.formatOutputLine(Resources.formatSmokeRunningAppLeft([
+      Resources.formatSmokeLeftProcess(Resources.smokeMainProcessName, SmokeRunnerFixture.MAIN),
+      Resources.formatSmokeLeftProcess(Resources.smokeRuntimeName, SmokeRunnerFixture.RUNTIME),
+      Resources.formatSmokeLeftProcess(held, SmokeRunnerFixture.HELD)
+    ]))), result.output);
+    Assert.areEqual("SIGKILL", runner.main?.signals.join("|"));
+    Assert.areEqual("SIGKILL", runner.held?.signals.join("|"));
+  }
+
+  @TestMethod
+  public async reportsADiscoveryFileThatNamesNoProcessBeforeInstallingOverTheAppAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const runner = new SmokeRunnerFixture();
+    runner.writesProcessId = false;
+
+    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "win32", runner, ["--running-app"], PackageSmokeTests.windowsEnvironment(parent.path));
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.isTrue(result.output.endsWith(Resources.formatOutputLine(Resources.formatSmokeDiscoveryNamesNoProcess(path.join(result.data, "discovery", "runtime.json")))),
+      result.output);
+    Assert.areEqual(1, runner.captured.filter(t => t === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-windows-x64.exe /S`).length, runner.captured.join("\n"));
+    Assert.areEqual("SIGKILL", runner.main?.signals.join("|"));
+    Assert.areEqual("SIGKILL", runner.held?.signals.join("|"));
+  }
+
+  @TestMethod
+  public async refusesToInstallOverTheRunningAppOffWindowsAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const runner = new SmokeRunnerFixture();
+
+    const result = await PackageSmokeTests.smokeAsync(app, parent.path, "linux", runner, ["--running-app"]);
+
+    Assert.areEqual(1, result.exitCode);
+    Assert.areEqual(Resources.formatOutputLine(Resources.smokeRunningAppNotWindows), result.output);
+    Assert.areEqual(0, runner.captured.length);
+    Assert.areEqual(0, runner.started.length);
+  }
+
+  @TestMethod
+  public async startsTheAppAsAnotherUserAndChecksTheInstallerRefusesAndLeavesItAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const program = path.join(parent.path, "local", "Programs", SmokeRunnerFixture.SLUG, `${SmokeRunnerFixture.PRODUCT_NAME}.exe`);
+    const runner = PackageSmokeTests.createOtherUserRunner(true, true, true, false);
+
+    const result = await PausedClockFixture.withoutPausesAsync(() => PackageSmokeTests.smokeAsync(app, parent.path, "win32", runner, ["--running-app"],
+      PackageSmokeTests.otherUserEnvironment(parent.path)), Resources.smokePollInterval);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith([Resources.smokeRunningAppEnded, Resources.formatSmokeOtherUserRefused(PackageSmokeTests.OTHER_USER, 2),
+      Resources.smokeUninstalled].join(String.empty)), result.output);
+    const environment = runner.environments.find(t => !Object.isUndefined(t[Resources.smokeOtherProgramVariable]));
+    Assert.areEqual(program, environment?.[Resources.smokeOtherProgramVariable]);
+    Assert.areEqual(path.dirname(program), environment?.[Resources.smokeOtherFolderVariable]);
+    Assert.areEqual("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules", environment?.["PSModulePath"]);
+    Assert.isTrue(runner.captured.includes(`taskkill.exe /T /F /PID ${String(PackageSmokeTests.OTHER_APP)}`), runner.captured.join("\n"));
+    Assert.isFalse(runner.running.has(PackageSmokeTests.OTHER_APP));
+  }
+
+  @TestMethod
+  public async acceptsAnInstallerThatEndsAnotherUsersAppAndInstallsAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const runner = PackageSmokeTests.createOtherUserRunner(true, true, false, false, true, PackageSmokeTests.DEBUG_ENABLED);
+
+    const result = await PausedClockFixture.withoutPausesAsync(() => PackageSmokeTests.smokeAsync(app, parent.path, "win32", runner, ["--running-app"],
+      PackageSmokeTests.otherUserEnvironment(parent.path)), Resources.smokePollInterval);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith([Resources.smokeRunningAppEnded, Resources.formatSmokeOtherUserClosed(PackageSmokeTests.OTHER_USER),
+      Resources.smokeUninstalled].join(String.empty)), result.output);
+    Assert.isFalse(runner.running.has(PackageSmokeTests.OTHER_APP));
+  }
+
+  @TestMethod
+  public async reportsAnotherUsersAppThatDoesNotStartEndsOrIsInstalledOverAsync(): Promise<void> {
+    await using app = await PackageSmokeTests.createAppAsync();
+    await using parent = await PackageSmokeTests.createParentAsync();
+    const user = PackageSmokeTests.OTHER_USER;
+    const notStarted = PackageSmokeTests.createOtherUserRunner(false, false, true, false);
+    const endedBefore = PackageSmokeTests.createOtherUserRunner(true, false, true, false);
+    const installedOver = PackageSmokeTests.createOtherUserRunner(true, true, false, false);
+    const endedAfter = PackageSmokeTests.createOtherUserRunner(true, true, true, true);
+    const refusedWithDebug = PackageSmokeTests.createOtherUserRunner(true, true, true, false, false, PackageSmokeTests.DEBUG_ENABLED);
+    const endedWithoutDebug = PackageSmokeTests.createOtherUserRunner(true, true, false, false, true);
+    const unread = PackageSmokeTests.createOtherUserRunner(true, true, true, false, false, null);
+
+    await PackageSmokeTests.checkOtherUserFailsAsync(app, parent.path, notStarted, Resources.formatSmokeOtherUserNotStarted(user, 1, "Access is denied."), false);
+    await PackageSmokeTests.checkOtherUserFailsAsync(app, parent.path, endedBefore, Resources.formatSmokeOtherUserEnded(user, PackageSmokeTests.OTHER_APP,
+      Resources.smokeMomentBeforeReinstall), true);
+    await PackageSmokeTests.checkOtherUserFailsAsync(app, parent.path, installedOver, Resources.formatSmokeOtherUserReinstalled(user), true);
+    await PackageSmokeTests.checkOtherUserFailsAsync(app, parent.path, endedAfter, Resources.formatSmokeOtherUserEnded(user, PackageSmokeTests.OTHER_APP,
+      Resources.smokeMomentAfterReinstall), true);
+    await PackageSmokeTests.checkOtherUserFailsAsync(app, parent.path, refusedWithDebug, Resources.formatSmokeOtherUserNotClosed(user, 2), true);
+    await PackageSmokeTests.checkOtherUserFailsAsync(app, parent.path, endedWithoutDebug, Resources.formatSmokeOtherUserClosedWithoutDebug(user), true);
+    await PackageSmokeTests.checkOtherUserFailsAsync(app, parent.path, unread, Resources.formatSmokeDebugPrivilegeUnread(1, "Access is denied."), false);
   }
 
   @TestMethod
@@ -1232,6 +1385,50 @@ export class PackageSmokeTests {
     runner.mainExitCode = 1;
     runner.window = null;
     return runner;
+  }
+
+  private static createOtherUserRunner(isStarted: boolean, isRunning: boolean, refuses: boolean, endsOnRefusal: boolean, endsOnInstall: boolean = false,
+    debugState: string | null = PackageSmokeTests.DEBUG_DISABLED): SmokeRunnerFixture {
+    const runner = new SmokeRunnerFixture();
+    runner.answer = (name, commandArguments) => {
+      if (name === path.basename("C:\\Windows\\System32\\whoami.exe") && commandArguments.join(" ") === "/priv /fo csv /nh")
+        return Object.isNull(debugState)
+          ? new ProcessResult(1, String.empty, "Access is denied.")
+          : new ProcessResult(0, `"SeChangeNotifyPrivilege","Bypass traverse checking","Enabled"\r\n"SeDebugPrivilege","Debug programs","${debugState}"\r\n`, String.empty);
+      if (name === "powershell.exe" && commandArguments.includes("-EncodedCommand")) {
+        if (!isStarted)
+          return new ProcessResult(1, String.empty, "Access is denied.");
+        if (isRunning)
+          runner.running.add(PackageSmokeTests.OTHER_APP);
+        return new ProcessResult(0, `${String(PackageSmokeTests.OTHER_APP)}\r\n`, String.empty);
+      }
+      if (name === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-windows-x64.exe` && runner.running.has(PackageSmokeTests.OTHER_APP) && refuses) {
+        if (endsOnRefusal)
+          runner.running.delete(PackageSmokeTests.OTHER_APP);
+        return new ProcessResult(2, String.empty, "Sample App cannot be closed.");
+      }
+      if (name === `${SmokeRunnerFixture.PRODUCT_NAME}-1.2.3-windows-x64.exe` && endsOnInstall)
+        runner.running.delete(PackageSmokeTests.OTHER_APP);
+      if (name === "taskkill.exe")
+        runner.running.delete(PackageSmokeTests.OTHER_APP);
+      return null;
+    };
+    return runner;
+  }
+
+  private static async checkOtherUserFailsAsync(app: InstalledAppFixture, parent: string, runner: SmokeRunnerFixture, message: string, isEnded: boolean): Promise<void> {
+    const result = await PausedClockFixture.withoutPausesAsync(() => PackageSmokeTests.smokeAsync(app, parent, "win32", runner, ["--running-app"],
+      PackageSmokeTests.otherUserEnvironment(parent)), Resources.smokePollInterval);
+
+    Assert.areEqual(1, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith(Resources.formatOutputLine(message)), result.output);
+    Assert.areEqual(isEnded, runner.captured.includes(`taskkill.exe /T /F /PID ${String(PackageSmokeTests.OTHER_APP)}`), runner.captured.join("\n"));
+  }
+
+  private static otherUserEnvironment(parent: string): NodeJS.ProcessEnv {
+    const environment = PackageSmokeTests.windowsEnvironment(parent);
+    environment[Resources.smokeOtherUserVariable] = PackageSmokeTests.OTHER_USER;
+    return environment;
   }
 
   private static windowsEnvironment(parent: string): NodeJS.ProcessEnv {

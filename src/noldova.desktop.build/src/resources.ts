@@ -495,7 +495,7 @@ export class Resources {
   public static readonly macBundleResourcesSegments: readonly string[] = [Resources.macBundleContentsFolder, "Resources"];
   public static readonly appImageExtractArguments: readonly string[] = ["--appimage-extract"];
   public static readonly appImageExtractedFolder: string = "squashfs-root";
-  public static readonly systemRootMissing: string = `${Resources.systemRootVariable} must name the Windows folder, whose PowerShell modules the installer's checks search first.`;
+  public static readonly systemRootMissing: string = `${Resources.systemRootVariable} must name the Windows folder, whose PowerShell modules the smoke's PowerShell checks search first.`;
   public static readonly localAppDataMissing: string = `${Resources.localAppDataVariable} must name the folder the installer installs into for the user.`;
   public static readonly appDataVariable: string = "APPDATA";
   public static readonly appDataMissing: string = `${Resources.appDataVariable} must name the folder that holds the user's Start menu.`;
@@ -1356,11 +1356,31 @@ export class Resources {
   public static readonly smokeRequireFallbackOption: string = "--require-fallback";
   public static readonly smokeDebianOption: string = "--deb";
   public static readonly smokeMacInstallerOption: string = "--pkg";
+  public static readonly smokeRunningAppOption: string = "--running-app";
   public static readonly smokeSandboxOptions: readonly string[] = [Resources.smokeRequireSandboxOption, Resources.smokeRequireFallbackOption, Resources.chromiumNoSandboxOption];
-  public static readonly smokeOptions: readonly string[] = [Resources.smokeRemoveLeftoverOption, ...Resources.smokeSandboxOptions];
+  public static readonly smokeOptions: readonly string[] = [Resources.smokeRemoveLeftoverOption, Resources.smokeRunningAppOption, ...Resources.smokeSandboxOptions];
   public static readonly smokeUsage: string = `Usage: ${Resources.commandName} ${Resources.packageSmokeCommand} [${Resources.smokeDebianOption}] [${Resources.smokeSandboxOptions.join(" | ")}]\n`
     + `       ${Resources.commandName} ${Resources.packageSmokeCommand} ${Resources.smokeMacInstallerOption}\n`
+    + `       ${Resources.commandName} ${Resources.packageSmokeCommand} ${Resources.smokeRunningAppOption}\n`
     + `       ${Resources.commandName} ${Resources.packageSmokeCommand} ${Resources.smokeRemoveLeftoverOption}\n`;
+  public static readonly smokeRunningAppNotWindows: string = `${Resources.smokeRunningAppOption} installs over the running app, which only a Windows package's installer does, so it runs on Windows alone.`;
+  public static readonly smokeHeldFolder: string = "smoke-held";
+  public static readonly smokeHeldScript: string = "setTimeout(() => undefined, 600000)";
+  public static readonly smokeHeldArguments: readonly string[] = ["-e", Resources.smokeHeldScript];
+  public static readonly smokeHeldLogFile: string = "held.log";
+  public static readonly smokeMainProcessName: string = "the main process";
+  public static readonly smokeRuntimeName: string = "the runtime";
+  public static readonly smokeRunningAppEnded: string = "Installed over the running app: the installer ended its main process, its runtime and another program in its folder, and installed.\n";
+  public static readonly smokeOtherUserVariable: string = "NOLDOVA_SMOKE_OTHER_USER";
+  public static readonly smokeOtherPasswordVariable: string = "NOLDOVA_SMOKE_OTHER_PASSWORD";
+  public static readonly smokeOtherProgramVariable: string = "NOLDOVA_SMOKE_OTHER_PROGRAM";
+  public static readonly smokeOtherFolderVariable: string = "NOLDOVA_SMOKE_OTHER_FOLDER";
+  public static readonly smokeOtherUserStartLimit: number = 30_000;
+  public static readonly smokeOtherOutputFile: string = "other-user-output.log";
+  public static readonly smokeOtherErrorFile: string = "other-user-errors.log";
+  public static readonly smokeOtherUserSkipped: string = `No other user's app was started, since ${Resources.smokeOtherUserVariable} names no account.\n`;
+  public static readonly smokeMomentBeforeReinstall: string = "before the installer ran";
+  public static readonly smokeMomentAfterReinstall: string = "after the installer refused";
   public static readonly smokeMacInstallerNotFoldered: string = `Only an app that names an install folder makes a macOS installer package, so ${Resources.smokeMacInstallerOption} `
     + "smokes it on macOS alone.";
   public static readonly smokeDebianNotLinux: string = `Only the Linux package is also a Debian package, so ${Resources.smokeDebianOption} smokes it on Linux alone.`;
@@ -1461,6 +1481,9 @@ export class Resources {
   public static readonly refusedSignalCode: string = "EPERM";
   public static readonly taskkillCommand: string = "taskkill.exe";
   public static readonly taskkillTreeArguments: readonly string[] = ["/T", "/F", "/PID"];
+  public static readonly whoamiSegments: readonly string[] = ["System32", "whoami.exe"];
+  public static readonly whoamiPrivilegesArguments: readonly string[] = ["/priv", "/fo", "csv", "/nh"];
+  public static readonly debugPrivilegeEnabledLine: string = "\"SeDebugPrivilege\",\"Debug programs\",\"Enabled\"";
   public static readonly taskkillTimeout: number = 10_000;
   public static readonly taskkillEndedPattern: RegExp = /^[^\r\n]*?PID (\d+)/gm;
   public static readonly psCommand: string = "ps";
@@ -1486,6 +1509,29 @@ export class Resources {
   public static readonly exitEvent: "exit" = "exit";
   public static readonly spawnEvent: "spawn" = "spawn";
   public static readonly windowsCommandShell: string = "cmd.exe";
+  public static readonly otherUserStartScript: string = [
+    Resources.powershellStopLine,
+    `$user = $env:${Resources.smokeOtherUserVariable}`,
+    `$null = icacls.exe $env:${Resources.smokeOtherFolderVariable} /grant "\${user}:(OI)(CI)RX"`,
+    "if ($LASTEXITCODE -ne 0) { throw \"icacls exited with $LASTEXITCODE.\" }",
+    `$password = Microsoft.PowerShell.Security\\ConvertTo-SecureString $env:${Resources.smokeOtherPasswordVariable} -AsPlainText -Force`,
+    "$credential = Microsoft.PowerShell.Utility\\New-Object System.Management.Automation.PSCredential($user, $password)",
+    `$name = [System.IO.Path]::GetFileNameWithoutExtension($env:${Resources.smokeOtherProgramVariable})`,
+    "$before = @(Microsoft.PowerShell.Management\\Get-Process -Name $name -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })",
+    `$hold = 'set ${Resources.runAsNodeVariable}=${Resources.runAsNodeValue}&& "' + $env:${Resources.smokeOtherProgramVariable} + '" -e "${Resources.smokeHeldScript}"'`,
+    `$shell = Microsoft.PowerShell.Management\\Start-Process -FilePath ${Resources.windowsCommandShell} -ArgumentList '/c', $hold -WorkingDirectory $env:${Resources.smokeOtherFolderVariable} `
+      + `-RedirectStandardOutput ${Resources.smokeOtherOutputFile} -RedirectStandardError ${Resources.smokeOtherErrorFile} -Credential $credential -LoadUserProfile -PassThru`,
+    "$null = $shell.Handle",
+    `$deadline = (Microsoft.PowerShell.Utility\\Get-Date).AddMilliseconds(${String(Resources.smokeOtherUserStartLimit)})`,
+    "for (;;) {",
+    "  $held = @(Microsoft.PowerShell.Management\\Get-Process -Name $name -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id })",
+    "  if ($held.Count -gt 0) { break }",
+    `  if ($shell.HasExited) { throw "${Resources.windowsCommandShell} exited with $($shell.ExitCode) before the app started." }`,
+    `  if ((Microsoft.PowerShell.Utility\\Get-Date) -gt $deadline) { throw "The app did not start within ${String(Resources.smokeOtherUserStartLimit)} ms." }`,
+    `  Microsoft.PowerShell.Utility\\Start-Sleep -Milliseconds ${String(Resources.smokePollInterval)}`,
+    "}",
+    "$held[0].Id"
+  ].join(Resources.lineSeparator);
   public static readonly windowsCommandShellOptions: readonly string[] = ["/d", "/c"];
   public static readonly powerShellOptions: readonly string[] = ["-NoProfile", "-NonInteractive", "-Command"];
   public static readonly pathVariable: string = "PATH";
@@ -3889,6 +3935,50 @@ export class Resources {
 
   public static formatSmokeNoRuntimeBeforeStart(slug: string): string {
     return `${slug} status ${Resources.smokeMomentBeforeStart}: no runtime.\n`;
+  }
+
+  public static formatSmokeReinstallRefused(exitCode: number | null, output: string): string {
+    return `The installer, run over the running app, exited with ${String(exitCode)}:\n${output}`;
+  }
+
+  public static formatSmokeLeftProcess(name: string, processId: number): string {
+    return `${name}, process ${String(processId)}`;
+  }
+
+  public static formatSmokeRunningAppLeft(left: readonly string[]): string {
+    return `The installer, run over the running app, left running ${left.join("; ")}.`;
+  }
+
+  public static formatSmokeOtherUserNotStarted(user: string, exitCode: number | null, output: string): string {
+    return `The app could not be started as ${user}: ${Resources.windowsPowershellCommand} exited with ${String(exitCode)}:\n${output}`;
+  }
+
+  public static formatSmokeOtherUserEnded(user: string, processId: number, moment: string): string {
+    return `${user}'s app, process ${String(processId)}, no longer ran ${moment}.`;
+  }
+
+  public static formatSmokeOtherUserReinstalled(user: string): string {
+    return `The installer installed over ${user}'s app while it still ran, rather than ending it or refusing.`;
+  }
+
+  public static formatSmokeOtherUserClosed(user: string): string {
+    return `Run with SeDebugPrivilege enabled over ${user}'s running app, the installer ended it and installed.\n`;
+  }
+
+  public static formatSmokeOtherUserRefused(user: string, exitCode: number | null): string {
+    return `Run with SeDebugPrivilege disabled over ${user}'s running app, the installer refused with exit code ${String(exitCode)} and left it running.\n`;
+  }
+
+  public static formatSmokeOtherUserNotClosed(user: string, exitCode: number | null): string {
+    return `Run with SeDebugPrivilege enabled over ${user}'s running app, the installer refused with exit code ${String(exitCode)} rather than ending it and installing.`;
+  }
+
+  public static formatSmokeOtherUserClosedWithoutDebug(user: string): string {
+    return `Run with SeDebugPrivilege disabled, the installer ended ${user}'s app and installed, rather than refusing.`;
+  }
+
+  public static formatSmokeDebugPrivilegeUnread(exitCode: number | null, output: string): string {
+    return `The smoke could not tell whether its SeDebugPrivilege is enabled: whoami exited with ${String(exitCode)}:\n${output}`;
   }
 
   public static formatSmokeDiscoveryNamesNoProcess(file: string): string {
