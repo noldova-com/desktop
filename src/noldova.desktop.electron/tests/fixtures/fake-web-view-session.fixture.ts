@@ -96,7 +96,6 @@ export class FakeWebViewSession implements IWebViewSession {
     return Object.isNull(this.clearFailure) ? Promise.resolve() : Promise.reject(this.clearFailure);
   }
 
-  // Resolves once the profile's listener answers, which may be after it judged the addresses the request's name resolves to.
   public requestAsync(request: IWebViewRequest): Promise<boolean> {
     return new Promise<boolean>(resolve => {
       if (Object.isNull(this.requestListener))

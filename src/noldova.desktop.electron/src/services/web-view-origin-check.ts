@@ -113,7 +113,6 @@ export class WebViewOriginCheck {
     return isLocalHost && allowed.includes(origin);
   }
 
-  // A WebSocket's origin is its page's: ws: and wss: take the http: and https: origin of the same host and port, as the allowed origins write it.
   private static originOf(url: URL): string {
     const socketScheme = Resources.webViewSocketSchemes.get(url.protocol);
     return Object.isUndefined(socketScheme) ? url.origin : `${socketScheme}${Resources.webViewOriginSeparator}${url.host}`;
