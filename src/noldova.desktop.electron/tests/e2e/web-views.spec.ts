@@ -1141,6 +1141,7 @@ test.describe("web views", () => {
       expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
       await expect(view(window, 0)).toHaveText("First page");
       expect(await runInFirstViewAsync(mainProcess, `void document.body.prepend(Object.assign(document.createElement("a"), { href: ${JSON.stringify(outside)}, textContent: "Out", style: "display:block;font-size:40px" }))`)).toBe(true);
+      expect(await runInFirstViewAsync(mainProcess, "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")).toBe(true);
 
       expect(await clickInFirstViewAsync(mainProcess, 20, 20)).toBe(true);
       await expect.poll(() => refusalsAsync(window)).toEqual([`${id} ${outside} true`]);
