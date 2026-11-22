@@ -37,18 +37,18 @@ export class ProcessTree {
     return this.platform !== Resources.windowsPlatform;
   }
 
-  public async endAsync(processId: number | undefined, launched: number, exited: number | null): Promise<void> {
+  public async endAsync(processId: number | undefined, launched: number, hasExited: boolean): Promise<void> {
     if (Object.isUndefined(processId))
       return;
     if (this.isGrouped)
-      await this.endGroupAsync(processId, launched, exited);
+      await this.endGroupAsync(processId, launched, hasExited);
     else
-      await this.endOnWindowsAsync(processId, launched, exited);
+      await this.endOnWindowsAsync(processId, launched, hasExited);
   }
 
-  private async endGroupAsync(groupId: number, launched: number, exited: number | null): Promise<void> {
+  private async endGroupAsync(groupId: number, launched: number, hasExited: boolean): Promise<void> {
     const listing = await this.readAsync(Resources.psCommand, Resources.psProcessGroupArguments);
-    if ((!Object.isNull(exited) && listing.has(groupId)) || ![...listing.values()].some(t => t.parent === groupId && t.start + Resources.psStartTolerance > launched))
+    if ((hasExited && listing.has(groupId)) || ![...listing.values()].some(t => t.parent === groupId && t.start + Resources.psStartTolerance > launched))
       return;
     if (this.signal(-groupId, Resources.killSignal))
       await this.waitUntilGoneAsync([-groupId]);
@@ -59,9 +59,9 @@ export class ProcessTree {
       await this.delayAsync(Resources.processTreeGracePoll);
   }
 
-  private async endOnWindowsAsync(processId: number, launched: number, exited: number | null): Promise<void> {
+  private async endOnWindowsAsync(processId: number, launched: number, hasExited: boolean): Promise<void> {
     let ended: number[] = [];
-    if (Object.isNull(exited)) {
+    if (!hasExited) {
       const taskkill = this.endHeldTree(processId);
       ended = [...taskkill.output.matchAll(Resources.taskkillEndedPattern)].map(t => Number(t[1]));
       if (taskkill.isEnded) {
@@ -74,10 +74,11 @@ export class ProcessTree {
     for (const id of ended)
       tree.set(id, launched - Resources.psStartTolerance);
     const start = listing.get(processId)?.start;
-    if (Object.isNull(exited) && !Object.isUndefined(start) && start + Resources.psStartTolerance > launched)
+    if (!hasExited && !Object.isUndefined(start) && start + Resources.psStartTolerance > launched)
       tree.set(processId, start);
+    const reused = hasExited ? start : undefined;
     for (const [id, listed] of listing)
-      if (listed.parent === processId && listed.start + Resources.psStartTolerance > launched && (Object.isNull(exited) || listed.start <= exited))
+      if (listed.parent === processId && listed.start + Resources.psStartTolerance > launched && (Object.isUndefined(reused) || listed.start < reused))
         tree.set(id, listed.start);
     for (let round = 0; round < Resources.processTreeRounds; round++) {
       tree = ProcessTree.treeOf(listing, tree);

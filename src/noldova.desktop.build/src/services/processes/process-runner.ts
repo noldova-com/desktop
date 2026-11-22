@@ -39,7 +39,7 @@ export class ProcessRunner {
       const transcript = new ProcessTranscript();
       let size = 0;
       let failure: BuildException | null = null;
-      let exited: number | null = null;
+      let hasExited = false;
       let isEnding = false;
       const stop = (t: BuildException): void => {
         failure ??= t;
@@ -57,14 +57,14 @@ export class ProcessRunner {
       const timer = setTimeout(() => {
         const timedOut = failure ?? new ProcessTimeoutException(command, timeout, transcript.text, child.pid);
         isEnding = true;
-        void this.endAsync(command, child.pid, launched, exited, timedOut).then(t => {
+        void this.endAsync(command, child.pid, launched, hasExited, timedOut).then(t => {
           child.stdout.destroy();
           child.stderr.destroy();
           reject(t);
         });
       }, timeout);
       child.once(Resources.exitEvent, () => {
-        exited = Date.now();
+        hasExited = true;
       });
       child.stdout.on(Resources.dataEvent, (t: Buffer) => receive(output, t, false));
       child.stderr.on(Resources.dataEvent, (t: Buffer) => receive(errorOutput, t, true));
@@ -92,7 +92,7 @@ export class ProcessRunner {
     timeout?: number): Promise<number | null> {
     return new Promise<number | null>((resolve, reject) => {
       const launched = Date.now();
-      let exited: number | null = null;
+      let hasExited = false;
       let isEnding = false;
       const isWatched = !Object.isUndefined(watch);
       const child = spawn(command, [...commandArguments], { cwd: directory, shell: false, env: environment ?? process.env,
@@ -104,14 +104,14 @@ export class ProcessRunner {
       }
       const timer = Object.isUndefined(timeout) ? null : setTimeout(() => {
         isEnding = true;
-        void this.endAsync(command, child.pid, launched, exited, new ProcessTimeoutException(command, timeout)).then(t => {
+        void this.endAsync(command, child.pid, launched, hasExited, new ProcessTimeoutException(command, timeout)).then(t => {
           child.stdout?.destroy();
           child.stderr?.destroy();
           reject(t);
         });
       }, timeout);
       child.once(Resources.exitEvent, () => {
-        exited = Date.now();
+        hasExited = true;
       });
       child.on(Resources.errorEvent, t => {
         if (!Object.isNull(timer))
@@ -145,9 +145,9 @@ export class ProcessRunner {
     ProcessRunner.signal(processId, Resources.killSignal);
   }
 
-  private async endAsync(command: string, processId: number | undefined, launched: number, exited: number | null, failure: BuildException): Promise<BuildException> {
+  private async endAsync(command: string, processId: number | undefined, launched: number, hasExited: boolean, failure: BuildException): Promise<BuildException> {
     try {
-      await this.processTree.endAsync(processId, launched, exited);
+      await this.processTree.endAsync(processId, launched, hasExited);
       return failure;
     }
     catch (error) {

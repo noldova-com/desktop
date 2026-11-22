@@ -23,7 +23,6 @@ import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 @TestClass
 export class ProcessTreeTests {
   private static readonly LAUNCHED: number = Date.parse("2026-11-21T08:00:00.000Z");
-  private static readonly EXITED: number = ProcessTreeTests.LAUNCHED + 3_000;
 
   @TestMethod
   public groupsAProcessTreeEverywhereButWindows(): void {
@@ -49,7 +48,7 @@ export class ProcessTreeTests {
       delays.push(t);
     });
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
 
     Assert.areEqual(JSON.stringify([JSON.stringify(["ps", ["-A", "-o", "pid=,pgid=,lstart="]])]), JSON.stringify(lists));
     Assert.areEqual(JSON.stringify([[-4321, "SIGKILL"], [-4321, 0], [-4321, 0], [-4321, 0]]), JSON.stringify(signals));
@@ -65,7 +64,7 @@ export class ProcessTreeTests {
         throw ProcessTreeTests.failure("ESRCH");
     }, async () => ProcessTreeTests.posix([new ListedProcessFixture(4400, 4321, 500)]), async () => undefined);
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, ProcessTreeTests.EXITED);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, true);
 
     Assert.areEqual(JSON.stringify([[-4321, "SIGKILL"], [-4321, 0]]), JSON.stringify(signals));
   }
@@ -73,16 +72,16 @@ export class ProcessTreeTests {
   @TestMethod
   public async signalsNoGroupItCannotTellIsTheCommands(): Promise<void> {
     const signals: number[] = [];
-    const listings = new Map<string, number | null>()
-      .set(ProcessTreeTests.posix([new ListedProcessFixture(900, 900, 10)]), null)
-      .set(ProcessTreeTests.posix([new ListedProcessFixture(4321, 4321, -60_000), new ListedProcessFixture(4400, 4321, -30_000)]), null)
-      .set(ProcessTreeTests.posix([new ListedProcessFixture(4321, 4321, 5_000), new ListedProcessFixture(4400, 4321, 500)]), ProcessTreeTests.EXITED);
+    const listings = new Map<string, boolean>()
+      .set(ProcessTreeTests.posix([new ListedProcessFixture(900, 900, 10)]), false)
+      .set(ProcessTreeTests.posix([new ListedProcessFixture(4321, 4321, -60_000), new ListedProcessFixture(4400, 4321, -30_000)]), false)
+      .set(ProcessTreeTests.posix([new ListedProcessFixture(4321, 4321, 5_000), new ListedProcessFixture(4400, 4321, 500)]), true);
 
-    for (const [listing, exited] of listings) {
+    for (const [listing, hasExited] of listings) {
       const tree = new ProcessTree("linux", processId => {
         signals.push(processId);
       }, async () => listing, async () => undefined);
-      await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, exited);
+      await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, hasExited);
     }
 
     Assert.areEqual(0, signals.length);
@@ -97,7 +96,7 @@ export class ProcessTreeTests {
       const tree = new ProcessTree(platform, processId => {
         signals.push(processId);
       }, async () => Promise.reject(failure), async () => undefined, ProcessTreeTests.refuseTaskkill);
-      const error = await Assert.throwsAsync(() => tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null), Error);
+      const error = await Assert.throwsAsync(() => tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false), Error);
       Assert.areEqual(failure, error);
     }
 
@@ -121,8 +120,8 @@ export class ProcessTreeTests {
         throw new Error("probe failed");
     }, async () => ProcessTreeTests.posix([new ListedProcessFixture(4321, 4321, 10)]), async () => undefined);
 
-    await holding.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
-    const error = await Assert.throwsAsync(() => failing.endAsync(4321, ProcessTreeTests.LAUNCHED, null), Error);
+    await holding.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
+    const error = await Assert.throwsAsync(() => failing.endAsync(4321, ProcessTreeTests.LAUNCHED, false), Error);
 
     Assert.areEqual(3, probes);
     Assert.areEqual(JSON.stringify([100, 100]), JSON.stringify(delays));
@@ -136,7 +135,7 @@ export class ProcessTreeTests {
       delays.push(t);
     });
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
 
     Assert.areEqual(Resources.processTreeGrace / Resources.processTreeGracePoll, delays.length);
   }
@@ -152,7 +151,7 @@ export class ProcessTreeTests {
         signals.push([processId, signal]);
         throw failure;
       }, async () => ProcessTreeTests.posix([new ListedProcessFixture(4321, 4321, 10)]), async () => undefined);
-      answers.push(await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null).then(() => "ended", (t: unknown) => t instanceof Error ? t.message : String(t)));
+      answers.push(await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false).then(() => "ended", (t: unknown) => t instanceof Error ? t.message : String(t)));
     }
 
     Assert.areEqual(JSON.stringify(["ended", "kill EPERM", "kill failed"]), JSON.stringify(answers));
@@ -187,7 +186,7 @@ export class ProcessTreeTests {
       return output;
     });
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
 
     Assert.areEqual(JSON.stringify([4321]), JSON.stringify(ends));
     Assert.areEqual(0, lists.length);
@@ -205,7 +204,7 @@ export class ProcessTreeTests {
       return String.empty;
     });
 
-    const ending = tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    const ending = tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
     const endedAtOnce = ends.length;
     await ending;
 
@@ -223,7 +222,7 @@ export class ProcessTreeTests {
         : String.empty;
     }, async () => undefined, ProcessTreeTests.refuseTaskkill);
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
 
     Assert.areEqual(JSON.stringify([Resources.processListScript, Resources.formatProcessEndScript([4400, 4500], [start + 50, start + 80])]), JSON.stringify(lists));
   }
@@ -244,7 +243,7 @@ export class ProcessTreeTests {
       });
     });
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
 
     Assert.areEqual(JSON.stringify([Resources.processListScript, Resources.formatProcessEndScript([4500, 4600], [start + 80, start + 90])]), JSON.stringify(lists));
   }
@@ -258,7 +257,7 @@ export class ProcessTreeTests {
       return Promise.reject(failure);
     }, async () => undefined);
 
-    const error = await Assert.throwsAsync(() => tree.endAsync(2_147_483_646, ProcessTreeTests.LAUNCHED, null), Error);
+    const error = await Assert.throwsAsync(() => tree.endAsync(2_147_483_646, ProcessTreeTests.LAUNCHED, false), Error);
 
     Assert.areEqual(failure, error);
     Assert.areEqual(1, lists);
@@ -278,7 +277,7 @@ export class ProcessTreeTests {
       return answers[lists.length - 1] ?? String.empty;
     }, async () => undefined, ProcessTreeTests.refuseTaskkill);
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
 
     Assert.areEqual(JSON.stringify([
       ProcessTreeTests.powershell(Resources.processListScript),
@@ -301,7 +300,7 @@ export class ProcessTreeTests {
       return answers[lists.length - 1] ?? String.empty;
     }, async () => undefined, ProcessTreeTests.refuseTaskkill);
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
 
     Assert.areEqual(JSON.stringify([Resources.processListScript, Resources.formatProcessEndScript([4321, 4400], [start + 5, start + 50])]), JSON.stringify(lists));
   }
@@ -317,9 +316,23 @@ export class ProcessTreeTests {
         : String.empty;
     }, async () => undefined);
 
-    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, ProcessTreeTests.EXITED);
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, true);
 
     Assert.areEqual(JSON.stringify([Resources.processListScript, Resources.formatProcessEndScript([4400, 4500], [start + 50, start + 80])]), JSON.stringify(lists));
+  }
+
+  @TestMethod
+  public async endsTheChildrenAnExitedCommandStartedHoweverLateTheirStartReadsOnWindows(): Promise<void> {
+    const start = ProcessTreeTests.LAUNCHED;
+    const lists: string[] = [];
+    const tree = new ProcessTree("win32", () => undefined, async (_, commandArguments) => {
+      lists.push(commandArguments.at(-1) ?? String.empty);
+      return lists.length === 1 ? ProcessTreeTests.windows([new ListedProcessFixture(4400, 4321, start + 60_000), new ListedProcessFixture(4500, 4400, start + 60_050)]) : String.empty;
+    }, async () => undefined);
+
+    await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, true);
+
+    Assert.areEqual(JSON.stringify([Resources.processListScript, Resources.formatProcessEndScript([4400, 4500], [start + 60_000, start + 60_050])]), JSON.stringify(lists));
   }
 
   @TestMethod
@@ -337,7 +350,7 @@ export class ProcessTreeTests {
         count += 1;
         return listing;
       }, async () => undefined, ProcessTreeTests.refuseTaskkill);
-      await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null);
+      await tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false);
       counts.push(count);
     }
 
@@ -353,7 +366,7 @@ export class ProcessTreeTests {
       return count === 1 ? ProcessTreeTests.windows([new ListedProcessFixture(4321, 1, ProcessTreeTests.LAUNCHED + 5)]) : Promise.reject(failure);
     }, async () => undefined, ProcessTreeTests.refuseTaskkill);
 
-    const error = await Assert.throwsAsync(() => tree.endAsync(4321, ProcessTreeTests.LAUNCHED, null), Error);
+    const error = await Assert.throwsAsync(() => tree.endAsync(4321, ProcessTreeTests.LAUNCHED, false), Error);
 
     Assert.areEqual(failure, error);
     Assert.areEqual(2, count);
@@ -369,7 +382,7 @@ export class ProcessTreeTests {
         calls.push("list");
         return String.empty;
       }, async () => undefined);
-      await tree.endAsync(undefined, ProcessTreeTests.LAUNCHED, null);
+      await tree.endAsync(undefined, ProcessTreeTests.LAUNCHED, false);
     }
 
     Assert.areEqual(0, calls.length);
@@ -414,14 +427,14 @@ export class ProcessTreeListingTests {
     try {
       const launched = Date.now();
       const command = spawn(process.execPath, ["-e", script], { stdio: "ignore", windowsHide: true });
-      const exited = await new Promise<number>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         command.once("error", reject);
-        command.once("exit", () => resolve(Date.now()));
+        command.once("exit", () => resolve());
       });
       id = Number(await readFile(file, "utf8"));
       Assert.isTrue(id > 0 && runner.isRunning(id), "The child did not outlive the command.");
 
-      await new ProcessTree().endAsync(command.pid, launched, exited);
+      await new ProcessTree().endAsync(command.pid, launched, true);
 
       Assert.isFalse(runner.isRunning(id), "The child the command left still runs.");
     }
