@@ -148,6 +148,10 @@ export class WebViewOriginCheckTests {
   @TestData("http://192.168.1.2:8080/", "169.254.1.1", false)
   @TestData("https://local.test/", "10.0.0.5", true)
   @TestData("https://a.example.org/", "10.0.0.5", false)
+  @TestData("wss://local.test/socket", "10.0.0.5", true)
+  @TestData("ws://localhost:4200/socket", "127.0.0.1", true)
+  @TestData("wss://example.com/socket", "127.0.0.1", false)
+  @TestData("wss://example.com/socket", "93.184.216.34", true)
   public judgesTheAddressARequestConnectedTo(url: string, address: string, isAllowed: boolean): void {
     Assert.areEqual(isAllowed, new WebViewOriginCheck(["https://local.test"]).allowsConnection(url, WebViewOriginCheckTests.ALLOWED, address));
   }

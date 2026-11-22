@@ -309,7 +309,10 @@ export class WebViewHost {
       const open = this.findByContents(request.webContentsId);
       if (Object.isNull(open) && Object.isNumber(request.webContentsId) && !this.closedContents.has(request.webContentsId) && request.resourceType === Resources.mainFrameResource)
         this.log(Resources.formatWebViewPageWithoutView(request.webContentsId, request.url));
-      callback({ cancel: !(open?.allowsRequest(request) ?? this.allowsIconRequest(partition, request)) });
+      if (Object.isNull(open))
+        callback({ cancel: !this.allowsIconRequest(partition, request) });
+      else
+        void open.allowsRequestAsync(request).then(allows => callback({ cancel: !allows }));
     });
     session.onBeforeSendHeaders((request, callback) => callback({ cancel: request.requestHeaders?.[Resources.serviceWorkerHeader] === Resources.serviceWorkerScript }));
     session.onBeforeRedirect(redirect => this.findByContents(redirect.webContentsId)?.noteRedirect(redirect));

@@ -359,13 +359,16 @@ export class OpenWebView {
     void guest.debugger.sendCommand(Resources.focusEmulationMethod, { [Resources.enabledParameter]: false }).catch(() => undefined);
   }
 
-  public allowsRequest(request: IWebViewRequest): boolean {
+  // Judges a request by its address and then by the addresses its host resolves to, so a page, a frame, a fetch or a WebSocket handshake
+  // reaches a loopback, private, link-local or unspecified address only for an allowed local entry, whatever its name.
+  public async allowsRequestAsync(request: IWebViewRequest): Promise<boolean> {
     const isRedirect = this.redirects.delete(request.id);
     const isPage = request.resourceType === Resources.mainFrameResource;
     const isFrame = request.resourceType === Resources.subFrameResource;
     const isAdmitted = isFrame && !isRedirect && this.takesAdmittedPage(request);
     const allows = isAdmitted || !this.refusedRequests.delete(request.id)
-      && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed));
+      && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed))
+      && await this.connectsAsync(request.url);
     if (!allows && isPage)
       this.answerInOrder(this.guest, null, () => this.emitRefusedNavigation(request.url, isRedirect, false));
     if (!allows && isFrame)
@@ -928,11 +931,16 @@ export class OpenWebView {
   }
 
   private async allowsAsync(url: string): Promise<boolean> {
-    if (!this.check.allowsNavigation(url, this.allowed, false))
-      return false;
-    if (url === Resources.blankPage)
+    return this.check.allowsNavigation(url, this.allowed, false) && await this.connectsAsync(url);
+  }
+
+  // Whether every address the URL's host resolves to, through the view's own profile, is one the URL may connect to; a URL the checks above
+  // allowed that reaches no network, such as about:blank, a frame's source document, a data: or a blob: one, connects nowhere.
+  private async connectsAsync(url: string): Promise<boolean> {
+    const parsed = new URL(url);
+    if (!Resources.webViewSchemes.includes(parsed.protocol) && !Resources.webViewSocketSchemes.has(parsed.protocol))
       return true;
-    const host = new URL(url).hostname.replace(Resources.webViewBracketsPattern, String.empty);
+    const host = parsed.hostname.replace(Resources.webViewBracketsPattern, String.empty);
     const addresses = isIP(host) !== 0 ? [host] : await this.session.resolveHostAsync(host).catch(() => []);
     return addresses.length > 0 && addresses.every(t => this.check.allowsConnection(url, this.allowed, t));
   }

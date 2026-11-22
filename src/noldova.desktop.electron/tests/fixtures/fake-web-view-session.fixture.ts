@@ -72,7 +72,7 @@ export class FakeWebViewSession implements IWebViewSession {
   }
 
   public async readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null> {
-    const isAllowed = this.request({ id: -1 - this.iconReads.length, url, resourceType: "other" });
+    const isAllowed = await this.requestAsync({ id: -1 - this.iconReads.length, url, resourceType: "other" });
     this.iconReads.push(`${url} ${isAllowed ? "allowed" : "refused"}`);
     this.iconSignals.push(signal);
     if (!isAllowed)
@@ -96,12 +96,14 @@ export class FakeWebViewSession implements IWebViewSession {
     return Object.isNull(this.clearFailure) ? Promise.resolve() : Promise.reject(this.clearFailure);
   }
 
-  public request(request: IWebViewRequest): boolean {
-    let isCancelled = true;
-    this.requestListener?.(request, t => {
-      isCancelled = t.cancel;
+  // Resolves once the profile's listener answers, which may be after it judged the addresses the request's name resolves to.
+  public requestAsync(request: IWebViewRequest): Promise<boolean> {
+    return new Promise<boolean>(resolve => {
+      if (Object.isNull(this.requestListener))
+        resolve(false);
+      else
+        this.requestListener(request, t => resolve(!t.cancel));
     });
-    return !isCancelled;
   }
 
   public sendHeaders(request: IWebViewRequest): boolean {
