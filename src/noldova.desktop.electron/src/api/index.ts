@@ -80,6 +80,8 @@ export type { IWindowNavigation } from "../interfaces/i-window-navigation.js";
 export type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 export type { IIsolatedScript } from "../interfaces/i-isolated-script.js";
 export type { IFindInPageOptions } from "../interfaces/i-find-in-page-options.js";
+export type { IFoundInPageResult } from "../interfaces/i-found-in-page-result.js";
+export type { ILoginDetails } from "../interfaces/i-login-details.js";
 export type { IWindowSession } from "../interfaces/i-window-session.js";
 export type { IWindowStateStore } from "../interfaces/i-window-state-store.js";
 export { FileSaveOutcome } from "../enums/file-save-outcome.js";

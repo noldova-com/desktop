@@ -9,6 +9,7 @@
 import "@noldova/context.core";
 import { ShellClients, ShellMethods } from "@noldova/desktop.protocol";
 import { ProductInfo } from "@noldova/desktop.runtime";
+import type { KeyboardInputEvent } from "electron";
 
 import { MainProcessFailureKind } from "./enums/main-process-failure-kind.js";
 import type { IPreloadChannels } from "./interfaces/i-preload-channels.js";
@@ -259,10 +260,10 @@ export class Resources {
   public static readonly rawKeyDownType: string = "rawKeyDown";
   public static readonly charType: string = "char";
   public static readonly keyUpType: string = "keyUp";
-  public static readonly keyModifierNames: readonly (readonly [number, string])[] = [
+  public static readonly keyModifierNames: readonly (readonly [number, NonNullable<KeyboardInputEvent["modifiers"]>[number]])[] = [
     [Resources.altModifier, "alt"], [Resources.ctrlModifier, "control"], [Resources.metaModifier, "meta"], [Resources.shiftModifier, "shift"]
   ];
-  public static readonly autoRepeatModifier: string = "isautorepeat";
+  public static readonly autoRepeatModifier: NonNullable<KeyboardInputEvent["modifiers"]>[number] = "isautorepeat";
   public static readonly pressField: string = "press";
   public static readonly webViewKeyTexts: ReadonlyMap<string, string> = new Map([["Enter", "\r"]]);
   public static readonly webViewKeyNames: ReadonlyMap<string, string> = new Map([["ArrowUp", "Up"], ["ArrowDown", "Down"], ["ArrowLeft", "Left"], ["ArrowRight", "Right"], [" ", "Space"], ["+", "Plus"]]);

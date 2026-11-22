@@ -8,7 +8,7 @@
 
 import type { EventEmitter } from "node:events";
 
-import type { KeyboardInputEvent, NavigationHistory, WebContents, WindowOpenHandlerResponse } from "electron";
+import type { NavigationHistory, WebContents, WindowOpenHandlerResponse } from "electron";
 
 import type { IFindInPageOptions } from "../interfaces/i-find-in-page-options.js";
 import type { IIsolatedScript } from "../interfaces/i-isolated-script.js";
@@ -116,7 +116,7 @@ export class ElectronWebViewContents implements IWebViewContents {
   }
 
   public sendInputEvent(event: IWebViewKeyEvent): void {
-    this.page.sendInputEvent({ type: event.type, keyCode: event.keyCode, modifiers: [...event.modifiers] as NonNullable<KeyboardInputEvent["modifiers"]> });
+    this.page.sendInputEvent({ type: event.type, keyCode: event.keyCode, modifiers: [...event.modifiers] });
   }
 
   public insertText(text: string): Promise<void> {
