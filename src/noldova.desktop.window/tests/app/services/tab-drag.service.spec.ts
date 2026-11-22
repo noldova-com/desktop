@@ -20,8 +20,34 @@ import { TabDropTarget } from "../../../src/app/models/layout/tab-drop-target";
 import { LayoutStoreService } from "../../../src/app/services/layout-store.service";
 import { LayoutService } from "../../../src/app/services/layout.service";
 import { TabDragService } from "../../../src/app/services/tab-drag.service";
+import { TabFocusService } from "../../../src/app/services/tab-focus.service";
+import { DomFixture } from "../../fixtures/dom.fixture";
 import { PreloadBridgeFixture } from "../../fixtures/preload-bridge.fixture";
 import { LayoutFixture } from "../../fixtures/layout.fixture";
+
+class PointerCase {
+  public readonly name: string;
+  public readonly x: number;
+  public readonly y: number;
+
+  public constructor(name: string, x: number, y: number = 0) {
+    this.name = name;
+    this.x = x;
+    this.y = y;
+  }
+}
+
+class CancelCase {
+  public readonly name: string;
+  public readonly isDropBefore: boolean;
+  public readonly hovered: number | null;
+
+  public constructor(name: string, isDropBefore: boolean, hovered: number | null) {
+    this.name = name;
+    this.isDropBefore = isDropBefore;
+    this.hovered = hovered;
+  }
+}
 
 describe("TabDragService", () => {
   beforeEach(() => {
@@ -78,10 +104,7 @@ describe("TabDragService", () => {
   });
 
   function element(name: string): HTMLElement {
-    const found = root.querySelector<HTMLElement>(`.${name}`);
-    if (Object.isNull(found))
-      throw new Error(`No .${name} element.`);
-    return found;
+    return DomFixture.one(root, `.${name}`);
   }
 
   function start(tab: Tab, from: Element = element("files"), button: number = 0): void {
@@ -166,8 +189,8 @@ describe("TabDragService", () => {
     root.dir = "rtl";
     start(LayoutFixture.files);
     const targets: unknown[] = [];
-    for (const [name, x] of [["files", 10], ["files", 90], ["search", 10], ["search", 90]] as const) {
-      moveOver(name, x);
+    for (const point of [new PointerCase("files", 10), new PointerCase("files", 90), new PointerCase("search", 10), new PointerCase("search", 90)]) {
+      moveOver(point.name, point.x);
       targets.push(drag.target());
     }
     for (const x of [30, 70]) {
@@ -181,8 +204,9 @@ describe("TabDragService", () => {
   it("targets the place before or after a strip icon along the strip's axis, for a group that takes the tab", () => {
     start(LayoutFixture.changes);
     const targets: (unknown)[] = [];
-    for (const [name, x, y] of [["vertical", 90, 5], ["vertical", 10, 15], ["horizontal", 30, 15], ["horizontal", 70, 5], ["gone", 50, 5]] as const) {
-      moveWithin(name, x, y);
+    for (const point of [new PointerCase("vertical", 90, 5), new PointerCase("vertical", 10, 15), new PointerCase("horizontal", 30, 15), new PointerCase("horizontal", 70, 5),
+      new PointerCase("gone", 50, 5)]) {
+      moveWithin(point.name, point.x, point.y);
       targets.push(drag.target());
     }
     document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
@@ -220,6 +244,22 @@ describe("TabDragService", () => {
     expect(layout.layout().group(2)?.tabs).toEqual([LayoutFixture.files, LayoutFixture.changes]);
   });
 
+  it("places nothing and moves no focus on a drop for a document or a view closed during its drag", () => {
+    const focus = vi.spyOn(TestBed.inject(TabFocusService), "focus");
+    start(LayoutFixture.plan, element("plan"));
+    moveOver("todo", 90);
+    layout.close(LayoutFixture.plan);
+    document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
+    start(LayoutFixture.files);
+    moveOver("changes", 10);
+    layout.close(LayoutFixture.files);
+    document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
+
+    expect([layout.layout().isOpen(LayoutFixture.plan), layout.layout().isOpen(LayoutFixture.files), layout.layout().group(0)?.tabs, layout.layout().group(2)?.tabs, drag.dragging()])
+      .toEqual([false, false, [LayoutFixture.todo], [LayoutFixture.changes], null]);
+    expect(focus).not.toHaveBeenCalled();
+  });
+
   it("cancels on Escape, a cancelled pointer, a lost capture, a lost window focus or a move with no button pressed, and ignores other keys", () => {
     const before = layout.layout();
     const cancels: (() => void)[] = [
@@ -230,11 +270,11 @@ describe("TabDragService", () => {
       () => document.dispatchEvent(new PointerEvent("pointermove", { pointerId: 1, buttons: 0 }))
     ];
     for (const cancel of cancels) {
-      for (const [name, isDropBefore, hovered] of [["search", true, null], ["body", false, 1]] as const) {
+      for (const shown of [new CancelCase("search", true, null), new CancelCase("body", false, 1)]) {
         start(LayoutFixture.files);
-        moveOver(name, 10);
+        moveOver(shown.name, 10);
         document.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
-        expect([drag.dragging(), drag.isDropBefore(1, 1), drag.hoveredGroup()]).toEqual([LayoutFixture.files, isDropBefore, hovered]);
+        expect([drag.dragging(), drag.isDropBefore(1, 1), drag.hoveredGroup()]).toEqual([LayoutFixture.files, shown.isDropBefore, shown.hovered]);
         cancel();
         expect([drag.dragging(), drag.target(), drag.isDropBefore(1, 1), drag.hoveredGroup()]).toEqual([null, null, false, null]);
         document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));

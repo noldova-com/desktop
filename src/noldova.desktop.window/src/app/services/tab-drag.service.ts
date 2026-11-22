@@ -84,7 +84,7 @@ export class TabDragService {
     const tab = this.draggingState();
     const target = this.targetState();
     this.stop();
-    if (Object.isNull(tab) || Object.isNull(target))
+    if (Object.isNull(tab) || Object.isNull(target) || !this.layout.layout().isOpen(tab))
       return;
     this.layout.place(tab, target);
     this.tabFocus.focus(tab);
