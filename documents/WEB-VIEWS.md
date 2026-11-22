@@ -111,6 +111,8 @@ While a view has focus, the person's presses go to its page, except the keys the
 - F6 and Shift+F6 move the focus through the window's regions, the view and the rest of its pane, such as its toolbar, as two stops, as [WINDOW.md](WINDOW.md#workspace) says; pressed in a view, they run those commands at step 2, unless the module declares one of them, which then takes it from the region cycle inside its views.
 - A held key that repeats stays from the page, and only its first press runs the command or sends the event; when the window gave the first press back, its repeats reach the page until a key comes up.
 - The `Key` event reaches the window part alone, through `handle.subscribe`, since a press belongs to the pane on screen; the runtime's `onViewEvent` never reports one.
+- A stated limit: after a navigation, the engine holds the new page from the screen until its first contentful paint, or for up to about a second when the page paints nothing, such as an empty body, and a key pressed in that time passes the host's judging but never reaches the page, as in a web browser on the same engine.
+  The host leaves the engine's hold on, since turning it off would show a blank view during each navigation; a test that sends keys to a page gives it visible content, or waits for its `first-contentful-paint` entry.
 - Only the person's presses are judged: a key the runtime part sends through the relay goes on to the view's page as sent, even when the module declares it, and never raises `Key`, or is refused when it is one of the app's shortcuts, as [the relay](#the-relay) says.
 ## The runtime's controls
 
