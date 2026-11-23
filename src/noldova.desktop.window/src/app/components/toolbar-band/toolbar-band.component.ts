@@ -7,9 +7,10 @@
  */
 
 import { NgTemplateOutlet } from "@angular/common";
-import { Component, inject } from "@angular/core";
+import { Component, ElementRef, type Signal, computed, inject, input, viewChild } from "@angular/core";
 
 import "@noldova/context.core";
+import type { JsonObject } from "@noldova/context.json";
 import { ContextMenuTriggerDirective } from "@noldova/ui.components.angular";
 
 import { Resources } from "../../../resources.js";
@@ -26,9 +27,22 @@ import { ToolbarComponent } from "../toolbar/toolbar.component.js";
   styleUrl: "./toolbar-band.component.css"
 })
 export class ToolbarBandComponent {
+  private readonly toolbars: ToolbarService = inject(ToolbarService);
+  private readonly bandElement: Signal<ElementRef<HTMLElement> | undefined> = viewChild<ElementRef<HTMLElement>>("band");
+
   protected readonly resources: typeof Resources = Resources;
-  protected readonly toolbars: ToolbarService = inject(ToolbarService);
   protected readonly drag: ToolbarDragService = inject(ToolbarDragService);
+  protected readonly id: string = crypto.randomUUID();
+
+  public readonly band = input<string | null>(null);
+  public readonly context = input<JsonObject>({});
+  protected readonly bandRows: Signal<readonly (readonly Toolbar[])[]> = computed(() => this.toolbars.rowsOf(this.band(), this.context()));
+  protected readonly hasAnyContent: Signal<boolean> = computed(() => this.bandRows().some(row => this.hasContent(row)));
+  protected readonly menuContext: Signal<JsonObject> = computed(() => {
+    const band = this.band();
+    return Object.isNull(band) ? this.context() : { ...this.context(), [Resources.bandArgument]: band };
+  });
+  protected readonly isDropHere: Signal<boolean> = computed(() => this.drag.band() === this.bandElement()?.nativeElement);
 
   protected hasContent(row: readonly Toolbar[]): boolean {
     return row.some(t => t.sections.length > 0);

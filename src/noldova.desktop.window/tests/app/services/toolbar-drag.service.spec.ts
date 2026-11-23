@@ -15,12 +15,13 @@ import { ToolbarService } from "../../../src/app/services/toolbar.service";
 import { DomFixture } from "../../fixtures/dom.fixture";
 
 describe("ToolbarDragService", () => {
-  const toolbars = { rows: vi.fn(), move: vi.fn(), moveToNewRow: vi.fn() };
+  const toolbars = { arrangementOf: vi.fn(), bandOf: vi.fn(), move: vi.fn(), moveToNewRow: vi.fn() };
   let drag: ToolbarDragService;
   let root: HTMLElement;
 
   beforeEach(() => {
-    toolbars.rows.mockReturnValue([[{ name: "a" }, { name: "b" }], [{ name: "c" }]]);
+    toolbars.arrangementOf.mockImplementation((band: string | null) => Object.isNull(band) ? [["a", "b"], ["c"]] : [["x", "y"]]);
+    toolbars.bandOf.mockImplementation((name: string) => ["x", "y"].includes(name) ? "notes.page" : null);
     TestBed.configureTestingModule({ providers: [{ provide: ToolbarService, useValue: toolbars }] });
     drag = TestBed.inject(ToolbarDragService);
     root = document.createElement("div");
@@ -41,8 +42,23 @@ describe("ToolbarDragService", () => {
     vi.clearAllMocks();
   });
 
-  function start(name: string, button: number = 0): void {
-    drag.begin(name, new PointerEvent("pointerdown", { pointerId: 1, button, clientX: 10, clientY: 20 }));
+  function start(name: string, button: number = 0, from: Element = DomFixture.one(root, `[data-toolbar="${name}"]`)): void {
+    const begin = (event: Event): void => {
+      if (event instanceof PointerEvent)
+        drag.begin(name, event);
+    };
+    from.addEventListener("pointerdown", begin, { once: true });
+    from.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1, button, clientX: 10, clientY: 20, bubbles: true }));
+  }
+
+  function addPageBand(): HTMLElement {
+    root.insertAdjacentHTML("beforeend", [
+      "<div class=\"nol-toolbar-band page\" style=\"position:fixed;left:0;top:200px;width:400px;display:flex;flex-direction:column;row-gap:8px\">",
+      "<div class=\"nol-toolbar-row\" data-toolbar-row=\"0\" style=\"display:flex;align-items:center;height:40px\">",
+      "<div class=\"nol-toolbar\" data-toolbar=\"x\" data-toolbar-index=\"0\" style=\"flex:none;width:100px;height:24px\"></div>",
+      "<div class=\"nol-toolbar\" data-toolbar=\"y\" data-toolbar-index=\"1\" style=\"flex:none;width:100px;height:24px\"></div></div></div>"
+    ].join(String.empty));
+    return DomFixture.one(root, ".nol-toolbar-band.page");
   }
 
   function moveTo(x: number, y: number): void {
@@ -59,6 +75,36 @@ describe("ToolbarDragService", () => {
     expect(drag.dragging()).toBeNull();
     moveTo(150, 20);
     expect(drag.dragging()).toBe("a");
+  });
+
+  it("starts no drag from outside a toolbar band or from an event with no target element", () => {
+    start("a", 0, root);
+    moveTo(150, 20);
+    drag.begin("a", new PointerEvent("pointerdown", { pointerId: 1, button: 0, clientX: 10, clientY: 20 }));
+    moveTo(150, 20);
+
+    expect([drag.dragging(), drag.band(), drag.target()]).toEqual([null, null, null]);
+  });
+
+  it("keeps a drag, its band and its targets to the band it started in, with that band's arrangement, while another band is open", () => {
+    const page = addPageBand();
+    start("a");
+    moveTo(150, 220);
+
+    expect([drag.dragging(), drag.band(), drag.target()]).toEqual(["a", DomFixture.one(root, ".nol-toolbar-band"), null]);
+    moveTo(150, 20);
+    expect(drag.target()).toEqual(new ToolbarDropTarget(0, 1, false, 200, 20, 0));
+
+    start("y");
+    moveTo(50, 220);
+    expect([drag.band(), drag.target()]).toEqual([page, new ToolbarDropTarget(0, 1, false, 100, 220, 0)]);
+    moveTo(50, 20);
+    expect(drag.target()).toBeNull();
+    moveTo(50, 202);
+    expect(drag.target()).toEqual(new ToolbarDropTarget(0, 0, true, 0, 196, 400));
+    expect(toolbars.arrangementOf).toHaveBeenCalledWith("notes.page");
+    document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
+    expect([toolbars.moveToNewRow.mock.calls, drag.band()]).toEqual([[["y", 0]], null]);
   });
 
   it("targets a position in a row, counting the others without the dragged toolbar", () => {

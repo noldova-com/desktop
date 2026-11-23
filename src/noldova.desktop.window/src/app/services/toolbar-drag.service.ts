@@ -22,28 +22,34 @@ export class ToolbarDragService {
   private readonly toolbars: ToolbarService = inject(ToolbarService);
   private readonly draggingState: WritableSignal<string | null> = signal(null);
   private readonly targetState: WritableSignal<ToolbarDropTarget | null> = signal(null);
+  private readonly bandState: WritableSignal<HTMLElement | null> = signal(null);
   private pointer: PointerDrag | null = null;
 
   public readonly dragging: Signal<string | null> = this.draggingState.asReadonly();
   public readonly target: Signal<ToolbarDropTarget | null> = this.targetState.asReadonly();
+  public readonly band: Signal<HTMLElement | null> = this.bandState.asReadonly();
 
   public begin(name: string, event: PointerEvent): void {
     if (event.button !== Resources.primaryButton)
       return;
     this.stop();
+    const band = event.target instanceof Element ? event.target.closest<HTMLElement>(Resources.toolbarBandSelector) : null;
+    if (Object.isNull(band))
+      return;
+    this.bandState.set(band);
     const startX = event.clientX;
     const startY = event.clientY;
-    this.pointer = new PointerDrag(this.document.documentElement, event, moved => this.move(name, startX, startY, moved), () => this.end(), () => this.stop());
+    this.pointer = new PointerDrag(this.document.documentElement, event, moved => this.move(name, band, startX, startY, moved), () => this.end(), () => this.stop());
   }
 
-  private move(name: string, startX: number, startY: number, event: PointerEvent): void {
+  private move(name: string, band: HTMLElement, startX: number, startY: number, event: PointerEvent): void {
     if (Object.isNull(this.draggingState())) {
       if (!DragGesture.hasStarted(startX, startY, event.clientX, event.clientY))
         return;
       this.draggingState.set(name);
       this.pointer?.start();
     }
-    const target = this.targetAt(name, event.clientX, event.clientY);
+    const target = this.targetAt(name, band, event.clientX, event.clientY);
     if (!(target?.equals(this.targetState()) ?? Object.isNull(this.targetState())))
       this.targetState.set(target);
   }
@@ -65,13 +71,13 @@ export class ToolbarDragService {
     this.pointer = null;
     this.draggingState.set(null);
     this.targetState.set(null);
+    this.bandState.set(null);
   }
 
-  private targetAt(name: string, x: number, y: number): ToolbarDropTarget | null {
-    const bandElement = this.document.querySelector<HTMLElement>(Resources.toolbarBandSelector);
-    const rows = [...this.document.querySelectorAll<HTMLElement>(Resources.toolbarRowSelector)];
+  private targetAt(name: string, bandElement: HTMLElement, x: number, y: number): ToolbarDropTarget | null {
+    const rows = [...bandElement.querySelectorAll<HTMLElement>(Resources.toolbarRowSelector)];
     const lastRow = rows.at(-1);
-    if (Object.isNull(bandElement) || Object.isUndefined(lastRow))
+    if (!bandElement.isConnected || Object.isUndefined(lastRow))
       return null;
     const band = bandElement.getBoundingClientRect();
     if (x < band.left || x > band.right || y < band.top || y > band.bottom)
@@ -96,8 +102,9 @@ export class ToolbarDragService {
     const isBefore = (box: DOMRect): boolean => isRightToLeft ? x > box.left + box.width / 2 : x < box.left + box.width / 2;
     const next = items.map(t => ({ element: t, box: t.getBoundingClientRect() })).find(t => isBefore(t.box));
     const last = items.at(-1)?.getBoundingClientRect();
-    const length = this.toolbars.rows()[row]?.length ?? 0;
-    const dragged = this.toolbars.rows().flatMap((t, r) => t.map((u, i) => ({ name: u.name, row: r, index: i }))).find(t => t.name === name);
+    const arrangement = this.toolbars.arrangementOf(this.toolbars.bandOf(name));
+    const length = arrangement[row]?.length ?? 0;
+    const dragged = arrangement.flatMap((t, r) => t.map((u, i) => ({ name: u, row: r, index: i }))).find(t => t.name === name);
     const before = Object.isUndefined(next) ? length : Number(next.element.dataset[Resources.toolbarIndexData]);
     const index = dragged?.row === row && dragged.index < before ? before - 1 : before;
     const bar = (element.querySelector<HTMLElement>(Resources.toolbarSelector) ?? element).getBoundingClientRect();

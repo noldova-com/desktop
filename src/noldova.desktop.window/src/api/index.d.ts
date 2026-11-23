@@ -4618,6 +4618,35 @@ export declare class WindowPartTokens {
 }
 
 /**
+ * The toolbar band of the view or document a tab shows, with
+ * `<nol-view-toolbar-band />` where the page wants it. It shows the
+ * module's toolbars whose place in `menus.json` names the page's view or
+ * document as its `band`, with the window's band's look, dragging, drop
+ * line, new rows and Toolbars context menu; a toolbar never leaves its
+ * band, and the band shows nothing on a page that isn't a tab's, or while
+ * none of its toolbars has rows. Each row's command gets `view` or
+ * `document`, the page's name, and `instance`, the tab's instance when it
+ * has one, as arguments. Every tab of the view or document shares one
+ * arrangement, which the layout keeps and Reset the layout clears.
+ *
+ * @example
+ * ```ts
+ * import { Component } from "@angular/core";
+ * import { ViewToolbarBandComponent } from "@noldova/desktop.window";
+ *
+ * @Component({
+ *   selector: "nol-notes-page",
+ *   imports: [ViewToolbarBandComponent],
+ *   template: "<nol-view-toolbar-band /><div class=\"notes\"></div>"
+ * })
+ * export class NotesPageComponent {
+ * }
+ * ```
+ */
+export declare class ViewToolbarBandComponent {
+}
+
+/**
  * Marks its host element as keeping Ctrl keys, such as a terminal that gives
  * Ctrl+key to its shell, with `nolKeepsCtrlKeys`. On Windows and Linux, a
  * key pressed inside the element runs the window command bound to it, as

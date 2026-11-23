@@ -20,6 +20,7 @@ export class Resources {
   public static readonly welcomeMarker: string = "welcome";
   public static readonly sessionsMarker: string = "sessions";
   public static readonly feedMarker: string = "feed";
+  public static readonly boardMarker: string = "board";
   public static readonly holdFirstOptionsMarker: string = "hold-first-options";
   public static readonly folderScope: string = "notes.folder";
   public static readonly noteScope: string = "notes.entry";

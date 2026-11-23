@@ -82,6 +82,7 @@ export class ShellMenus {
       MenuItem.ofCommand(Resources.openLinkInAppCommand),
       MenuItem.ofCommand(Resources.openLinkInBrowserCommand)
     ]),
+    MenuGroup.dynamic(Resources.tabToolbarsGroup, Resources.tabMenu, false),
     new MenuGroup(Resources.tabCloseGroup, Resources.tabMenu, false, [
       MenuItem.ofCommand(Resources.closeTabCommand, {}, Resources.closeTabLabel),
       MenuItem.ofCommand(Resources.closeOtherTabsCommand, {}, Resources.closeOthersLabel),

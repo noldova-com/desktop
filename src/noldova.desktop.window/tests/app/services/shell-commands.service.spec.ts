@@ -691,6 +691,72 @@ describe("ShellCommandsService", () => {
     search.remove();
   });
 
+  it("keeps the focus after a hide or a move in the band the command came from, with another band and a band showing the same toolbars open, and moves it to the search field when that band is gone", async () => {
+    const toolbars = TestBed.inject(ToolbarService);
+    vi.spyOn(toolbars, "isKnown").mockReturnValue(true);
+    vi.spyOn(toolbars, "canMove").mockReturnValue(true);
+    vi.spyOn(toolbars, "moveBy").mockImplementation(() => undefined);
+    const bands = [{ id: "window", names: ["notes.first", "notes.second"] }, { id: "first-page", names: ["notes.pageMain"] }, { id: "second-page", names: ["notes.pageMain"] }].map(({ id, names }) => {
+      const band = document.createElement("div");
+      band.className = "nol-toolbar-band";
+      band.dataset["toolbarBandId"] = id;
+      for (const name of names) {
+        const frame = document.createElement("div");
+        frame.className = "nol-toolbar";
+        frame.dataset["toolbar"] = name;
+        const grip = document.createElement("button");
+        grip.className = "nol-toolbar-grip";
+        frame.append(grip);
+        band.append(frame);
+      }
+      document.body.append(band);
+      return band;
+    });
+    const search = document.createElement("button");
+    search.className = "nol-window-row-search";
+    document.body.append(search);
+    vi.spyOn(toolbars, "setShown").mockImplementation(name => bands[0]?.querySelector(`[data-toolbar="${name}"]`)?.remove());
+
+    await runAsync("desktop.hideToolbar", { toolbar: "notes.second", toolbarBand: "window" });
+    await vi.waitFor(() => expect(document.activeElement).toBe(bands[0]?.querySelector("[data-toolbar='notes.first'] button")));
+    await runAsync("desktop.moveToolbarLeft", { toolbar: "notes.pageMain", toolbarBand: "closed-page" });
+    await vi.waitFor(() => expect(document.activeElement).toBe(search));
+    await runAsync("desktop.moveToolbarLeft", { toolbar: "notes.pageMain", toolbarBand: "second-page" });
+    await vi.waitFor(() => expect(document.activeElement).toBe(bands[2]?.querySelector("button")));
+    for (const element of [...bands, search])
+      element.remove();
+  });
+
+  it("moves the focus to the search field, not another band's grip, after hiding the last toolbar of a band that then leaves", async () => {
+    const toolbars = TestBed.inject(ToolbarService);
+    vi.spyOn(toolbars, "isKnown").mockReturnValue(true);
+    const bands = [{ id: "window", name: "notes.main" }, { id: "page", name: "notes.pageMain" }].map(({ id, name }) => {
+      const band = document.createElement("div");
+      band.className = "nol-toolbar-band";
+      band.dataset["toolbarBandId"] = id;
+      const frame = document.createElement("div");
+      frame.className = "nol-toolbar";
+      frame.dataset["toolbar"] = name;
+      const grip = document.createElement("button");
+      grip.className = "nol-toolbar-grip";
+      frame.append(grip);
+      band.append(frame);
+      document.body.append(band);
+      return band;
+    });
+    const search = document.createElement("button");
+    search.className = "nol-window-row-search";
+    document.body.append(search);
+    vi.spyOn(toolbars, "setShown").mockImplementation(() => bands[0]?.remove());
+    bands[1]?.querySelector("button")?.focus();
+
+    await runAsync("desktop.hideToolbar", { toolbar: "notes.main", toolbarBand: "window" });
+
+    await vi.waitFor(() => expect(document.activeElement).toBe(search));
+    for (const element of [...bands, search])
+      element.remove();
+  });
+
   it("focuses the first toolbar item, and is enabled only while a toolbar is shown", async () => {
     const hasContent = vi.spyOn(TestBed.inject(ToolbarService), "hasContent");
     const item = document.createElement("button");

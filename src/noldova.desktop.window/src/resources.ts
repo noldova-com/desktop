@@ -28,6 +28,7 @@ export class Resources {
   public static readonly windowPartContextToken: string = "The window part's context";
   public static readonly contentPaddingToken: string = "The padding of the page a tab shows";
   public static readonly shownToken: string = "Whether the page a tab shows is in view";
+  public static readonly toolbarBandPageToken: string = "The toolbar band of the page a tab shows";
   public static readonly activeDocumentToken: string = "Whether the page a tab shows is the window's active document";
   public static readonly windowPartSourcesToken: string = "The build's window parts";
   public static readonly documentsGroupId: number = 0;
@@ -514,6 +515,7 @@ export class Resources {
   public static readonly collapsedField: string = "collapsed";
   public static readonly bottomSpanField: string = "bottomSpan";
   public static readonly toolbarsField: string = "toolbars";
+  public static readonly viewToolbarsField: string = "viewToolbars";
   public static readonly hiddenField: string = "hidden";
   public static readonly rowsParameter: string = "rows";
   public static readonly invalidToolbarLayout: string = "A toolbar arrangement names each toolbar once and has no empty row.";
@@ -633,6 +635,7 @@ export class Resources {
   public static readonly afterField: string = "after";
   public static readonly beforeField: string = "before";
   public static readonly newRowField: string = "newRow";
+  public static readonly bandField: string = "band";
   public static readonly dynamicField: string = "dynamic";
   public static readonly choiceField: string = "choice";
   public static readonly showsMenuBar: string = "menuBar";
@@ -772,7 +775,7 @@ export class Resources {
   public static readonly focusPreviousRegionTitle: string = "Focus the previous region";
   public static readonly focusNextRegionGlyph: string = "move_down";
   public static readonly focusPreviousRegionGlyph: string = "move_up";
-  public static readonly regionSelector: string = "nol-window-row, nol-toolbar-band, nol-dock, nol-tab-group, nol-status-bar";
+  public static readonly regionSelector: string = "nol-window-row, nol-toolbar-band:not(nol-view-toolbar-band nol-toolbar-band), nol-dock, nol-tab-group, nol-status-bar";
   public static readonly regionContentSelector: string = "nol-tab-slot";
   public static readonly webViewGuestSelector: string = ".nol-web-view-guest";
   public static readonly webViewFrameSelector: string = ".nol-web-view";
@@ -796,10 +799,13 @@ export class Resources {
   public static readonly toolbarsMenuTitle: string = "Toolbars";
   public static readonly noPlace: string = String.empty;
   public static readonly toolbarListGroup: string = "desktop.toolbarList";
+  public static readonly tabToolbarsGroup: string = "desktop.tabToolbars";
+  public static readonly toolbarBandIdArgument: string = "toolbarBand";
   public static readonly viewToolbarsGroup: string = "desktop.viewToolbars";
   public static readonly toggleToolbarCommand: string = "desktop.toggleToolbar";
   public static readonly toggleToolbarTitle: string = "Show or hide a toolbar";
   public static readonly toolbarArgument: string = "toolbar";
+  public static readonly bandArgument: string = "band";
   public static readonly focusToolbarsCommand: string = "desktop.focusToolbars";
   public static readonly focusToolbarsTitle: string = "Focus the toolbars";
   public static readonly focusToolbarsGlyph: string = "toolbar";
@@ -1162,6 +1168,10 @@ export class Resources {
   public static readonly webpExtendedWidthOffset: number = 24;
   public static readonly webpExtendedHeightOffset: number = 27;
   public static readonly uint16Range: number = 0x10000;
+
+  public static formatToolbarBandSelector(id: string): string {
+    return `.nol-toolbar-band[data-toolbar-band-id="${id}"]`;
+  }
 
   public static formatSpellingFallback(language: string): string {
     return `None of this device's languages has a dictionary here, so words are checked in ${language}.`;

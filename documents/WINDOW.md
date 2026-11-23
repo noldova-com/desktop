@@ -105,7 +105,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - While no document is open, the document group shows the placeholder one window part registers, such as a start page with ways to begin, padded like a document; without a placeholder, it shows the product's name and "No modules" when no view is registered either, and nothing otherwise.
   The placeholder goes when a document opens and comes back when the last one closes.
   When the last document closes and takes the focus with it, the focus moves to the placeholder's first focusable element once the placeholder shows; otherwise the placeholder leaves the focus where it is, at startup too.
-- F6, `desktop.focusNextRegion`, and Shift+F6, `desktop.focusPreviousRegion`, move the focus through the window's regions in the order they stand in the page: the window row, the toolbar band, the docks' strips, each group and the status bar, and around again.
+- F6, `desktop.focusNextRegion`, and Shift+F6, `desktop.focusPreviousRegion`, move the focus through the window's regions in the order they stand in the page: the window row, the window's toolbar band, the docks' strips, each group and the status bar, and around again.
   The focus lands on a region's first element in the tab order, a group's in its active tab's content before its tab strip, and a region with none is passed over.
   In a group that shows a module's web view, the view is a stop of its own after the rest of the group, such as the pane's toolbar, so the focus moves between the page and its toolbar with the same keys; a view hidden behind another tab is no stop.
   Pressed in a view, the keys run the commands as in the window, unless the module declares them for its pane, as [WEB-VIEWS.md](WEB-VIEWS.md#keys-from-a-view) says.
@@ -120,7 +120,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A side's groups go in number order, top to bottom on the left and right and left to right at the bottom, and share the side equally; a number no shown view uses leaves no gap.
   Tabs go lowest order first, across modules; views without an order follow, in module order and then registration order, as views with the same order do, so views that name neither give one group per side, as before.
   The layout is saved after any change, and a saved layout keeps its groups and tabs: a person who already has one keeps it until Reset the layout.
-- The saved layout restores the person's workspace, its toolbars and its docks, without opening unrelated content as a side effect, and keeps the place of a tab whose module is absent.
+- The saved layout restores the person's workspace, its toolbars, each view's and document's toolbar band and its docks, without opening unrelated content as a side effect, and keeps the place of a tab whose module is absent.
   A tab saved under a document's former name reopens as that document, as [MODULES.md](MODULES.md#former-names) says.
   It keeps each open document's title, so a restored or background tab shows its title before its module titles it again; a title the module gives wins.
 - A window part opens one of its documents at the end of the active document group, or right after another open instance of the same document that it names, in that instance's group, such as a page opened from another page.

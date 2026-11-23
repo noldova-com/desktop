@@ -37,7 +37,8 @@ export class MenuDeclarations {
     const shows = reader.hasField(Resources.showsField) ? reader.readString(Resources.showsField) : null;
     const toolbar = shows === Resources.showsToolbar
       ? new ToolbarPlacement(reader.readBoolean(Resources.shownField), reader.readOptionalString(Resources.afterField) ?? null,
-        reader.readOptionalString(Resources.beforeField) ?? null, reader.hasField(Resources.newRowField) && reader.readBoolean(Resources.newRowField))
+        reader.readOptionalString(Resources.beforeField) ?? null, reader.hasField(Resources.newRowField) && reader.readBoolean(Resources.newRowField),
+        reader.readOptionalString(Resources.bandField) ?? null)
       : null;
     return new MenuPlace(reader.readString(Resources.nameField), reader.readString(Resources.titleField), shows === Resources.showsMenuBar, null, toolbar);
   }

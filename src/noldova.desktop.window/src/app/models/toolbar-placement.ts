@@ -15,8 +15,9 @@ export class ToolbarPlacement {
   public readonly after: string | null;
   public readonly before: string | null;
   public readonly startsRow: boolean;
+  public readonly band: string | null;
 
-  public constructor(isShown: boolean = true, after: string | null = null, before: string | null = null, startsRow: boolean = false) {
+  public constructor(isShown: boolean = true, after: string | null = null, before: string | null = null, startsRow: boolean = false, band: string | null = null) {
     if (!Object.isNull(after) && !Object.isNull(before) || startsRow && !(Object.isNull(after) && Object.isNull(before)))
       throw new ArgumentException(Resources.severalToolbarPositions, Resources.afterParameter);
 
@@ -24,5 +25,6 @@ export class ToolbarPlacement {
     this.after = after;
     this.before = before;
     this.startsRow = startsRow;
+    this.band = band;
   }
 }

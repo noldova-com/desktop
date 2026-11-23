@@ -166,7 +166,7 @@ export class ShellCommandsService {
         const name = this.toolbarOf(commandArguments);
         if (!Object.isNull(name)) {
           this.toolbars.moveBy(name, move);
-          this.focusGrip(name);
+          this.focusGrip(name, this.bandIdOf(commandArguments));
         }
       }),
       commandArguments => {
@@ -177,9 +177,10 @@ export class ShellCommandsService {
       commandArguments => this.done(() => {
         const name = this.toolbarOf(commandArguments);
         if (!Object.isNull(name)) {
-          const index = this.gripsOf().findIndex(t => t.closest<HTMLElement>(Resources.toolbarSelector)?.dataset[Resources.toolbarData] === name);
+          const bandId = this.bandIdOf(commandArguments);
+          const index = this.gripsOf(bandId).findIndex(t => t.closest<HTMLElement>(Resources.toolbarSelector)?.dataset[Resources.toolbarData] === name);
           this.toolbars.setShown(name, false);
-          this.focusAfterHide(index);
+          this.focusAfterHide(index, bandId);
         }
       }),
       commandArguments => !Object.isNull(this.toolbarOf(commandArguments))),
@@ -302,19 +303,35 @@ export class ShellCommandsService {
     this.instances.reveal(tab);
   }
 
-  private focusGrip(name: string): void {
-    afterNextRender(() => [...this.document.querySelectorAll<HTMLElement>(Resources.toolbarSelector)]
-      .find(t => t.dataset[Resources.toolbarData] === name)?.querySelector<HTMLElement>(Resources.toolbarGripSelector)?.focus(), { injector: this.environment });
-  }
-
-  private gripsOf(): readonly HTMLElement[] {
-    return [...this.document.querySelectorAll<HTMLElement>(Resources.toolbarGripSelector)];
-  }
-
-  private focusAfterHide(index: number): void {
+  private focusGrip(name: string, bandId: string | null): void {
     afterNextRender(() => {
-      const grips = this.gripsOf();
-      (grips[index] ?? grips.at(-1) ?? this.document.querySelector<HTMLElement>(Resources.searchFieldSelector))?.focus();
+      const scope = this.bandScope(bandId);
+      (Object.isNull(scope) ? this.searchField() : [...scope.querySelectorAll<HTMLElement>(Resources.toolbarSelector)]
+        .find(t => t.dataset[Resources.toolbarData] === name)?.querySelector<HTMLElement>(Resources.toolbarGripSelector))?.focus();
+    }, { injector: this.environment });
+  }
+
+  private bandIdOf(commandArguments: JsonValue): string | null {
+    return JsonReader.fromValue(commandArguments).readOptionalString(Resources.toolbarBandIdArgument) ?? null;
+  }
+
+  private bandScope(bandId: string | null): ParentNode | null {
+    return Object.isNull(bandId) ? this.document : this.document.querySelector(Resources.formatToolbarBandSelector(bandId));
+  }
+
+  private gripsOf(bandId: string | null): readonly HTMLElement[] {
+    const scope = this.bandScope(bandId);
+    return Object.isNull(scope) ? [] : [...scope.querySelectorAll<HTMLElement>(Resources.toolbarGripSelector)];
+  }
+
+  private searchField(): HTMLElement | null {
+    return this.document.querySelector<HTMLElement>(Resources.searchFieldSelector);
+  }
+
+  private focusAfterHide(index: number, bandId: string | null): void {
+    afterNextRender(() => {
+      const grips = this.gripsOf(bandId);
+      (grips[index] ?? grips.at(-1) ?? this.searchField())?.focus();
     }, { injector: this.environment });
   }
 

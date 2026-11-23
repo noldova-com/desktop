@@ -124,6 +124,9 @@ export class NotesWindowPart implements IWindowPart {
     if (options.readBoolean("hasWelcome"))
       context.registerPlaceholder(new PlaceholderContribution("notes.welcome",
         () => import("./components/notes-welcome/notes-welcome.component").then(t => t.NotesWelcomeComponent)));
+    if (options.readBoolean("hasBoard"))
+      context.registerView(new ViewContribution("notes.board", "Board", "dashboard", DockSide.Bottom, true,
+        () => import("./components/notes-board/notes-board.component").then(t => t.NotesBoardComponent), ContentPadding.None));
     if (options.readBoolean("hasFeed")) {
       context.registerDocument(new DocumentContribution("notes.feed",
         () => import("./components/notes-feed/notes-feed.component").then(t => t.NotesFeedComponent)));

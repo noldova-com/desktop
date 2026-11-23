@@ -88,6 +88,17 @@ describe("LayoutReader", () => {
     expect(failure({ ...saved(), toolbars: { rows: [{ toolbars: ["main"] }], hidden: [] } }).message).toBe("$: The value does not describe a valid part of a layout.");
   });
 
+  it("reads each view's toolbar arrangement when the layout has them, and refuses a view or an arrangement that is not valid", () => {
+    const arrangement = { rows: [{ toolbars: ["notes.pageMain"] }], hidden: ["notes.pageMore"] };
+    const read = LayoutReader.read({ ...saved(), viewToolbars: { "notes.page": arrangement } });
+
+    expect([read.toolbarsOf("notes.page"), read.toolbars, LayoutReader.read(saved()).viewToolbars.size])
+      .toEqual([new ToolbarLayout([["notes.pageMain"]], ["notes.pageMore"]), ToolbarLayout.EMPTY, 0]);
+    expect(read.toJson()).toEqual({ ...saved(), viewToolbars: { "notes.page": arrangement } });
+    expect(failure({ ...saved(), viewToolbars: { page: arrangement } }).path).toBe("$.viewToolbars");
+    expect(failure({ ...saved(), viewToolbars: { "notes.page": { rows: [{ toolbars: [] }], hidden: [] } } }).path).toBe("$.viewToolbars");
+  });
+
   it("reads the person's wanted middle when the layout has one, and refuses one that is not valid", () => {
     expect(LayoutReader.read({ ...saved(), middleSize: 20 }).middleSize).toBe(20);
     expect(LayoutReader.read(saved()).middleSize).toBeNull();

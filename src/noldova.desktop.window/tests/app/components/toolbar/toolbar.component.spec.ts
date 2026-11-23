@@ -27,12 +27,13 @@ import { DomFixture } from "../../../fixtures/dom.fixture";
 
 @Component({
   imports: [ToolbarComponent],
-  template: `<div class="frame" [attr.dir]="direction()" [style.width.px]="width()"><nol-toolbar [toolbar]="toolbar()" /></div>`
+  template: `<div class="frame" [attr.dir]="direction()" [style.width.px]="width()"><nol-toolbar [toolbar]="toolbar()" [bandId]="bandId()" /></div>`
 })
 class HostComponent {
   public readonly width: WritableSignal<number> = signal(1000);
   public readonly direction: WritableSignal<string> = signal("ltr");
   public readonly toolbar: WritableSignal<Toolbar> = signal(new Toolbar("notes.main", "Main", []));
+  public readonly bandId: WritableSignal<string | null> = signal(null);
 }
 
 describe("ToolbarComponent", () => {
@@ -287,6 +288,19 @@ describe("ToolbarComponent", () => {
     fixture.detectChanges();
 
     expect(document.querySelectorAll("nol-menu[data-place='desktop.toolbar'] button[nol-menu-item]").length).toBe(5);
+  });
+
+  it("gives its menu the toolbar's name, and the band it stands in when it has one", async () => {
+    const resolve = vi.spyOn(TestBed.inject(MenuService), "resolve");
+    await showAsync(1000);
+    element.querySelector<HTMLButtonElement>(".nol-toolbar-grip")?.click();
+    fixture.detectChanges();
+    const outside = resolve.mock.calls.filter(t => t[0] === "desktop.toolbar").at(-1)?.[1];
+    fixture.componentInstance.bandId.set("band-1");
+    fixture.detectChanges();
+    const inside = resolve.mock.calls.filter(t => t[0] === "desktop.toolbar").at(-1)?.[1];
+
+    expect([outside, inside]).toEqual([{ toolbar: "notes.main" }, { toolbar: "notes.main", toolbarBand: "band-1" }]);
   });
 
   it("opens the toolbar's menu from Shift+F10 on an item", async () => {

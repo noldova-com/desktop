@@ -176,7 +176,8 @@ export class ModuleDeclaration {
       throw fail(Resources.modulePlaceholderRepeated);
     if (placeholders.length > 0 && !parts.includes(Resources.windowPart))
       throw fail(Resources.modulePlaceholderWithoutWindow);
-    const menus = await ModuleMenus.readAsync(root, folder, id, contributions.get(Resources.menusKind) ?? []);
+    const menus = await ModuleMenus.readAsync(root, folder, id, contributions.get(Resources.menusKind) ?? [],
+      [...contributions.get(Resources.viewsKind) ?? [], ...contributions.get(Resources.documentsKind) ?? []]);
     const settings = await ModuleSettings.readAsync(root, folder, dependencies, contributions);
     if (settings.pages.length > 0 && !parts.includes(Resources.windowPart))
       throw fail(Resources.moduleSettingsPagesWithoutWindow);

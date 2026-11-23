@@ -53,9 +53,13 @@ export class ToolbarComponent {
   protected readonly menuCheck: typeof MenuCheck = MenuCheck;
   protected readonly below: OverlaySide = OverlaySide.below;
   protected readonly drag: ToolbarDragService = inject(ToolbarDragService);
-  protected readonly menuContext: Signal<JsonObject> = computed(() => ({ [Resources.toolbarArgument]: this.toolbar().name }));
+  protected readonly menuContext: Signal<JsonObject> = computed(() => {
+    const bandId = this.bandId();
+    return Object.isNull(bandId) ? { [Resources.toolbarArgument]: this.toolbar().name } : { [Resources.toolbarArgument]: this.toolbar().name, [Resources.toolbarBandIdArgument]: bandId };
+  });
 
   public readonly toolbar = input.required<Toolbar>();
+  public readonly bandId = input<string | null>(null);
   public readonly count: Signal<number> = computed(() => ToolbarFit.count(this.edges(), this.overflowSpace(), this.available()));
   public readonly shown: Signal<readonly MenuSection[]> = computed(() => this.toolbar().sections.slice(0, this.count()));
   public readonly overflowing: Signal<readonly MenuSection[]> = computed(() => this.toolbar().sections.slice(this.count()));
