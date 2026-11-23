@@ -71,7 +71,7 @@ describe("Layout", () => {
     const opened = initial.openView(terminal, registry).openView(search, registry);
 
     expect(opened.dock(DockSide.Bottom).root).toEqual(group(3, terminal));
-    expect(opened.dock(DockSide.Left).root).toEqual(new TabGroup(1, [files, search], search));
+    expect(opened.dock(DockSide.Left).root).toEqual(new TabGroup(1, [files, search], search, null, [search, files]));
     expect(opened.openView(LayoutFixture.secondTerminal, registry).dock(DockSide.Bottom).root?.groups[0]?.tabs)
       .toEqual([terminal, LayoutFixture.secondTerminal]);
     expect(() => initial.openView(new ViewTab("gone.view"), registry)).toThrow(ArgumentException);
@@ -89,8 +89,8 @@ describe("Layout", () => {
   it("opens documents at the end of the documents group and activates them", () => {
     const opened = initial.openDocument(plan).openDocument(todo);
 
-    expect(opened.documents).toEqual(new DocumentGroup([plan, todo], todo));
-    expect(opened.openDocument(plan).documents).toEqual(new DocumentGroup([plan, todo], plan));
+    expect(opened.documents).toEqual(new DocumentGroup([plan, todo], todo, null, 0, [todo, plan]));
+    expect(opened.openDocument(plan).documents).toEqual(new DocumentGroup([plan, todo], plan, null, 0, [plan, todo]));
     expect(opened.middle).toBe(opened.documents);
   });
 
@@ -105,10 +105,10 @@ describe("Layout", () => {
     const first = initial.openDocument(plan).openDocument(todo, true);
     const second = first.openDocument(settings, true);
 
-    expect(first.documents).toEqual(new DocumentGroup([plan, todo], todo, todo));
-    expect(second.documents).toEqual(new DocumentGroup([plan, settings], settings, settings));
-    expect(second.openDocument(settings).documents).toEqual(new DocumentGroup([plan, settings], settings));
-    expect(second.openDocument(plan, true).documents).toEqual(new DocumentGroup([plan, settings], plan, settings));
+    expect(first.documents).toEqual(new DocumentGroup([plan, todo], todo, todo, 0, [todo, plan]));
+    expect(second.documents).toEqual(new DocumentGroup([plan, settings], settings, settings, 0, [settings, plan]));
+    expect(second.openDocument(settings).documents).toEqual(new DocumentGroup([plan, settings], settings, null, 0, [settings, plan]));
+    expect(second.openDocument(plan, true).documents).toEqual(new DocumentGroup([plan, settings], plan, settings, 0, [plan, settings]));
     expect(second.keep(settings).documents.preview).toBeNull();
     expect(second.keep(new ViewTab("gone.view"))).toBe(second);
   });
@@ -189,20 +189,20 @@ describe("Layout", () => {
   it("moves a view to any group, including the documents group", () => {
     const opened = initial.openDocument(plan).openDocument(todo);
 
-    expect(opened.moveTab(files, 2, 0).dock(DockSide.Right).root).toEqual(new TabGroup(2, [files, changes], files));
+    expect(opened.moveTab(files, 2, 0).dock(DockSide.Right).root).toEqual(new TabGroup(2, [files, changes], files, null, [files, changes]));
     expect(opened.moveTab(files, 2, 0).dock(DockSide.Left).root).toBeNull();
-    expect(opened.moveTab(files, 0, 1).documents).toEqual(new DocumentGroup([plan, files, todo], files));
-    expect(opened.moveTab(files, 0, 1).moveTab(files, 2, 1).dock(DockSide.Right).root).toEqual(new TabGroup(2, [changes, files], files));
-    expect(opened.openView(search, registry).moveTab(search, 1, 0).dock(DockSide.Left).root).toEqual(new TabGroup(1, [search, files], search));
+    expect(opened.moveTab(files, 0, 1).documents).toEqual(new DocumentGroup([plan, files, todo], files, null, 0, [files, todo, plan]));
+    expect(opened.moveTab(files, 0, 1).moveTab(files, 2, 1).dock(DockSide.Right).root).toEqual(new TabGroup(2, [changes, files], files, null, [files, changes]));
+    expect(opened.openView(search, registry).moveTab(search, 1, 0).dock(DockSide.Left).root).toEqual(new TabGroup(1, [search, files], search, null, [search, files]));
     expect(opened.moveTab(files, 9, 0)).toBe(opened);
   });
 
   it("only reorders documents within the documents group", () => {
     const opened = initial.openDocument(plan).openDocument(todo);
 
-    expect(opened.moveTab(todo, 0, 0).documents).toEqual(new DocumentGroup([todo, plan], todo));
+    expect(opened.moveTab(todo, 0, 0).documents).toEqual(new DocumentGroup([todo, plan], todo, null, 0, [todo, plan]));
     expect(opened.moveTab(todo, 1, 0)).toBe(opened);
-    expect(opened.moveTab(settings, 0, 1).documents).toEqual(new DocumentGroup([plan, settings, todo], settings));
+    expect(opened.moveTab(settings, 0, 1).documents).toEqual(new DocumentGroup([plan, settings, todo], settings, null, 0, [settings, todo, plan]));
   });
 
   it("shows the dock a moved view lands in", () => {
@@ -327,7 +327,7 @@ describe("Layout", () => {
       .dockOnSide(files, DockSide.Right).moveTab(search, 0, 1).moveTab(new ViewTab("gone.view"), 0, 0).activate(todo).toggleDock(DockSide.Left);
     const reset = changed.reset(registry);
 
-    expect(reset.dock(DockSide.Left)).toEqual(new Dock(DockSide.Left, new TabGroup(1, [files, search], search), null, false));
+    expect(reset.dock(DockSide.Left)).toEqual(new Dock(DockSide.Left, new TabGroup(1, [files, search], search, null, [search, files]), null, false));
     expect(reset.dock(DockSide.Right).root).toEqual(group(2, changes));
     expect(reset.dock(DockSide.Bottom).root).toEqual(group(3, terminal));
     expect(reset.middle).toEqual(new DocumentGroup([plan, todo, settings], todo));

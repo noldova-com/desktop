@@ -32,7 +32,7 @@ describe("DocumentGroup", () => {
     expect(new DocumentGroup([plan], plan).without(plan)).toEqual(DocumentGroup.createEmpty());
     expect(group.withVisibleTabs(ViewRegistry.createEmpty())).toEqual(DocumentGroup.createEmpty());
     expect(group.without(todo)).toEqual(new DocumentGroup([plan, files], files));
-    expect(group.insert(settings, 0)).toEqual(new DocumentGroup([settings, plan, files, todo], settings));
+    expect(group.insert(settings, 0)).toEqual(new DocumentGroup([settings, plan, files, todo], settings, null, 0, [settings, todo]));
     expect(group.withVisibleTabs(LayoutFixture.createRegistry())).toBe(group);
     expect(new DocumentGroup([new DocumentTab("gone.document"), plan], plan).withVisibleTabs(LayoutFixture.createRegistry()))
       .toEqual(new DocumentGroup([plan], plan));
