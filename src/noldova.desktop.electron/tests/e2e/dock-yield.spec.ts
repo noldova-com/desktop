@@ -255,4 +255,3 @@ test.describe("docks giving way to a wide document", () => {
     await expectNoSidewaysScrollAsync(window);
   });
 });
-
