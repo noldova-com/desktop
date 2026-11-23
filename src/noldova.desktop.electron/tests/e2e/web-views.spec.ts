@@ -1238,7 +1238,7 @@ test.describe("web views", () => {
       const script = `var asked = false; function FindProxyForURL(url, host) { if (host !== ${JSON.stringify(reboundName)} || asked) return "DIRECT"; asked = true; return "PROXY ${host}:${port}"; }`;
       expect(await mainProcess.application.evaluate(async ({ webContents }, pacScript) => {
         const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
-        if (first === undefined)
+        if (Object.isUndefined(first))
           return false;
         await first.session.setProxy({ pacScript });
         return true;
