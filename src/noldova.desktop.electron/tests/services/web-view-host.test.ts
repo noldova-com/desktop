@@ -840,7 +840,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async navigatesOnlyToAnAllowedOriginWhoseNameResolvesToAddressesTheCheckAllows(): Promise<void> {
+  public async navigatesOnlyToAnAllowedOriginWhoseNameResolvesToAddressesTheCheckAllowsOrToNone(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const event = MainProcessStartFixture.trustedEvent("linux");
     await WebViewHostTests.openAsync(electron);
@@ -869,14 +869,14 @@ export class WebViewHostTests {
       { kind: "Started" },
       { kind: "Started" },
       { kind: "Refused", origin: "https://a.example.org" },
-      { kind: "Refused", origin: "https://b.example.org" },
+      { kind: "Started" },
       { kind: "Refused", origin: "https://example.net" },
       { kind: "Started" },
       null,
       null
     ]), JSON.stringify(answers));
     Assert.areEqual(JSON.stringify({ call: this.calls, value: { kind: "Started" } }), JSON.stringify(byRuntime));
-    Assert.areEqual("load https://example.com/docs,load https://93.184.215.14/,load about:blank,load https://example.com/runtime", view.contents.calls.join(","));
+    Assert.areEqual("load https://example.com/docs,load https://93.184.215.14/,load https://b.example.org/,load about:blank,load https://example.com/runtime", view.contents.calls.join(","));
   }
 
   @TestMethod
