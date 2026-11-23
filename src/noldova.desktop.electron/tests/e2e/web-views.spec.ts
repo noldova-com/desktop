@@ -25,6 +25,8 @@ import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 const host = "127.0.0.1";
 const titles = new Map([["/first", "First page"], ["/second", "Second page"]]);
 const iconRequests: string[] = [];
+const reboundName = "rebound.invalid";
+const proxiedRequests: string[] = [];
 const keysPage = "<!doctype html><title>Loading</title><p>Keys</p><script>const keys = []; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Keys\"; } }).observe({ type: \"paint\", buffered: true }); addEventListener(\"keydown\", event => { keys.push(event.key); document.title = [\"Keys\", ...keys].join(\" \"); });</script>";
 const typePage = "<!doctype html><title>Loading</title><p>Type</p><input><script>const field = document.querySelector(\"input\"); const keys = []; let painted = false; let typed = false; let blurs = 0; const show = () => { if (painted) document.title = [\"Type\", field.value, ...keys, blurs].join(\" \").trim(); }; new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); painted = true; show(); } }).observe({ type: \"paint\", buffered: true }); field.addEventListener(\"input\", () => { typed = true; show(); }); field.addEventListener(\"blur\", () => { blurs += typed ? 1 : 0; show(); }); addEventListener(\"keydown\", event => { keys.push(event.key); show(); }); field.focus();</script>";
 const formPage = "<!doctype html><title>Form</title><body style=\"margin:0\"><input style=\"position:fixed;top:0\"><div style=\"height:5000px\"></div><script>const field = document.querySelector(\"input\"); field.focus();</script></body>";
@@ -297,6 +299,11 @@ function portOf(server: Server): number {
 
 async function startServerAsync(): Promise<Server> {
   const server = createServer((request, response) => {
+    if (request.url?.startsWith(`http://${reboundName}:`) === true) {
+      proxiedRequests.push(`${request.method ?? String.empty} ${request.url}`);
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end("<!doctype html><title>Rebound page</title><p>Rebound page</p>");
+      return;
+    }
     if (request.url === "/keys") {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(keysPage);
       return;
@@ -1206,6 +1213,43 @@ test.describe("web views", () => {
       expect(await clickInFirstViewAsync(mainProcess, 125, 25, "middle")).toBe(true);
 
       await expect.poll(() => windowsAsync(window)).toEqual([line("/first", true), line("/first", true), line("/a", false), line("/second", false)]);
+    }
+    finally {
+      await stopServerAsync(server);
+    }
+  });
+
+  test("a module's web view refuses a page whose response came from a loopback address its allowed public name may not reach, judged by the address the engine reports for the response, after its server saw the request", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const port = portOf(server);
+      const origin = `http://${host}:${port}`;
+      const rebound = `http://${reboundName}:${port}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      const id = await view(window, 0).getAttribute("data-view");
+      await requestAsync(window, "pages.allow", [origin, rebound]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${origin}/first` })).toEqual({ kind: "Started", origin: null });
+      await expect(view(window, 0)).toHaveText("First page");
+      const script = `var asked = false; function FindProxyForURL(url, host) { if (host !== ${JSON.stringify(reboundName)} || asked) return "DIRECT"; asked = true; return "PROXY ${host}:${port}"; }`;
+      expect(await mainProcess.application.evaluate(async ({ webContents }, pacScript) => {
+        const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
+        if (Object.isUndefined(first))
+          return false;
+        await first.session.setProxy({ pacScript });
+        return true;
+      }, `data:application/x-ns-proxy-autoconfig;base64,${Buffer.from(script).toString("base64")}`)).toBe(true);
+
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: `${rebound}/first` })).toEqual({ kind: "Started", origin: null });
+
+      await expect.poll(async () => (await eventsAsync(window)).filter(t => t === `${id} NavigationRefused`).length).toBe(1);
+      expect(proxiedRequests).toEqual([`GET ${rebound}/first`]);
+      await expect.poll(() => readFirstViewAddressAsync(mainProcess)).toEqual({ address: `${origin}/first`, isLoading: false });
+      await expect(view(window, 0)).toHaveText("First page");
     }
     finally {
       await stopServerAsync(server);

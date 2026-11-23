@@ -840,7 +840,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async navigatesOnlyToAnAllowedOriginWhoseNameResolvesToAddressesTheCheckAllows(): Promise<void> {
+  public async navigatesOnlyToAnAllowedOriginWhoseNameResolvesToAddressesTheCheckAllowsOrToNone(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const event = MainProcessStartFixture.trustedEvent("linux");
     await WebViewHostTests.openAsync(electron);
@@ -869,14 +869,14 @@ export class WebViewHostTests {
       { kind: "Started" },
       { kind: "Started" },
       { kind: "Refused", origin: "https://a.example.org" },
-      { kind: "Refused", origin: "https://b.example.org" },
+      { kind: "Started" },
       { kind: "Refused", origin: "https://example.net" },
       { kind: "Started" },
       null,
       null
     ]), JSON.stringify(answers));
     Assert.areEqual(JSON.stringify({ call: this.calls, value: { kind: "Started" } }), JSON.stringify(byRuntime));
-    Assert.areEqual("load https://example.com/docs,load https://93.184.215.14/,load about:blank,load https://example.com/runtime", view.contents.calls.join(","));
+    Assert.areEqual("load https://example.com/docs,load https://93.184.215.14/,load https://b.example.org/,load about:blank,load https://example.com/runtime", view.contents.calls.join(","));
   }
 
   @TestMethod
@@ -1116,7 +1116,7 @@ export class WebViewHostTests {
   }
 
   @TestMethod
-  public async refusesAPagesNavigationFetchFrameAndWebSocketToAnAllowedPublicNameThatResolvesToALoopbackAddressOrToNothing(): Promise<void> {
+  public async refusesAPagesNavigationFetchFrameAndWebSocketToAnAllowedPublicNameThatResolvesToALoopbackAddressAndLetsANameThatResolvesToNothingFailInTheEngine(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     await WebViewHostTests.openAsync(electron);
@@ -1136,16 +1136,17 @@ export class WebViewHostTests {
       await request(6, "https://example.com/", "mainFrame"),
       await request(7, "https://example.com/data.json", "xhr"),
       await request(8, "https://example.com/frame", "subFrame"),
-      await request(9, "wss://example.com/socket", "webSocket")
+      await request(9, "wss://example.com/socket", "webSocket"),
+      await request(10, "https://gone.example.com/", "mainFrame")
     ];
 
-    Assert.areEqual("false,false,false,false,false,true,true,true,true", passes.join(","));
+    Assert.areEqual("false,false,false,false,true,true,true,true,true,true", passes.join(","));
     Assert.areEqual(JSON.stringify([{ address: "https://cdn.example.com/", origin: "https://cdn.example.com", isRedirect: false, fromPress: false }]),
       JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "NavigationRefused").map(t => t["details"])));
   }
 
   @TestMethod
-  public async refusesARedirectFromAResponseOnAPrivateAddressForAPublicName(): Promise<void> {
+  public async refusesAResponseFromAnAddressItsNameMayNotReachWhateverItLoadsAndSaysWhetherARedirectLedThere(): Promise<void> {
     const [electron, launcher, connection] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
     await WebViewHostTests.openAsync(electron);
@@ -1154,16 +1155,67 @@ export class WebViewHostTests {
     await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", ["https://example.com"]);
     session.addresses.set("example.com", ["93.184.215.14"]);
 
-    session.redirect({ id: 1, url: "https://example.com/", redirectURL: "https://example.com/home", webContentsId: contentsId, ip: "93.184.215.14" });
-    const publicRedirect = await session.requestAsync({ id: 1, url: "https://example.com/home", webContentsId: contentsId, resourceType: "mainFrame" });
-    session.redirect({ id: 2, url: "https://example.com/", redirectURL: "https://example.com/home", webContentsId: contentsId, ip: "10.0.0.5" });
-    const privateRedirect = await session.requestAsync({ id: 2, url: "https://example.com/home", webContentsId: contentsId, resourceType: "mainFrame" });
-    session.redirect({ id: 3, url: "http://example.com/", redirectURL: "https://example.com/", webContentsId: contentsId });
-    const upgrade = await session.requestAsync({ id: 3, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame" });
+    const passes = [
+      await session.receiveAsync({ id: 1, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame", ip: "93.184.215.14" }),
+      await session.receiveAsync({ id: 2, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame", ip: "10.0.0.5" }),
+      await session.receiveAsync({ id: 3, url: "https://example.com/data.json", webContentsId: contentsId, resourceType: "xhr", ip: "127.0.0.1" }),
+      await session.receiveAsync({ id: 4, url: "wss://example.com/socket", webContentsId: contentsId, resourceType: "webSocket", ip: "::1" }),
+      await session.receiveAsync({ id: 5, url: "https://example.com/frame", webContentsId: contentsId, resourceType: "subFrame", frame: new FakeWebViewFrame(5), ip: "192.168.1.20" }),
+      await session.receiveAsync({ id: 6, url: "https://example.com/cached.json", webContentsId: contentsId, resourceType: "xhr" })
+    ];
+    session.redirect({ id: 7, url: "https://example.com/", redirectURL: "https://example.com/home", webContentsId: contentsId, ip: "93.184.215.14" });
+    const redirected = await session.requestAsync({ id: 7, url: "https://example.com/home", webContentsId: contentsId, resourceType: "mainFrame" });
+    const landed = await session.receiveAsync({ id: 7, url: "https://example.com/home", webContentsId: contentsId, resourceType: "mainFrame", ip: "10.0.0.5" });
 
-    Assert.areEqual("true,false,true", [publicRedirect, privateRedirect, upgrade].join(","));
-    Assert.areEqual(JSON.stringify([{ address: "https://example.com/home", origin: "https://example.com", isRedirect: true, fromPress: false }]),
-      JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "NavigationRefused").map(t => t["details"])));
+    Assert.areEqual("true,false,false,false,false,true,true,false", [...passes, redirected, landed].join(","));
+    Assert.areEqual(JSON.stringify([
+      { address: "https://example.com/", origin: "https://example.com", isRedirect: false, fromPress: false },
+      { address: "https://example.com/home", origin: "https://example.com", isRedirect: true, fromPress: false }
+    ]), JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "NavigationRefused").map(t => t["details"])));
+    Assert.areEqual(JSON.stringify([{ address: "https://example.com/frame", origin: "https://example.com", isRedirect: false, frameId: 5 }]),
+      JSON.stringify(WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "FrameNavigationRefused").map(t => t["details"])));
+  }
+
+  @TestMethod
+  public async letsAResponseThroughTheProxyTheSessionUsesWhateverItsAddressAndJudgesItAsDirectWhenTheProxyIsUnknown(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    const contentsId = WebViewHostTests.view(electron, 0).contents.id;
+    const session = electron.webViews.session(WebViewHostTests.PARTITION);
+    await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", ["https://example.com", "https://cdn.example.com"]);
+    session.proxies.set("example.com", "PROXY 10.0.0.1:8080");
+    session.proxies.set("cdn.example.com", new Error("net::ERR_FAILED"));
+
+    const proxied = await session.receiveAsync({ id: 1, url: "https://example.com/", webContentsId: contentsId, resourceType: "mainFrame", ip: "10.0.0.1" });
+    const unknown = await session.receiveAsync({ id: 2, url: "https://cdn.example.com/", webContentsId: contentsId, resourceType: "mainFrame", ip: "10.0.0.1" });
+
+    Assert.areEqual("true,false", [proxied, unknown].join(","));
+  }
+
+  @TestMethod
+  public async refusesAPagesIconFromAnAddressItsNameMayNotReachAndAResponseNoViewAwaits(): Promise<void> {
+    const [electron, launcher, connection] = await WebViewHostTests.startAsync();
+    const window = MainProcessStartFixture.firstWindow(electron);
+    await WebViewHostTests.openAsync(electron);
+    const contents = WebViewHostTests.view(electron, 0).contents;
+    const session = electron.webViews.session(WebViewHostTests.PARTITION);
+    await this.commandAsync(launcher, connection, WebViewAction.SetAllowedOrigins, "1", [...WebViewHostTests.ALLOWED]);
+    session.addresses.set("example.com", ["93.184.215.14"]);
+    session.icons.set("https://example.com/private.png", new Uint8Array([4, 5, 6]));
+    session.icons.set("https://example.com/favicon.ico", new Uint8Array([1, 2, 3]));
+    session.iconAddresses.set("https://example.com/private.png", "127.0.0.1");
+    session.iconAddresses.set("https://example.com/favicon.ico", "93.184.215.14");
+    contents.onIsolated = () => Promise.resolve(WebViewHostTests.PNG);
+    const icons = (): readonly unknown[] => WebViewHostTests.windowEvents(window).filter(t => t["kind"] === "Favicon").map(t => WebViewHostTests.details(t)["image"]);
+
+    contents.emit("page-favicon-updated", {}, ["https://example.com/private.png", "https://example.com/favicon.ico"]);
+    await Condition.waitAsync(() => icons().length === 1);
+    const unasked = await session.receiveAsync({ id: 1, url: "https://example.com/favicon.ico", resourceType: "other", ip: "93.184.215.14" });
+    const stray = await session.receiveAsync({ id: 2, url: "https://example.com/favicon.ico", webContentsId: 999, resourceType: "other", ip: "93.184.215.14" });
+
+    Assert.areEqual("https://example.com/private.png refused,https://example.com/favicon.ico allowed", session.iconReads.join(","));
+    Assert.areEqual(JSON.stringify([`data:image/png;base64,${WebViewHostTests.PNG}`]), JSON.stringify(icons()));
+    Assert.areEqual("false,false", [unasked, stray].join(","));
   }
 
   @TestMethod

@@ -62,7 +62,6 @@ export class OpenWebView {
   private readonly attachWaits: Map<(guest: IWebViewContents) => void, (kind: WebViewFailureKind) => void> = new Map();
   private readonly lookupsSettled: (() => void)[] = [];
   private readonly redirects: Set<number> = new Set();
-  private readonly refusedRequests: Set<number> = new Set();
   private readonly relayKeys: IKeyStroke[] = [];
   private readonly enabledDomains: Map<string, EnabledDomain> = new Map();
   private readonly replays: IKeyStroke[] = [];
@@ -360,17 +359,23 @@ export class OpenWebView {
   }
 
   public async allowsRequestAsync(request: IWebViewRequest): Promise<boolean> {
-    const isRedirect = this.redirects.delete(request.id);
+    const isRedirect = this.redirects.has(request.id);
     const isPage = request.resourceType === Resources.mainFrameResource;
     const isFrame = request.resourceType === Resources.subFrameResource;
     const isAdmitted = isFrame && !isRedirect && this.takesAdmittedPage(request);
-    const allows = isAdmitted || !this.refusedRequests.delete(request.id)
-      && (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed))
+    const allows = isAdmitted
+      || (isPage || isFrame ? this.check.allowsNavigation(request.url, this.allowed, isFrame) : this.check.allowsRequest(request.url, this.allowed))
       && await this.connectsAsync(request.url);
-    if (!allows && isPage)
-      this.answerInOrder(this.guest, null, () => this.emitRefusedNavigation(request.url, isRedirect, false));
-    if (!allows && isFrame)
-      this.refuseFrame(request.frame ?? null, request.url, isRedirect, null);
+    if (!allows)
+      this.refuseLoad(request, isRedirect);
+    return allows;
+  }
+
+  public async allowsResponseAsync(request: IWebViewRequest): Promise<boolean> {
+    const isRedirect = this.redirects.delete(request.id);
+    const allows = await this.reachesAllowedAsync(request);
+    if (!allows)
+      this.refuseLoad(request, isRedirect);
     return allows;
   }
 
@@ -378,11 +383,14 @@ export class OpenWebView {
     return this.favicon.allowsRequest(url);
   }
 
+  public async reachesAllowedAsync(request: IWebViewRequest): Promise<boolean> {
+    const ip = request.ip ?? String.empty;
+    return String.isNullOrWhitespace(ip) || this.check.allowsConnection(request.url, this.allowed, ip)
+      || await this.session.resolveProxyAsync(request.url).catch(() => Resources.directProxy) !== Resources.directProxy;
+  }
+
   public noteRedirect(redirect: IWebViewRedirect): void {
     this.redirects.add(redirect.id);
-    const ip = redirect.ip ?? String.empty;
-    if (!String.isNullOrWhitespace(ip) && !this.check.allowsConnection(redirect.url, this.allowed, ip))
-      this.refusedRequests.add(redirect.id);
   }
 
   public stepZoom(direction: number): number {
@@ -938,7 +946,14 @@ export class OpenWebView {
       return true;
     const host = parsed.hostname.replace(Resources.webViewBracketsPattern, String.empty);
     const addresses = isIP(host) !== 0 ? [host] : await this.session.resolveHostAsync(host).catch(() => []);
-    return addresses.length > 0 && addresses.every(t => this.check.allowsConnection(url, this.allowed, t));
+    return addresses.every(t => this.check.allowsConnection(url, this.allowed, t));
+  }
+
+  private refuseLoad(request: IWebViewRequest, isRedirect: boolean): void {
+    if (request.resourceType === Resources.mainFrameResource)
+      this.answerInOrder(this.guest, null, () => this.emitRefusedNavigation(request.url, isRedirect, false));
+    if (request.resourceType === Resources.subFrameResource)
+      this.refuseFrame(request.frame ?? null, request.url, isRedirect, null);
   }
 
   private judgeFrame(guest: IWebViewContents, navigation: IFrameNavigation): void {

@@ -319,7 +319,13 @@ The file is an object with five optional fields: `methods`, each `{ "name": "<Do
   An address on the machine itself or its local network passes only when the allowed origins name it exactly, and the module takes such origins only from the app's settings.
 - Every request of the profile, of every kind, a page's own navigation, a frame, a fetch and a WebSocket's handshake included, is also judged by the addresses its host resolves to through the view's profile, before it is sent.
   When one of them is loopback, private, link-local or unspecified, the request passes only when its host is that address or a loopback name, or its origin is one of the app's local entries, and the allowed origins name it exactly; so an allowed public name that the profile resolves to such an address when the request starts is refused, and its server sees no WebSocket upgrade.
-  The judgement uses the profile's answer when the request starts, and the engine looks the name up again when it connects, so a name whose answer changes between the two reaches the address it changed to; [#90](https://github.com/noldova-com/desktop/issues/90) moves the judgement to where the engine connects.
+- Every response of the profile, a redirect's and a page's icon included, is judged again by the same rule once its headers arrive, by the address the engine connected to, and is refused before the page reads any of it; a refused page or frame shows the not-allowed page, as at the start.
+  A known limit: the engine looks a name up again when it connects, and nothing judges that address before the request is sent.
+  So a name whose answer changes to a local address after the first judgement gets that one request through to it: its server sees the request, a POST's body included, and only the answer is refused, so the page never reads it.
+  The engine's own local network access check would stop such a request before it is sent, but Electron turns that check off for every app and gives no way to turn it back on ([electron/electron#48655](https://github.com/electron/electron/issues/48655)).
+  [#95](https://github.com/noldova-com/desktop/issues/95) tracks judging each connection's address before anything is sent.
+  A response that came through a proxy the profile uses is judged only by its name, since the address the engine reports is the proxy's.
+  A WebSocket's handshake carries no address, so a WebSocket is judged only by its name, before it is sent: a name whose answer changes to a local address after that opens a live socket to it.
   A WebSocket's origin, for this and for the allowed origins, is the `http:` or `https:` origin of its host and port.
 - A loopback address never passes on a port of the app's own endpoints, the runtime's TCP endpoint and every module's tool endpoint, even when the allowed origins name it.
   The runtime sends those ports to the main process on each change, and gives a tool endpoint's address to anyone only after the main process has acknowledged its port; it takes a port off the list only after its endpoint has closed.
@@ -347,7 +353,8 @@ The file is an object with five optional fields: `methods`, each `{ "name": "<Do
 
 ## What fails closed
 
-- An address the check can't judge is refused, and so is a request whose host resolves to no address, which shows the not-allowed page rather than the engine's own error ([#90](https://github.com/noldova-com/desktop/issues/90)).
+- An address the check can't judge is refused.
+  A request whose host lookup fails, for a name that doesn't exist or while offline, goes on, so the engine shows its own error; if the engine still connects, the address it reaches is judged when the answer arrives.
 - While the main process doesn't know the app's endpoint ports, before the runtime answers them, after a failed read or once the runtime has gone, every loopback port is refused.
 - A page's own top-level `about:srcdoc`, by a link or by `location`, never reaches the check: the engine refuses it itself, loads nothing, and shows its own error page in place of the page; the host reports it as `NavigationRefused`, without a `LoadFailed`.
   A frame's `about:srcdoc` loads.

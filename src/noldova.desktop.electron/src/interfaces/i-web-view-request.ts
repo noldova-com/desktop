@@ -15,4 +15,5 @@ export interface IWebViewRequest {
   readonly resourceType: string;
   readonly frame?: IWebViewFrame | null;
   readonly requestHeaders?: Readonly<Record<string, string>>;
+  readonly ip?: string;
 }

@@ -472,14 +472,26 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async refusesAnAllowedOriginWhoseNameDoesntResolve(): Promise<void> {
+  public async loadsAnAllowedOriginWhoseNameDoesntResolveSoTheEngineShowsItsOwnError(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);
 
     const navigation = await harness.open.navigateAsync("https://example.com/page");
 
-    Assert.areEqual(JSON.stringify({ kind: "Refused", origin: "https://example.com" }), JSON.stringify(navigation));
-    Assert.areEqual(String.empty, harness.contents.calls.join(","));
+    Assert.areEqual(JSON.stringify({ kind: "Started" }), JSON.stringify(navigation));
+    Assert.areEqual("load https://example.com/page", harness.contents.calls.join(","));
+  }
+
+  @TestMethod
+  public async loadsAnAllowedOriginWhoseLookupFailsOfflineSoTheEngineShowsItsOwnError(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.session.lookups.set("example.com", Promise.reject(new Error("net::ERR_INTERNET_DISCONNECTED")));
+
+    const navigation = await harness.open.navigateAsync("https://example.com/page");
+
+    Assert.areEqual(JSON.stringify({ kind: "Started" }), JSON.stringify(navigation));
+    Assert.areEqual("load https://example.com/page", harness.contents.calls.join(","));
   }
 
   @TestMethod
@@ -1004,17 +1016,19 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async refusesARequestOutsideItsOriginsAndAPageRedirectedToAPrivateAddress(): Promise<void> {
+  public async refusesARequestOutsideItsOriginsAndAPageRedirectedToAResponseFromAPrivateAddress(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);
     harness.session.addresses.set("example.com", ["93.184.216.34"]);
 
     const allowed = await harness.open.allowsRequestAsync({ id: 1, url: "https://example.com/", resourceType: "mainFrame" });
     const outside = await harness.open.allowsRequestAsync({ id: 2, url: "https://other.example.net/", resourceType: "mainFrame" });
-    harness.open.noteRedirect({ id: 3, url: "https://example.com/", redirectURL: "https://example.com/next", ip: "10.0.0.2" });
-    const redirected = await harness.open.allowsRequestAsync({ id: 3, url: "https://example.com/next", resourceType: "mainFrame" });
+    harness.open.noteRedirect({ id: 3, url: "https://example.com/", redirectURL: "https://example.com/next", ip: "93.184.216.34" });
+    const redirected = await harness.open.allowsRequestAsync({ id: 3, url: "https://example.com/next", resourceType: "mainFrame" })
+      && await harness.open.allowsResponseAsync({ id: 3, url: "https://example.com/next", resourceType: "mainFrame", ip: "10.0.0.2" });
     harness.open.noteRedirect({ id: 4, url: "https://example.com/", redirectURL: "https://example.com/later", ip: "93.184.216.34" });
-    const publicRedirect = await harness.open.allowsRequestAsync({ id: 4, url: "https://example.com/later", resourceType: "mainFrame" });
+    const publicRedirect = await harness.open.allowsRequestAsync({ id: 4, url: "https://example.com/later", resourceType: "mainFrame" })
+      && await harness.open.allowsResponseAsync({ id: 4, url: "https://example.com/later", resourceType: "mainFrame", ip: "93.184.216.34" });
 
     Assert.areEqual("true,false,false,true", [allowed, outside, redirected, publicRedirect].join(","));
     Assert.areEqual([

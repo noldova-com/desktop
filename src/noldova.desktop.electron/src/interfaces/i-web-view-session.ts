@@ -17,9 +17,11 @@ export interface IWebViewSession {
   setDisplayMediaRequestHandler(handler: (webContentsId: number | null, refuse: () => void) => void): void;
   onBeforeRequest(listener: (request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void): void;
   onBeforeSendHeaders(listener: (request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void): void;
+  onHeadersReceived(listener: (request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void): void;
   onBeforeRedirect(listener: (redirect: IWebViewRedirect) => void): void;
   on(event: "will-download", listener: (event: IPreventableEvent, url: string, webContentsId: number | null) => void): unknown;
   resolveHostAsync(host: string): Promise<readonly string[]>;
+  resolveProxyAsync(url: string): Promise<string>;
   readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null>;
   clearStorageDataAsync(): Promise<void>;
 }

@@ -315,6 +315,11 @@ export class WebViewHost {
         void open.allowsRequestAsync(request).then(allows => callback({ cancel: !allows }));
     });
     session.onBeforeSendHeaders((request, callback) => callback({ cancel: request.requestHeaders?.[Resources.serviceWorkerHeader] === Resources.serviceWorkerScript }));
+    session.onHeadersReceived((request, callback) => {
+      const open = this.findByContents(request.webContentsId);
+      const allowed = Object.isNull(open) ? this.allowsIconResponseAsync(partition, request) : open.allowsResponseAsync(request);
+      void allowed.then(allows => callback({ cancel: !allows }));
+    });
     session.onBeforeRedirect(redirect => this.findByContents(redirect.webContentsId)?.noteRedirect(redirect));
     session.on(Resources.willDownloadEvent, (event, _url, contentsId) => {
       event.preventDefault();
@@ -336,6 +341,11 @@ export class WebViewHost {
 
   private allowsIconRequest(partition: string, request: IWebViewRequest): boolean {
     return Object.isUndefined(request.webContentsId) && [...this.views.values()].some(t => t.partition === partition && t.allowsIconRequest(request.url));
+  }
+
+  private async allowsIconResponseAsync(partition: string, request: IWebViewRequest): Promise<boolean> {
+    const open = Object.isUndefined(request.webContentsId) ? [...this.views.values()].find(t => t.partition === partition && t.allowsIconRequest(request.url)) : undefined;
+    return !Object.isUndefined(open) && await open.reachesAllowedAsync(request);
   }
 
   private findByContents(contentsId: number | null | undefined): OpenWebView | null {
