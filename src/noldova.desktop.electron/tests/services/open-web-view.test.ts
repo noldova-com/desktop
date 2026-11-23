@@ -483,6 +483,18 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async loadsAnAllowedOriginWhoseLookupFailsOfflineSoTheEngineShowsItsOwnError(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.session.lookups.set("example.com", Promise.reject(new Error("net::ERR_INTERNET_DISCONNECTED")));
+
+    const navigation = await harness.open.navigateAsync("https://example.com/page");
+
+    Assert.areEqual(JSON.stringify({ kind: "Started" }), JSON.stringify(navigation));
+    Assert.areEqual("load https://example.com/page", harness.contents.calls.join(","));
+  }
+
+  @TestMethod
   public async movesThroughAllowedHistoryAndReloadsAndStops(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     harness.open.setAllowedOrigins(["https://example.com"]);

@@ -84,7 +84,7 @@ export class FakeWebViewSession implements IWebViewSession {
   }
 
   public async readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null> {
-    const request = { id: -1 - this.iconReads.length, url, resourceType: "other" };
+    const request: IWebViewRequest = { id: -1 - this.iconReads.length, url, resourceType: "other" };
     const ip = this.iconAddresses.get(url);
     const isAllowed = await this.requestAsync(request) && (Object.isUndefined(ip) || await this.receiveAsync({ ...request, ip }));
     this.iconReads.push(`${url} ${isAllowed ? "allowed" : "refused"}`);
