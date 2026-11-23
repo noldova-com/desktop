@@ -138,8 +138,7 @@ export class WebViewHost {
       this.forget(open);
       this.kept.push(open);
     }
-    await Promise.all(opens.map(t => t?.keepAsync()));
-    return opens.map(t => !Object.isNull(t));
+    return await Promise.all(opens.map(t => Object.isNull(t) ? false : this.keepOneAsync(t)));
   }
 
   public expect(windowId: number, module: unknown, view: unknown): boolean {
@@ -327,6 +326,18 @@ export class WebViewHost {
     });
     this.sessions.set(partition, session);
     return session;
+  }
+
+  private async keepOneAsync(open: OpenWebView): Promise<boolean> {
+    try {
+      await open.keepAsync();
+      return true;
+    }
+    catch (error) {
+      this.forget(open);
+      this.log(Resources.formatWebViewNotKept(open.info.module, open.info.id, String(error)));
+      return false;
+    }
   }
 
   private findListed(windowId: number, listed: unknown): OpenWebView | null {
