@@ -304,26 +304,34 @@ export class ShellCommandsService {
   }
 
   private focusGrip(name: string, bandId: string | null): void {
-    afterNextRender(() => [...this.bandScope(bandId).querySelectorAll<HTMLElement>(Resources.toolbarSelector)]
-      .find(t => t.dataset[Resources.toolbarData] === name)?.querySelector<HTMLElement>(Resources.toolbarGripSelector)?.focus(), { injector: this.environment });
+    afterNextRender(() => {
+      const scope = this.bandScope(bandId);
+      (Object.isNull(scope) ? this.searchField() : [...scope.querySelectorAll<HTMLElement>(Resources.toolbarSelector)]
+        .find(t => t.dataset[Resources.toolbarData] === name)?.querySelector<HTMLElement>(Resources.toolbarGripSelector))?.focus();
+    }, { injector: this.environment });
   }
 
   private bandIdOf(commandArguments: JsonValue): string | null {
     return JsonReader.fromValue(commandArguments).readOptionalString(Resources.toolbarBandIdArgument) ?? null;
   }
 
-  private bandScope(bandId: string | null): ParentNode {
-    return (Object.isNull(bandId) ? null : this.document.querySelector(Resources.formatToolbarBandSelector(bandId))) ?? this.document;
+  private bandScope(bandId: string | null): ParentNode | null {
+    return Object.isNull(bandId) ? this.document : this.document.querySelector(Resources.formatToolbarBandSelector(bandId));
   }
 
   private gripsOf(bandId: string | null): readonly HTMLElement[] {
-    return [...this.bandScope(bandId).querySelectorAll<HTMLElement>(Resources.toolbarGripSelector)];
+    const scope = this.bandScope(bandId);
+    return Object.isNull(scope) ? [] : [...scope.querySelectorAll<HTMLElement>(Resources.toolbarGripSelector)];
+  }
+
+  private searchField(): HTMLElement | null {
+    return this.document.querySelector<HTMLElement>(Resources.searchFieldSelector);
   }
 
   private focusAfterHide(index: number, bandId: string | null): void {
     afterNextRender(() => {
       const grips = this.gripsOf(bandId);
-      (grips[index] ?? grips.at(-1) ?? this.document.querySelector<HTMLElement>(Resources.searchFieldSelector))?.focus();
+      (grips[index] ?? grips.at(-1) ?? this.searchField())?.focus();
     }, { injector: this.environment });
   }
 
