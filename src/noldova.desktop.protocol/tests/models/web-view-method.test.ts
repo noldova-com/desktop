@@ -43,7 +43,7 @@ export class WebViewMethodTests {
   @TestMethod
   public refusesMethodsThatLoadADocumentOrUndoTheHostsHold(): void {
     for (const name of ["Page.navigate", "Page.navigateToHistoryEntry", "Page.reload", "Page.setDocumentContent", "Page.resetNavigationHistory", "Page.setInterceptFileChooserDialog", "Page.disable",
-      "Page.setDownloadBehavior", "Page.close", "Page.crash", "Network.setRequestInterception", "Network.continueInterceptedRequest", "Target.createTarget", "Target.attachToTarget", "Browser.setDownloadBehavior",
+      "Page.setDownloadBehavior", "Page.close", "Page.crash", "Network.setRequestInterception", "Network.continueInterceptedRequest", "DOM.setFileInputFiles", "Input.dispatchDragEvent", "Target.createTarget", "Target.attachToTarget", "Browser.setDownloadBehavior",
       "Fetch.enable", "Security.setIgnoreCertificateErrors"]) {
       Assert.isTrue(WebViewMethod.isRefused(name));
       Assert.isTrue(Assert.throws(() => new WebViewMethod(name), ArgumentException).message.startsWith(`${name} is refused in a web view`));

@@ -192,6 +192,8 @@ export class ModuleWebViewsTests {
   @TestMethod
   @TestData("Page.navigate")
   @TestData("Network.setRequestInterception")
+  @TestData("DOM.setFileInputFiles")
+  @TestData("Input.dispatchDragEvent")
   @TestData("Target.createTarget")
   @TestData("Browser.close")
   public async refusesAMethodThatNavigatesOrUndoesWhatTheHostHolds(name: string): Promise<void> {
