@@ -232,7 +232,7 @@ describe("WindowRowComponent", () => {
 
       expect(document.activeElement).toBe(action);
       expect([action.disabled, action.getAttribute("aria-disabled"), action.getAttribute("aria-label"), action.getAttribute("aria-describedby")]).toEqual([false, "true", reason, null]);
-      expect(getComputedStyle(action).opacity).toBe("0.5");
+      expect(getComputedStyle(DomFixture.present(action.querySelector(":scope > .nol-icon-button-face, :scope > .nol-button-face"))).opacity).toBe("0.5");
       expect(tooltip.top).toBeGreaterThanOrEqual(box.bottom);
       expect([runs, errors]).toEqual([[], []]);
     });
@@ -1188,7 +1188,7 @@ describe("WindowRowComponent", () => {
         button.click();
         await fixture.whenStable();
         const descriptions = (button.getAttribute("aria-describedby") ?? String.empty).split(" ").map(t => document.getElementById(t)?.textContent);
-        return [document.activeElement === button, isUnavailable(button), getComputedStyle(button).opacity, below, descriptions.includes(reason)];
+        return [document.activeElement === button, isUnavailable(button), getComputedStyle(DomFixture.present(button.querySelector(":scope > .nol-icon-button-face, :scope > .nol-button-face"))).opacity, below, descriptions.includes(reason)];
       };
       DomFixture.oneOf(row, ".nol-window-row-left-dock", HTMLButtonElement).focus();
 

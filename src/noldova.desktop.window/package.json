@@ -46,6 +46,6 @@
     "@noldova/context.exceptions": ">=0.0.12 <0.1.0",
     "@noldova/context.json": ">=0.0.12 <0.1.0",
     "@noldova/desktop.protocol": ">=__VERSION__ <__NEXT_MINOR__",
-    "@noldova/ui.components.angular": ">=0.0.26 <0.1.0"
+    "@noldova/ui.components.angular": ">=0.0.27 <0.1.0"
   }
 }
