@@ -59,10 +59,10 @@ describe("ViewRegistry", () => {
 
   it("refuses a preferred width for a name it does not hold, or one that is not a finite number greater than 0", () => {
     const views = [new ViewType("git.conflicts", DockSide.Right, false)];
-    const cases: [string, number][] = [["notes.note", 60], ["git.conflicts", 0], ["git.history", Number.NaN], ["git.history", Number.POSITIVE_INFINITY]];
+    const cases = [new Map([["notes.note", 60]]), new Map([["git.conflicts", 0]]), new Map([["git.history", Number.NaN]]), new Map([["git.history", Number.POSITIVE_INFINITY]])];
 
     for (const widths of cases)
-      expect(() => new ViewRegistry(views, ["git.history"], new Map(), new Set(), new Map([widths]))).toThrowError("A preferred width is a finite number of rem greater than 0.");
+      expect(() => new ViewRegistry(views, ["git.history"], new Map(), new Set(), widths)).toThrowError("A preferred width is a finite number of rem greater than 0.");
   });
 
   it("refuses a renamable document it does not hold", () => {

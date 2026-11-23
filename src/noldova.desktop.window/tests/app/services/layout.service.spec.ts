@@ -300,6 +300,21 @@ describe("LayoutService", () => {
       expect([shown(), closed()]).toEqual([[26, 13, 60], []]);
     });
 
+    it("holds the width the person drags a side dock to while the document is in front, and again when another document comes and goes", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+      const wider = shown();
+
+      service.resizeDock(DockSide.Right, 30);
+      const dragged = shown();
+      service.activate(LayoutFixture.plan);
+      const normal = shown();
+      service.activate(wide);
+
+      expect([wider, dragged, normal]).toEqual([[26, 13, 60], [26, 30, 43], [26, 30, 43]]);
+      expect(shown()).toEqual([26, 30, 43]);
+    });
+
     it("closes the side docks, right first, when shrinking is not enough, keeps open the one the person opens while the document is in front, and reopens the others when another document is", async () => {
       await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
       service.setViewport(80, 40);

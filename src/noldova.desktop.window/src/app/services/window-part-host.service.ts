@@ -502,12 +502,16 @@ export class WindowPartHostService implements IWindowPartHost {
     const failed = failures.flatMap(t => t.viewNames.map(u => ({ name: u, failure: t })));
     for (const view of failed)
       this.labels.register(view.name, new TabLabel(view.failure.displayName, view.failure.glyph));
+    const widths = new Map<string, number>();
+    for (const contribution of [...views, ...this.activations.flatMap(t => t.context.documents)])
+      if (!Object.isNull(contribution.preferredWidth))
+        widths.set(contribution.name, contribution.preferredWidth);
     this.layout.setRegistry(new ViewRegistry(
       [...views.map(t => new ViewType(t.name, t.defaultSide, t.isShownByDefault, t.hasInstances, t.tabRowPlace, t.isRenamable, t.defaultGroup, t.defaultOrder)), ...failed.map(t => new ViewType(t.name, DockSide.Left, false))],
       [...ShellDocuments.all.map(t => t.name), ...this.activations.flatMap(t => t.context.documents.map(u => u.name))],
       new Map(this.activations.flatMap(t => t.context.documents.flatMap((u): [string, string][] => Object.isNull(u.tabRowPlace) ? [] : [[u.name, u.tabRowPlace]]))),
       new Set(this.activations.flatMap(t => t.context.documents.filter(u => u.isRenamable).map(u => u.name))),
-      new Map([...views, ...this.activations.flatMap(t => t.context.documents)].flatMap((t): [string, number][] => Object.isNull(t.preferredWidth) ? [] : [[t.name, t.preferredWidth]]))));
+      widths));
   }
 
   private createPartInjector(context: IWindowPartContext, isActiveDocument: Signal<boolean>): Injector {

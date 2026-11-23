@@ -25,6 +25,7 @@ import type { DropTarget } from "../models/layout/drop-target.js";
 import { EarlyDocument } from "../models/layout/early-document.js";
 import { Layout } from "../models/layout/layout.js";
 import { LayoutGeometry } from "../models/layout/layout-geometry.js";
+import { LayoutGeometrySource } from "../models/layout/layout-geometry-source.js";
 import { LayoutMetrics } from "../models/layout/layout-metrics.js";
 import type { ToolbarLayout } from "../models/layout/toolbar-layout.js";
 import type { SplitHandle } from "../models/layout/split-handle.js";
@@ -64,10 +65,15 @@ export class LayoutService {
   private writing: Promise<void> = Promise.resolve();
   private readonly kept: WritableSignal<DockSide | null> = signal(null);
   private readonly changeListeners: Set<(from: Layout, to: Layout) => void> = new Set();
-  private readonly titles: Signal<ReadonlyMap<string, string>> = computed(() => new Map(this.layoutState().groups.flatMap(t => t.tabs).flatMap(t => {
-    const title = t instanceof DocumentTab ? this.labels.titleOf(t) : null;
-    return Object.isNull(title) ? [] : [[t.key, title] as const];
-  })));
+  private readonly titles: Signal<ReadonlyMap<string, string>> = computed(() => {
+    const titles = new Map<string, string>();
+    for (const tab of this.layoutState().groups.flatMap(t => t.tabs)) {
+      const title = tab instanceof DocumentTab ? this.labels.titleOf(tab) : null;
+      if (!Object.isNull(title))
+        titles.set(tab.key, title);
+    }
+    return titles;
+  });
   private readonly shownLayout: Signal<Layout> = computed(() => {
     const hidden = this.hiddenState();
     return Object.isNull(hidden) ? this.layoutState() : this.layoutState().close(hidden);
@@ -81,13 +87,15 @@ export class LayoutService {
     new Set([...Resources.dockStyleSettings].filter(([, name]) => this.settings.values().get(name) === DockStyle.Icons).map(([side]) => side)));
   public readonly isMeasured: Signal<boolean> = computed(() => !Object.isNull(this.metrics()));
   public readonly previewTabs: Signal<boolean> = computed(() => this.settings.values().get(Resources.previewTabsSetting) !== false);
+  private readonly heldMiddles: WritableSignal<ReadonlyMap<string, number>> = signal(new Map());
   private readonly wantedMiddle: Signal<number | null> = computed(() => {
     const active = this.layoutState().documents.active;
-    return Object.isNull(active) ? null : this.registryState().preferredWidth(active.name);
+    const declared = Object.isNull(active) ? null : this.registryState().preferredWidth(active.name);
+    return Object.isNull(active) || Object.isNull(declared) ? null : this.heldMiddles().get(active.key) ?? declared;
   });
-  public readonly geometry: Signal<LayoutGeometry> = linkedSignal({
-    source: () => ({ width: this.width(), height: this.height(), layout: this.shownLayout(), registry: this.registryState(), metrics: this.metrics(), iconSides: this.iconSides(), kept: this.kept(), wanted: this.wantedMiddle() }),
-    computation: (source, previous?: { readonly value: LayoutGeometry }) => new LayoutGeometry(source.width, source.height, source.layout, source.registry, source.metrics ?? LayoutMetrics.none, source.iconSides,
+  public readonly geometry: Signal<LayoutGeometry> = linkedSignal<LayoutGeometrySource, LayoutGeometry>({
+    source: () => new LayoutGeometrySource(this.width(), this.height(), this.shownLayout(), this.registryState(), this.metrics(), this.iconSides(), this.kept(), this.wantedMiddle()),
+    computation: (source, previous) => new LayoutGeometry(source.width, source.height, source.layout, source.registry, source.metrics ?? LayoutMetrics.none, source.iconSides,
       new DockYield(source.wanted ?? source.layout.middleSize ?? Resources.middlePreferredSize, previous?.value.closedSides ?? new Set(), source.kept))
   });
   public readonly currentGroup: Signal<TabGroup> = computed(() => {
@@ -258,7 +266,9 @@ export class LayoutService {
     const other = side === DockSide.Left ? DockSide.Right : DockSide.Left;
     const shown = geometry.dock(other).width;
     const held = geometry.isCollapsed(other) || layout.dock(other).preferredTrack(geometry.metrics, geometry.width) <= shown + geometry.metrics.gap ? layout : layout.resizeDock(other, shown);
-    this.update(held.withMiddleSize(this.middleAfter(side, size)));
+    const middle = Math.max(0, geometry.middle.width + geometry.dock(side).width - size);
+    this.holdMiddle(middle);
+    this.update(held.withMiddleSize(middle < Resources.middlePreferredSize ? middle : null));
   }
 
   public restoreDock(side: DockSide, size: number | null): void {
@@ -284,10 +294,13 @@ export class LayoutService {
     this.update(this.layoutState().reset(this.registryState()));
   }
 
-  private middleAfter(side: DockSide, size: number): number | null {
-    const geometry = this.geometry();
-    const middle = geometry.middle.width + geometry.dock(side).width - size;
-    return middle < Resources.middlePreferredSize ? Math.max(0, middle) : null;
+  private holdMiddle(middle: number): void {
+    const active = this.layoutState().documents.active;
+    if (Object.isNull(active) || Object.isNull(this.registryState().preferredWidth(active.name)))
+      return;
+    const held = new Map(this.heldMiddles());
+    held.set(active.key, middle);
+    this.heldMiddles.set(held);
   }
 
   private reveal(tab: Tab): void {
