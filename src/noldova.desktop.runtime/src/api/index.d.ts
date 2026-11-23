@@ -12204,7 +12204,10 @@ export declare class SettingsService {
   public get device(): string | null;
 
   /**
-   * Takes the device this runtime serves, as the app's main process names it.
+   * Takes the device this runtime serves, as the app's main process names it,
+   * tells the {@link SettingsService.onChanged} listeners each device setting
+   * with a value stored for it, then calls the
+   * {@link SettingsService.onDeviceKnown} listeners.
    *
    * @param device The device's id.
    * @example
@@ -12408,6 +12411,24 @@ export declare class SettingsService {
    * ```
    */
   public onChanged(listener: (change: SettingChange) => void): Disposable;
+
+  /**
+   * Listens for the device this runtime serves becoming known: each call of
+   * {@link SettingsService.useDevice} calls the listener, after the changes
+   * it tells.
+   *
+   * @param listener Called once the device is known.
+   * @returns What stops the listener when disposed.
+   * @example
+   * ```ts
+   * import type { SettingsService } from "@noldova/desktop.runtime";
+   *
+   * export function whenKnown(settings: SettingsService, start: () => void): Disposable {
+   *   return settings.onDeviceKnown(start);
+   * }
+   * ```
+   */
+  public onDeviceKnown(listener: () => void): Disposable;
 }
 
 /**
