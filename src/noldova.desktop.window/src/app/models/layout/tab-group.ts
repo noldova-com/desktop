@@ -26,8 +26,9 @@ export class TabGroup extends LayoutNode {
   public readonly tabs: readonly Tab[];
   public readonly active: Tab | null;
   public readonly preview: Tab | null;
+  public readonly recent: readonly Tab[];
 
-  public constructor(id: number, tabs: readonly Tab[], active: Tab | null, preview: Tab | null = null) {
+  public constructor(id: number, tabs: readonly Tab[], active: Tab | null, preview: Tab | null = null, recent: readonly Tab[] = []) {
     super(id);
     if (new Set(tabs.map(t => t.key)).size !== tabs.length)
       throw new ArgumentException(Resources.repeatedTab, Resources.tabsParameterName);
@@ -45,6 +46,8 @@ export class TabGroup extends LayoutNode {
     this.tabs = [...tabs];
     this.active = current ?? null;
     this.preview = previewed ?? null;
+    const earlier = recent.flatMap(t => tabs.filter(u => u.equals(t) && !u.equals(current)));
+    this.recent = Object.isUndefined(current) ? [] : [current, ...earlier.filter((t, i) => earlier.findIndex(u => u.equals(t)) === i)];
   }
 
   public get isDocuments(): boolean {
@@ -112,10 +115,11 @@ export class TabGroup extends LayoutNode {
     if (index < 0)
       return this;
     const rest = this.tabs.filter(t => !t.equals(tab));
-    const next = rest[Math.min(index, rest.length - 1)];
-    if (Object.isUndefined(next))
+    const neighbour = rest[Math.min(index, rest.length - 1)];
+    if (Object.isUndefined(neighbour))
       return this.emptied();
-    return this.copy(rest, tab.equals(this.active) ? next : this.active, tab.equals(this.preview) ? null : this.preview);
+    const next = tab.equals(this.active) ? this.recent.find(t => !t.equals(tab)) ?? neighbour : this.active;
+    return this.copy(rest, next, tab.equals(this.preview) ? null : this.preview);
   }
 
   public activate(tab: Tab): TabGroup {
@@ -162,12 +166,13 @@ export class TabGroup extends LayoutNode {
     return {
       [Resources.tabsField]: this.tabs.map(t => t.toJson()),
       [Resources.activeField]: active < 0 ? null : active,
-      ...(preview < 0 ? {} : { [Resources.previewField]: preview })
+      ...(preview < 0 ? {} : { [Resources.previewField]: preview }),
+      ...(this.recent.length < 2 ? {} : { [Resources.recentField]: this.recent.map(t => this.tabs.findIndex(u => u.equals(t))) })
     };
   }
 
   protected copy(tabs: readonly Tab[], active: Tab | null, preview: Tab | null): TabGroup {
-    return new TabGroup(this.id, tabs, active, preview);
+    return new TabGroup(this.id, tabs, active, preview, this.recent);
   }
 
   protected emptied(): TabGroup | null {

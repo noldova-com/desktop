@@ -38,6 +38,13 @@ describe("DocumentGroup", () => {
       .toEqual(new DocumentGroup([plan], plan));
   });
 
+  it("returns to the document that was active before the closed one", () => {
+    const opened = new DocumentGroup([plan], plan).insert(todo, 1).activate(plan).insert(settings, 2);
+
+    expect(opened.without(settings)?.active).toBe(plan);
+    expect(opened.without(settings)?.without(plan)?.active).toBe(todo);
+  });
+
   it("marks itself as the documents group when written", () => {
     expect(new DocumentGroup([settings], settings).toJson()).toEqual({ tabs: [{ document: "desktop.settings" }], active: 0, documents: true });
     expect(DocumentGroup.createEmpty().toJson()).toEqual({ tabs: [], active: null, documents: true });

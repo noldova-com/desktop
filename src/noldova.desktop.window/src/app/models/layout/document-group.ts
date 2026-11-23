@@ -15,8 +15,8 @@ import type { Tab } from "./tab.js";
 import { TabGroup } from "./tab-group.js";
 
 export class DocumentGroup extends TabGroup {
-  public constructor(tabs: readonly Tab[], active: Tab | null, preview: Tab | null = null, id: number = Resources.documentsGroupId) {
-    super(id, tabs, active, preview);
+  public constructor(tabs: readonly Tab[], active: Tab | null, preview: Tab | null = null, id: number = Resources.documentsGroupId, recent: readonly Tab[] = []) {
+    super(id, tabs, active, preview, recent);
   }
 
   public static createEmpty(id: number = Resources.documentsGroupId): DocumentGroup {
@@ -40,7 +40,7 @@ export class DocumentGroup extends TabGroup {
   }
 
   protected override copy(tabs: readonly Tab[], active: Tab | null, preview: Tab | null): TabGroup {
-    return new DocumentGroup(tabs, active, preview, this.id);
+    return new DocumentGroup(tabs, active, preview, this.id, this.recent);
   }
 
   protected override emptied(): TabGroup {

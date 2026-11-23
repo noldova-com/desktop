@@ -202,6 +202,19 @@ describe("LayoutReader", () => {
     expect(failure(saved({ Left: dock(group({ view: "terminal.shell", instance: 1 })) })).path).toBe("$.docks.Left.root.tabs.0.instance");
   });
 
+  it("reads and writes a group's activation order, starts it from the active tab when the layout has none, and leaves out positions the group lacks", () => {
+    const tabs = [{ view: "files.tree" }, { view: "files.search" }, { view: "git.changes" }];
+    const read = LayoutReader.read(saved({ Left: dock({ tabs, active: 2, recent: [2, 0, 1] }) }));
+    const bare = LayoutReader.read(saved({ Left: dock({ tabs, active: 2 }) }));
+    const odd = LayoutReader.read(saved({ Left: dock({ tabs, active: 2, recent: [7, -1, 1.5, 0, 0] }) }));
+    const left = (layout: Layout): TabGroup | undefined => layout.dock(DockSide.Left).root?.groups[0];
+
+    expect([left(read)?.recent, left(bare)?.recent, left(odd)?.recent]).toEqual([[changes, files, search], [changes], [changes, files]]);
+    expect([left(read)?.without(changes)?.active, left(bare)?.without(changes)?.active]).toEqual([files, search]);
+    expect(read.toJson()).toEqual(saved({ Left: dock({ tabs, active: 2, recent: [2, 0, 1] }) }));
+    expect(failure(saved({ Left: dock({ tabs, active: 2, recent: "2" }) })).path).toContain("$.docks.Left.root");
+  });
+
   it("reads and writes a group's preview, reads a missing or empty one as none, and names a preview outside its group", () => {
     const read = LayoutReader.read(saved({ Left: dock({ tabs: [{ view: "files.tree" }, { view: "files.search" }], active: 0, preview: 1 }) }, { ...documents, preview: null }));
 

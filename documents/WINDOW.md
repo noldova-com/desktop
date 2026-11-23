@@ -86,6 +86,8 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A dock opened from its strip or its toggle, or by showing one of its views, whether the person or a window part shows it, opens anyway, at what the document's minimum leaves, down to its groups' own minimum, such as 6.25 rem for a bottom dock of one group, and stays closed when even that doesn't fit.
   The window keeps one such dock open at a time, so opening another lets it close the one before, and it stops keeping it once the window has room for it.
 - A view shows in a dock or in the middle, and a document in a tab of a document group.
+- Closing a group's active tab makes active the tab of that group that was active most recently and is still open, as the usual editors do, so closing a page opened from another page returns to that page; only when no tab of the group was active before, it makes the next tab active, or the last.
+  Each group keeps the order its tabs were active in through a saved layout, and a layout saved without it starts that order again from its active tabs.
 - A group's tabs keep their width, and its tab row shows only whole tabs, never part of one, its buttons staying at its end.
   When they don't all fit, the row shows the tabs that fit in order and hides the rest, which "Show all tabs" lists with every other tab; the active tab always shows, in place of the last tabs before it that fit, and the row never scrolls.
   This holds for the documents' groups as for the docks', and the arrow keys, Home and End reach a hidden tab as "Show all tabs" does, making it the active tab, which then shows; a hidden tab never takes the focus.
