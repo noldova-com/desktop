@@ -21,6 +21,7 @@ import { DocumentLook } from "../../../src/app/models/document-look";
 import { DocumentTab } from "../../../src/app/models/layout/document-tab";
 import { Layout } from "../../../src/app/models/layout/layout";
 import { LayoutMetrics } from "../../../src/app/models/layout/layout-metrics";
+import { MiddleHold } from "../../../src/app/models/layout/middle-hold";
 import { LayoutReader } from "../../../src/app/services/layout.reader";
 import { ToolbarLayout } from "../../../src/app/models/layout/toolbar-layout";
 import { ViewRegistry } from "../../../src/app/models/layout/view-registry";
@@ -116,9 +117,9 @@ describe("LayoutService", () => {
     service.setViewport(120, 60);
     service.resizeDock(DockSide.Bottom, 20);
 
-    service.restoreDock(DockSide.Bottom, 12);
+    service.restoreDock(DockSide.Bottom, 12, MiddleHold.none);
     const restored = service.layout().dock(DockSide.Bottom).size;
-    service.restoreDock(DockSide.Bottom, null);
+    service.restoreDock(DockSide.Bottom, null, MiddleHold.none);
 
     expect([restored, service.layout().dock(DockSide.Bottom).size]).toEqual([12, null]);
   });
@@ -319,15 +320,29 @@ describe("LayoutService", () => {
       await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
       service.setViewport(100, 40);
 
-      service.resizeDock(DockSide.Right, 30);
+      const hold = service.resizeDock(DockSide.Right, 30);
       const grown = shown();
-      service.restoreDock(DockSide.Right, null);
+      service.restoreDock(DockSide.Right, null, hold);
       const released = shown();
       service.resizeDock(DockSide.Right, 30);
       service.reset();
 
       expect([grown, released]).toEqual([[26, 30, 43], [26, 13, 60]]);
       expect(shown()).toEqual([26, 13, 60]);
+    });
+
+    it("keeps the width a drag left the document when a growth of the other dock is released", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+      service.resizeDock(DockSide.Right, 30);
+      const dragged = shown();
+
+      const hold = service.resizeDock(DockSide.Left, 35);
+      const grown = shown();
+      service.restoreDock(DockSide.Left, null, hold);
+
+      expect([dragged, grown]).toEqual([[26, 30, 43], [35, 30, 34]]);
+      expect(shown()).toEqual([26, 30, 43]);
     });
 
     it("closes the side docks, right first, when shrinking is not enough, keeps open the one the person opens while the document is in front, and reopens the others when another document is", async () => {

@@ -7,6 +7,7 @@
  */
 
 import type { DockSide } from "../../enums/dock-side.js";
+import { MiddleHold } from "./middle-hold.js";
 
 export class DockGrowth {
   public readonly id: number;
@@ -15,18 +16,20 @@ export class DockGrowth {
   public readonly side: DockSide | null;
   public readonly before: number | null;
   public readonly grown: number | null;
+  public readonly hold: MiddleHold;
 
   public constructor(id: number, minimum: number, isFitted: boolean = false, side: DockSide | null = null, before: number | null = null,
-    grown: number | null = null) {
+    grown: number | null = null, hold: MiddleHold = MiddleHold.none) {
     this.id = id;
     this.minimum = minimum;
     this.isFitted = isFitted;
     this.side = side;
     this.before = before;
     this.grown = grown;
+    this.hold = hold;
   }
 
-  public withFitted(side: DockSide | null, before: number | null, grown: number | null): DockGrowth {
-    return new DockGrowth(this.id, this.minimum, true, side, before, grown);
+  public withFitted(side: DockSide | null, before: number | null, grown: number | null, hold: MiddleHold = MiddleHold.none): DockGrowth {
+    return new DockGrowth(this.id, this.minimum, true, side, before, grown, hold);
   }
 }

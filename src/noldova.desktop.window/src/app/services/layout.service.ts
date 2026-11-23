@@ -27,6 +27,7 @@ import { Layout } from "../models/layout/layout.js";
 import { LayoutGeometry } from "../models/layout/layout-geometry.js";
 import { LayoutGeometrySource } from "../models/layout/layout-geometry-source.js";
 import { LayoutMetrics } from "../models/layout/layout-metrics.js";
+import { MiddleHold } from "../models/layout/middle-hold.js";
 import type { ToolbarLayout } from "../models/layout/toolbar-layout.js";
 import type { SplitHandle } from "../models/layout/split-handle.js";
 import type { Tab } from "../models/layout/tab.js";
@@ -256,28 +257,28 @@ export class LayoutService {
       this.kept.set(side);
   }
 
-  public resizeDock(side: DockSide, size: number): void {
+  public resizeDock(side: DockSide, size: number): MiddleHold {
     const layout = this.layoutState().resizeDock(side, Math.max(this.geometry().metrics.dockMinimum, size));
     if (side === DockSide.Bottom) {
       this.update(layout);
-      return;
+      return MiddleHold.none;
     }
     const geometry = this.geometry();
     const other = side === DockSide.Left ? DockSide.Right : DockSide.Left;
     const shown = geometry.dock(other).width;
     const held = geometry.isCollapsed(other) || layout.dock(other).preferredTrack(geometry.metrics, geometry.width) <= shown + geometry.metrics.gap ? layout : layout.resizeDock(other, shown);
     const middle = Math.max(0, geometry.middle.width + geometry.dock(side).width - size);
-    this.holdMiddle(middle);
+    const before = this.holdMiddle(middle);
     this.update(held.withMiddleSize(middle < Resources.middlePreferredSize ? middle : null));
+    return before;
   }
 
-  public restoreDock(side: DockSide, size: number | null): void {
-    if (Object.isNull(size)) {
-      this.heldMiddles.set(new Map());
+  public restoreDock(side: DockSide, size: number | null, hold: MiddleHold): void {
+    if (Object.isNull(size))
       this.update(this.layoutState().resizeDock(side, null));
-    }
     else
       this.resizeDock(side, size);
+    this.restoreHold(hold);
   }
 
   public setBottomSpan(span: BottomDockSpan): void {
@@ -297,12 +298,25 @@ export class LayoutService {
     this.update(this.layoutState().reset(this.registryState()));
   }
 
-  private holdMiddle(middle: number): void {
+  private holdMiddle(middle: number): MiddleHold {
     const active = this.layoutState().documents.active;
     if (Object.isNull(active) || Object.isNull(this.registryState().preferredWidth(active.name)))
-      return;
+      return MiddleHold.none;
+    const before = new MiddleHold(active.key, this.heldMiddles().get(active.key) ?? null);
     const held = new Map(this.heldMiddles());
     held.set(active.key, middle);
+    this.heldMiddles.set(held);
+    return before;
+  }
+
+  private restoreHold(hold: MiddleHold): void {
+    if (Object.isNull(hold.key))
+      return;
+    const held = new Map(this.heldMiddles());
+    if (Object.isNull(hold.width))
+      held.delete(hold.key);
+    else
+      held.set(hold.key, hold.width);
     this.heldMiddles.set(held);
   }
 
