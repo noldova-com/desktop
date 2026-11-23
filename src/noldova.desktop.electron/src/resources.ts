@@ -1226,8 +1226,12 @@ export class Resources {
     return `The launch barrier could not be checked after the runtime was lost, so it is checked again in ${delay} ms: ${message}`;
   }
 
-  public static formatBarrierRechecksEnded(failures: number, message: string): string {
-    return `The launch barrier could not be checked after the runtime was lost, ${failures} times in a row, so it is not tried again: ${message}`;
+  public static formatBarrierRecheckPlanned(message: string): string {
+    return `The launch barrier could not be checked after the runtime was lost, and it is checked again as already planned: ${message}`;
+  }
+
+  public static formatBarrierRechecksEnded(message: string): string {
+    return `The launch barrier still could not be checked after the runtime was lost when checked again, so it is not tried again: ${message}`;
   }
 
   public static formatBarrierUnchecked(message: string): string {

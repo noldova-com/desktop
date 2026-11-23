@@ -413,6 +413,7 @@ Each such parameter defaults to the real value or operation, and no production c
 
 - `ThirdPartyPackage.prepareAsync`'s `limit`, in `src/noldova.desktop.build/src/models/packaging/third-party-package.ts`: how long one attempt at a tarball's download may take, 120 seconds; a registry's answer and its body arrive when the network delivers them, so the tests shorten it to reach the timeouts before and during the body without waiting 120 seconds.
 - `ThirdPartyPackage.prepareAsync`'s `pause`: how long it waits before it tries a tarball again, 15 seconds; nothing outside the download decides it, so the tests pass 0 to reach every retry and the last attempt's failure without sleeping a minute.
+- `UpdateBarrierWatch`'s `now` and `schedule`, in `src/noldova.desktop.electron/src/services/update-barrier-watch.ts`: the clock and the timer of the barrier checks a main process runs again by itself after its runtime is lost, 0.1 s doubling to 0.8 s, for 5 s at most; nothing outside the watch decides when a check runs again, so the tests pass a fake clock to reach each delay, the limit and the 5 s deadline without waiting them out.
 - `ThirdPartyPackage.prepareAsync`'s `download`: the `fetch` it downloads with; no server's answer can be timed to fail only once the attempt's limit has passed, so the test of a body cut by that limit passes a `fetch` whose body fails when the limit aborts it, rather than racing a real server against the limit.
 
 ### Casts the tests keep

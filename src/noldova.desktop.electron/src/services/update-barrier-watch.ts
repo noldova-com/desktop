@@ -14,6 +14,7 @@ import { RuntimeBuild, type UpdateBarrier, UpdateBarrierState } from "@noldova/d
 import type { IUpdateHost } from "../interfaces/i-update-host.js";
 import { ErrorCode } from "../models/error-code.js";
 import { Resources } from "../resources.js";
+import { UpdateBridge } from "./update-bridge.js";
 
 export class UpdateBarrierWatch {
   private readonly updates: Pick<IUpdateHost, "processId" | "readBarrierAsync" | "hasUpdateEndedAsync" | "quit">;
@@ -21,22 +22,28 @@ export class UpdateBarrierWatch {
   private readonly isConnected: () => boolean;
   private readonly onChange: () => void;
   private readonly log: (text: string) => void;
+  private readonly now: () => number;
+  private readonly schedule: (wait: number, run: () => void) => () => void;
   private watcher: FSWatcher | null = null;
   private isChecking: boolean = false;
   private isStale: boolean = false;
   private isStaleLost: boolean = false;
-  private recheck: NodeJS.Timeout | null = null;
+  private recheck: (() => void) | null = null;
+  private isRecheckDue: boolean = false;
   private isStopped: boolean = false;
-  private failures: number = 0;
+  private rechecks: number = 0;
   private firstFailure: number = 0;
 
   public constructor(updates: Pick<IUpdateHost, "processId" | "readBarrierAsync" | "hasUpdateEndedAsync" | "quit">, folder: string, isConnected: () => boolean,
-    onChange: () => void, log: (text: string) => void) {
+    onChange: () => void, log: (text: string) => void, now: () => number = Date.now,
+    schedule: (wait: number, run: () => void) => () => void = UpdateBridge.schedule) {
     this.updates = updates;
     this.folder = folder;
     this.isConnected = isConnected;
     this.onChange = onChange;
     this.log = log;
+    this.now = now;
+    this.schedule = schedule;
   }
 
   public start(): void {
@@ -60,7 +67,7 @@ export class UpdateBarrierWatch {
     this.isStopped = true;
     this.closeWatcher();
     if (!Object.isNull(this.recheck))
-      clearTimeout(this.recheck);
+      this.recheck();
     this.recheck = null;
   }
 
@@ -96,46 +103,52 @@ export class UpdateBarrierWatch {
   }
 
   private async isClosingAsync(isLost: boolean): Promise<boolean> {
+    const isRecheck = this.isRecheckDue;
+    this.isRecheckDue = false;
     if (!isLost) {
-      this.failures = 0;
+      this.rechecks = 0;
       return false;
     }
     try {
       const barrier = await this.updates.readBarrierAsync();
       const isClosing = !Object.isNull(barrier) && UpdateBarrierWatch.isReplacing(barrier) && barrier.holder.processId !== this.updates.processId
         && !await this.updates.hasUpdateEndedAsync();
-      this.failures = 0;
+      this.rechecks = 0;
       return isClosing;
     }
     catch (error) {
-      this.checkLater(error);
+      this.checkLater(error, isRecheck);
       return false;
     }
   }
 
-  private checkLater(error: unknown): void {
+  private checkLater(error: unknown, isRecheck: boolean): void {
     if (this.isStopped)
       return;
-    if (!ErrorCode.isOneOf(error, Resources.barrierRecheckCodes) || this.failures > Resources.barrierRecheckLimit) {
+    if (!ErrorCode.isOneOf(error, Resources.barrierRecheckCodes) || this.rechecks >= Resources.barrierRecheckLimit) {
       this.log(Resources.formatBarrierUnchecked(String(error)));
       return;
     }
-    if (this.failures === 0)
-      this.firstFailure = performance.now();
-    this.failures += 1;
-    if (this.failures > Resources.barrierRecheckLimit || performance.now() - this.firstFailure >= Resources.barrierRecheckDeadline) {
-      this.log(Resources.formatBarrierRechecksEnded(this.failures, String(error)));
-      this.failures = Resources.barrierRecheckLimit + 1;
+    if (!Object.isNull(this.recheck)) {
+      this.log(Resources.formatBarrierRecheckPlanned(String(error)));
       return;
     }
-    const delay = Resources.barrierRecheckDelay * 2 ** (this.failures - 1);
-    this.log(Resources.formatBarrierRechecked(delay, String(error)));
-    if (!Object.isNull(this.recheck))
+    if (isRecheck)
+      this.rechecks += 1;
+    else
+      this.firstFailure = this.now();
+    if (this.rechecks >= Resources.barrierRecheckLimit || this.now() - this.firstFailure >= Resources.barrierRecheckDeadline) {
+      this.rechecks = Resources.barrierRecheckLimit;
+      this.log(Resources.formatBarrierRechecksEnded(String(error)));
       return;
-    this.recheck = setTimeout(() => {
+    }
+    const delay = Resources.barrierRecheckDelay * 2 ** this.rechecks;
+    this.log(Resources.formatBarrierRechecked(delay, String(error)));
+    this.recheck = this.schedule(delay, () => {
       this.recheck = null;
+      this.isRecheckDue = true;
       void this.checkAsync();
-    }, delay).unref();
+    });
   }
 
   private closeWatcher(): void {

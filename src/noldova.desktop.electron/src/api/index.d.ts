@@ -7261,6 +7261,9 @@ export declare class UpdateBarrierWatch {
    * @param isConnected Whether the main process has a runtime connection, which tells it about an update itself.
    * @param onChange Called on each change in the folder, before the barrier is read, as {@link RuntimeStartup.barrierChanged} takes it.
    * @param log Writes a line to the main process's log, such as a folder that can't be watched.
+   * @param now The time in milliseconds, which bounds how long the watch checks again by itself; `Date.now` by default.
+   * @param schedule Runs a check again after a delay in milliseconds and returns what cancels it; a timer that doesn't keep
+   * the process running by default.
    * @example
    * ```ts
    * import { type IUpdateHost, type RuntimeStartup, UpdateBarrierWatch } from "@noldova/desktop.electron";
@@ -7271,7 +7274,7 @@ export declare class UpdateBarrierWatch {
    * ```
    */
   public constructor(updates: Pick<IUpdateHost, "processId" | "readBarrierAsync" | "hasUpdateEndedAsync" | "quit">, folder: string, isConnected: () => boolean,
-    onChange: () => void, log: (text: string) => void);
+    onChange: () => void, log: (text: string) => void, now?: () => number, schedule?: (wait: number, run: () => void) => () => void);
 
   /**
    * Starts watching the installation's folder and checks the barrier once, then on each change in the folder; starting it again
@@ -7309,9 +7312,10 @@ export declare class UpdateBarrierWatch {
    * check again when it ends. It quits the main process, and stops, when the barrier is `Closing`, or `HandedOff` for a version
    * other than this build's, for another main process whose update has not ended; a barrier it cannot read, or an update it cannot tell has ended, keeps the main process running for now and writes the error to
    * the log. After a file-system failure that can pass, such as `EPERM` or `EBUSY`, it checks again by itself, 0.1 s later
-   * and then twice as long each time, until a check succeeds, the main process is connected again or the watch stops; it gives
-   * up, and logs that it did, after 4 checks again or 5 s, and after that checks again by itself only once a check has succeeded. Any other failure, such as a barrier that is not JSON, is not
-   * checked again by itself.
+   * and then twice as long after each of its own checks that fails, until a check succeeds, the main process is connected
+   * again or the watch stops. A check asked for while one waits to run again only logs its failure. It gives up, and logs that
+   * it did, when the 4th of its own checks fails or 5 s after the first failure, and after that checks again by itself only
+   * once a check has succeeded. Any other failure, such as a barrier that is not JSON, is not checked again by itself.
    *
    * @returns A promise of whether it quit the main process.
    * @example
