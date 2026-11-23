@@ -30,6 +30,7 @@ class ScriptedRunner extends ProcessRunner {
   private readonly answer: (command: string, commandArguments: readonly string[]) => Promise<ProcessResult>;
 
   public readonly calls: string[] = [];
+  public readonly timeouts: number[] = [];
   public environment: NodeJS.ProcessEnv | undefined;
 
   public constructor(answer: (command: string, commandArguments: readonly string[]) => Promise<ProcessResult>) {
@@ -39,8 +40,9 @@ class ScriptedRunner extends ProcessRunner {
   }
 
   public override captureAsync(...call: Parameters<ProcessRunner["captureAsync"]>): Promise<ProcessResult> {
-    const [command, commandArguments, , , environment] = call;
+    const [command, commandArguments, , timeout, environment] = call;
     this.calls.push([path.basename(command), ...commandArguments].join(" "));
+    this.timeouts.push(timeout);
     this.environment = environment;
     return this.answer(command, commandArguments);
   }
@@ -558,6 +560,11 @@ export class PackageInstallerTests {
       Assert.isTrue(Resources.otherUserStartScript.includes("Where-Object { $before -notcontains $_.Id })\n  if ($held.Count -gt 0) { break }\n"));
       Assert.isTrue(Resources.otherUserStartScript.includes("if ($shell.HasExited) { throw \"cmd.exe exited with $($shell.ExitCode) before the app started.\" }"));
       Assert.isTrue(Resources.otherUserStartScript.includes("AddMilliseconds(30000)"));
+      Assert.areEqual("120000", runner.timeouts.join("|"));
+      Assert.isTrue(Resources.otherUserStartScript.includes("if ($LASTEXITCODE -ne 0) { throw \"icacls exited with $LASTEXITCODE.\" }\n"
+        + "[Console]::Error.WriteLine(\"Gave $user read access to the app's folder after $($watch.ElapsedMilliseconds) ms.\")\n"));
+      Assert.isTrue(Resources.otherUserStartScript.includes("$null = $shell.Handle\n"
+        + "[Console]::Error.WriteLine(\"Signed $user in, loading their profile, and started cmd.exe after $($watch.ElapsedMilliseconds) ms.\")\n$deadline = "));
       Assert.isTrue(Resources.otherUserStartScript.endsWith("\n$held[0].Id"));
       Assert.isFalse(Resources.otherUserStartScript.includes("Write-"));
     });
