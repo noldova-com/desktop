@@ -206,6 +206,10 @@ export class LayoutService {
       this.focusGroup(group.id);
   }
 
+  public showInGroup(tab: Tab): void {
+    this.update(this.layoutState().showInGroup(tab));
+  }
+
   public focusGroup(id: number): void {
     this.currentGroupId.set(id);
     this.update(this.layoutState().focusDocuments(id));

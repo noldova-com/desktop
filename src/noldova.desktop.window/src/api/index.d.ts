@@ -2474,12 +2474,14 @@ export interface IWindowPartContext {
 
   /**
    * Gives a group's front back to the tab that was in front before the
-   * part's last {@link openView} of the instance brought its tab there, such
-   * as a detail view the part showed for a document when the person leaves
-   * that document. Nothing happens when that open brought nothing forward,
-   * or since then the person chose a tab in that group, or moved, closed or
-   * added a tab there, or another open changed the group. The focus stays
-   * where it is. Coming back to the front stays an {@link openView}.
+   * part's last {@link openView} of the instance that brought its tab there,
+   * such as a detail view the part showed for a document when the person
+   * leaves that document; a later open while the tab is still in front keeps
+   * that tab to give back. Nothing happens when no open brought the tab
+   * forward, or since then the person chose a tab in that group, or moved,
+   * closed or added a tab there, or another open changed the group. The
+   * focus stays where it is, and so does the group the tab commands act on.
+   * Coming back to the front stays an {@link openView}.
    *
    * @param name The view's name.
    * @param instance The instance it opened with.

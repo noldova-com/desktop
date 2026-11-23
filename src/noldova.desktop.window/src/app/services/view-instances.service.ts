@@ -58,7 +58,7 @@ export class ViewInstancesService {
   public returnFront(name: string, instance: string): void {
     const front = this.fronts.get(new ViewTab(name, instance).key);
     if (!Object.isUndefined(front))
-      this.layout.activate(front.earlier);
+      this.layout.showInGroup(front.earlier);
   }
 
   public restore(name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null): void {

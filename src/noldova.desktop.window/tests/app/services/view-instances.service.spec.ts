@@ -12,6 +12,7 @@ import { TestBed } from "@angular/core/testing";
 import { DockSide } from "../../../src/app/enums/dock-side";
 import { SideDropTarget } from "../../../src/app/models/layout/side-drop-target";
 import { DocumentHeading } from "../../../src/app/models/document-heading";
+import { DocumentTab } from "../../../src/app/models/layout/document-tab";
 import type { Tab } from "../../../src/app/models/layout/tab";
 import { TabLabel } from "../../../src/app/models/layout/tab-label";
 import { ViewRegistry } from "../../../src/app/models/layout/view-registry";
@@ -19,6 +20,7 @@ import { TabDropTarget } from "../../../src/app/models/layout/tab-drop-target";
 import { ViewTab } from "../../../src/app/models/layout/view-tab";
 import { ViewType } from "../../../src/app/models/layout/view-type";
 import { LayoutService } from "../../../src/app/services/layout.service";
+import { ShellCommandsService } from "../../../src/app/services/shell-commands.service";
 import { TabFocusService } from "../../../src/app/services/tab-focus.service";
 import { TabLabelService } from "../../../src/app/services/tab-label.service";
 import { ViewDialogService } from "../../../src/app/services/view-dialog.service";
@@ -416,6 +418,28 @@ describe("ViewInstancesService", () => {
 
     expect([returned, layout.layout().groupOf(first)?.active]).toEqual([first, first]);
     expect(focus.map(t => t.mock.calls.length)).toEqual([0, 0, 0]);
+  });
+
+  it("keeps the tab to give back when the part opens its instance again while it is in front", () => {
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    instances.openInstance("terminal.shell", "2", new DocumentHeading("bash"), null, null);
+    instances.openInstance("terminal.shell", "2", new DocumentHeading("bash"), null, null);
+    instances.returnFront("terminal.shell", "2");
+
+    expect(layout.layout().groupOf(first)?.active).toEqual(first);
+  });
+
+  it("gives the front back without making its group the current one, so closing the tab closes the document the person works in", async () => {
+    const note = new DocumentTab("notes.note", "a");
+    layout.openDocument(note);
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    instances.openInstance("terminal.shell", "2", new DocumentHeading("bash"), null, null);
+    layout.activate(note);
+    instances.returnFront("terminal.shell", "2");
+    const close = TestBed.inject(ShellCommandsService).commands.find(t => t.name === "desktop.closeTab");
+
+    expect(await close?.runAsync(null)).toBeNull();
+    expect([layout.layout().groupOf(note), layout.layout().groupOf(first)?.tabs, layout.layout().groupOf(first)?.active]).toEqual([null, [first, second], first]);
   });
 
   it("gives nothing back once the person chose a tab in the group, moved or closed the tab that was in front, or the group went", () => {

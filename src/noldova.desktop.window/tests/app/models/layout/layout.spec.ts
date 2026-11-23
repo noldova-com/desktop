@@ -186,6 +186,13 @@ describe("Layout", () => {
     expect(initial.openDocument(plan).openDocument(todo).activate(plan).documents.active).toBe(plan);
   });
 
+  it("shows a tab in front of its group without showing its collapsed dock, and changes nothing for a tab it does not hold", () => {
+    const opened = initial.openView(search, registry).toggleDock(DockSide.Left);
+
+    expect([opened.showInGroup(files).groupOf(files)?.active, opened.showInGroup(files).dock(DockSide.Left).isCollapsed]).toEqual([files, true]);
+    expect(opened.showInGroup(plan)).toBe(opened);
+  });
+
   it("moves a view to any group, including the documents group", () => {
     const opened = initial.openDocument(plan).openDocument(todo);
 
