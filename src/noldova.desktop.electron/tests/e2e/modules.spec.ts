@@ -81,7 +81,7 @@ test.describe("modules", () => {
     await failClockAsync(mainProcess);
     const window = mainProcess.window;
     const item = window.locator("nol-module-failures button.nol-module-failures-item");
-    await expect.poll(() => readKeptLayoutAsync(mainProcess)).toContain(JSON.stringify({ tabs: [{ view: "notes.list" }, { view: "notes.outline" }], active: 1 }));
+    await expect.poll(() => readKeptLayoutAsync(mainProcess)).toContain(JSON.stringify({ tabs: [{ view: "notes.list" }, { view: "notes.outline" }], active: 1, recent: [1, 0] }));
 
     await expect(item).toHaveText(/error\s*2 modules didn't start/);
     await expect(window.locator("nol-tab-group[data-side=Right] .nol-tab-label")).toHaveText(["Clock"]);

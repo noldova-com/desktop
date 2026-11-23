@@ -134,14 +134,15 @@ export class LayoutReader {
     const preview = Object.isNull(previewIndex) ? null : tabs[previewIndex];
     if (Object.isUndefined(preview))
       throw new JsonException(Resources.previewOutsideGroup, json.path);
+    const recent = json.hasField(Resources.recentField) ? json.readNumberArray(Resources.recentField).filter(t => Number.isSafeInteger(t) && t >= 0).flatMap(t => tabs.slice(t, t + 1)) : [];
     const isDocuments = json.hasField(Resources.documentsField) && json.readBoolean(Resources.documentsField);
     if (isDocuments) {
       const documentsId = this.hasDocuments ? this.nextId++ : Resources.documentsGroupId;
       this.hasDocuments = true;
-      return LayoutReader.construct(json, () => new DocumentGroup(tabs, active, preview, documentsId));
+      return LayoutReader.construct(json, () => new DocumentGroup(tabs, active, preview, documentsId, recent));
     }
     const id = this.nextId++;
-    return LayoutReader.construct(json, () => new TabGroup(id, tabs, active, preview));
+    return LayoutReader.construct(json, () => new TabGroup(id, tabs, active, preview, recent));
   }
 
   private readTab(json: JsonReader): Tab {

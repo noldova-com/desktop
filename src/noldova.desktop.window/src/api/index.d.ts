@@ -2499,6 +2499,32 @@ export interface IWindowPartContext {
   closeView(name: string, instance: string): void;
 
   /**
+   * Gives a group's front back to the tab that was in front before the
+   * part's last {@link openView} of the instance that brought its tab there,
+   * such as a detail view the part showed for a document when the person
+   * leaves that document; a later open while the tab is still in front keeps
+   * that tab to give back. Nothing happens when no open brought the tab
+   * forward, or since then the person chose a tab in that group, or moved,
+   * closed or added a tab there, or another open changed the group. The
+   * focus stays where it is, and so does the group the tab commands act on.
+   * Coming back to the front stays an {@link openView}.
+   *
+   * @param name The view's name.
+   * @param instance The instance it opened with.
+   * @throws Error synchronously when the view belongs to another module or
+   * is not a registered view with instances, or the instance is blank.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function leaveNote(context: IWindowPartContext, id: string): void {
+   *   context.returnView("notes.details", id);
+   * }
+   * ```
+   */
+  returnView(name: string, instance: string): void;
+
+  /**
    * Closes the view dialog while it shows one of the module's views or
    * documents, with instances or without, such as after an action of the view
    * leads elsewhere: the dialog closes as when the person closes it, its view

@@ -6,15 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ErrorHandler, Injectable, type Signal, computed, effect, inject } from "@angular/core";
+import { DestroyRef, ErrorHandler, Injectable, type Signal, computed, effect, inject } from "@angular/core";
 
 import "@noldova/context.core";
 
 import type { DockSide } from "../enums/dock-side.js";
 import type { DocumentHeading } from "../models/document-heading.js";
 import { ClosedTabs } from "../models/layout/closed-tabs.js";
+import type { Layout } from "../models/layout/layout.js";
 import type { TabGroup } from "../models/layout/tab-group.js";
 import { TabDropTarget } from "../models/layout/tab-drop-target.js";
+import { ViewFront } from "../models/layout/view-front.js";
 import { ViewTab } from "../models/layout/view-tab.js";
 import { LayoutService } from "./layout.service.js";
 import { TabFocusService } from "./tab-focus.service.js";
@@ -28,8 +30,10 @@ export class ViewInstancesService {
   private readonly tabFocus: TabFocusService = inject(TabFocusService);
   private readonly viewDialogs: ViewDialogService = inject(ViewDialogService);
   private readonly closed: ClosedTabs = new ClosedTabs(ViewTab, inject(ErrorHandler));
+  private readonly fronts: Map<string, ViewFront> = new Map();
 
   public constructor() {
+    inject(DestroyRef).onDestroy(this.layout.onChange((_from, to) => this.keepFronts(to)));
     effect(() => {
       for (const key of this.closed.notice(this.layout.layout().groups.flatMap(t => t.tabs)))
         this.labels.forget(key);
@@ -39,16 +43,22 @@ export class ViewInstancesService {
   public openInstance(name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null): void {
     const tab = this.label(name, instance, heading, icon);
     this.closed.reopen(tab);
-    if (this.layout.layout().isOpen(tab)) {
-      this.layout.activate(tab);
-      return;
+    const before = this.layout.layout();
+    if (!before.isOpen(tab)) {
+      const group = this.groupFor(tab, tabGroup);
+      if (Object.isNull(group))
+        this.layout.openView(tab);
+      else
+        this.layout.place(tab, new TabDropTarget(group.id, group.tabs.length));
     }
-    const group = this.groupFor(tab, tabGroup);
-    if (Object.isNull(group))
-      this.layout.openView(tab);
-    else
-      this.layout.place(tab, new TabDropTarget(group.id, group.tabs.length));
     this.layout.activate(tab);
+    this.noteFront(tab, before);
+  }
+
+  public returnFront(name: string, instance: string): void {
+    const front = this.fronts.get(new ViewTab(name, instance).key);
+    if (!Object.isUndefined(front))
+      this.layout.showInGroup(front.earlier);
   }
 
   public restore(name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null): void {
@@ -107,6 +117,20 @@ export class ViewInstancesService {
 
   public onClosed(name: string, listener: (instance: string) => void): () => void {
     return this.closed.onClosed(name, listener);
+  }
+
+  private noteFront(tab: ViewTab, before: Layout): void {
+    for (const group of this.layout.layout().groups.filter(t => t.tabs.some(u => u.equals(tab)))) {
+      const earlier = before.group(group.id)?.active ?? tab;
+      if (!earlier.equals(tab))
+        this.fronts.set(tab.key, new ViewFront(group, earlier));
+    }
+  }
+
+  private keepFronts(layout: Layout): void {
+    for (const [key, front] of this.fronts)
+      if (!front.holds(layout.group(front.groupId)))
+        this.fronts.delete(key);
   }
 
   private label(name: string, instance: string, heading: DocumentHeading, icon: string | null): ViewTab {

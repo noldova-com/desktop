@@ -75,6 +75,7 @@ test.describe("a side group's tab row at the default window size", () => {
     await closeAsync("References and call hierarchy", "Close to the right", ["Clock", "Teammates", "Conversation", "Timeline", "References and call hierarchy"]);
     await closeAsync("Timeline", "Close", ["Clock", "Teammates", "Conversation", "References and call hierarchy"]);
     await closeAsync("Clock", "Close", ["Teammates", "Conversation", "References and call hierarchy"]);
+    await TabRowFixture.showAsync(window, byTitle("Teammates"));
     await byTitle("Teammates").click();
 
     for (const scheme of ["light", "dark"] as const) {

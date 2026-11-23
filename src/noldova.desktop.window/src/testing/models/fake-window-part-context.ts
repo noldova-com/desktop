@@ -62,6 +62,7 @@ export class FakeWindowPartContext extends Fake<IWindowPartContext> implements I
   public readonly openView: IWindowPartContext["openView"] = (...args) => this.tell("openView", args, this.answers.openView);
   public readonly updateView: IWindowPartContext["updateView"] = (...args) => this.tell("updateView", args, this.answers.updateView);
   public readonly closeView: IWindowPartContext["closeView"] = (...args) => this.tell("closeView", args, this.answers.closeView);
+  public readonly returnView: IWindowPartContext["returnView"] = (...args) => this.tell("returnView", args, this.answers.returnView);
   public readonly closeDialog: IWindowPartContext["closeDialog"] = (...args) => this.tell("closeDialog", args, this.answers.closeDialog);
   public readonly showView: IWindowPartContext["showView"] = (...args) => this.tell("showView", args, this.answers.showView);
   public readonly hideViewDock: IWindowPartContext["hideViewDock"] = (...args) => this.tell("hideViewDock", args, this.answers.hideViewDock);

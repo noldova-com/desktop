@@ -62,7 +62,7 @@ export class PackageInstaller {
     const environment = this.createInstallerEnvironment();
     environment[Resources.smokeOtherProgramVariable] = program;
     environment[Resources.smokeOtherFolderVariable] = path.dirname(program);
-    return this.runner.captureAsync(Resources.windowsPowershellCommand, [...Resources.powershellOptions, command], folder, Resources.smokeCommandLimit, environment);
+    return this.runner.captureAsync(Resources.windowsPowershellCommand, [...Resources.powershellOptions, command], folder, Resources.smokeOtherUserCommandLimit, environment);
   }
 
   public async uninstallWindowsAsync(target: PackageTarget, product: ProductIdentity, version: string, folder: string): Promise<void> {
