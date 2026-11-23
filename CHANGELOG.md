@@ -4,6 +4,24 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.15
+
+- A view or document can show its own toolbar band: a `toolbar` place in `menus.json` may name a `band`, one of the module's own views or documents, and its page shows that band with `<nol-view-toolbar-band />`, with the window band's look, dragging, new rows and Toolbars menu.
+  Each band keeps its own arrangement, a toolbar never moves between bands, and the window's band behaves as before.
+- A runtime part's `IModuleSettings` says through `isDeviceKnown` whether a device setting it reads already holds its device's value, and `onDeviceKnown` tells the part the moment the runtime learns its device, whether or not a value is stored.
+- A web view's `NavigationRefused` carries `fromPress`, `true` only when the person's own click on a link started the refused navigation, so a module can let it through, and `NewWindowRequested` carries `fromLink`, `true` only when the person's own press on a link asked for the window, whether or not a handler's `window.open` took the press first.
+- Every request of a web view's profile is judged also by the addresses its host resolves to, through the view's own profile, before it is sent: the page's navigations, frames, fetches and other subresources, and WebSocket handshakes, not only the bridge's navigate, back, forward and reload.
+  A response, a redirect's included, is judged again by the address the engine connected to and is cancelled before the page reads it when refused, and a name that resolves to nothing fails in the engine.
+- Back, forward and reload check the page again after their address check, so a tab moved during the check acts on its moved page and a closed one does nothing, and a command that fails gets its answer instead of none.
+- The domains a module turned on with a view's debugger, such as `Runtime`, are turned on again on the view's new page after a move to another group, a dock or a dialog.
+- An open of a web view for a window that closed or reloaded while the modules' web view declarations were read is refused, and so is one the old page sends during a reload, so no view stays that no window owns.
+- Clearing a view's profile ends the calls still waiting for its page to attach, as closing the view does.
+- A keep of the web views' history before a tab moves is answered even when one view can't keep its history, which logs a line and no longer blocks the window's page.
+- A main process that loses its runtime checks the launch barrier again after a check that failed without a connection, so it quits when another main process closes the installation.
+- Close all moves the focus afterwards, as Close, Close others and Close to the right do, so the focus no longer falls to the page when the group goes away.
+- The Windows installer and uninstaller find the running app without PowerShell or WMI.
+- `@noldova/desktop.window` needs `@noldova/ui.components.angular` 0.0.28 or later, below 0.1.0.
+
 ## 0.0.14
 
 - A permission request's detail, `IPermissionDetail`, takes an optional `isBare`: when `true`, a permissions module shows the value without its label, which still names the item to assistive technology; absent, it counts as `false`.
