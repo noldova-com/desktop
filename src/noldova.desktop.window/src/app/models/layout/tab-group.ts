@@ -46,8 +46,8 @@ export class TabGroup extends LayoutNode {
     this.tabs = [...tabs];
     this.active = current ?? null;
     this.preview = previewed ?? null;
-    const earlier = recent.flatMap(t => tabs.filter(u => u.equals(t) && !u.equals(current)));
-    this.recent = Object.isUndefined(current) ? [] : [current, ...earlier.filter((t, i) => earlier.findIndex(u => u.equals(t)) === i)];
+    const earlier = recent.flatMap(t => this.tabs.filter(u => u.equals(t) && !u.equals(this.active)));
+    this.recent = Object.isNull(this.active) ? [] : [this.active, ...earlier.filter((t, i) => earlier.findIndex(u => u.equals(t)) === i)];
   }
 
   public get isDocuments(): boolean {
