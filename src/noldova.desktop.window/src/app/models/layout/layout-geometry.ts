@@ -23,7 +23,6 @@ import type { SplitHandle } from "./split-handle.js";
 import type { ViewRegistry } from "./view-registry.js";
 
 export class LayoutGeometry {
-  private readonly width: number;
   private readonly height: number;
   private readonly registry: ViewRegistry;
   private readonly layout: Layout;
@@ -33,6 +32,7 @@ export class LayoutGeometry {
   private readonly iconSides: ReadonlySet<DockSide>;
   private readonly yielded: DockYield;
   private readonly railBounds: ReadonlyMap<DockSide, Bounds>;
+  public readonly width: number;
   public readonly metrics: LayoutMetrics;
   public readonly area: Bounds;
   public readonly middle: Bounds;

@@ -45,20 +45,20 @@ describe("Dock", () => {
   });
 
   it("wants its size, its default size or its strip, each with the gap beside it", () => {
-    expect(dock.preferredTrack(LayoutMetricsFixture.standard)).toBe(30.25);
-    expect(dock.withSize(null).preferredTrack(LayoutMetricsFixture.standard)).toBe(26.25);
-    expect(new Dock(DockSide.Right, files, null, false).preferredTrack(LayoutMetricsFixture.standard)).toBe(25.25);
-    expect(new Dock(DockSide.Bottom, files, null, false).preferredTrack(LayoutMetricsFixture.standard)).toBe(16.5);
-    expect(dock.withRoot(pair).withSize(12).preferredTrack(LayoutMetricsFixture.standard)).toBe(20.5);
-    expect(dock.withCollapsed(true).preferredTrack(LayoutMetricsFixture.standard)).toBe(3);
-    expect(Dock.createEmpty(DockSide.Left).preferredTrack(LayoutMetricsFixture.standard)).toBe(0);
+    expect(dock.preferredTrack(LayoutMetricsFixture.standard, 100)).toBe(30.25);
+    expect(dock.withSize(null).preferredTrack(LayoutMetricsFixture.standard, 100)).toBe(26.25);
+    expect(new Dock(DockSide.Right, files, null, false).preferredTrack(LayoutMetricsFixture.standard, 100)).toBe(25.25);
+    expect(new Dock(DockSide.Bottom, files, null, false).preferredTrack(LayoutMetricsFixture.standard, 100)).toBe(16.5);
+    expect(dock.withRoot(pair).withSize(12).preferredTrack(LayoutMetricsFixture.standard, 100)).toBe(20.5);
+    expect(dock.withCollapsed(true).preferredTrack(LayoutMetricsFixture.standard, 100)).toBe(3);
+    expect(Dock.createEmpty(DockSide.Left).preferredTrack(LayoutMetricsFixture.standard, 100)).toBe(0);
   });
 
   it("gives a bottom dock at its default size way in proportion below the default window's workspace, down to its minimum, and keeps a size the person chose and a side dock's", () => {
     const bottom = new Dock(DockSide.Bottom, files, null, false);
     const metrics = LayoutMetricsFixture.standard;
 
-    expect([bottom.preferredSize(metrics), bottom.preferredSize(metrics, 60), bottom.preferredSize(metrics, 46.5), bottom.preferredSize(metrics, 34.875)]).toEqual([16.25, 16.25, 16.25, 12.1875]);
+    expect([bottom.preferredSize(metrics, 100), bottom.preferredSize(metrics, 60), bottom.preferredSize(metrics, 46.5), bottom.preferredSize(metrics, 34.875)]).toEqual([16.25, 16.25, 16.25, 12.1875]);
     expect([bottom.preferredTrack(metrics, 34.875), bottom.preferredTrack(metrics, 23.25)]).toEqual([12.4375, 10.25]);
     expect(bottom.withSize(14).preferredSize(metrics, 23.25)).toBe(14);
     expect(new Dock(DockSide.Right, files, null, false).preferredSize(metrics, 23.25)).toBe(25);
