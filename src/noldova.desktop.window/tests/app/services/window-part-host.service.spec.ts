@@ -936,7 +936,7 @@ describe("WindowPartHostService", () => {
     expect([heard, errors]).toEqual([[], []]);
   });
 
-  it("applies the instance changes a part makes while activating once the layout loads, in order, and later ones at once", async () => {
+  it("applies the instance changes a part makes while activating once the layout loads, in order, and later ones at once, a front given back among them", async () => {
     const shell = (instance: string): ViewTab => new ViewTab("terminal.shell", instance);
     const terminal = new WindowPartFixture("terminal", log, t => {
       t.registerView(new ViewContribution("terminal.shell", "Terminal", "terminal", DockSide.Bottom, false, load, undefined, { hasInstances: true }));
@@ -952,10 +952,12 @@ describe("WindowPartHostService", () => {
 
     host.openView("terminal", "terminal.shell", "3", new DocumentHeading("zsh", ["Home"]), "code", null);
     const opened = labels.headingOf(shell("3")).text;
+    host.returnView("terminal", "terminal.shell", "3");
+    const front = layout.layout().groupOf(shell("3"))?.active;
     host.updateView("terminal", "terminal.shell", "3", "fish", null, ["Projects"]);
     host.closeView("terminal", "terminal.shell", "1");
 
-    expect([started, opened]).toEqual([[false, "Work / Build"], "Home / zsh"]);
+    expect([started, opened, front]).toEqual([[false, "Work / Build"], "Home / zsh", shell("1")]);
     expect([layout.layout().isOpen(shell("1")), layout.layout().isOpen(shell("3")), labels.of(shell("3")), labels.headingOf(shell("3")).text])
       .toEqual([false, true, new TabLabel("fish", "code"), "Projects / fish"]);
   });
