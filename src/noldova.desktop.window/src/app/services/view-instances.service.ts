@@ -33,7 +33,7 @@ export class ViewInstancesService {
   private readonly fronts: Map<string, ViewFront> = new Map();
 
   public constructor() {
-    inject(DestroyRef).onDestroy(this.layout.onChange((from, to) => this.keepFronts(to)));
+    inject(DestroyRef).onDestroy(this.layout.onChange((_from, to) => this.keepFronts(to)));
     effect(() => {
       for (const key of this.closed.notice(this.layout.layout().groups.flatMap(t => t.tabs)))
         this.labels.forget(key);
