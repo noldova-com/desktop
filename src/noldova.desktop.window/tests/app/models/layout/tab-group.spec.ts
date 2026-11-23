@@ -65,6 +65,21 @@ describe("TabGroup", () => {
     expect(new TabGroup(3, [files], files).without(files)).toBeNull();
   });
 
+  it("returns to the tab that was active before the closed active one, and leaves the active tab when another tab closes", () => {
+    const opened = new TabGroup(3, [files], files).insert(search, 1).activate(files).insert(changes, 2);
+
+    expect(opened.recent).toEqual([changes, files, search]);
+    expect(opened.without(changes)?.active).toBe(files);
+    expect(opened.without(changes)?.without(files)?.active).toBe(search);
+    expect(opened.without(search)?.active).toBe(changes);
+    expect(opened.without(search)?.recent).toEqual([changes, files]);
+  });
+
+  it("keeps the order its tabs were active in only for the tabs it holds, once each, with the active tab first", () => {
+    expect(new TabGroup(3, [files, search, changes], search, null, [plan, changes, search, changes, files]).recent).toEqual([search, changes, files]);
+    expect(new TabGroup(3, [files, search], files).recent).toEqual([files]);
+  });
+
   it("activates a tab it holds", () => {
     expect(group.activate(changes).active).toBe(changes);
     expect(group.activate(search)).toBe(group);
@@ -106,6 +121,8 @@ describe("TabGroup", () => {
   it("writes its tabs and the index of the active one, and of its preview when it has one", () => {
     expect(group.toJson()).toEqual({ tabs: [{ view: "files.tree" }, { view: "files.search" }, { view: "git.changes" }], active: 1 });
     expect(new TabGroup(3, [files, search], files, search).toJson()).toEqual({ tabs: [{ view: "files.tree" }, { view: "files.search" }], active: 0, preview: 1 });
+    expect(new TabGroup(3, [files, search, changes], changes, null, [changes, files, search]).toJson())
+      .toEqual({ tabs: [{ view: "files.tree" }, { view: "files.search" }, { view: "git.changes" }], active: 2, recent: [2, 0, 1] });
   });
 
   it("holds at most one preview, which must be one of its tabs", () => {

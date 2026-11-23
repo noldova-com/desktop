@@ -530,6 +530,7 @@ export class Resources {
   public static readonly tabsField: string = "tabs";
   public static readonly activeField: string = "active";
   public static readonly previewField: string = "preview";
+  public static readonly recentField: string = "recent";
   public static readonly documentsField: string = "documents";
   public static readonly activeDocumentsField: string = "activeDocuments";
   public static readonly viewField: string = "view";
