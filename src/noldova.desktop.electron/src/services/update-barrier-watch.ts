@@ -125,7 +125,7 @@ export class UpdateBarrierWatch {
   private checkLater(error: unknown, isRecheck: boolean): void {
     if (this.isStopped)
       return;
-    if (!ErrorCode.isOneOf(error, Resources.barrierRecheckCodes) || this.rechecks >= Resources.barrierRecheckLimit) {
+    if (!ErrorCode.isOneOf(error, Resources.barrierRecheckCodes)) {
       this.log(Resources.formatBarrierUnchecked(String(error)));
       return;
     }
@@ -135,10 +135,11 @@ export class UpdateBarrierWatch {
     }
     if (isRecheck)
       this.rechecks += 1;
-    else
+    else {
+      this.rechecks = 0;
       this.firstFailure = this.now();
+    }
     if (this.rechecks >= Resources.barrierRecheckLimit || this.now() - this.firstFailure >= Resources.barrierRecheckDeadline) {
-      this.rechecks = Resources.barrierRecheckLimit;
       this.log(Resources.formatBarrierRechecksEnded(String(error)));
       return;
     }

@@ -7314,8 +7314,8 @@ export declare class UpdateBarrierWatch {
    * the log. After a file-system failure that can pass, such as `EPERM` or `EBUSY`, it checks again by itself, 0.1 s later
    * and then twice as long after each of its own checks that fails, until a check succeeds, the main process is connected
    * again or the watch stops. A check asked for while one waits to run again only logs its failure. It gives up, and logs that
-   * it did, when the 4th of its own checks fails or 5 s after the first failure, and after that checks again by itself only
-   * once a check has succeeded. Any other failure, such as a barrier that is not JSON, is not checked again by itself.
+   * it did, when the 4th of its own checks fails or 5 s after the first failure; a check asked for later, such as when the
+   * runtime is lost again or the folder changes, that fails starts a new round of checks again. Any other failure, such as a barrier that is not JSON, is not checked again by itself.
    *
    * @returns A promise of whether it quit the main process.
    * @example

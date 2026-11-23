@@ -96,10 +96,11 @@ export class UpdateBarrierWatchTests {
     const scheduled = this.clock.pending;
 
     watch.stop();
+    const left = this.clock.pending;
     this.clock.advance(100);
 
     Assert.areEqual(1, scheduled);
-    Assert.areEqual(0, this.clock.pending);
+    Assert.areEqual(0, left);
     Assert.areEqual(1, this.connectionChecks);
     Assert.areEqual(1, this.updates.barriers.length);
     Assert.areEqual(0, this.updates.quitCount);
@@ -151,8 +152,8 @@ export class UpdateBarrierWatchTests {
 
     Assert.areEqual(0, this.updates.barriers.length);
     Assert.areEqual(0, this.updates.quitCount);
-    Assert.areEqual(0, this.clock.pending);
-    Assert.areEqual("100,200,400,800", this.clock.waits.join(","));
+    Assert.areEqual(1, this.clock.pending);
+    Assert.areEqual("100,200,400,800,100", this.clock.waits.join(","));
     Assert.areEqual(JSON.stringify([
       "The launch barrier could not be checked after the runtime was lost, so it is checked again in 100 ms: Error: EPERM: operation not permitted, open 'barrier.json'",
       "The launch barrier could not be checked after the runtime was lost, and it is checked again as already planned: Error: EPERM: operation not permitted, open 'barrier.json'",
@@ -160,7 +161,7 @@ export class UpdateBarrierWatchTests {
       "The launch barrier could not be checked after the runtime was lost, so it is checked again in 400 ms: Error: EPERM: operation not permitted, open 'barrier.json'",
       "The launch barrier could not be checked after the runtime was lost, so it is checked again in 800 ms: Error: EPERM: operation not permitted, open 'barrier.json'",
       "The launch barrier still could not be checked after the runtime was lost when checked again, so it is not tried again: Error: EPERM: operation not permitted, open 'barrier.json'",
-      "The launch barrier could not be checked after the runtime was lost, so it is not tried again: Error: EPERM: operation not permitted, open 'barrier.json'"
+      "The launch barrier could not be checked after the runtime was lost, so it is checked again in 100 ms: Error: EPERM: operation not permitted, open 'barrier.json'"
     ]), JSON.stringify(this.logged));
   }
 
@@ -173,16 +174,36 @@ export class UpdateBarrierWatchTests {
     await watch.checkAsync();
     this.clock.advance(5000);
     await Condition.waitAsync(() => this.logged.length === 2);
-    await watch.checkAsync();
 
-    Assert.areEqual(0, this.updates.barriers.length);
+    Assert.areEqual(1, this.updates.barriers.length);
     Assert.areEqual(0, this.clock.pending);
     Assert.areEqual("100", this.clock.waits.join(","));
     Assert.areEqual(JSON.stringify([
       "The launch barrier could not be checked after the runtime was lost, so it is checked again in 100 ms: Error: EPERM: operation not permitted, open 'barrier.json'",
-      "The launch barrier still could not be checked after the runtime was lost when checked again, so it is not tried again: Error: EPERM: operation not permitted, open 'barrier.json'",
-      "The launch barrier could not be checked after the runtime was lost, so it is not tried again: Error: EPERM: operation not permitted, open 'barrier.json'"
+      "The launch barrier still could not be checked after the runtime was lost when checked again, so it is not tried again: Error: EPERM: operation not permitted, open 'barrier.json'"
     ]), JSON.stringify(this.logged));
+  }
+
+  @TestMethod
+  public async checksAgainByItselfWhenTheRuntimeIsLostAgainAfterItGaveUp(): Promise<void> {
+    const watch = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    for (let failure = 0; failure < 6; failure++)
+      this.updates.barriers.push(UpdateBarrierWatchTests.failure("EPERM", "operation not permitted, open 'barrier.json'"));
+    this.updates.barriers.push(FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+
+    await watch.checkAsync();
+    for (const delay of [100, 200, 400, 800]) {
+      const count = this.logged.length;
+      this.clock.advance(delay);
+      await Condition.waitAsync(() => this.logged.length > count);
+    }
+    await watch.checkAsync();
+    this.clock.advance(100);
+    await Condition.waitAsync(() => this.updates.quitCount === 1);
+
+    Assert.areEqual(0, this.updates.barriers.length);
+    Assert.areEqual("100,200,400,800,100", this.clock.waits.join(","));
+    Assert.areEqual("The launch barrier could not be checked after the runtime was lost, so it is checked again in 100 ms: Error: EPERM: operation not permitted, open 'barrier.json'", this.logged.at(-1));
   }
 
   @TestMethod
