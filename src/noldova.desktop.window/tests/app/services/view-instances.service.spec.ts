@@ -402,4 +402,61 @@ describe("ViewInstancesService", () => {
       [DockSide.Bottom, [false, 2.75], [false, 2.75], [true, 7], [false, 2.75], [true, 16.25]]
     ]);
   });
+
+  it("gives a group's front back to the tab that was in front before the part's open brought its instance forward, whether it opened the instance or showed it again, without moving the focus", () => {
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    instances.openInstance("terminal.shell", "2", new DocumentHeading("bash"), null, null);
+    const tabFocus = TestBed.inject(TabFocusService);
+    const focus = [vi.spyOn(tabFocus, "focus"), vi.spyOn(tabFocus, "focusContent"), vi.spyOn(tabFocus, "focusIfLost")];
+
+    instances.returnFront("terminal.shell", "2");
+    const returned = layout.layout().groupOf(first)?.active;
+    instances.openInstance("terminal.shell", "2", new DocumentHeading("bash"), null, null);
+    instances.returnFront("terminal.shell", "2");
+
+    expect([returned, layout.layout().groupOf(first)?.active]).toEqual([first, first]);
+    expect(focus.map(t => t.mock.calls.length)).toEqual([0, 0, 0]);
+  });
+
+  it("gives nothing back once the person chose a tab in the group, moved or closed the tab that was in front, or the group went", () => {
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    instances.openInstance("terminal.shell", "2", new DocumentHeading("bash"), null, null);
+    const front = (): Tab | null | undefined => layout.layout().groupOf(first)?.active;
+
+    layout.activate(first);
+    layout.activate(second);
+    instances.returnFront("terminal.shell", "2");
+    const chosen = front();
+    instances.openInstance("terminal.shell", "3", new DocumentHeading("zsh"), null, null);
+    layout.place(second, new TabDropTarget(layout.layout().groupOf(first)?.id ?? 0, 0));
+    layout.activate(third);
+    instances.returnFront("terminal.shell", "3");
+    const moved = front();
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    layout.close(third);
+    instances.returnFront("terminal.shell", "1");
+    const closedEarlier = front();
+    instances.openInstance("terminal.shell", "3", new DocumentHeading("zsh"), null, null);
+    layout.closeTabs([first, second, third]);
+    const gone = layout.layout();
+    instances.returnFront("terminal.shell", "3");
+
+    expect([chosen, moved, closedEarlier]).toEqual([second, third, first]);
+    expect(layout.layout()).toBe(gone);
+  });
+
+  it("gives nothing back for an instance whose open brought nothing forward, one it never opened, or one a later open in its group put behind", () => {
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    const alone = layout.layout();
+    instances.returnFront("terminal.shell", "1");
+    instances.returnFront("terminal.shell", "9");
+    const unchanged = layout.layout() === alone;
+    instances.openInstance("terminal.shell", "2", new DocumentHeading("bash"), null, null);
+    instances.openInstance("terminal.shell", "3", new DocumentHeading("zsh"), null, null);
+    instances.returnFront("terminal.shell", "2");
+    const behind = layout.layout().groupOf(first)?.active;
+    instances.returnFront("terminal.shell", "3");
+
+    expect([unchanged, behind, layout.layout().groupOf(first)?.active]).toEqual([true, third, second]);
+  });
 });

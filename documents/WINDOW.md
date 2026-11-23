@@ -143,6 +143,8 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   The part may give an instance a breadcrumb, under the same rules as a document's.
   - Its activation ends when the promise its part's `activateAsync` returned resolves.
     Until then, an instance tab the saved layout holds takes the part's title and glyph where it is, without activating; the saved instance tabs the part has not reopened by then close quietly, and one it opens afterwards opens as new.
+  - The part may give a group's front back after its open brought an instance's tab forward, such as a detail view it showed for a document the person leaves: the tab in front before that open shows again, without moving the focus.
+    Nothing changes when that open brought nothing forward, or since then the person chose a tab in that group, moved, closed or added a tab there, or another open changed the group.
   - The part hears when the person closes one of its instance tabs, and never when the part closes one itself, a saved tab closes at the end of activation, the part deactivates or the window goes away.
     A close the person makes while no listener of the view is registered, such as while its part is inactive or reactivating, waits: the part's next activation leaves that tab closed even when it reopens the instance, and the view's listeners hear the close when that activation ends.
   - A view may name a plain menu place whose rows show as icon buttons, with the rows' titles as their names, in the tab row of each group that holds one of its tabs, after the tabs and before the group's own buttons; a submenu row opens its place as a menu, and every row's command, its submenus' included, gets the group's id as `tabGroup`.

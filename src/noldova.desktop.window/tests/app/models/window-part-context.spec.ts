@@ -472,7 +472,7 @@ describe("WindowPartContext", () => {
     expect(host.calls).toEqual([]);
   });
 
-  it("opens, changes and closes instances of its own view with instances through the host, passing on only what changes", () => {
+  it("opens, changes, gives back the front of and closes instances of its own view with instances through the host, passing on only what changes", () => {
     context.registerView(instanceView());
     context.openView("notes.list", "1", "Inbox");
     context.openView("notes.list", "2", "Archive", { icon: "archive", tabGroup: "3", breadcrumb: ["Mail", "2026"], breadcrumbIcon: "inbox" });
@@ -482,12 +482,13 @@ describe("WindowPartContext", () => {
     context.updateView("notes.list", "1", { breadcrumb: [] });
     context.updateView("notes.list", "1", {});
     context.updateView("notes.list", "1", { breadcrumb: ["Accounts"], breadcrumbIcon: "person" });
+    context.returnView("notes.list", "2");
     context.closeView("notes.list", "2");
 
     expect(host.calls).toEqual(["refresh", "openView notes notes.list 1 Inbox - -", "openView notes notes.list 2 Mail / 2026 / Archive inbox archive 3", "updateView notes notes.list 1 Mail - -",
       "updateView notes notes.list 1 - mail -", "updateView notes notes.list 1 - - [Accounts, Work]", "updateView notes notes.list 1 - - []", "updateView notes notes.list 1 - - -",
       "updateView notes notes.list 1 - - [Accounts] person",
-      "closeView notes notes.list 2"]);
+      "returnView notes notes.list 2", "closeView notes notes.list 2"]);
   });
 
   it("refuses instances of another module's view, of a view it has not registered and of one without instances", () => {
@@ -498,6 +499,8 @@ describe("WindowPartContext", () => {
     expect(() => context.openView("notes.list", "1", "Inbox")).toThrowError(WindowPartAccessException);
     expect(() => context.updateView("notes.list", "1", { title: "Mail" })).toThrowError(WindowPartAccessException);
     expect(() => context.closeView("notes.list", "1")).toThrowError(WindowPartAccessException);
+    expect(() => context.returnView("notes.list", "1")).toThrowError(WindowPartAccessException);
+    expect(() => context.returnView("clock.face", "1")).toThrowError(WindowPartAccessException);
     expect(() => context.onViewClosed("notes.list", () => undefined)).toThrowError(WindowPartAccessException);
     expect(host.calls).toEqual(["refresh"]);
     expect(host.viewListeners.size).toBe(0);
@@ -639,6 +642,7 @@ describe("WindowPartContext", () => {
     expect(() => context.updateView("notes.list", "1", { breadcrumb: ["Mail"], breadcrumbIcon: " " })).toThrowError(ArgumentException);
     expect(() => context.updateView("notes.list", "1", { breadcrumbIcon: "mail" })).toThrowError("A breadcrumb's glyph comes with the breadcrumb it goes before.");
     expect(() => context.closeView("notes.list", String.empty)).toThrowError(ArgumentException);
+    expect(() => context.returnView("notes.list", " ")).toThrowError(ArgumentException);
     expect(host.calls).toEqual(["refresh"]);
   });
 
@@ -1275,6 +1279,7 @@ describe("WindowPartContext", () => {
       ["openView", t => t.openView("notes.list", "1", "Shell 1")],
       ["updateView", t => t.updateView("notes.list", "1", { title: "Shell 2" })],
       ["closeView", t => t.closeView("notes.list", "1")],
+      ["returnView", t => t.returnView("notes.list", "1")],
       ["showView", t => t.showView("notes.panel")],
       ["recordPlace", t => t.recordPlace("notes.panel", "note-1")],
       ["forgetPlace with an instance", t => t.forgetPlace("notes.list", "/home", "1")],
