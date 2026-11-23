@@ -83,6 +83,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 
 - The workspace has docks at the sides and the bottom and, in the middle, document groups that can be split.
   An open dock keeps at least its minimum size, 10 rem in the default look, and a dock the window is too small for closes to its strip.
+  The bottom dock opens at its default height, 12.5 rem in the default look, in a workspace at least 46.5 rem high, the default 1280×800 window's; in a shorter one that height gives way in proportion, down to the minimum, so a 905×616 window's bottom dock is 10 rem, and a height the person chose stays as it is.
   A dock opened from its strip or its toggle, or by showing one of its views, whether the person or a window part shows it, opens anyway, at what the document's minimum leaves, down to its groups' own minimum, such as 6.25 rem for a bottom dock of one group, and stays closed when even that doesn't fit.
   The window keeps one such dock open at a time, so opening another lets it close the one before, and it stops keeping it once the window has room for it.
 - A view shows in a dock or in the middle, and a document in a tab of a document group.

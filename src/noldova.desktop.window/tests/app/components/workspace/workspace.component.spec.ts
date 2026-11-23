@@ -760,6 +760,29 @@ describe("WorkspaceComponent", () => {
     expect(shown()).toEqual(standard);
   });
 
+  it("keeps the bottom dock at its default height in the default window, and gives it way in proportion in a shorter one down to its minimum, leaving the rest to the documents", async () => {
+    const registry = LayoutFixture.createRegistry();
+    const { terminal } = LayoutFixture;
+    parts.contributions.set(terminal.key, new ContributionMatch(() => Promise.resolve(TestShellComponent), null, ContentPadding.Default));
+    const fixture = await renderAsync(registry, Layout.createDefault(registry).openView(terminal, registry));
+    const host: HTMLElement = DomFixture.host(fixture);
+    const measureAsync = async (width: number, height: number): Promise<readonly number[]> => {
+      fixture.componentInstance.width.set(width);
+      fixture.componentInstance.height.set(height);
+      await settleAsync(fixture);
+      const dock = host.querySelector<HTMLElement>(`[data-tab-content="${terminal.key}"]`)?.closest<HTMLElement>("nol-panel-card") ?? host;
+      const documents = groupsOf(fixture).find(t => !t.classList.contains("nol-panel-card-shell")) ?? host;
+      return [boundsOf(dock)[3] ?? 0, boundsOf(documents)[3] ?? 0];
+    };
+
+    const [wide, short] = [await measureAsync(1280, 744), await measureAsync(905, 560)];
+
+    AppearanceFixture.expectPixels(wide[0] ?? 0, AppearanceFixture.toPixels(12.5));
+    AppearanceFixture.expectPixels(wide[1] ?? 0, 744 - AppearanceFixture.toPixels(12.5 + 2 * 0.25));
+    AppearanceFixture.expectPixels(short[0] ?? 0, AppearanceFixture.toPixels(10));
+    AppearanceFixture.expectPixels(short[1] ?? 0, 560 - AppearanceFixture.toPixels(10 + 2 * 0.25));
+  });
+
   it("grows a dock on screen until its tab's page shows the asked rem inside its padding, and puts the dock's rendered size back at the release", async () => {
     const registry = LayoutFixture.createRegistry();
     const { terminal } = LayoutFixture;

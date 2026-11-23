@@ -54,6 +54,16 @@ describe("Dock", () => {
     expect(Dock.createEmpty(DockSide.Left).preferredTrack(LayoutMetricsFixture.standard)).toBe(0);
   });
 
+  it("gives a bottom dock at its default size way in proportion below the default window's workspace, down to its minimum, and keeps a size the person chose and a side dock's", () => {
+    const bottom = new Dock(DockSide.Bottom, files, null, false);
+    const metrics = LayoutMetricsFixture.standard;
+
+    expect([bottom.preferredSize(metrics), bottom.preferredSize(metrics, 60), bottom.preferredSize(metrics, 46.5), bottom.preferredSize(metrics, 34.875)]).toEqual([16.25, 16.25, 16.25, 12.1875]);
+    expect([bottom.preferredTrack(metrics, 34.875), bottom.preferredTrack(metrics, 23.25)]).toEqual([12.4375, 10.25]);
+    expect(bottom.withSize(14).preferredSize(metrics, 23.25)).toBe(14);
+    expect(new Dock(DockSide.Right, files, null, false).preferredSize(metrics, 23.25)).toBe(25);
+  });
+
   it("knows which groups it holds", () => {
     expect([dock.holds(1), dock.holds(2), Dock.createEmpty(DockSide.Left).holds(1)]).toEqual([true, false, false]);
   });

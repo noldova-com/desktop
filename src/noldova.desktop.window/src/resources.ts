@@ -49,6 +49,11 @@ export class Resources {
     [DockSide.Right]: "dock-right-width",
     [DockSide.Bottom]: "dock-bottom-height"
   };
+  public static readonly dockFullSizeLengths: Readonly<Record<DockSide, number | null>> = {
+    [DockSide.Left]: null,
+    [DockSide.Right]: null,
+    [DockSide.Bottom]: 46.5
+  };
   public static readonly lookProbeElement: string = "div";
   public static readonly dockEdges: Readonly<Record<DockSide, PanelEdge>> = {
     [DockSide.Left]: PanelEdge.Left,

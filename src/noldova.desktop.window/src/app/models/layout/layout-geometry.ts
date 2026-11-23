@@ -126,7 +126,7 @@ export class LayoutGeometry {
     if (this.isShown(side) && !this.isCollapsed(side))
       return this.dock(side).edgeHalf(edge, this.metrics.gap);
     const span = this.spanOf(side);
-    return span.edgeStrip(edge, Math.min(span.length(dock.axis), dock.size ?? this.metrics.dockSizes[side]));
+    return span.edgeStrip(edge, Math.min(span.length(dock.axis), Math.max(this.metrics.dockMinimum, dock.preferredSize(this.metrics, side === DockSide.Bottom ? this.height : this.width))));
   }
 
   private uprightMinimums(sides: readonly Dock[], across: LayoutFit, metrics: LayoutMetrics): readonly number[] {
