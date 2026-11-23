@@ -278,6 +278,55 @@ describe("LayoutService", () => {
     expect([service.layout().dock(DockSide.Left).size, service.layout().dock(DockSide.Right).size]).toEqual([21, 12]);
   });
 
+  describe("with a document that declares a preferred width", () => {
+    const wide = new DocumentTab("notes.wide", "board");
+    const wideRegistry = new ViewRegistry(registry.views, ["notes.note", "notes.wide", "desktop.settings"], new Map(), new Set(), new Map([["notes.wide", 60]]));
+    const shown = (): number[] => [service.geometry().dock(DockSide.Left).width, service.geometry().dock(DockSide.Right).width, service.geometry().middle.width];
+
+    beforeEach(() => {
+      service.setRegistry(wideRegistry);
+    });
+
+    it("shrinks the side docks, right first, to give the middle that width while the document is in front, and gives them back when another document is", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+      const wider = shown();
+
+      service.activate(LayoutFixture.plan);
+      const normal = shown();
+      service.activate(wide);
+
+      expect([wider, normal]).toEqual([[26, 13, 60], [26, 25, 48]]);
+      expect([shown(), closed()]).toEqual([[26, 13, 60], []]);
+    });
+
+    it("closes the side docks, right first, when shrinking is not enough, keeps open the one the person opens while the document is in front, and reopens the others when another document is", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(80, 40);
+      const wider = [closed(), service.geometry().middle.width >= 60];
+
+      service.keepOpen(DockSide.Right);
+      const kept = [closed(), service.geometry().middle.width >= 60];
+      service.activate(LayoutFixture.plan);
+      const normal = closed();
+      service.activate(wide);
+
+      expect([wider, kept, normal]).toEqual([[[DockSide.Right], true], [[DockSide.Left], true], []]);
+      expect(closed()).toEqual([DockSide.Left]);
+    });
+
+    it("leaves a dock the person hid hidden as the document comes to the front and goes", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).toggleDock(DockSide.Right).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(80, 40);
+      const wider = [service.geometry().middle.width >= 60, service.layout().dock(DockSide.Right).isExpanded];
+
+      service.activate(LayoutFixture.plan);
+
+      expect(wider).toEqual([true, false]);
+      expect([closed(), service.layout().dock(DockSide.Right).isExpanded]).toEqual([[], false]);
+    });
+  });
+
   it("keeps a dock open beside one the person hid, opens a closed dock when its command runs, releases a kept dock the person hides and opens it again in one press", async () => {
     await loadAsync(Layout.createDefault(registry).toggleDock(DockSide.Right));
     service.setViewport(40, 40);

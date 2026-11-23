@@ -50,6 +50,21 @@ describe("ViewRegistry", () => {
       .toEqual([true, false, false]);
   });
 
+  it("answers the preferred width of each view and document that declares one, and null for one without it or one it does not hold", () => {
+    const registry = new ViewRegistry([new ViewType("git.conflicts", DockSide.Right, false), new ViewType("files.tree", DockSide.Left, true)], ["git.history", "notes.note"],
+      new Map(), new Set(), new Map([["git.conflicts", 60], ["git.history", 55.5]]));
+
+    expect(["git.conflicts", "files.tree", "git.history", "notes.note", "gone.page"].map(t => registry.preferredWidth(t))).toEqual([60, null, 55.5, null, null]);
+  });
+
+  it("refuses a preferred width for a name it does not hold, or one that is not a finite number greater than 0", () => {
+    const views = [new ViewType("git.conflicts", DockSide.Right, false)];
+    const cases: [string, number][] = [["notes.note", 60], ["git.conflicts", 0], ["git.history", Number.NaN], ["git.history", Number.POSITIVE_INFINITY]];
+
+    for (const widths of cases)
+      expect(() => new ViewRegistry(views, ["git.history"], new Map(), new Set(), new Map([widths]))).toThrowError("A preferred width is a finite number of rem greater than 0.");
+  });
+
   it("refuses a renamable document it does not hold", () => {
     expect(() => new ViewRegistry([], ["browser.page"], new Map(), new Set(["notes.note"]))).toThrowError(ArgumentException);
   });

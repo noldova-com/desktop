@@ -506,7 +506,8 @@ export class WindowPartHostService implements IWindowPartHost {
       [...views.map(t => new ViewType(t.name, t.defaultSide, t.isShownByDefault, t.hasInstances, t.tabRowPlace, t.isRenamable, t.defaultGroup, t.defaultOrder)), ...failed.map(t => new ViewType(t.name, DockSide.Left, false))],
       [...ShellDocuments.all.map(t => t.name), ...this.activations.flatMap(t => t.context.documents.map(u => u.name))],
       new Map(this.activations.flatMap(t => t.context.documents.flatMap((u): [string, string][] => Object.isNull(u.tabRowPlace) ? [] : [[u.name, u.tabRowPlace]]))),
-      new Set(this.activations.flatMap(t => t.context.documents.filter(u => u.isRenamable).map(u => u.name)))));
+      new Set(this.activations.flatMap(t => t.context.documents.filter(u => u.isRenamable).map(u => u.name))),
+      new Map([...views, ...this.activations.flatMap(t => t.context.documents)].flatMap((t): [string, number][] => Object.isNull(t.preferredWidth) ? [] : [[t.name, t.preferredWidth]]))));
   }
 
   private createPartInjector(context: IWindowPartContext, isActiveDocument: Signal<boolean>): Injector {

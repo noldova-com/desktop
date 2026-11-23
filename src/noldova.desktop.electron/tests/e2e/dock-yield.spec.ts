@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { Locator, Page } from "@playwright/test";
 
 import type { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
@@ -198,3 +200,57 @@ test.describe("docks giving way", () => {
     await captureAsync(mainProcess, "dark");
   });
 });
+
+test.describe("docks giving way to a wide document", () => {
+  const note = "document/notes.note/1";
+  const wide = "document/notes.wide/board";
+
+  test.use({ mainProcessDataFiles: { "modules/notes/wide": String.empty } });
+
+  test.beforeEach(async ({ mainProcess }) => {
+    await expect(TabDragFixture.tab(mainProcess.window, wide)).toBeVisible();
+  });
+
+  test("a document that declares 60rem gets at least 60rem in a 1440 by 900 window while it is in front, and the docks come back when a document without it is", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const rem = await remAsync(window);
+    await mainProcess.useViewportAsync(1440, 900);
+    await TabDragFixture.tab(window, note).click();
+    const before = [await widthAsync(TabDragFixture.groupOf(window, notes)), await widthAsync(TabDragFixture.groupOf(window, clock)), await widthAsync(middle(window))];
+    expect(before[2]).toBeLessThan(60 * rem);
+
+    await TabDragFixture.tab(window, wide).click();
+
+    await expect.poll(async () => await widthAsync(middle(window))).toBeGreaterThanOrEqual(60 * rem - 1);
+    await expect(dock(window, "Left")).not.toHaveClass(collapsed);
+    await expect(dock(window, "Right")).not.toHaveClass(collapsed);
+    await expectNoSidewaysScrollAsync(window);
+
+    await TabDragFixture.tab(window, note).click();
+
+    await expectWidthAsync(TabDragFixture.groupOf(window, notes), before[0]);
+    await expectWidthAsync(TabDragFixture.groupOf(window, clock), before[1]);
+    await expectWidthAsync(middle(window), before[2]);
+  });
+
+  test("a dock the person opens from its strip stays open while the wide document is in front, and a dock the person hid stays hidden as it comes and goes", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    await mainProcess.useViewportAsync(1100, 700);
+    await TabDragFixture.tab(window, note).click();
+    await expect(dock(window, "Right")).not.toHaveClass(collapsed);
+    await window.keyboard.press("ControlOrMeta+Alt+KeyB");
+    await expect(dock(window, "Right")).toHaveClass(collapsed);
+    await TabDragFixture.tab(window, wide).click();
+    await expect(dock(window, "Left")).toHaveClass(collapsed);
+
+    await dock(window, "Left").locator(".nol-dock-strip-view").first().click();
+    await expect(dock(window, "Left")).not.toHaveClass(collapsed);
+    await TabDragFixture.tab(window, note).click();
+    await TabDragFixture.tab(window, wide).click();
+
+    await expect(dock(window, "Left")).not.toHaveClass(collapsed);
+    await expect(dock(window, "Right")).toHaveClass(collapsed);
+    await expectNoSidewaysScrollAsync(window);
+  });
+});
+

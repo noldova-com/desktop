@@ -9,4 +9,5 @@
 export interface IDocumentContributionOptions {
   readonly tabRowPlace?: string;
   readonly isRenamable?: boolean;
+  readonly preferredWidth?: number;
 }

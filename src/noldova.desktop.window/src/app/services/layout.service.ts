@@ -81,10 +81,14 @@ export class LayoutService {
     new Set([...Resources.dockStyleSettings].filter(([, name]) => this.settings.values().get(name) === DockStyle.Icons).map(([side]) => side)));
   public readonly isMeasured: Signal<boolean> = computed(() => !Object.isNull(this.metrics()));
   public readonly previewTabs: Signal<boolean> = computed(() => this.settings.values().get(Resources.previewTabsSetting) !== false);
+  private readonly wantedMiddle: Signal<number | null> = computed(() => {
+    const active = this.layoutState().documents.active;
+    return Object.isNull(active) ? null : this.registryState().preferredWidth(active.name);
+  });
   public readonly geometry: Signal<LayoutGeometry> = linkedSignal({
-    source: () => ({ width: this.width(), height: this.height(), layout: this.shownLayout(), registry: this.registryState(), metrics: this.metrics(), iconSides: this.iconSides(), kept: this.kept() }),
+    source: () => ({ width: this.width(), height: this.height(), layout: this.shownLayout(), registry: this.registryState(), metrics: this.metrics(), iconSides: this.iconSides(), kept: this.kept(), wanted: this.wantedMiddle() }),
     computation: (source, previous?: { readonly value: LayoutGeometry }) => new LayoutGeometry(source.width, source.height, source.layout, source.registry, source.metrics ?? LayoutMetrics.none, source.iconSides,
-      new DockYield(source.layout.middleSize ?? Resources.middlePreferredSize, previous?.value.closedSides ?? new Set(), source.kept))
+      new DockYield(source.wanted ?? source.layout.middleSize ?? Resources.middlePreferredSize, previous?.value.closedSides ?? new Set(), source.kept))
   });
   public readonly currentGroup: Signal<TabGroup> = computed(() => {
     const id = this.currentGroupId();
