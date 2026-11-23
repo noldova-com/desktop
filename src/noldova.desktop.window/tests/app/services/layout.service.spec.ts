@@ -315,6 +315,21 @@ describe("LayoutService", () => {
       expect(shown()).toEqual([26, 30, 43]);
     });
 
+    it("gives the document its width again once a dock goes back to its own size, as when a view's growth is released, or the layout is reset", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+
+      service.resizeDock(DockSide.Right, 30);
+      const grown = shown();
+      service.restoreDock(DockSide.Right, null);
+      const released = shown();
+      service.resizeDock(DockSide.Right, 30);
+      service.reset();
+
+      expect([grown, released]).toEqual([[26, 30, 43], [26, 13, 60]]);
+      expect(shown()).toEqual([26, 13, 60]);
+    });
+
     it("closes the side docks, right first, when shrinking is not enough, keeps open the one the person opens while the document is in front, and reopens the others when another document is", async () => {
       await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
       service.setViewport(80, 40);

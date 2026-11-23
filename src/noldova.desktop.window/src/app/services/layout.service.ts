@@ -272,8 +272,10 @@ export class LayoutService {
   }
 
   public restoreDock(side: DockSide, size: number | null): void {
-    if (Object.isNull(size))
+    if (Object.isNull(size)) {
+      this.heldMiddles.set(new Map());
       this.update(this.layoutState().resizeDock(side, null));
+    }
     else
       this.resizeDock(side, size);
   }
@@ -291,6 +293,7 @@ export class LayoutService {
   }
 
   public reset(): void {
+    this.heldMiddles.set(new Map());
     this.update(this.layoutState().reset(this.registryState()));
   }
 
