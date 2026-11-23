@@ -35,7 +35,8 @@ describe("ShellMenus", () => {
     expect(other.groups.filter(t => t.place === "desktop.help").map(t => [t.name, t.items.map(u => u.command)]))
       .toEqual([["desktop.updates", ["desktop.checkForUpdates"]], ["desktop.support", ["desktop.openLogFolder", "desktop.copyDetails"]]]);
     expect(mac.groups.filter(t => t.place === "desktop.help").map(t => [t.name, t.items.map(u => u.command)])).toEqual([["desktop.support", ["desktop.openLogFolder", "desktop.copyDetails"]]]);
-    expect(mac.groups.filter(t => t.isDynamic).length).toBe(4);
+    expect(mac.groups.filter(t => t.isDynamic).map(t => t.name)).toContain("desktop.tabToolbars");
+    expect(mac.groups.filter(t => t.isDynamic).length).toBe(5);
   });
 
   it("declares the layout menu outside the menu bar, with the docks, then the views the window lists, then Reset the layout", () => {

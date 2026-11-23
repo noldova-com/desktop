@@ -78,6 +78,19 @@ describe("RegionFocusService", () => {
     expect([before, document.activeElement?.id]).toEqual(["page", "notes"]);
   });
 
+  it("moves past a group whose page holds a view's toolbar band, which is no region of its own, and keeps the window's band one", () => {
+    root.innerHTML = [
+      "<nol-window-row><button id='search'>Search</button></nol-window-row>",
+      "<nol-toolbar-band><button id='window-item'>Window</button></nol-toolbar-band>",
+      "<nol-tab-group><button id='board'>Board</button><nol-tab-slot><nol-view-toolbar-band><nol-toolbar-band><button id='band-item'>Add</button></nol-toolbar-band></nol-view-toolbar-band>",
+      "</nol-tab-slot></nol-tab-group>",
+      "<nol-tab-group><button id='notes'>Notes</button></nol-tab-group>",
+      "<nol-status-bar><button id='status'>Status</button></nol-status-bar>"
+    ].join("");
+
+    expect(walk(1, 6)).toEqual(["search", "window-item", "band-item", "notes", "status", "search"]);
+  });
+
   it("makes the view a group's only stop when nothing else in the group is in the tab order", () => {
     root.innerHTML = [
       "<nol-tab-group><nol-tab-slot><div class='nol-web-view'><button id='inside'>Inside</button><webview id='page' class='nol-web-view-guest' tabindex='-1'></webview></div>",

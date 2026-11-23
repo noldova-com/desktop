@@ -12,6 +12,7 @@ import { ToolbarMove } from "../../../src/app/enums/toolbar-move";
 import { BuildTokens } from "../../../src/app/models/build-tokens";
 import { CommandContribution } from "../../../src/app/models/command-contribution";
 import { CommandRow } from "../../../src/app/models/command-row";
+import { DocumentTab } from "../../../src/app/models/layout/document-tab";
 import { Layout } from "../../../src/app/models/layout/layout";
 import { MenuDeclarations } from "../../../src/app/models/menu-declarations";
 import { CommandService } from "../../../src/app/services/command.service";
@@ -140,6 +141,19 @@ describe("ToolbarService", () => {
     const rows = TestBed.inject(MenuService).resolve("desktop.toolbars", { band: "notes.page" }).flatMap(t => t.rows).filter(t => t instanceof CommandRow);
 
     expect(rows.map(t => [t.title, t.commandArguments])).toEqual([["Page", { band: "notes.page", toolbar: "notes.pageMain" }], ["More", { band: "notes.page", toolbar: "notes.pageMore" }]]);
+  });
+
+  it("lists a page's band toolbars in its tab's context menu, so they can be shown again once all are hidden, and none for a tab without a band or a missing tab", () => {
+    const page = new DocumentTab("notes.page", "plan");
+    const other = new DocumentTab("notes.note", "todo");
+    layout.openDocument(page);
+    layout.openDocument(other);
+    service.setShown("notes.pageMain", false);
+    service.setShown("notes.pageMore", false);
+    const listed = (key: string): readonly string[] => TestBed.inject(MenuService).resolve("desktop.tab", { tab: key }).flatMap(t => t.rows)
+      .filter(t => t instanceof CommandRow).filter(t => t.command === "desktop.toggleToolbar").map(t => t.title);
+
+    expect([service.isShown("notes.pageMain"), service.isShown("notes.pageMore"), listed(page.key), listed(other.key), listed("document:notes.missing")]).toEqual([false, false, ["Page", "More"], [], []]);
   });
 
   it("arranges a view's band apart from the window's, keeps it under the view in the layout, and gives its rows the page's arguments", () => {

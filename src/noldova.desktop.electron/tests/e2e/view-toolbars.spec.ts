@@ -114,6 +114,23 @@ test.describe("view toolbar bands", () => {
     await expect.poll(() => arrangementOf(window, windowBand)).toEqual([["notes.main"], ["notes.second"]]);
   });
 
+  test("a view's band whose toolbars are all hidden shows one again from its tab's menu", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const group = window.locator("nol-tab-group", { has: window.locator("[data-fixture-content='notes-board']") });
+
+    await setShownAsync(window, viewBand, "More", false);
+    await setShownAsync(window, viewBand, "Board", false);
+    await expect(bandOf(window, viewBand)).toHaveCount(0);
+    await group.locator(".nol-tab-group-menu").click();
+    const menu = window.locator(".cdk-overlay-container nol-menu[data-place=\"desktop.tab\"]");
+    await expect(menu.getByRole("menuitemcheckbox")).toHaveCount(2);
+    await expect(menu.getByRole("menuitemcheckbox", { name: "Board" })).toHaveAttribute("aria-checked", "false");
+    await menu.getByRole("menuitemcheckbox", { name: "Board" }).click();
+
+    await expect.poll(() => arrangementOf(window, viewBand)).toEqual([["notes.boardMain"]]);
+    await expect.poll(() => arrangementOf(window, windowBand)).toEqual([["notes.main"], ["notes.second"]]);
+  });
+
   test("the window's band and a view's band drag apart, and a toolbar never leaves its band", async ({ mainProcess }) => {
     const window = mainProcess.window;
 

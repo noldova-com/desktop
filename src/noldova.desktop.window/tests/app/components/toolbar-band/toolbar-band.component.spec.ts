@@ -17,6 +17,7 @@ import { AppearanceService, DefaultTheme, ThemeMode, Typography } from "@noldova
 
 import { PlaceMenuComponent } from "../../../../src/app/components/place-menu/place-menu.component";
 import { ToolbarBandComponent } from "../../../../src/app/components/toolbar-band/toolbar-band.component";
+import { ToolbarComponent } from "../../../../src/app/components/toolbar/toolbar.component";
 import { CommandRow } from "../../../../src/app/models/command-row";
 import { MenuCheck } from "../../../../src/app/enums/menu-check";
 import { MenuSection } from "../../../../src/app/models/menu-section";
@@ -107,6 +108,17 @@ describe("ToolbarBandComponent", () => {
     fixture.detectChanges();
 
     expect([line?.classList.contains("nol-drop-line-row"), line?.style.width]).toEqual([true, "400px"]);
+  });
+
+  it("marks its band with an id of its own and gives it to each of its toolbars, so their commands keep to this band", () => {
+    const other = TestBed.createComponent(ToolbarBandComponent);
+    other.detectChanges();
+    const idOf = (host: HTMLElement): string | undefined => host.querySelector<HTMLElement>(".nol-toolbar-band")?.dataset["toolbarBandId"];
+    const id = idOf(element);
+
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(idOf(DomFixture.host(other))).not.toBe(id);
+    expect(fixture.debugElement.queryAll(By.directive(ToolbarComponent)).map(t => t.injector.get(ToolbarComponent).bandId())).toEqual([id, id]);
   });
 
   it("marks no drop position for a drag in another band", () => {

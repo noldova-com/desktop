@@ -14,14 +14,14 @@ LICENSE file in the root directory of this source tree.
         <div class="nol-toolbar-row" [attr.data-toolbar-row]="rowIndex">
           @for (toolbar of row; track toolbar.name; let index = $index) {
             @if (toolbar.sections.length > 0) {
-              <nol-toolbar [toolbar]="toolbar" [attr.data-toolbar-index]="index" />
+              <nol-toolbar [toolbar]="toolbar" [bandId]="id" [attr.data-toolbar-index]="index" />
             }
           }
         </div>
       }
     }
   </ng-template>
-  <div #band class="nol-toolbar-band" [nolContextMenuTriggerFor]="list.menu()">
+  <div #band class="nol-toolbar-band" [attr.data-toolbar-band-id]="id" [nolContextMenuTriggerFor]="list.menu()">
     <ng-container [ngTemplateOutlet]="rows" />
   </div>
   @if (isDropHere() ? drag.target() : null; as target) {

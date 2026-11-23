@@ -30,8 +30,8 @@ export class ToolbarService {
   public readonly hasContent: Signal<boolean> = computed(() => this.rows().some(row => row.some(t => t.sections.length > 0)));
 
   public constructor() {
-    this.menus.provideGroup(Resources.toolbarListGroup, context => this.placesOf(ToolbarService.bandIn(context))
-      .map(t => MenuItem.ofCommand(Resources.toggleToolbarCommand, { [Resources.toolbarArgument]: t.name }, t.title)));
+    this.menus.provideGroup(Resources.toolbarListGroup, context => this.listOf(ToolbarService.bandIn(context)));
+    this.menus.provideGroup(Resources.tabToolbarsGroup, context => this.tabListOf(context));
   }
 
   public bandOf(name: string): string | null {
@@ -110,6 +110,16 @@ export class ToolbarService {
 
   private toolbarsOf(name: string, context: JsonObject): readonly Toolbar[] {
     return this.places().filter(t => t.name === name).map(t => new Toolbar(t.name, t.title, this.menus.resolve(t.name, context)));
+  }
+
+  private listOf(band: string | null): readonly MenuItem[] {
+    return this.placesOf(band).map(t => MenuItem.ofCommand(Resources.toggleToolbarCommand, { [Resources.toolbarArgument]: t.name }, t.title));
+  }
+
+  private tabListOf(context: JsonObject): readonly MenuItem[] {
+    const key = context[Resources.tabArgument];
+    const tab = this.layout.layout().groups.flatMap(t => t.tabs).find(t => t.key === key);
+    return Object.isUndefined(tab) ? [] : this.listOf(tab.name);
   }
 
   private static bandIn(context: JsonObject): string | null {

@@ -32,6 +32,7 @@ export class ToolbarBandComponent {
 
   protected readonly resources: typeof Resources = Resources;
   protected readonly drag: ToolbarDragService = inject(ToolbarDragService);
+  protected readonly id: string = crypto.randomUUID();
 
   public readonly band = input<string | null>(null);
   public readonly context = input<JsonObject>({});
