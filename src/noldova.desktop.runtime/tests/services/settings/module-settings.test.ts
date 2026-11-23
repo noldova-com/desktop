@@ -87,6 +87,27 @@ export class ModuleSettingsTests {
   }
 
   @TestMethod
+  public async tellsAPartTheMomentItsDeviceSettingHoldsTheDevicesValueWithNoValueStored(): Promise<void> {
+    const height = new SettingDefinition(QualifiedName.parse("tasks.height"), "tasks.height", "A setting.", SettingType.text(20), "h", SettingLocality.Device, [], "Page", "Group");
+    await using settings = await SettingsFixture.createAsync([...ModuleContextFixture.SETTINGS, height]);
+    const context = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry());
+    const ended = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry());
+    const withdrawn = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry());
+    const seen: string[] = [];
+    context.settings.onChanged("tasks.height", t => seen.push(`change ${String(t.value)}`));
+    context.settings.onDeviceKnown(() => seen.push(`known ${String(context.settings.isDeviceKnown)} ${String(context.settings.read("tasks.height"))}`));
+    withdrawn.settings.onDeviceKnown(() => seen.push("withdrawn"));
+    withdrawn[Symbol.dispose]();
+    ended[Symbol.dispose]();
+    ended.settings.onDeviceKnown(() => seen.push("ended"));
+
+    const before = [context.settings.isDeviceKnown, seen.length];
+    settings.service.useDevice("d1");
+
+    Assert.areEqual("false,0 known true h true", [before.join(","), seen.join("|"), context.settings.isDeviceKnown].join(" "));
+  }
+
+  @TestMethod
   public async tellsAModuleFollowingADeviceSettingItsStoredValueOnceTheRuntimeLearnsItsDevice(): Promise<void> {
     const width = new SettingDefinition(QualifiedName.parse("tasks.width"), "tasks.width", "A setting.", SettingType.text(20), "a", SettingLocality.Device, [], "Page", "Group");
     const height = new SettingDefinition(QualifiedName.parse("tasks.height"), "tasks.height", "A setting.", SettingType.text(20), "h", SettingLocality.Device, [], "Page", "Group");

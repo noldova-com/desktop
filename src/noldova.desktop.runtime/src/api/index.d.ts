@@ -7295,12 +7295,34 @@ export interface IModuleDatabase {
  */
 export interface IModuleSettings {
   /**
+   * Whether the runtime knows the device it serves, so a device setting read
+   * without a device reads that device's value, stored or default. Until the
+   * runtime asks the app's main process for the device, once it connects, a
+   * device setting reads its default; a part that must act only on the
+   * device's value waits for {@link IModuleSettings.onDeviceKnown} while this
+   * is false.
+   *
+   * @example
+   * ```ts
+   * import type { IRuntimePartContext } from "@noldova/desktop.runtime";
+   *
+   * export function whenDeviceKnown(context: IRuntimePartContext, start: () => void): void {
+   *   if (context.settings.isDeviceKnown)
+   *     start();
+   *   else
+   *     context.settings.onDeviceKnown(start);
+   * }
+   * ```
+   */
+  readonly isDeviceKnown: boolean;
+
+  /**
    * Reads a setting's value in effect: the value set for the scope object,
    * else for each enclosing scope, else for the application, else the
    * default. A device setting reads the given device's value, or with no
    * device the value of the device this runtime serves, which the runtime
    * asks the app's main process for once it connects; until then it reads
-   * the default.
+   * the default, and {@link IModuleSettings.isDeviceKnown} is false.
    *
    * @param name The setting's name.
    * @param scope The scope object; `null` by default, the application.
@@ -7371,7 +7393,9 @@ export interface IModuleSettings {
    * For a device setting it receives only the changes to the device this
    * runtime serves, and none until the runtime knows that device. Once it
    * knows it, the listener receives that device's stored value, when one is
-   * stored, as a change. It stops when the part deactivates.
+   * stored, as a change; with none stored, no change comes, and
+   * {@link IModuleSettings.onDeviceKnown} tells when the default is the
+   * device's value. It stops when the part deactivates.
    *
    * @param name The setting's name.
    * @param listener Called after each change commits.
@@ -7387,6 +7411,33 @@ export interface IModuleSettings {
    * ```
    */
   onChanged(name: string, listener: (change: SettingChange) => void): void;
+
+  /**
+   * Listens for the runtime learning the device it serves: from then on,
+   * {@link IModuleSettings.isDeviceKnown} is true and a device setting reads
+   * that device's value, whether or not one is stored. The listener is called
+   * once, after the `onChanged` listeners for the device's stored values; it
+   * is never called when the runtime already knows the device, so read
+   * `isDeviceKnown` first. It stops when the part deactivates.
+   *
+   * @param listener Called once the runtime knows its device.
+   * @example
+   * ```ts
+   * import type { IRuntimePartContext } from "@noldova/desktop.runtime";
+   *
+   * export function checkWhenAllowed(context: IRuntimePartContext, check: () => void): void {
+   *   const decide = (): void => {
+   *     if (context.settings.read("desktop.updateChecks") !== "OnRequest")
+   *       check();
+   *   };
+   *   if (context.settings.isDeviceKnown)
+   *     decide();
+   *   else
+   *     context.settings.onDeviceKnown(decide);
+   * }
+   * ```
+   */
+  onDeviceKnown(listener: () => void): void;
 
   /**
    * Records which scope object encloses one of the module's scope objects,

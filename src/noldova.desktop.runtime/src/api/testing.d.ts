@@ -763,6 +763,23 @@ export declare class FakeModuleSettings extends Fake<IModuleSettings> implements
   public readonly onChanged: IModuleSettings["onChanged"];
 
   /**
+   * Stands in for {@link IModuleSettings.onDeviceKnown}. Records each
+   * listener, which {@link FakeModuleSettings.raiseDeviceKnown} calls and
+   * {@link Fake.activeCallsOf} lists; like the interface, it gives no way to
+   * remove it, and it takes no answer.
+   *
+   * @example
+   * ```ts
+   * import type { FakeModuleSettings } from "@noldova/desktop.runtime/testing";
+   *
+   * export function activeOnDeviceKnown(fake: FakeModuleSettings): number {
+   *   return fake.activeCallsOf("onDeviceKnown").length;
+   * }
+   * ```
+   */
+  public readonly onDeviceKnown: IModuleSettings["onDeviceKnown"];
+
+  /**
    * Stands in for {@link IModuleSettings.setScopeParent}. Records each call,
    * which {@link Fake.callsOf} reads, and calls the answer that
    * {@link Fake.answer} gives; while unanswered, it only records the call.
@@ -801,6 +818,47 @@ export declare class FakeModuleSettings extends Fake<IModuleSettings> implements
    * ```
    */
   public readonly removeScope: IModuleSettings["removeScope"];
+
+  /**
+   * Stands in for {@link IModuleSettings.isDeviceKnown}. Reads the value that
+   * {@link Fake.answer} gives.
+   *
+   * @throws {UnansweredCallException} Synchronously, naming the member, while
+   * the test has given it no answer.
+   *
+   * @example
+   * ```ts
+   * import type { IModuleSettings } from "@noldova/desktop.runtime";
+   * import type { FakeModuleSettings } from "@noldova/desktop.runtime/testing";
+   *
+   * export function answerIsDeviceKnown(fake: FakeModuleSettings, value: IModuleSettings["isDeviceKnown"]): void {
+   *   fake.answer("isDeviceKnown", value);
+   * }
+   * ```
+   */
+  public get isDeviceKnown(): boolean;
+
+  /**
+   * Tells each listener of {@link IModuleSettings.onDeviceKnown} that the
+   * runtime learned its device. It changes no answer: give
+   * `isDeviceKnown` its new value with {@link Fake.answer} first.
+   *
+   * As Noldova Desktop's own dispatch does, it calls each listener in place when
+   * the call starts: one that an earlier one removes during the call is still
+   * called, and one that throws stops the rest, and its error comes out of this
+   * call.
+   *
+   * @example
+   * ```ts
+   * import { FakeModuleSettings } from "@noldova/desktop.runtime/testing";
+   *
+   * export function learnDevice(settings: FakeModuleSettings): void {
+   *   settings.answer("isDeviceKnown", true);
+   *   settings.raiseDeviceKnown();
+   * }
+   * ```
+   */
+  public raiseDeviceKnown(): void;
 
   /**
    * Tells each listener of {@link IModuleSettings.onChanged} for the setting

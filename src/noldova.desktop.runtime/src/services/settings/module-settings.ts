@@ -31,6 +31,10 @@ export class ModuleSettings implements IModuleSettings {
     this.stopping = stopping;
   }
 
+  public get isDeviceKnown(): boolean {
+    return !Object.isNull(this.settings.device);
+  }
+
   public read(name: string, scope: SettingScope | null = null, device: string | null = null): JsonValue {
     return this.settings.read(new SettingKey(this.requireReadable(name), scope, device ?? this.settings.device));
   }
@@ -51,6 +55,11 @@ export class ModuleSettings implements IModuleSettings {
       if (t.key.name.text === watched.text && (Object.isNull(t.key.device) || t.key.device === this.settings.device))
         listener(t);
     }));
+  }
+
+  public onDeviceKnown(listener: () => void): void {
+    if (!this.stopping.aborted)
+      this.registrations.push(this.settings.onDeviceKnown(listener));
   }
 
   public setScopeParent(scope: SettingScope, parent: SettingScope | null): void {
