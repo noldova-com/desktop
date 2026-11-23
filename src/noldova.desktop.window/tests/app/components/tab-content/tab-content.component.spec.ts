@@ -119,6 +119,7 @@ describe("TabContentComponent", () => {
     openView: () => undefined,
     updateView: () => undefined,
     closeView: () => undefined,
+    returnView: () => undefined,
     closeDialog: () => undefined,
     showView: () => undefined,
     hideViewDock: () => undefined,

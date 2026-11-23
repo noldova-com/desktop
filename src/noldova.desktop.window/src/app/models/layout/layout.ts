@@ -178,6 +178,11 @@ export class Layout {
     return Object.isNull(group) ? this : this.withGroup(group.activate(tab)).reveal(group.id).focusDocuments(group.id);
   }
 
+  public showInGroup(tab: Tab): Layout {
+    const group = this.groupOf(tab);
+    return Object.isNull(group) ? this : this.withGroup(group.activate(tab));
+  }
+
   public moveTab(tab: Tab, groupId: number, index: number): Layout {
     const target = this.group(groupId);
     if (Object.isNull(target) || !target.accepts(tab))

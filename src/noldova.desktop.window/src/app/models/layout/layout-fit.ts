@@ -33,7 +33,7 @@ export class LayoutFit {
 
   public static of(length: number, chrome: number, docks: readonly Dock[], middleMinimum: number, metrics: LayoutMetrics, railed: ReadonlySet<DockSide> = new Set(), yielded: DockYield = DockYield.none): LayoutFit {
     const strip = (dock: Dock): number => railed.has(dock.side) ? 0 : metrics.strip + metrics.gap;
-    const preferred = (dock: Dock): number => dock.isCollapsed && railed.has(dock.side) ? 0 : dock.preferredTrack(metrics);
+    const preferred = (dock: Dock): number => dock.isCollapsed && railed.has(dock.side) ? 0 : dock.preferredTrack(metrics, length);
     const wanted = Math.max(middleMinimum, yielded.preferredMiddle);
     const order = [...docks].reverse();
     const least = (dock: Dock, kept: DockSide | null): number => (dock.side === kept ? dock.groupsMinimumSize(metrics) : dock.minimumSize(metrics)) + metrics.gap;
@@ -53,7 +53,7 @@ export class LayoutFit {
     const tracks = new Map(docks.map(t => [t.side, collapsed.has(t.side) ? strip(t) : preferred(t)]));
     const room = (): number => length - chrome - [...tracks.values()].reduce((sum, t) => sum + t, 0);
     for (const dock of order.filter(t => t.isExpanded && !collapsed.has(t.side)))
-      tracks.set(dock.side, Math.max(least(dock, yielded.kept), dock.preferredTrack(metrics) - Math.max(0, wanted - room())));
+      tracks.set(dock.side, Math.max(least(dock, yielded.kept), dock.preferredTrack(metrics, length) - Math.max(0, wanted - room())));
     return new LayoutFit(tracks, collapsed, middleMinimum, metrics.gap, Math.max(0, room()), isKeeping);
   }
 

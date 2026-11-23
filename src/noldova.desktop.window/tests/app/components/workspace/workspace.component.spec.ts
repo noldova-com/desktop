@@ -760,6 +760,39 @@ describe("WorkspaceComponent", () => {
     expect(shown()).toEqual(standard);
   });
 
+  it("keeps the bottom dock at its default height in the default window, and gives it way in proportion in a shorter one down to its minimum, leaving the rest to the documents, and keeps that share at a larger text size", async () => {
+    const registry = LayoutFixture.createRegistry();
+    const { terminal } = LayoutFixture;
+    parts.contributions.set(terminal.key, new ContributionMatch(() => Promise.resolve(TestShellComponent), null, ContentPadding.Default));
+    const fixture = await renderAsync(registry, Layout.createDefault(registry).openView(terminal, registry));
+    const host: HTMLElement = DomFixture.host(fixture);
+    const dockHeight = (): number => (host.querySelector<HTMLElement>(`[data-tab-content="${terminal.key}"]`)?.closest<HTMLElement>("nol-panel-card") ?? host).getBoundingClientRect().height;
+    const documentsHeight = (): number => (groupsOf(fixture).find(t => !t.classList.contains("nol-panel-card-shell")) ?? host).getBoundingClientRect().height;
+    const resizeAsync = async (width: number, height: number): Promise<void> => {
+      fixture.componentInstance.width.set(width);
+      fixture.componentInstance.height.set(height);
+      await settleAsync(fixture);
+    };
+
+    await resizeAsync(1280, 744);
+    const wideDock = dockHeight();
+    const wideDocuments = documentsHeight();
+    await resizeAsync(905, 560);
+    const shortDock = dockHeight();
+    const shortDocuments = documentsHeight();
+    TestBed.inject(AppearanceService).setTypography(new Typography(15.6));
+    await resizeAsync(1280, 744);
+    const largerDock = dockHeight();
+    const largerDocuments = documentsHeight();
+
+    AppearanceFixture.expectPixels(wideDock, AppearanceFixture.toPixels(12.5));
+    AppearanceFixture.expectPixels(wideDocuments, 744 - AppearanceFixture.toPixels(12.5 + 2 * 0.25));
+    AppearanceFixture.expectPixels(shortDock, AppearanceFixture.toPixels(10));
+    AppearanceFixture.expectPixels(shortDocuments, 560 - AppearanceFixture.toPixels(10 + 2 * 0.25));
+    AppearanceFixture.expectPixels(largerDock, 200);
+    AppearanceFixture.expectPixels(largerDocuments, 744 - 200 - 2 * 0.25 * 19.2);
+  });
+
   it("grows a dock on screen until its tab's page shows the asked rem inside its padding, and puts the dock's rendered size back at the release", async () => {
     const registry = LayoutFixture.createRegistry();
     const { terminal } = LayoutFixture;

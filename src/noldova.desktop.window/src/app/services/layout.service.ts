@@ -206,6 +206,10 @@ export class LayoutService {
       this.focusGroup(group.id);
   }
 
+  public showInGroup(tab: Tab): void {
+    this.update(this.layoutState().showInGroup(tab));
+  }
+
   public focusGroup(id: number): void {
     this.currentGroupId.set(id);
     this.update(this.layoutState().focusDocuments(id));
@@ -253,7 +257,7 @@ export class LayoutService {
     const geometry = this.geometry();
     const other = side === DockSide.Left ? DockSide.Right : DockSide.Left;
     const shown = geometry.dock(other).width;
-    const held = geometry.isCollapsed(other) || layout.dock(other).preferredTrack(geometry.metrics) <= shown + geometry.metrics.gap ? layout : layout.resizeDock(other, shown);
+    const held = geometry.isCollapsed(other) || layout.dock(other).preferredTrack(geometry.metrics, geometry.width) <= shown + geometry.metrics.gap ? layout : layout.resizeDock(other, shown);
     this.update(held.withMiddleSize(this.middleAfter(side, size)));
   }
 

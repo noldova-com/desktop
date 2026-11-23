@@ -83,9 +83,12 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 
 - The workspace has docks at the sides and the bottom and, in the middle, document groups that can be split.
   An open dock keeps at least its minimum size, 10 rem in the default look, and a dock the window is too small for closes to its strip.
+  The bottom dock opens at its default height, 12.5 rem in the default look, in a workspace at least 46.5 rem high, the default 1280×800 window's; in a shorter one that height gives way in proportion, down to the minimum, so a 905×616 window's bottom dock is 10 rem, and a height the person chose stays as it is.
   A dock opened from its strip or its toggle, or by showing one of its views, whether the person or a window part shows it, opens anyway, at what the document's minimum leaves, down to its groups' own minimum, such as 6.25 rem for a bottom dock of one group, and stays closed when even that doesn't fit.
   The window keeps one such dock open at a time, so opening another lets it close the one before, and it stops keeping it once the window has room for it.
 - A view shows in a dock or in the middle, and a document in a tab of a document group.
+- Closing a group's active tab makes active the tab of that group that was active most recently and is still open, as the usual editors do, so closing a page opened from another page returns to that page; only when no tab of the group was active before, it makes the next tab active, or the last.
+  Each group keeps the order its tabs were active in through a saved layout, and a layout saved without it starts that order again from its active tabs.
 - A group's tabs keep their width, and its tab row shows only whole tabs, never part of one, its buttons staying at its end.
   When they don't all fit, the row shows the tabs that fit in order and hides the rest, which "Show all tabs" lists with every other tab; the active tab always shows, in place of the last tabs before it that fit, and the row never scrolls.
   This holds for the documents' groups as for the docks', and the arrow keys, Home and End reach a hidden tab as "Show all tabs" does, making it the active tab, which then shows; a hidden tab never takes the focus.
@@ -140,6 +143,9 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   The part may give an instance a breadcrumb, under the same rules as a document's.
   - Its activation ends when the promise its part's `activateAsync` returned resolves.
     Until then, an instance tab the saved layout holds takes the part's title and glyph where it is, without activating; the saved instance tabs the part has not reopened by then close quietly, and one it opens afterwards opens as new.
+  - The part may give a group's front back after its open brought an instance's tab forward, such as a detail view it showed for a document the person leaves: the tab in front before that open shows again, without moving the focus or the group the tab commands act on.
+    A later open while the instance's tab is still in front keeps that earlier tab to give back.
+    Nothing changes when no open brought the tab forward, or since then the person chose a tab in that group, moved, closed or added a tab there, or another open changed the group.
   - The part hears when the person closes one of its instance tabs, and never when the part closes one itself, a saved tab closes at the end of activation, the part deactivates or the window goes away.
     A close the person makes while no listener of the view is registered, such as while its part is inactive or reactivating, waits: the part's next activation leaves that tab closed even when it reopens the instance, and the view's listeners hear the close when that activation ends.
   - A view may name a plain menu place whose rows show as icon buttons, with the rows' titles as their names, in the tab row of each group that holds one of its tabs, after the tabs and before the group's own buttons; a submenu row opens its place as a menu, and every row's command, its submenus' included, gets the group's id as `tabGroup`.
