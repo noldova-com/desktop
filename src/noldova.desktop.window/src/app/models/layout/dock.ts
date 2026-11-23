@@ -53,13 +53,13 @@ export class Dock {
     return this.root?.minimumLength(this.axis, metrics) ?? 0;
   }
 
-  public preferredSize(metrics: LayoutMetrics, length: number = Number.POSITIVE_INFINITY): number {
+  public preferredSize(metrics: LayoutMetrics, length: number): number {
     const full = Resources.dockFullSizeLengths[this.side];
     const fallback = metrics.dockSizes[this.side];
     return this.size ?? (Object.isNull(full) ? fallback : fallback * Math.min(1, length / full));
   }
 
-  public preferredTrack(metrics: LayoutMetrics, length: number = Number.POSITIVE_INFINITY): number {
+  public preferredTrack(metrics: LayoutMetrics, length: number): number {
     if (Object.isNull(this.root))
       return 0;
     if (this.isCollapsed)
