@@ -13,6 +13,7 @@ import type { IModuleSettings } from "../../interfaces/i-module-settings.js";
 
 export class FakeModuleSettings extends Fake<IModuleSettings> implements IModuleSettings {
   private readonly changed: Set<{ readonly name: string; readonly listener: (change: SettingChange) => void }> = new Set<{ readonly name: string; readonly listener: (change: SettingChange) => void }>();
+  private readonly deviceKnown: Set<() => void> = new Set<() => void>();
 
   public readonly read: IModuleSettings["read"] = (...args) => this.ask("read", args, this.answers.read);
   public readonly write: IModuleSettings["write"] = (...args) => this.tell("write", args, this.answers.write);
@@ -20,8 +21,19 @@ export class FakeModuleSettings extends Fake<IModuleSettings> implements IModule
   public readonly onChanged: IModuleSettings["onChanged"] = (name, listener) => {
     this.listen("onChanged", [name, listener], this.changed, { name, listener });
   };
+  public readonly onDeviceKnown: IModuleSettings["onDeviceKnown"] = listener => {
+    this.listen("onDeviceKnown", [listener], this.deviceKnown, listener);
+  };
   public readonly setScopeParent: IModuleSettings["setScopeParent"] = (...args) => this.tell("setScopeParent", args, this.answers.setScopeParent);
   public readonly removeScope: IModuleSettings["removeScope"] = (...args) => this.tell("removeScope", args, this.answers.removeScope);
+
+  public get isDeviceKnown(): boolean {
+    return this.propertyOf("isDeviceKnown", this.answers.isDeviceKnown);
+  }
+
+  public raiseDeviceKnown(): void {
+    this.raise(this.deviceKnown, t => t());
+  }
 
   public raiseChanged(name: string, change: SettingChange): void {
     this.raise(this.changed, t => t.name === name && t.listener(change));

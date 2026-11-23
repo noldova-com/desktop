@@ -10,6 +10,8 @@ import type { JsonValue } from "@noldova/context.json";
 import type { SettingChange, SettingScope } from "@noldova/desktop.protocol";
 
 export interface IModuleSettings {
+  readonly isDeviceKnown: boolean;
+
   read(name: string, scope?: SettingScope | null, device?: string | null): JsonValue;
 
   write(name: string, value: JsonValue, scope?: SettingScope | null, device?: string | null): void;
@@ -17,6 +19,8 @@ export interface IModuleSettings {
   reset(name: string, scope?: SettingScope | null, device?: string | null): void;
 
   onChanged(name: string, listener: (change: SettingChange) => void): void;
+
+  onDeviceKnown(listener: () => void): void;
 
   setScopeParent(scope: SettingScope, parent: SettingScope | null): void;
 

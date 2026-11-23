@@ -87,7 +87,28 @@ export class ModuleSettingsTests {
   }
 
   @TestMethod
-  public async tellsAModuleFollowingADeviceSettingItsStoredValueOnceTheRuntimeLearnsItsDevice(): Promise<void> {
+  public async tellsAPartTheMomentItsDeviceSettingHoldsTheDevicesValueWithNoValueStored(): Promise<void> {
+    const height = new SettingDefinition(QualifiedName.parse("tasks.height"), "tasks.height", "A setting.", SettingType.text(20), "h", SettingLocality.Device, [], "Page", "Group");
+    await using settings = await SettingsFixture.createAsync([...ModuleContextFixture.SETTINGS, height]);
+    const context = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry());
+    const ended = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry());
+    const withdrawn = ModuleContextFixture.create(settings, new MethodRegistry(), new EventRegistry(new EventSinkFixture()), new ServiceRegistry());
+    const seen: string[] = [];
+    context.settings.onChanged("tasks.height", t => seen.push(`change ${String(t.value)}`));
+    context.settings.onDeviceKnown(() => seen.push(`known ${String(context.settings.isDeviceKnown)} ${String(context.settings.read("tasks.height"))}`));
+    withdrawn.settings.onDeviceKnown(() => seen.push("withdrawn"));
+    withdrawn[Symbol.dispose]();
+    ended[Symbol.dispose]();
+    ended.settings.onDeviceKnown(() => seen.push("ended"));
+
+    const before = [context.settings.isDeviceKnown, seen.length];
+    settings.service.useDevice("d1");
+
+    Assert.areEqual("false,0 known true h true", [before.join(","), seen.join("|"), context.settings.isDeviceKnown].join(" "));
+  }
+
+  @TestMethod
+  public async tellsAModuleFollowingADeviceSettingItsStoredValueOnceTheRuntimeLearnsItsDeviceAndThenThatTheDeviceIsKnown(): Promise<void> {
     const width = new SettingDefinition(QualifiedName.parse("tasks.width"), "tasks.width", "A setting.", SettingType.text(20), "a", SettingLocality.Device, [], "Page", "Group");
     const height = new SettingDefinition(QualifiedName.parse("tasks.height"), "tasks.height", "A setting.", SettingType.text(20), "h", SettingLocality.Device, [], "Page", "Group");
     await using settings = await SettingsFixture.createAsync([...ModuleContextFixture.SETTINGS, width, height]);
@@ -98,10 +119,11 @@ export class ModuleSettingsTests {
     const seen: string[] = [];
     for (const name of ["tasks.width", "tasks.height", "tasks.size"])
       context.settings.onChanged(name, t => seen.push(`${t.key.name.text}:${String(t.key.device)}:${String(t.value)}`));
+    context.settings.onDeviceKnown(() => seen.push(`known:${String(context.settings.read("tasks.width"))}`));
 
     const before = context.settings.read("tasks.width");
     settings.service.useDevice("d1");
 
-    Assert.areEqual("a tasks.width:d1:b b", [before, seen.join(","), context.settings.read("tasks.width")].join(" "));
+    Assert.areEqual("a tasks.width:d1:b,known:b b", [before, seen.join(","), context.settings.read("tasks.width")].join(" "));
   }
 }

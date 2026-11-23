@@ -23,8 +23,10 @@ export class FakeModuleSettingsTests {
     write: ["told", t => t.write(FakeModuleSettingsTests.NAME, "dark")],
     reset: ["told", t => t.reset(FakeModuleSettingsTests.NAME)],
     onChanged: ["kept", t => t.onChanged(FakeModuleSettingsTests.NAME, () => undefined)],
+    onDeviceKnown: ["kept", t => t.onDeviceKnown(() => undefined)],
     setScopeParent: ["told", t => t.setScopeParent(FakeModuleSettingsTests.FOLDER, null)],
-    removeScope: ["told", t => t.removeScope(FakeModuleSettingsTests.FOLDER)]
+    removeScope: ["told", t => t.removeScope(FakeModuleSettingsTests.FOLDER)],
+    isDeviceKnown: ["property", t => t.isDeviceKnown]
   };
 
   @TestMethod
@@ -42,6 +44,21 @@ export class FakeModuleSettingsTests {
     settings.raiseChanged("terminal.theme", new SettingChange(new SettingKey(QualifiedName.parse("terminal.theme")), "dark", true));
 
     Assert.areEqual("theme dark", heard.join("|"));
+  }
+
+  @TestMethod
+  public tellsEachListenerThatTheDeviceIsKnownWithTheAnswerItWasGiven(): void {
+    const settings = new FakeModuleSettings();
+    const heard: string[] = [];
+    settings.answer("isDeviceKnown", false);
+    const before = settings.isDeviceKnown;
+    settings.onDeviceKnown(() => heard.push(`first ${String(settings.isDeviceKnown)}`));
+    settings.onDeviceKnown(() => heard.push(`last ${String(settings.isDeviceKnown)}`));
+
+    settings.answer("isDeviceKnown", true);
+    settings.raiseDeviceKnown();
+
+    Assert.areEqual("false first true|last true", `${String(before)} ${heard.join("|")}`);
   }
 
   @TestMethod

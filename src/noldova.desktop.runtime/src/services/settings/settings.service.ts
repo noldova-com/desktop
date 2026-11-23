@@ -38,6 +38,7 @@ export class SettingsService {
   private readonly diagnostics: Writable;
   private readonly definitions: ReadonlyMap<string, SettingDefinition>;
   private readonly listeners: Set<(change: SettingChange) => void> = new Set();
+  private readonly deviceListeners: Set<() => void> = new Set();
   private readonly reported: Set<string> = new Set();
   private ownDevice: string | null = null;
 
@@ -59,6 +60,8 @@ export class SettingsService {
       if (!Object.isUndefined(stored))
         this.notify(new SettingChange(key, stored.value, true));
     }
+    for (const listener of [...this.deviceListeners])
+      listener();
   }
 
   public define(name: QualifiedName): SettingDefinition {
@@ -135,6 +138,11 @@ export class SettingsService {
   public onChanged(listener: (change: SettingChange) => void): Disposable {
     this.listeners.add(listener);
     return { [Symbol.dispose]: () => this.listeners.delete(listener) };
+  }
+
+  public onDeviceKnown(listener: () => void): Disposable {
+    this.deviceListeners.add(listener);
+    return { [Symbol.dispose]: () => this.deviceListeners.delete(listener) };
   }
 
   private static columns(key: SettingKey): SettingColumns {
