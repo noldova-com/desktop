@@ -49,6 +49,10 @@ export class ElectronWebViewSession implements IWebViewSession {
     this.profile.webRequest.onBeforeSendHeaders((details, callback) => listener(details, callback));
   }
 
+  public onHeadersReceived(listener: (request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void): void {
+    this.profile.webRequest.onHeadersReceived((details, callback) => listener(details, callback));
+  }
+
   public onBeforeRedirect(listener: (redirect: IWebViewRedirect) => void): void {
     this.profile.webRequest.onBeforeRedirect(details => listener(details));
   }
@@ -59,6 +63,10 @@ export class ElectronWebViewSession implements IWebViewSession {
 
   public async resolveHostAsync(host: string): Promise<readonly string[]> {
     return (await this.profile.resolveHost(host)).endpoints.map(t => t.address);
+  }
+
+  public resolveProxyAsync(url: string): Promise<string> {
+    return this.profile.resolveProxy(url);
   }
 
   public async readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null> {

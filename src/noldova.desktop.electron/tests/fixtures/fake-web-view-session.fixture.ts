@@ -17,11 +17,14 @@ export class FakeWebViewSession implements IWebViewSession {
   private displayHandler: ((webContentsId: number | null, refuse: () => void) => void) | null = null;
   private requestListener: ((request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void) | null = null;
   private headersListener: ((request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void) | null = null;
+  private responseListener: ((request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void) | null = null;
   private redirectListener: ((redirect: IWebViewRedirect) => void) | null = null;
   public checkHandler: (() => boolean) | null = null;
   public deviceHandler: (() => boolean) | null = null;
   public readonly addresses: Map<string, readonly string[]> = new Map();
   public readonly lookups: Map<string, Promise<readonly string[]>> = new Map();
+  public readonly proxies: Map<string, string | Error> = new Map();
+  public readonly iconAddresses: Map<string, string> = new Map();
   public readonly icons: Map<string, Uint8Array | Error> = new Map();
   public readonly iconReads: string[] = [];
   public readonly iconHolds: Promise<void>[] = [];
@@ -54,6 +57,10 @@ export class FakeWebViewSession implements IWebViewSession {
     this.headersListener = listener;
   }
 
+  public onHeadersReceived(listener: (request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void): void {
+    this.responseListener = listener;
+  }
+
   public onBeforeRedirect(listener: (redirect: IWebViewRedirect) => void): void {
     this.redirectListener = listener;
   }
@@ -71,8 +78,15 @@ export class FakeWebViewSession implements IWebViewSession {
     return Object.isUndefined(addresses) ? Promise.reject(new Error("ERR_NAME_NOT_RESOLVED")) : Promise.resolve(addresses);
   }
 
+  public resolveProxyAsync(url: string): Promise<string> {
+    const proxy = this.proxies.get(new URL(url).hostname) ?? "DIRECT";
+    return proxy instanceof Error ? Promise.reject(proxy) : Promise.resolve(proxy);
+  }
+
   public async readIconAsync(url: string, byteLimit: number, signal: AbortSignal): Promise<Uint8Array | null> {
-    const isAllowed = await this.requestAsync({ id: -1 - this.iconReads.length, url, resourceType: "other" });
+    const request = { id: -1 - this.iconReads.length, url, resourceType: "other" };
+    const ip = this.iconAddresses.get(url);
+    const isAllowed = await this.requestAsync(request) && (Object.isUndefined(ip) || await this.receiveAsync({ ...request, ip }));
     this.iconReads.push(`${url} ${isAllowed ? "allowed" : "refused"}`);
     this.iconSignals.push(signal);
     if (!isAllowed)
@@ -102,6 +116,15 @@ export class FakeWebViewSession implements IWebViewSession {
         resolve(false);
       else
         this.requestListener(request, t => resolve(!t.cancel));
+    });
+  }
+
+  public receiveAsync(request: IWebViewRequest): Promise<boolean> {
+    return new Promise<boolean>(resolve => {
+      if (Object.isNull(this.responseListener))
+        resolve(false);
+      else
+        this.responseListener(request, t => resolve(!t.cancel));
     });
   }
 

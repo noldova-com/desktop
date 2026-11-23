@@ -3976,6 +3976,13 @@ export interface IWebViewSession {
   onBeforeSendHeaders(listener: (request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void): void;
 
   /**
+   * Judges every response of the session, a redirect's too, once its headers arrive and before the page reads it.
+   *
+   * @param listener Receives the request, with the address the response came from when the engine knows it, and the callback that lets the response through or cancels it.
+   */
+  onHeadersReceived(listener: (request: IWebViewRequest, callback: (response: { readonly cancel: boolean }) => void) => void): void;
+
+  /**
    * Listens for a response that redirects a request.
    *
    * @param listener Receives the redirect, with the address the response came from when the engine knows it.
@@ -4006,6 +4013,14 @@ export interface IWebViewSession {
    * ```
    */
   resolveHostAsync(host: string): Promise<readonly string[]>;
+
+  /**
+   * Finds how the session reaches an address: `DIRECT`, or the proxies it goes through, as Electron's `resolveProxy` writes them.
+   *
+   * @param url The address.
+   * @returns The session's proxy rule for the address.
+   */
+  resolveProxyAsync(url: string): Promise<string>;
 
   /**
    * Fetches a page's icon in the session, with its cookies and cache, without following a redirect; the session's own request checks still judge the request.
@@ -4093,6 +4108,11 @@ export interface IWebViewRequest {
    * Its headers, once they are known.
    */
   readonly requestHeaders?: Readonly<Record<string, string>>;
+
+  /**
+   * The IP address its response came from, once a response has arrived and the engine connected to one.
+   */
+  readonly ip?: string;
 }
 
 /**

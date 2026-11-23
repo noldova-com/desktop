@@ -196,6 +196,7 @@ export class Resources {
   public static readonly webViewHextets: number = 8;
   public static readonly webViewDefaultPorts: ReadonlyMap<string, number> = new Map([["http:", 80], ["https:", 443], ["ws:", 80], ["wss:", 443]]);
   public static readonly webViewBracketsPattern: RegExp = /^\[|\]$/gu;
+  public static readonly directProxy: string = "DIRECT";
   public static readonly webViewTrailingDotPattern: RegExp = /\.$/u;
   public static readonly webViewZoneSeparator: string = "%";
   public static readonly blankPage: string = "about:blank";
