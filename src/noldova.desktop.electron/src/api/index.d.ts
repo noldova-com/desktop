@@ -7290,7 +7290,7 @@ export declare class UpdateBarrierWatch {
   public start(): void;
 
   /**
-   * Stops watching the installation's folder.
+   * Stops watching the installation's folder, and cancels a check waiting to run again.
    *
    * @example
    * ```ts
@@ -7306,7 +7306,7 @@ export declare class UpdateBarrierWatch {
   /**
    * Checks the barrier once, unless the main process is connected; a check asked for while one is running makes that one
    * check again when it ends. It quits the main process, and stops, when the barrier is `Closing`, or `HandedOff` for a version
-   * other than this build's, for another main process whose update has not ended; a barrier it cannot read, or an update it cannot tell has ended, keeps the main process running.
+   * other than this build's, for another main process whose update has not ended; a barrier it cannot read, or an update it cannot tell has ended, keeps the main process running for now: it writes the error to the log and checks again a quarter of a second later, until a check succeeds, the main process is connected again or the watch stops.
    *
    * @returns A promise of whether it quit the main process.
    * @example

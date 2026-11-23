@@ -25,6 +25,7 @@ export class UpdateBarrierWatchTests {
   private readonly logged: string[] = [];
   private isConnected: boolean = false;
   private changes: number = 0;
+  private connectionChecks: number = 0;
 
   @TestMethod
   public async quitsAMainProcessWithoutAConnectionOnceAnotherMainProcessesUpdateIsClosing(): Promise<void> {
@@ -44,6 +45,58 @@ export class UpdateBarrierWatchTests {
       results.push(await watch.checkAsync());
 
     Assert.areEqual("false false false false false false true", results.join(" "));
+    Assert.areEqual(1, this.updates.quitCount);
+  }
+
+  @TestMethod
+  public async checksAgainByItselfAfterABarrierItCannotReadOrAnUpdateItCannotTellHasEndedAndQuitsOnceItCan(): Promise<void> {
+    const watch = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    this.updates.barriers.push(
+      new Error("EPERM: operation not permitted, open 'barrier.json'"),
+      FakeUpdateHost.barrier(UpdateBarrierState.Closing),
+      FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+    this.updates.ended.push(new Error("The process table could not be read."), false);
+
+    const isQuit = await watch.checkAsync();
+    await Condition.waitAsync(() => this.updates.quitCount > 0);
+
+    Assert.isFalse(isQuit);
+    Assert.areEqual(0, this.updates.barriers.length);
+    Assert.areEqual(1, this.updates.quitCount);
+    Assert.areEqual(JSON.stringify([
+      "The launch barrier could not be checked after the runtime was lost, so it is checked again: Error: EPERM: operation not permitted, open 'barrier.json'",
+      "The launch barrier could not be checked after the runtime was lost, so it is checked again: Error: The process table could not be read."
+    ]), JSON.stringify(this.logged));
+  }
+
+  @TestMethod
+  public async checksNothingAgainAfterAFailedCheckOnceTheMainProcessIsConnectedAgain(): Promise<void> {
+    const watch = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    this.updates.barriers.push(new Error("EPERM: operation not permitted, open 'barrier.json'"));
+
+    await watch.checkAsync();
+    this.isConnected = true;
+    this.updates.barriers.push(FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+    await Condition.waitAsync(() => this.connectionChecks === 2);
+
+    Assert.areEqual(0, this.updates.quitCount);
+    Assert.areEqual(1, this.updates.barriers.length);
+    Assert.areEqual(1, this.logged.length);
+  }
+
+  @TestMethod
+  public async cancelsTheCheckWaitingToRunAgainWhenStopped(): Promise<void> {
+    const stopped = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    const later = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    this.updates.barriers.push(new Error("EPERM: operation not permitted, open 'barrier.json'"));
+    await stopped.checkAsync();
+    stopped.stop();
+    this.updates.barriers.push(new Error("EPERM: operation not permitted, open 'barrier.json'"), FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+
+    await later.checkAsync();
+    await Condition.waitAsync(() => this.updates.quitCount > 0);
+
+    Assert.areEqual(3, this.connectionChecks);
     Assert.areEqual(1, this.updates.quitCount);
   }
 
@@ -209,11 +262,16 @@ export class UpdateBarrierWatchTests {
     }
   }
 
+  private connected(): boolean {
+    this.connectionChecks += 1;
+    return this.isConnected;
+  }
+
   private change(): void {
     this.changes += 1;
   }
 
   private create(folder: string): UpdateBarrierWatch {
-    return new UpdateBarrierWatch(this.updates, folder, () => this.isConnected, () => this.change(), t => this.logged.push(t));
+    return new UpdateBarrierWatch(this.updates, folder, () => this.connected(), () => this.change(), t => this.logged.push(t));
   }
 }

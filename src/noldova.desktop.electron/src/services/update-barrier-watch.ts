@@ -24,6 +24,7 @@ export class UpdateBarrierWatch {
   private isChecking: boolean = false;
   private isStale: boolean = false;
   private isStaleLost: boolean = false;
+  private recheck: NodeJS.Timeout | null = null;
 
   public constructor(updates: Pick<IUpdateHost, "processId" | "readBarrierAsync" | "hasUpdateEndedAsync" | "quit">, folder: string, isConnected: () => boolean,
     onChange: () => void, log: (text: string) => void) {
@@ -51,8 +52,10 @@ export class UpdateBarrierWatch {
   }
 
   public stop(): void {
-    this.watcher?.close();
-    this.watcher = null;
+    this.closeWatcher();
+    if (!Object.isNull(this.recheck))
+      clearTimeout(this.recheck);
+    this.recheck = null;
   }
 
   public async checkAsync(): Promise<boolean> {
@@ -89,9 +92,30 @@ export class UpdateBarrierWatch {
   private async isClosingAsync(isLost: boolean): Promise<boolean> {
     if (!isLost)
       return false;
-    const barrier = await this.updates.readBarrierAsync().catch(() => null);
-    return !Object.isNull(barrier) && UpdateBarrierWatch.isReplacing(barrier) && barrier.holder.processId !== this.updates.processId
-      && !await this.updates.hasUpdateEndedAsync().catch(() => true);
+    try {
+      const barrier = await this.updates.readBarrierAsync();
+      return !Object.isNull(barrier) && UpdateBarrierWatch.isReplacing(barrier) && barrier.holder.processId !== this.updates.processId
+        && !await this.updates.hasUpdateEndedAsync();
+    }
+    catch (error) {
+      this.log(Resources.formatBarrierUnchecked(String(error)));
+      this.checkLater();
+      return false;
+    }
+  }
+
+  private checkLater(): void {
+    if (!Object.isNull(this.recheck))
+      return;
+    this.recheck = setTimeout(() => {
+      this.recheck = null;
+      void this.checkAsync();
+    }, Resources.barrierRecheckDelay).unref();
+  }
+
+  private closeWatcher(): void {
+    this.watcher?.close();
+    this.watcher = null;
   }
 
   private static isReplacing(barrier: UpdateBarrier): boolean {
@@ -99,7 +123,7 @@ export class UpdateBarrierWatch {
   }
 
   private fail(error: Error): void {
-    this.stop();
+    this.closeWatcher();
     this.log(Resources.formatBarrierUnwatched(String(error)));
   }
 }

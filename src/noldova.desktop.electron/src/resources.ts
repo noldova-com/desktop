@@ -847,6 +847,7 @@ export class Resources {
   public static readonly closeAnswerTimeout: number = 5000;
   public static readonly layoutWriteTimeout: number = 5000;
   public static readonly updateBarrierInterval: number = 1000;
+  public static readonly barrierRecheckDelay: number = 250;
   public static readonly updatePrepareTimeout: number = 15000;
   public static readonly updateExitWait: number = 10000;
   public static readonly updateStopMargin: number = 10000;
@@ -1216,6 +1217,10 @@ export class Resources {
 
   public static formatBarrierUnwatched(message: string): string {
     return `The launch barrier's folder could not be watched, so another main process's update can't close this one: ${message}`;
+  }
+
+  public static formatBarrierUnchecked(message: string): string {
+    return `The launch barrier could not be checked after the runtime was lost, so it is checked again: ${message}`;
   }
 
   public static formatBarrierUnsettled(message: string): string {
