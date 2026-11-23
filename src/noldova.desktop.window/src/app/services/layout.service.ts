@@ -89,10 +89,14 @@ export class LayoutService {
   public readonly isMeasured: Signal<boolean> = computed(() => !Object.isNull(this.metrics()));
   public readonly previewTabs: Signal<boolean> = computed(() => this.settings.values().get(Resources.previewTabsSetting) !== false);
   private readonly heldMiddles: WritableSignal<ReadonlyMap<string, number>> = signal(new Map());
+  private readonly grownMiddles: WritableSignal<ReadonlyMap<string, MiddleHold>> = signal(new Map());
   private readonly wantedMiddle: Signal<number | null> = computed(() => {
     const active = this.layoutState().documents.active;
     const declared = Object.isNull(active) ? null : this.registryState().preferredWidth(active.name);
-    return Object.isNull(active) || Object.isNull(declared) ? null : this.heldMiddles().get(active.key) ?? declared;
+    if (Object.isNull(active) || Object.isNull(declared))
+      return null;
+    const grown = [...this.grownMiddles().values()].filter(t => t.key === active.key).at(-1);
+    return grown?.width ?? this.heldMiddles().get(active.key) ?? declared;
   });
   public readonly geometry: Signal<LayoutGeometry> = linkedSignal<LayoutGeometrySource, LayoutGeometry>({
     source: () => new LayoutGeometrySource(this.width(), this.height(), this.shownLayout(), this.registryState(), this.metrics(), this.iconSides(), this.kept(), this.wantedMiddle()),
@@ -257,28 +261,38 @@ export class LayoutService {
       this.kept.set(side);
   }
 
-  public resizeDock(side: DockSide, size: number): MiddleHold {
-    const layout = this.layoutState().resizeDock(side, Math.max(this.geometry().metrics.dockMinimum, size));
-    if (side === DockSide.Bottom) {
-      this.update(layout);
-      return MiddleHold.none;
-    }
-    const geometry = this.geometry();
-    const other = side === DockSide.Left ? DockSide.Right : DockSide.Left;
-    const shown = geometry.dock(other).width;
-    const held = geometry.isCollapsed(other) || layout.dock(other).preferredTrack(geometry.metrics, geometry.width) <= shown + geometry.metrics.gap ? layout : layout.resizeDock(other, shown);
-    const middle = Math.max(0, geometry.middle.width + geometry.dock(side).width - size);
-    const before = this.holdMiddle(middle);
-    this.update(held.withMiddleSize(middle < Resources.middlePreferredSize ? middle : null));
-    return before;
+  public resizeDock(side: DockSide, size: number): void {
+    const middle = this.placeDock(side, size);
+    const key = this.wideKey();
+    if (Object.isNull(middle) || Object.isNull(key))
+      return;
+    this.heldMiddles.set(new Map(this.heldMiddles()).set(key, middle));
+    this.grownMiddles.set(new Map([...this.grownMiddles()].filter(([, hold]) => hold.key !== key)));
   }
 
-  public restoreDock(side: DockSide, size: number | null, hold: MiddleHold): void {
+  public growDock(side: DockSide, size: number, owner: string): void {
+    const middle = this.placeDock(side, size);
+    const key = this.wideKey();
+    if (Object.isNull(middle) || Object.isNull(key))
+      return;
+    const grown = new Map(this.grownMiddles());
+    grown.delete(owner);
+    this.grownMiddles.set(grown.set(owner, new MiddleHold(key, middle)));
+  }
+
+  public restoreDock(side: DockSide, size: number | null): void {
     if (Object.isNull(size))
       this.update(this.layoutState().resizeDock(side, null));
     else
-      this.resizeDock(side, size);
-    this.restoreHold(hold);
+      this.placeDock(side, size);
+  }
+
+  public releaseGrowth(owner: string): void {
+    if (!this.grownMiddles().has(owner))
+      return;
+    const grown = new Map(this.grownMiddles());
+    grown.delete(owner);
+    this.grownMiddles.set(grown);
   }
 
   public setBottomSpan(span: BottomDockSpan): void {
@@ -295,29 +309,28 @@ export class LayoutService {
 
   public reset(): void {
     this.heldMiddles.set(new Map());
+    this.grownMiddles.set(new Map());
     this.update(this.layoutState().reset(this.registryState()));
   }
 
-  private holdMiddle(middle: number): MiddleHold {
-    const active = this.layoutState().documents.active;
-    if (Object.isNull(active) || Object.isNull(this.registryState().preferredWidth(active.name)))
-      return MiddleHold.none;
-    const before = new MiddleHold(active.key, this.heldMiddles().get(active.key) ?? null);
-    const held = new Map(this.heldMiddles());
-    held.set(active.key, middle);
-    this.heldMiddles.set(held);
-    return before;
+  private placeDock(side: DockSide, size: number): number | null {
+    const layout = this.layoutState().resizeDock(side, Math.max(this.geometry().metrics.dockMinimum, size));
+    if (side === DockSide.Bottom) {
+      this.update(layout);
+      return null;
+    }
+    const geometry = this.geometry();
+    const other = side === DockSide.Left ? DockSide.Right : DockSide.Left;
+    const shown = geometry.dock(other).width;
+    const held = geometry.isCollapsed(other) || layout.dock(other).preferredTrack(geometry.metrics, geometry.width) <= shown + geometry.metrics.gap ? layout : layout.resizeDock(other, shown);
+    const middle = Math.max(0, geometry.middle.width + geometry.dock(side).width - size);
+    this.update(held.withMiddleSize(middle < Resources.middlePreferredSize ? middle : null));
+    return middle;
   }
 
-  private restoreHold(hold: MiddleHold): void {
-    if (Object.isNull(hold.key))
-      return;
-    const held = new Map(this.heldMiddles());
-    if (Object.isNull(hold.width))
-      held.delete(hold.key);
-    else
-      held.set(hold.key, hold.width);
-    this.heldMiddles.set(held);
+  private wideKey(): string | null {
+    const active = this.layoutState().documents.active;
+    return Object.isNull(active) || Object.isNull(this.registryState().preferredWidth(active.name)) ? null : active.key;
   }
 
   private reveal(tab: Tab): void {

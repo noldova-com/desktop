@@ -21,7 +21,6 @@ import { DocumentLook } from "../../../src/app/models/document-look";
 import { DocumentTab } from "../../../src/app/models/layout/document-tab";
 import { Layout } from "../../../src/app/models/layout/layout";
 import { LayoutMetrics } from "../../../src/app/models/layout/layout-metrics";
-import { MiddleHold } from "../../../src/app/models/layout/middle-hold";
 import { LayoutReader } from "../../../src/app/services/layout.reader";
 import { ToolbarLayout } from "../../../src/app/models/layout/toolbar-layout";
 import { ViewRegistry } from "../../../src/app/models/layout/view-registry";
@@ -117,9 +116,9 @@ describe("LayoutService", () => {
     service.setViewport(120, 60);
     service.resizeDock(DockSide.Bottom, 20);
 
-    service.restoreDock(DockSide.Bottom, 12, MiddleHold.none);
+    service.restoreDock(DockSide.Bottom, 12);
     const restored = service.layout().dock(DockSide.Bottom).size;
-    service.restoreDock(DockSide.Bottom, null, MiddleHold.none);
+    service.restoreDock(DockSide.Bottom, null);
 
     expect([restored, service.layout().dock(DockSide.Bottom).size]).toEqual([12, null]);
   });
@@ -316,13 +315,13 @@ describe("LayoutService", () => {
       expect(shown()).toEqual([26, 30, 43]);
     });
 
-    it("gives the document its width again once a dock goes back to its own size, as when a view's growth is released, or the layout is reset", async () => {
+    it("holds the width a view's growth leaves the document only until its release, and Reset layout gives it its width again after a drag", async () => {
       await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
       service.setViewport(100, 40);
-
-      const hold = service.resizeDock(DockSide.Right, 30);
+      service.growDock(DockSide.Right, 30, "a");
       const grown = shown();
-      service.restoreDock(DockSide.Right, null, hold);
+      service.releaseGrowth("a");
+      service.restoreDock(DockSide.Right, null);
       const released = shown();
       service.resizeDock(DockSide.Right, 30);
       service.reset();
@@ -337,12 +336,87 @@ describe("LayoutService", () => {
       service.resizeDock(DockSide.Right, 30);
       const dragged = shown();
 
-      const hold = service.resizeDock(DockSide.Left, 35);
+      service.growDock(DockSide.Left, 35, "a");
       const grown = shown();
-      service.restoreDock(DockSide.Left, null, hold);
+      service.releaseGrowth("a");
+      service.restoreDock(DockSide.Left, null);
 
       expect([dragged, grown]).toEqual([[26, 30, 43], [35, 30, 34]]);
       expect(shown()).toEqual([26, 30, 43]);
+    });
+
+    it("keeps the width the person drags a dock to while a growth holds the document's width, after the growth is released", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+      service.resizeDock(DockSide.Right, 30);
+      service.growDock(DockSide.Left, 35, "a");
+      service.resizeDock(DockSide.Right, 40);
+      const dragged = shown();
+      service.releaseGrowth("a");
+      service.restoreDock(DockSide.Left, null);
+
+      expect(dragged).toEqual([35, 40, 24]);
+      expect(shown()).toEqual([26, 40, 33]);
+    });
+
+    it("keeps the width the person drags a grown dock to after the growth is released", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+      service.growDock(DockSide.Left, 35, "a");
+      service.resizeDock(DockSide.Left, 30);
+      const dragged = shown();
+      service.releaseGrowth("a");
+
+      expect([dragged, shown()]).toEqual([[30, 13, 56], [30, 13, 56]]);
+    });
+
+    it("holds the width the later of two growths leaves while both hold, and gives the document its width again once both are released, the earlier first", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+      service.growDock(DockSide.Left, 35, "a");
+      service.growDock(DockSide.Right, 30, "b");
+      const both = shown();
+      service.releaseGrowth("a");
+      service.restoreDock(DockSide.Left, null);
+      const first = shown();
+      service.releaseGrowth("b");
+      service.restoreDock(DockSide.Right, 13);
+
+      expect([both, first]).toEqual([[35, 30, 34], [26, 30, 43]]);
+      expect(shown()).toEqual([26, 13, 60]);
+    });
+
+    it("gives the document its width again once two growths are released, the later first", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+      service.growDock(DockSide.Left, 35, "a");
+      service.growDock(DockSide.Right, 30, "b");
+      service.releaseGrowth("b");
+      service.restoreDock(DockSide.Right, 13);
+      const first = shown();
+      service.releaseGrowth("a");
+      service.restoreDock(DockSide.Left, null);
+
+      expect(first).toEqual([35, 13, 51]);
+      expect(shown()).toEqual([26, 13, 60]);
+    });
+
+    it("holds nothing for a growth released while another document is in front, or one released after Reset layout", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+      service.growDock(DockSide.Left, 35, "a");
+      service.activate(LayoutFixture.plan);
+      service.releaseGrowth("a");
+      service.restoreDock(DockSide.Left, null);
+      service.activate(wide);
+      const away = shown();
+      service.growDock(DockSide.Left, 35, "b");
+      service.reset();
+      const reset = shown();
+      service.releaseGrowth("b");
+
+      expect([away, reset]).toEqual([[26, 13, 60], [26, 13, 60]]);
+      expect(shown()).toEqual([26, 13, 60]);
     });
 
     it("closes the side docks, right first, when shrinking is not enough, keeps open the one the person opens while the document is in front, and reopens the others when another document is", async () => {

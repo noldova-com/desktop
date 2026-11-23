@@ -7,12 +7,10 @@
  */
 
 export class MiddleHold {
-  public static readonly none: MiddleHold = new MiddleHold(null, null);
+  public readonly key: string;
+  public readonly width: number;
 
-  public readonly key: string | null;
-  public readonly width: number | null;
-
-  public constructor(key: string | null, width: number | null) {
+  public constructor(key: string, width: number) {
     this.key = key;
     this.width = width;
   }
