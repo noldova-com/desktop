@@ -12,6 +12,7 @@ import "@noldova/context.core";
 import { RuntimeBuild, type UpdateBarrier, UpdateBarrierState } from "@noldova/desktop.runtime";
 
 import type { IUpdateHost } from "../interfaces/i-update-host.js";
+import { ErrorCode } from "../models/error-code.js";
 import { Resources } from "../resources.js";
 
 export class UpdateBarrierWatch {
@@ -25,6 +26,9 @@ export class UpdateBarrierWatch {
   private isStale: boolean = false;
   private isStaleLost: boolean = false;
   private recheck: NodeJS.Timeout | null = null;
+  private isStopped: boolean = false;
+  private failures: number = 0;
+  private firstFailure: number = 0;
 
   public constructor(updates: Pick<IUpdateHost, "processId" | "readBarrierAsync" | "hasUpdateEndedAsync" | "quit">, folder: string, isConnected: () => boolean,
     onChange: () => void, log: (text: string) => void) {
@@ -36,6 +40,7 @@ export class UpdateBarrierWatch {
   }
 
   public start(): void {
+    this.isStopped = false;
     if (!Object.isNull(this.watcher))
       return;
     let watcher: FSWatcher;
@@ -52,6 +57,7 @@ export class UpdateBarrierWatch {
   }
 
   public stop(): void {
+    this.isStopped = true;
     this.closeWatcher();
     if (!Object.isNull(this.recheck))
       clearTimeout(this.recheck);
@@ -70,7 +76,7 @@ export class UpdateBarrierWatch {
       do {
         this.isStale = false;
         this.isStaleLost = false;
-        if (await this.isClosingAsync(isLost)) {
+        if (await this.isClosingAsync(isLost) && !this.isStopped) {
           this.stop();
           this.updates.quit();
           return true;
@@ -90,27 +96,46 @@ export class UpdateBarrierWatch {
   }
 
   private async isClosingAsync(isLost: boolean): Promise<boolean> {
-    if (!isLost)
+    if (!isLost) {
+      this.failures = 0;
       return false;
+    }
     try {
       const barrier = await this.updates.readBarrierAsync();
-      return !Object.isNull(barrier) && UpdateBarrierWatch.isReplacing(barrier) && barrier.holder.processId !== this.updates.processId
+      const isClosing = !Object.isNull(barrier) && UpdateBarrierWatch.isReplacing(barrier) && barrier.holder.processId !== this.updates.processId
         && !await this.updates.hasUpdateEndedAsync();
+      this.failures = 0;
+      return isClosing;
     }
     catch (error) {
-      this.log(Resources.formatBarrierUnchecked(String(error)));
-      this.checkLater();
+      this.checkLater(error);
       return false;
     }
   }
 
-  private checkLater(): void {
+  private checkLater(error: unknown): void {
+    if (this.isStopped)
+      return;
+    if (!ErrorCode.isOneOf(error, Resources.barrierRecheckCodes) || this.failures > Resources.barrierRecheckLimit) {
+      this.log(Resources.formatBarrierUnchecked(String(error)));
+      return;
+    }
+    if (this.failures === 0)
+      this.firstFailure = performance.now();
+    this.failures += 1;
+    if (this.failures > Resources.barrierRecheckLimit || performance.now() - this.firstFailure >= Resources.barrierRecheckDeadline) {
+      this.log(Resources.formatBarrierRechecksEnded(this.failures, String(error)));
+      this.failures = Resources.barrierRecheckLimit + 1;
+      return;
+    }
+    const delay = Resources.barrierRecheckDelay * 2 ** (this.failures - 1);
+    this.log(Resources.formatBarrierRechecked(delay, String(error)));
     if (!Object.isNull(this.recheck))
       return;
     this.recheck = setTimeout(() => {
       this.recheck = null;
       void this.checkAsync();
-    }, Resources.barrierRecheckDelay).unref();
+    }, delay).unref();
   }
 
   private closeWatcher(): void {

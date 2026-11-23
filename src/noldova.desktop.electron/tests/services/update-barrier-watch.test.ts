@@ -22,6 +22,7 @@ import { FolderWatchFixture } from "../fixtures/folder-watch.fixture.js";
 @TestClass
 export class UpdateBarrierWatchTests {
   private readonly updates: FakeUpdateHost = new FakeUpdateHost();
+  private readonly apart: FakeUpdateHost = new FakeUpdateHost();
   private readonly logged: string[] = [];
   private isConnected: boolean = false;
   private changes: number = 0;
@@ -52,10 +53,10 @@ export class UpdateBarrierWatchTests {
   public async checksAgainByItselfAfterABarrierItCannotReadOrAnUpdateItCannotTellHasEndedAndQuitsOnceItCan(): Promise<void> {
     const watch = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
     this.updates.barriers.push(
-      new Error("EPERM: operation not permitted, open 'barrier.json'"),
+      UpdateBarrierWatchTests.failure("EPERM", "operation not permitted, open 'barrier.json'"),
       FakeUpdateHost.barrier(UpdateBarrierState.Closing),
       FakeUpdateHost.barrier(UpdateBarrierState.Closing));
-    this.updates.ended.push(new Error("The process table could not be read."), false);
+    this.updates.ended.push(UpdateBarrierWatchTests.failure("EAGAIN", "resource temporarily unavailable, spawn"), false);
 
     const isQuit = await watch.checkAsync();
     await Condition.waitAsync(() => this.updates.quitCount > 0);
@@ -64,15 +65,15 @@ export class UpdateBarrierWatchTests {
     Assert.areEqual(0, this.updates.barriers.length);
     Assert.areEqual(1, this.updates.quitCount);
     Assert.areEqual(JSON.stringify([
-      "The launch barrier could not be checked after the runtime was lost, so it is checked again: Error: EPERM: operation not permitted, open 'barrier.json'",
-      "The launch barrier could not be checked after the runtime was lost, so it is checked again: Error: The process table could not be read."
+      "The launch barrier could not be checked after the runtime was lost, so it is checked again in 100 ms: Error: EPERM: operation not permitted, open 'barrier.json'",
+      "The launch barrier could not be checked after the runtime was lost, so it is checked again in 200 ms: Error: EAGAIN: resource temporarily unavailable, spawn"
     ]), JSON.stringify(this.logged));
   }
 
   @TestMethod
   public async checksNothingAgainAfterAFailedCheckOnceTheMainProcessIsConnectedAgain(): Promise<void> {
     const watch = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
-    this.updates.barriers.push(new Error("EPERM: operation not permitted, open 'barrier.json'"));
+    this.updates.barriers.push(UpdateBarrierWatchTests.failure("EPERM", "operation not permitted, open 'barrier.json'"));
 
     await watch.checkAsync();
     this.isConnected = true;
@@ -86,18 +87,93 @@ export class UpdateBarrierWatchTests {
 
   @TestMethod
   public async cancelsTheCheckWaitingToRunAgainWhenStopped(): Promise<void> {
-    const stopped = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    const stopped = this.createApart();
     const later = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
-    this.updates.barriers.push(new Error("EPERM: operation not permitted, open 'barrier.json'"));
+    this.apart.barriers.push(UpdateBarrierWatchTests.failure("EPERM", "operation not permitted, open 'barrier.json'"), FakeUpdateHost.barrier(UpdateBarrierState.Closing));
     await stopped.checkAsync();
     stopped.stop();
-    this.updates.barriers.push(new Error("EPERM: operation not permitted, open 'barrier.json'"), FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+    this.updates.barriers.push(UpdateBarrierWatchTests.failure("EPERM", "operation not permitted, open 'barrier.json'"), FakeUpdateHost.barrier(UpdateBarrierState.Closing));
 
     await later.checkAsync();
     await Condition.waitAsync(() => this.updates.quitCount > 0);
 
-    Assert.areEqual(3, this.connectionChecks);
-    Assert.areEqual(1, this.updates.quitCount);
+    Assert.areEqual(0, this.apart.quitCount);
+    Assert.areEqual(1, this.apart.barriers.length);
+  }
+
+  @TestMethod
+  public async checksNothingAgainForACheckThatFailsAfterTheWatchStopped(): Promise<void> {
+    const stopped = this.createApart();
+    const later = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    const read = Promise.withResolvers<UpdateBarrier | null>();
+    this.apart.reading = read.promise;
+    const checking = stopped.checkAsync();
+    stopped.stop();
+    this.apart.reading = null;
+    this.apart.barriers.push(FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+    read.reject(UpdateBarrierWatchTests.failure("EPERM", "operation not permitted, open 'barrier.json'"));
+    const isQuit = await checking;
+    this.updates.barriers.push(UpdateBarrierWatchTests.failure("EPERM", "operation not permitted, open 'barrier.json'"), FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+
+    await later.checkAsync();
+    await Condition.waitAsync(() => this.updates.quitCount > 0);
+
+    Assert.isFalse(isQuit);
+    Assert.areEqual(0, this.apart.quitCount);
+    Assert.areEqual(1, this.apart.barriers.length);
+  }
+
+  @TestMethod
+  public async leavesTheMainProcessRunningForACheckThatFindsTheUpdateClosingAfterTheWatchStopped(): Promise<void> {
+    const watch = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    const read = Promise.withResolvers<UpdateBarrier | null>();
+    this.updates.reading = read.promise;
+    const checking = watch.checkAsync();
+    watch.stop();
+    read.resolve(FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+
+    Assert.isFalse(await checking);
+    Assert.areEqual(0, this.updates.quitCount);
+  }
+
+  @TestMethod
+  public async triesAFailedCheckAgainFourTimesAtMostWithAGrowingDelayAndThenOnlyWhenAsked(): Promise<void> {
+    const watch = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    for (let failure = 0; failure < 6; failure++)
+      this.updates.barriers.push(UpdateBarrierWatchTests.failure("EPERM", "operation not permitted, open 'barrier.json'"));
+
+    await watch.checkAsync();
+    await watch.checkAsync();
+    await Condition.waitAsync(() => this.logged.length === 5);
+    await watch.checkAsync();
+
+    Assert.areEqual(0, this.updates.barriers.length);
+    Assert.areEqual(0, this.updates.quitCount);
+    Assert.areEqual(JSON.stringify([
+      "The launch barrier could not be checked after the runtime was lost, so it is checked again in 100 ms: Error: EPERM: operation not permitted, open 'barrier.json'",
+      "The launch barrier could not be checked after the runtime was lost, so it is checked again in 200 ms: Error: EPERM: operation not permitted, open 'barrier.json'",
+      "The launch barrier could not be checked after the runtime was lost, so it is checked again in 400 ms: Error: EPERM: operation not permitted, open 'barrier.json'",
+      "The launch barrier could not be checked after the runtime was lost, so it is checked again in 800 ms: Error: EPERM: operation not permitted, open 'barrier.json'",
+      "The launch barrier could not be checked after the runtime was lost, 5 times in a row, so it is not tried again: Error: EPERM: operation not permitted, open 'barrier.json'",
+      "The launch barrier could not be checked after the runtime was lost, so it is not tried again: Error: EPERM: operation not permitted, open 'barrier.json'"
+    ]), JSON.stringify(this.logged));
+  }
+
+  @TestMethod
+  public async triesNoCheckAgainAfterAFailureThatDoesNotPass(): Promise<void> {
+    const failed = this.create(join(tmpdir(), "nol-barrier-watch-unused"));
+    const later = this.createApart();
+    this.updates.barriers.push(new Error("The barrier is not JSON."), FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+    this.apart.barriers.push(UpdateBarrierWatchTests.failure("EPERM", "operation not permitted, open 'barrier.json'"), FakeUpdateHost.barrier(UpdateBarrierState.Closing));
+
+    await failed.checkAsync();
+    await later.checkAsync();
+    await Condition.waitAsync(() => this.apart.quitCount > 0);
+
+    Assert.areEqual(0, this.updates.quitCount);
+    Assert.areEqual(1, this.updates.barriers.length);
+    Assert.areEqual(JSON.stringify(["The launch barrier could not be checked after the runtime was lost, so it is not tried again: Error: The barrier is not JSON."]),
+      JSON.stringify(this.logged));
   }
 
   @TestMethod
@@ -180,11 +256,11 @@ export class UpdateBarrierWatchTests {
       watch.start();
       await Condition.waitAsync(() => this.updates.barriers.length === 0);
       this.updates.barriers.push(FakeUpdateHost.barrier(UpdateBarrierState.Closing));
-      const state = { isSettled: false };
+      let isSettled = false;
       const quitting = Condition.waitAsync(() => this.updates.quitCount > 0).finally(() => {
-        state.isSettled = true;
+        isSettled = true;
       });
-      while (!state.isSettled)
+      while (!isSettled)
         await writeFile(join(folder, "barrier.json"), "{}");
       await quitting;
       await Condition.waitAsync(() => watches.closed === 1);
@@ -273,5 +349,15 @@ export class UpdateBarrierWatchTests {
 
   private create(folder: string): UpdateBarrierWatch {
     return new UpdateBarrierWatch(this.updates, folder, () => this.connected(), () => this.change(), t => this.logged.push(t));
+  }
+
+  private createApart(): UpdateBarrierWatch {
+    return new UpdateBarrierWatch(this.apart, join(tmpdir(), "nol-barrier-watch-unused"), () => false, () => undefined, () => undefined);
+  }
+
+  private static failure(code: string, message: string): NodeJS.ErrnoException {
+    const error: NodeJS.ErrnoException = new Error(`${code}: ${message}`);
+    error.code = code;
+    return error;
   }
 }

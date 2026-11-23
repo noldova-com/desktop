@@ -7290,7 +7290,8 @@ export declare class UpdateBarrierWatch {
   public start(): void;
 
   /**
-   * Stops watching the installation's folder, and cancels a check waiting to run again.
+   * Stops watching the installation's folder, and cancels a check waiting to run again. A check still running when the watch
+   * stops quits nothing and doesn't run again; starting the watch again lifts this.
    *
    * @example
    * ```ts
@@ -7306,7 +7307,11 @@ export declare class UpdateBarrierWatch {
   /**
    * Checks the barrier once, unless the main process is connected; a check asked for while one is running makes that one
    * check again when it ends. It quits the main process, and stops, when the barrier is `Closing`, or `HandedOff` for a version
-   * other than this build's, for another main process whose update has not ended; a barrier it cannot read, or an update it cannot tell has ended, keeps the main process running for now: it writes the error to the log and checks again a quarter of a second later, until a check succeeds, the main process is connected again or the watch stops.
+   * other than this build's, for another main process whose update has not ended; a barrier it cannot read, or an update it cannot tell has ended, keeps the main process running for now and writes the error to
+   * the log. After a file-system failure that can pass, such as `EPERM` or `EBUSY`, it checks again by itself, 0.1 s later
+   * and then twice as long each time, until a check succeeds, the main process is connected again or the watch stops; it gives
+   * up, and logs that it did, after 4 checks again or 5 s, and after that checks again by itself only once a check has succeeded. Any other failure, such as a barrier that is not JSON, is not
+   * checked again by itself.
    *
    * @returns A promise of whether it quit the main process.
    * @example
