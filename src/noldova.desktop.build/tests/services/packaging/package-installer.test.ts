@@ -561,12 +561,10 @@ export class PackageInstallerTests {
       Assert.isTrue(Resources.otherUserStartScript.includes("if ($shell.HasExited) { throw \"cmd.exe exited with $($shell.ExitCode) before the app started.\" }"));
       Assert.isTrue(Resources.otherUserStartScript.includes("AddMilliseconds(30000)"));
       Assert.areEqual("120000", runner.timeouts.join("|"));
-      Assert.isTrue(Resources.otherUserStartScript.includes("if ($LASTEXITCODE -ne 0) { throw \"icacls exited with $LASTEXITCODE.\" }
-[Console]::Error.WriteLine(\"Gave $user read access to the app's folder after $($watch.ElapsedMilliseconds) ms.\")
-"));
-      Assert.isTrue(Resources.otherUserStartScript.includes("$null = $shell.Handle
-[Console]::Error.WriteLine(\"Signed $user in, loading their profile, and started cmd.exe after $($watch.ElapsedMilliseconds) ms.\")
-$deadline = "));
+      Assert.isTrue(Resources.otherUserStartScript.includes("if ($LASTEXITCODE -ne 0) { throw \"icacls exited with $LASTEXITCODE.\" }\n"
+        + "[Console]::Error.WriteLine(\"Gave $user read access to the app's folder after $($watch.ElapsedMilliseconds) ms.\")\n"));
+      Assert.isTrue(Resources.otherUserStartScript.includes("$null = $shell.Handle\n"
+        + "[Console]::Error.WriteLine(\"Signed $user in, loading their profile, and started cmd.exe after $($watch.ElapsedMilliseconds) ms.\")\n$deadline = "));
       Assert.isTrue(Resources.otherUserStartScript.endsWith("\n$held[0].Id"));
       Assert.isFalse(Resources.otherUserStartScript.includes("Write-"));
     });
