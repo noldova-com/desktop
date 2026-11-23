@@ -216,8 +216,10 @@ test.describe("docks giving way to a wide document", () => {
     const rem = await remAsync(window);
     await mainProcess.useViewportAsync(1440, 900);
     await TabDragFixture.tab(window, note).click();
-    const before = [await widthAsync(TabDragFixture.groupOf(window, notes)), await widthAsync(TabDragFixture.groupOf(window, clock)), await widthAsync(middle(window))];
-    expect(before[2]).toBeLessThan(60 * rem);
+    const leftBefore = await widthAsync(TabDragFixture.groupOf(window, notes));
+    const rightBefore = await widthAsync(TabDragFixture.groupOf(window, clock));
+    const middleBefore = await widthAsync(middle(window));
+    expect(middleBefore).toBeLessThan(60 * rem);
 
     await TabDragFixture.tab(window, wide).click();
 
@@ -228,9 +230,9 @@ test.describe("docks giving way to a wide document", () => {
 
     await TabDragFixture.tab(window, note).click();
 
-    await expectWidthAsync(TabDragFixture.groupOf(window, notes), before[0]);
-    await expectWidthAsync(TabDragFixture.groupOf(window, clock), before[1]);
-    await expectWidthAsync(middle(window), before[2]);
+    await expectWidthAsync(TabDragFixture.groupOf(window, notes), leftBefore);
+    await expectWidthAsync(TabDragFixture.groupOf(window, clock), rightBefore);
+    await expectWidthAsync(middle(window), middleBefore);
   });
 
   test("a dock the person opens from its strip stays open while the wide document is in front, and a dock the person hid stays hidden as it comes and goes", async ({ mainProcess }) => {
