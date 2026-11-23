@@ -309,7 +309,7 @@ export class ShellCommandsService {
   }
 
   private bandIdOf(commandArguments: JsonValue): string | null {
-    return Object.isNull(commandArguments) ? null : JsonReader.fromValue(commandArguments).readOptionalString(Resources.toolbarBandIdArgument) ?? null;
+    return JsonReader.fromValue(commandArguments).readOptionalString(Resources.toolbarBandIdArgument) ?? null;
   }
 
   private bandScope(bandId: string | null): ParentNode {
