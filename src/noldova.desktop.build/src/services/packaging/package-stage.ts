@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { copyFile, cp, rm, writeFile } from "node:fs/promises";
+import { appendFile, copyFile, cp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
@@ -145,8 +145,9 @@ export class PackageStage {
       .map(t => Resources.formatStageLicensedPackage(t.locked.id, t.license.expression))));
     output.write(Resources.formatStageThirdPartyPackages(thirdParty.map(t => Resources.formatStageLicensedPackage(t.locked.id, t.license.chosen))));
     const sources = await SourceArchives.listAsync(this.folder);
-    await writeFile(this.layout.thirdPartyLicenses, [...thirdParty.map(t => t.formatNotice()), ...sources.map(t => Resources.formatSourceNotice(t.id, t.license, t.archive.url, t.archive.sha256))]
-      .join(Resources.stageNoticeSeparator));
+    const notices = sources.map(t => Resources.formatSourceNotice(t.id, t.license, t.archive.url, t.archive.sha256)).join(Resources.stageNoticeSeparator);
+    if (sources.length > 0)
+      await appendFile(this.layout.thirdPartyLicenses, thirdParty.length > 0 ? `${Resources.stageNoticeSeparator}${notices}` : notices);
     output.write(Resources.formatStageSourceArchives(sources.map(t => Resources.formatStageSourceArchive(t.id, t.archive.url))));
 
     await cp(icons, path.join(this.folder, product.icons), { recursive: true });
@@ -169,6 +170,7 @@ export class PackageStage {
     for (const locked of thirdParty)
       prepared.push(await ThirdPartyPackage.prepareAsync(locked, this.layout.thirdParty, this.assets.list(Resources.reviewedLicensesSegments), accepted, typeOnly, output));
     await FolderCreation.createAsync(path.dirname(this.layout.thirdPartyLicenses));
+    await writeFile(this.layout.thirdPartyLicenses, prepared.map(t => t.formatNotice()).join(Resources.stageNoticeSeparator));
     return prepared;
   }
 
