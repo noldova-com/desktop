@@ -9,11 +9,11 @@
 import { ElectronException } from "@noldova/desktop.electron";
 
 export class ChildRunNotStartedException extends ElectronException {
-  public readonly name: string;
+  public readonly runName: string;
 
-  public constructor(name: string) {
-    super(`The child run ${name} has no process id, so it did not start.`);
+  public constructor(runName: string) {
+    super(`The child run ${runName} has no process id, so it did not start.`);
 
-    this.name = name;
+    this.runName = runName;
   }
 }

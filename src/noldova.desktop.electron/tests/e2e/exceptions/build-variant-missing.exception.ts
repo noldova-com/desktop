@@ -9,13 +9,13 @@
 import { ElectronException } from "@noldova/desktop.electron";
 
 export class BuildVariantMissingException extends ElectronException {
-  public readonly name: string;
+  public readonly variantName: string;
   public readonly variant: string;
 
-  public constructor(name: string, variant: string) {
-    super(`The build variant ${name} is missing; build it with npm run build -- --test --without <module id> --output ${variant}.`);
+  public constructor(variantName: string, variant: string) {
+    super(`The build variant ${variantName} is missing; build it with npm run build -- --test --without <module id> --output ${variant}.`);
 
-    this.name = name;
+    this.variantName = variantName;
     this.variant = variant;
   }
 }
