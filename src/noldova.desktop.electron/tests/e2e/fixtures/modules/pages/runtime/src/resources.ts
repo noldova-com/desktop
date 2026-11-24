@@ -22,10 +22,12 @@ export class Resources {
   public static readonly pressMethod: string = "pages.press";
   public static readonly typeMethod: string = "pages.type";
   public static readonly clickMethod: string = "pages.click";
+  public static readonly moveMethod: string = "pages.move";
   public static readonly focusMethod: string = "pages.focus";
   public static readonly controlMethod: string = "pages.control";
   public static readonly dispatchMouseEventMethod: string = "Input.dispatchMouseEvent";
   public static readonly mouseTypes: readonly string[] = ["mousePressed", "mouseReleased"];
+  public static readonly moveType: string = "mouseMoved";
   public static readonly evaluateMethod: string = "Runtime.evaluate";
   public static readonly focusNodeMethod: string = "DOM.focus";
   public static readonly dispatchKeyEventMethod: string = "Input.dispatchKeyEvent";
@@ -46,6 +48,7 @@ export class Resources {
   public static readonly resultField: string = "result";
   public static readonly objectIdField: string = "objectId";
   public static readonly leftButton: string = "left";
+  public static readonly noButton: string = "none";
   public static readonly noElementMessage: string = "The page has no element with that id.";
   public static readonly nativeKeyCodeField: string = "nativeKeyCode";
   public static readonly dataField: string = "data";
