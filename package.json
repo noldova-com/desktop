@@ -19,7 +19,9 @@
       "dataDirectoryVariable": "NOLDOVA_DESKTOP_DATA_DIR",
       "icons": "assets/icons",
       "releaseRepository": "noldova-com/desktop",
-      "installFolder": "Noldova"
+      "installFolder": "Noldova",
+      "titleBarName": "Noldova Desktop Sample",
+      "titleBarIcon": "assets/icons/icon-dark-512.png"
     },
     "supportedTargets": [],
     "signedPlatforms": [

@@ -18,6 +18,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { ProductAbout } from "../../../src/models/packages/product-about.js";
+import { ProductDeviceFolders } from "../../../src/models/packages/product-device-folders.js";
 import { ProductIdentity } from "../../../src/models/packages/product-identity.js";
 import { AngularProject } from "../../../src/services/angular/angular-project.js";
 import { ProductFile } from "../../../src/services/angular/product-file.js";
@@ -61,7 +62,7 @@ export class ProductAboutTests {
     Assert.areEqual(JSON.stringify({ description: null, website: null, releases: null, licenses: null }), JSON.stringify(none.toJson()));
     Assert.areEqual(JSON.stringify({ description: null, website: "https://sample.example", releases: null, licenses: null }), JSON.stringify(some.toJson()));
     Assert.areEqual(ProductAbout.NONE, new ProductIdentity("Sample App", "Sample", "sample-app", "com.example.sample", "com.example.sample.development", ".sample/app",
-      ["Sample/App", "Sample/App", "sample/app"], "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app").about);
+      new ProductDeviceFolders("Sample/App", "Sample/App", "sample/app"), "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app").about);
   }
 
   @TestMethod
@@ -186,10 +187,11 @@ export class ProductAboutTests {
       " * LICENSE file in the root directory of this source tree.",
       " */",
       String.empty,
-      "import type { IProductAbout } from \"@noldova/desktop.window/build\";",
+      "import type { IProductAbout, IProductTitleBar } from \"@noldova/desktop.window/build\";",
       String.empty,
       "export const productName: string = \"Sample App\";",
       `export const productAbout: IProductAbout = ${JSON.stringify(about)};`,
+      "export const productTitleBar: IProductTitleBar = {\"name\":null,\"icon\":null};",
       String.empty
     ].join("\n");
   }

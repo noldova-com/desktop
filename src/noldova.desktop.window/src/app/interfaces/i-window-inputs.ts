@@ -11,10 +11,12 @@ import type { JsonValue } from "@noldova/context.json";
 
 import type { WindowPartSource } from "../models/window-part-source.js";
 import type { IProductAbout } from "./i-product-about.js";
+import type { IProductTitleBar } from "./i-product-title-bar.js";
 
 export interface IWindowInputs {
   readonly productName: string;
   readonly about?: IProductAbout;
+  readonly titleBar?: IProductTitleBar;
   readonly windowParts: readonly WindowPartSource[];
   readonly menus: Readonly<Record<string, JsonValue>>;
   readonly gallery: Type<unknown> | null;

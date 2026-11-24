@@ -8,6 +8,7 @@
 
 export type { IProductAbout } from "../app/interfaces/i-product-about.js";
 export type { IProductLogo } from "../app/interfaces/i-product-logo.js";
+export type { IProductTitleBar } from "../app/interfaces/i-product-title-bar.js";
 export type { ISettingsPageDeclaration } from "../app/interfaces/i-settings-page-declaration.js";
 export type { IWindowInputs } from "../app/interfaces/i-window-inputs.js";
 export { WindowApplication } from "../app/models/window-application.js";

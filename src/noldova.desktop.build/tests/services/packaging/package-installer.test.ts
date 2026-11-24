@@ -19,6 +19,7 @@ import { ProcessTimeoutException } from "../../../src/exceptions/process-timeout
 import { InstalledPackage } from "../../../src/models/packaging/installed-package.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { ProcessResult } from "../../../src/models/processes/process-result.js";
+import { ProductDeviceFolders } from "../../../src/models/packages/product-device-folders.js";
 import { ProductIdentity } from "../../../src/models/packages/product-identity.js";
 import { Resources } from "../../../src/resources.js";
 import { PackageInstaller } from "../../../src/services/packaging/package-installer.js";
@@ -195,7 +196,7 @@ export class PackageInstallerTests {
   private static readonly WINDOWS: PackageTarget = new PackageTarget("windows", "x64");
   private static readonly SYSTEM_ONLY: string = "    <domains enable_anywhere=\"false\" enable_currentUserHome=\"false\" enable_localSystem=\"true\" />\n";
   private static readonly PRODUCT: ProductIdentity = new ProductIdentity("Sample App", "Sample", "sample-app", "com.example.sample", "com.example.sample.development",
-    ".sample/app", ["Sample/App", "Sample/App", "sample/app"], "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app");
+    ".sample/app", new ProductDeviceFolders("Sample/App", "Sample/App", "sample/app"), "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app");
 
   @TestMethod
   public async uninstallsALeftoverInstallAndTakesOnlyItsCommandOffTheUsersPathKeepingTheValuesType(): Promise<void> {
@@ -834,7 +835,7 @@ export class PackageInstallerTests {
   }
 
   private static foldered(installFolder: string): ProductIdentity {
-    return new ProductIdentity("Sample App", "Sample", "sample-app", "com.example.sample", "com.example.sample.development", ".sample/app", ["Sample/App", "Sample/App", "sample/app"],
+    return new ProductIdentity("Sample App", "Sample", "sample-app", "com.example.sample", "com.example.sample.development", ".sample/app", new ProductDeviceFolders("Sample/App", "Sample/App", "sample/app"),
       "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app", undefined, null, null, undefined, null, installFolder);
   }
 
