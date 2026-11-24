@@ -19,6 +19,10 @@ export class FileErrors {
     return FileErrors.hasCode(error, Resources.unreachableFileCodes);
   }
 
+  public static isDenied(error: unknown): boolean {
+    return FileErrors.hasCode(error, Resources.deniedFileCodes);
+  }
+
   private static hasCode(error: unknown, codes: ReadonlySet<string>): boolean {
     const code: unknown = error instanceof Error && Resources.errorCodeField in error ? error[Resources.errorCodeField] : undefined;
     return Object.isString(code) && codes.has(code);

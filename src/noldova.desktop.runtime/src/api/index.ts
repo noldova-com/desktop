@@ -258,6 +258,7 @@ export { ShellMigrations } from "../services/database/shell-migrations.js";
 export { UpdateBackup } from "../services/database/update-backup.js";
 export { FileGrantTable } from "../services/files/file-grant-table.js";
 export { FileIdentity } from "../services/files/file-identity.js";
+export { FolderCreation } from "../services/files/folder-creation.js";
 export { SettingsService } from "../services/settings/settings.service.js";
 export { ShellCommands } from "../services/commands/shell-commands.js";
 export { ShellSettings } from "../services/settings/shell-settings.js";
