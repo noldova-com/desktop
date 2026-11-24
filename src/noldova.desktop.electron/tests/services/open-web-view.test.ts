@@ -825,6 +825,7 @@ export class OpenWebViewTests {
     OpenWebViewTests.destroy(harness);
 
     harness.answers.forEach(t => t(hasRun));
+    await Condition.waitAsync(() => fresh.inputs.length > 0);
 
     Assert.areEqual("true,true", held.join(","));
     Assert.areEqual(String.empty, harness.contents.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
@@ -832,7 +833,7 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
-  public async dropsTheKeysHeldForAShortcutsAnswerWhenTheViewHasNoGuestOnceItComes(): Promise<void> {
+  public async holdsTheKeysHeldForAShortcutsAnswerThatComesWhileTheViewHasNoGuestUntilTheNextBindGivesItOne(): Promise<void> {
     const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
     harness.shortcuts.push("k");
     harness.isAnswerHeld = true;
@@ -843,10 +844,59 @@ export class OpenWebViewTests {
     harness.answers.forEach(t => t(false));
     const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
     await harness.open.bindAsync(fresh, true);
-    fresh.prevent("before-input-event", OpenWebViewTests.input("b", "KeyB", false));
+    await Condition.waitAsync(() => fresh.inputs.length > 0);
 
     Assert.areEqual(String.empty, harness.contents.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+    Assert.areEqual("keyDown k,keyDown a,char a", fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
+  public async dropsTheKeysHeldForAShortcutsAnswerWhenTheViewClosesBeforeANewGuestComes(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    OpenWebViewTests.destroy(harness);
+
+    harness.answers.forEach(t => t(false));
+    harness.open.close();
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const isBound = await harness.open.bindAsync(fresh, true);
+
+    Assert.isFalse(isBound);
     Assert.areEqual(String.empty, fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
+  public async sendsTheKeysHeldForAShortcutsAnswerThatLandsMidBindOnlyOnceTheLastBoundGuestsPageIsReady(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    const first = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const second = new FakeWebView(9, 3, OpenWebViewHarness.PARTITION).contents;
+    const firstEnabled = Promise.withResolvers<unknown>();
+    const secondEnabled = Promise.withResolvers<unknown>();
+    first.debugger.replies.set("Page.enable", () => firstEnabled.promise);
+    second.debugger.replies.set("Page.enable", () => secondEnabled.promise);
+
+    const firstBinding = harness.open.bindAsync(first, true);
+    harness.answers.forEach(t => t(false));
+    const whileFirstBinds = first.inputs.length;
+    const secondBinding = harness.open.bindAsync(second, true);
+    firstEnabled.resolve({});
+    await firstBinding;
+    const whileSecondBinds = first.inputs.length + second.inputs.length;
+    secondEnabled.resolve({});
+    await secondBinding;
+    await Condition.waitAsync(() => second.inputs.length > 0);
+
+    Assert.areEqual(0, whileFirstBinds);
+    Assert.areEqual(0, whileSecondBinds);
+    Assert.areEqual(String.empty, first.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+    Assert.areEqual("keyDown k,keyDown a,char a", second.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
   }
 
   @TestMethod

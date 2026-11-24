@@ -23,6 +23,7 @@ import {
   type WebViewDeclaration,
   type WebViewInfo
 } from "@noldova/desktop.protocol";
+import { HeldInputKind } from "../enums/held-input-kind.js";
 import type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
@@ -78,6 +79,7 @@ export class OpenWebView {
   private relayedInputs: number = 0;
   private relayedPresses: readonly symbol[] = [];
   private heldInputs: readonly WebViewHeldInput[] = [];
+  private undeliveredInputs: readonly WebViewHeldInput[] = [];
   private relayCopies: number = 0;
   private declinedKey: IKeyStroke | null = null;
   private isAnswerAwaited: boolean = false;
@@ -106,6 +108,7 @@ export class OpenWebView {
   private isReady: boolean = false;
   private lookupCount: number = 0;
   private pageReady: Promise<void> = Promise.resolve();
+  private isPageReady: boolean = true;
   private historyRestored: Promise<void> = Promise.resolve();
   private isFocusHeld: boolean = false;
   private isClosed: boolean = false;
@@ -209,12 +212,19 @@ export class OpenWebView {
     this.guest = guest;
     const ready = Promise.withResolvers<void>();
     this.pageReady = ready.promise;
+    this.isPageReady = false;
     this.historyRestored = Promise.resolve();
     try {
       return await this.startGuestAsync(guest, previous, isPristine);
     }
     finally {
-      void this.historyRestored.then(() => ready.resolve());
+      void this.historyRestored.then(() => {
+        ready.resolve();
+        if (this.pageReady !== ready.promise)
+          return;
+        this.isPageReady = true;
+        this.deliverHeld();
+      });
     }
   }
 
@@ -447,6 +457,8 @@ export class OpenWebView {
     if (this.isClosed)
       return;
     this.isClosed = true;
+    this.heldInputs = [];
+    this.undeliveredInputs = [];
     this.favicon.close();
     this.end(WebViewFailureKind.ViewClosed);
     this.endAttachWaits(WebViewFailureKind.ViewClosed);
@@ -1224,7 +1236,7 @@ export class OpenWebView {
       event.preventDefault();
       const heldRelayKey = isDown ? this.relayKeys.find(t => OpenWebView.isSameStroke(t, stroke)) : undefined;
       this.forgetRelayKey(heldRelayKey ?? null);
-      this.heldInputs = [...this.heldInputs, new WebViewHeldInput(input, !Object.isUndefined(heldRelayKey))];
+      this.heldInputs = [...this.heldInputs, new WebViewHeldInput(input, Object.isUndefined(heldRelayKey) ? HeldInputKind.Typed : HeldInputKind.Relayed)];
       return;
     }
     if (!isDown) {
@@ -1255,15 +1267,24 @@ export class OpenWebView {
 
   private takeAnswer(input: IWebViewInput, hasRun: boolean): void {
     this.isAnswerAwaited = false;
-    const held = this.heldInputs;
+    const declined = hasRun ? [] : [new WebViewHeldInput(input, HeldInputKind.Declined)];
+    this.undeliveredInputs = [...this.undeliveredInputs, ...declined, ...this.heldInputs];
     this.heldInputs = [];
+    this.deliverHeld();
+  }
+
+  private deliverHeld(): void {
     const guest = this.guest;
-    if (Object.isNull(guest))
+    if (Object.isNull(guest) || !this.isPageReady)
       return;
-    if (!hasRun)
-      this.replay(guest, input);
-    for (const heldInput of held)
-      this.send(guest, heldInput.input, heldInput.isRelayed);
+    const held = this.undeliveredInputs;
+    this.undeliveredInputs = [];
+    for (const heldInput of held) {
+      if (heldInput.kind === HeldInputKind.Declined)
+        this.replay(guest, heldInput.input);
+      else
+        this.send(guest, heldInput.input, heldInput.kind === HeldInputKind.Relayed);
+    }
   }
 
   private replay(guest: IWebViewContents, input: IWebViewInput): void {
