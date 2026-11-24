@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { appendFile, copyFile, cp, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
@@ -144,10 +144,8 @@ export class PackageStage {
       .map(t => Resources.formatStageLicensedPackage(t.locked.id, t.license.expression))));
     output.write(Resources.formatStageThirdPartyPackages(thirdParty.map(t => Resources.formatStageLicensedPackage(t.locked.id, t.license.chosen))));
     const sources = await StagedSources.listAsync(this.folder);
-    const notices = sources.map(t => Resources.formatSourceNotice(t.id, t.license, t.source.pages, t.source.files.map(u => Resources.formatSourceNoticeFile(u.url, u.sha256))))
-      .join(Resources.stageNoticeSeparator);
-    if (sources.length > 0)
-      await appendFile(this.layout.thirdPartyLicenses, thirdParty.length > 0 ? `${Resources.stageNoticeSeparator}${notices}` : notices);
+    const notices = sources.map(t => Resources.formatSourceNotice(t.id, t.license, t.source.pages, t.source.files.map(u => Resources.formatSourceNoticeFile(u.url, u.sha256))));
+    await writeFile(this.layout.thirdPartyLicenses, [...thirdParty.map(t => t.formatNotice()), ...notices].join(Resources.stageNoticeSeparator));
     output.write(Resources.formatStageSources(sources.map(t => Resources.formatStageSource(t.id, t.source.pages))));
 
     await cp(icons, path.join(this.folder, product.icons), { recursive: true });

@@ -77,6 +77,18 @@ export class StagedSourcesTests {
   }
 
   @TestMethod
+  public async namesAPackageWithoutANameAndVersionByItsFolderAsync(): Promise<void> {
+    await using folder = await StagedSourcesTests.createFolderAsync({
+      "node_modules/sample/package.json": JSON.stringify({ name: "sample", noldovaDesktop: { sourcePages: [StagedSourcesTests.PAGE] } }),
+      "node_modules/sample/LICENSE": "GPL text\n"
+    });
+
+    const error = await Assert.throwsAsync(() => StagedSources.listAsync(folder.path), BuildException);
+
+    Assert.isTrue(error.message.startsWith("node_modules/sample's package.json must give noldovaDesktop.sourcePages"), error.message);
+  }
+
+  @TestMethod
   public async refusesAPackageThatNamesItsUpstreamSourceButHoldsNoLicenceAsync(): Promise<void> {
     await using folder = await StagedSourcesTests.createFolderAsync({
       "node_modules/sample/package.json": StagedSourcesTests.manifest("sample", [StagedSourcesTests.PAGE], [StagedSourcesTests.FILE]),
