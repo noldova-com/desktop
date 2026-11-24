@@ -226,6 +226,24 @@ describe("EditTargetService", () => {
     expect(edits.isEditFocused()).toBe(false);
   });
 
+  it("counts a field in a dialog over the page and a web view as edit focus, and a field that left the page without a focusout as none", () => {
+    const edits = TestBed.inject(EditTargetService);
+    const field = page.find(".field", HTMLInputElement);
+
+    page.find(".dialog-field", HTMLInputElement).focus();
+    const inDialog = edits.isEditFocused();
+    elsewhere.focus();
+    const onButton = edits.isEditFocused();
+    page.find(".guest", HTMLElement).focus();
+    const inWebView = edits.isEditFocused();
+    field.focus();
+    const onField = edits.isEditFocused();
+    field.remove();
+
+    expect([inDialog, onButton, inWebView, onField]).toEqual([true, false, true, true]);
+    expect(edits.isEditFocused()).toBe(false);
+  });
+
   it("knows whether the window's own page has the focus, as the window's focus and blur say", () => {
     const edits = TestBed.inject(EditTargetService);
 

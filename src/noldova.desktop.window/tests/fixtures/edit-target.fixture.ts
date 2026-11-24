@@ -27,7 +27,8 @@ export class EditTargetFixture {
       <svg class="drawing" tabindex="0"></svg>
       <div class="panel"><div class="terminal" tabindex="0"><textarea class="helper"></textarea></div></div>
       <button type="button" class="elsewhere">Elsewhere</button>
-      <div class="cdk-overlay-container"><button type="button" class="row">Copy</button></div>`;
+      <webview class="guest" tabindex="0"></webview>
+      <div class="cdk-overlay-container"><button type="button" class="row">Copy</button><input class="dialog-field" type="text" value="Branch name"></div>`;
     document.body.append(host);
     return new EditTargetFixture(host);
   }

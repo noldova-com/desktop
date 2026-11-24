@@ -69,6 +69,38 @@ describe("UndoService", () => {
     expect(undone).toBe(0);
   });
 
+  it("leaves the provider alone while a dialog's field or a web view has the focus", async () => {
+    const undo = TestBed.inject(UndoService);
+    undo.provide(provider);
+
+    page.find(".dialog-field", HTMLInputElement).focus();
+    const inDialog = [undo.takesUndo(), undo.canUndo()];
+    await undo.undoAsync();
+    page.find(".guest", HTMLElement).focus();
+    const inWebView = [undo.takesUndo(), undo.canUndo()];
+    await undo.undoAsync();
+
+    expect(inDialog).toEqual([false, false]);
+    expect(inWebView).toEqual([false, false]);
+    expect(undone).toBe(0);
+  });
+
+  it("takes Undo back once the focused field leaves the page, which fires no focusout", async () => {
+    const undo = TestBed.inject(UndoService);
+    const field = page.find(".field", HTMLInputElement);
+    undo.provide(provider);
+
+    field.focus();
+    const onField = undo.takesUndo();
+    field.remove();
+    const removed = [undo.takesUndo(), undo.canUndo()];
+    await undo.undoAsync();
+
+    expect(onField).toBe(false);
+    expect(removed).toEqual([true, true]);
+    expect(undone).toBe(1);
+  });
+
   it("greys Undo and runs nothing while the provider has nothing to undo", async () => {
     const undo = TestBed.inject(UndoService);
     elsewhere.focus();

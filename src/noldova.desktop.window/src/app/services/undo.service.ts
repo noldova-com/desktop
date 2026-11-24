@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { Injectable, type Signal, type WritableSignal, computed, inject, signal } from "@angular/core";
+import { Injectable, type WritableSignal, inject, signal } from "@angular/core";
 
 import { UndoProviderTakenException } from "../exceptions/undo-provider-taken.exception.js";
 import type { IUndoProvider } from "../interfaces/i-undo-provider.js";
@@ -17,8 +17,6 @@ export class UndoService {
   private readonly edits: EditTargetService = inject(EditTargetService);
   private readonly provider: WritableSignal<IUndoProvider | null> = signal(null);
 
-  public readonly takesUndo: Signal<boolean> = computed(() => !Object.isNull(this.provider()) && this.edits.hasFocus() && !this.edits.isEditFocused());
-
   public provide(provider: IUndoProvider): () => void {
     if (!Object.isNull(this.provider()))
       throw new UndoProviderTakenException();
@@ -27,6 +25,10 @@ export class UndoService {
       if (this.provider() === provider)
         this.provider.set(null);
     };
+  }
+
+  public takesUndo(): boolean {
+    return !Object.isNull(this.provider()) && this.edits.hasFocus() && !this.edits.isEditFocused();
   }
 
   public canUndo(): boolean {
