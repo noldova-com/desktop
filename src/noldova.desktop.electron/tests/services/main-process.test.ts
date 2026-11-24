@@ -2020,24 +2020,23 @@ export class MainProcessTests {
   }
 
   @TestMethod
-  public async checksAFeedOffThisMachineOnlyFromAPackagedBuildAndLogsTheRefusedFeedsHost(): Promise<void> {
+  @TestData(true, false, true)
+  @TestData(false, false, false)
+  @TestData(true, true, false)
+  public async checksAFeedOffThisMachineOnlyFromAPackagedBuildAndLogsTheRefusedFeedsHost(isPackaged: boolean, isDefaultApp: boolean, isChecked: boolean): Promise<void> {
     const created: string[] = [];
-    const refusals: number[] = [];
-    const builds: readonly (readonly [boolean, boolean])[] = [[true, false], [false, false], [true, true]];
-    for (const [isPackaged, isDefaultApp] of builds) {
-      const process = new FakeMainProcessEnvironment("linux");
-      process.isDefaultApp = isDefaultApp;
-      await MainProcessStartFixture.startAsync(new FakeElectron(true, isPackaged), process, new FakeRuntimeLauncher(), new FakeDeviceIdentity(), new FakeDeviceFiles(), new FakePathCommand(), [],
-        () => Promise.resolve(true), (_, feed) => {
-          created.push(feed);
-          return null;
-        }, undefined, undefined, undefined, "https://updates.example.com/desktop/");
-      refusals.push(MainProcessStartFixture.readErrors(process,
-        "This development build doesn't check for updates at updates.example.com; a build that isn't packaged checks only a feed on this machine.").length);
-    }
+    const process = new FakeMainProcessEnvironment("linux");
+    process.isDefaultApp = isDefaultApp;
 
-    Assert.areEqual(JSON.stringify(["https://updates.example.com/desktop/"]), JSON.stringify(created));
-    Assert.areEqual(JSON.stringify([0, 1, 1]), JSON.stringify(refusals));
+    await MainProcessStartFixture.startAsync(new FakeElectron(true, isPackaged), process, new FakeRuntimeLauncher(), new FakeDeviceIdentity(), new FakeDeviceFiles(), new FakePathCommand(), [],
+      () => Promise.resolve(true), (_, feed) => {
+        created.push(feed);
+        return null;
+      }, undefined, undefined, undefined, "https://updates.example.com/desktop/");
+
+    Assert.areEqual(JSON.stringify(isChecked ? ["https://updates.example.com/desktop/"] : []), JSON.stringify(created));
+    Assert.areEqual(isChecked ? 0 : 1, MainProcessStartFixture.readErrors(process,
+      "This development build doesn't check for updates at updates.example.com; a build that isn't packaged checks only a feed on this machine.").length);
   }
 
   @TestMethod
