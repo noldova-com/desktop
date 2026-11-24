@@ -21,6 +21,8 @@ import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { Resources } from "../../../src/resources.js";
 import { ReleasePublish } from "../../../src/services/commands/release-publish.js";
 import { ReleaseFileSet } from "../../../src/services/release/release-file-set.js";
+import { CommandRunFixture } from "../../fixtures/command-run.fixture.js";
+import { EnvironmentCaseFixture } from "../../fixtures/environment-case.fixture.js";
 import { GitHubReleasesFixture } from "../../fixtures/github-releases.fixture.js";
 import { InstalledAppFixture } from "../../fixtures/installed-app.fixture.js";
 
@@ -147,15 +149,15 @@ export class ReleasePublishTests {
     await using app = await ReleasePublishTests.createAppAsync();
     const base = ReleasePublishTests.environment(app, ReleasePublishTests.VERSION);
     const marked = path.join(app.path, "release#1");
-    const cases: readonly (readonly [NodeJS.ProcessEnv, string])[] = [
-      [{ ...base, RELEASE_FOLDER: "release" }, "RELEASE_FOLDER must be the absolute path of the folder that holds the release's files, not \"release\"."],
-      [{ ...base, RELEASE_FOLDER: undefined }, "RELEASE_FOLDER must be the absolute path of the folder that holds the release's files, not \"\"."],
-      [{ ...base, RELEASE_FOLDER: marked }, `RELEASE_FOLDER must not contain #, which gh release upload reads as the start of a file's label: "${marked}".`],
-      [{ ...base, RELEASE_REPORTS: "reports" }, "RELEASE_REPORTS must be the absolute path of the folder that holds the targets' package reports, not \"reports\"."],
-      [{ ...base, RELEASE_REPORTS: undefined }, "RELEASE_REPORTS must be the absolute path of the folder that holds the targets' package reports, not \"\"."]
+    const cases: readonly EnvironmentCaseFixture[] = [
+      new EnvironmentCaseFixture({ ...base, RELEASE_FOLDER: "release" }, "RELEASE_FOLDER must be the absolute path of the folder that holds the release's files, not \"release\"."),
+      new EnvironmentCaseFixture({ ...base, RELEASE_FOLDER: undefined }, "RELEASE_FOLDER must be the absolute path of the folder that holds the release's files, not \"\"."),
+      new EnvironmentCaseFixture({ ...base, RELEASE_FOLDER: marked }, `RELEASE_FOLDER must not contain #, which gh release upload reads as the start of a file's label: "${marked}".`),
+      new EnvironmentCaseFixture({ ...base, RELEASE_REPORTS: "reports" }, "RELEASE_REPORTS must be the absolute path of the folder that holds the targets' package reports, not \"reports\"."),
+      new EnvironmentCaseFixture({ ...base, RELEASE_REPORTS: undefined }, "RELEASE_REPORTS must be the absolute path of the folder that holds the targets' package reports, not \"\".")
     ];
 
-    for (const [environment, message] of cases) {
+    for (const { environment, message } of cases) {
       const result = await ReleasePublishTests.runAsync(app.path, new GitHubReleasesFixture(), environment);
 
       Assert.areEqual(1, result.exitCode, message);
@@ -237,12 +239,12 @@ export class ReleasePublishTests {
     };
   }
 
-  private static async runAsync(root: string, github: GitHubReleasesFixture, environment: NodeJS.ProcessEnv): Promise<{ readonly exitCode: number; readonly output: string }> {
+  private static async runAsync(root: string, github: GitHubReleasesFixture, environment: NodeJS.ProcessEnv): Promise<CommandRunFixture> {
     const output = new PassThrough();
     const chunks: string[] = [];
     output.on("data", (t: Buffer) => chunks.push(t.toString()));
     const exitCode = await new ReleasePublish(root, github, environment, output).runAsync([]);
-    return { exitCode, output: chunks.join(String.empty) };
+    return new CommandRunFixture(exitCode, chunks.join(String.empty));
   }
 
   private static async createAppAsync(written: string = ReleasePublishTests.VERSION, targets: readonly PackageTarget[] = ReleasePublishTests.TARGETS,

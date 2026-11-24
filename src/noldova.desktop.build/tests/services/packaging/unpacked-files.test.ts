@@ -6,8 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 
 import { JsonReader } from "@noldova/context.json";
@@ -16,8 +15,8 @@ import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testin
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { UnpackedFiles } from "../../../src/services/packaging/unpacked-files.js";
-import { FolderFixture } from "../../fixtures/folder.fixture.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
+import { SourceTreeFixture } from "../../fixtures/source-tree.fixture.js";
 import { Resources } from "../../../src/resources.js";
 
 @TestClass
@@ -30,7 +29,7 @@ export class UnpackedFilesTests {
 
   @TestMethod
   public async listsTheFilesEachInstalledPackageNamesFromItsOwnFolderPassingOverAManifestThatIsNotJson(): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "package.json": JSON.stringify({ name: "sample-app", version: "1.0.0" }),
       "node_modules/@sample/runtime/package.json": UnpackedFilesTests.manifest(UnpackedFilesTests.PACKAGE, ["jxa/script.js", "bin/tool.sh"]),
       "node_modules/@sample/runtime/jxa/script.js": UnpackedFilesTests.SCRIPT,
@@ -57,7 +56,7 @@ export class UnpackedFilesTests {
   @TestData("linux", "x64", "native/linux-x64/helper")
   @TestData("macos", "arm64", "prebuilds/darwin-arm64/helper")
   public async passesOverTheFilesNamedInAddonFoldersTheStageLeftOutForOtherTargets(platform: string, architecture: string, own: string): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": UnpackedFilesTests.manifest(UnpackedFilesTests.PACKAGE,
         ["native/linux-x64/helper", "native/win32-x64/helper.exe", "prebuilds/darwin-arm64/helper", "native/common/helper"]),
       [`node_modules/@sample/runtime/${own}`]: "helper",
@@ -85,7 +84,7 @@ export class UnpackedFilesTests {
   @TestData("jxa/script.js/more.js", "the package holds no file there.")
   @TestData("jxa", "the package holds no file there.")
   public async refusesAFileThatIsNotOneOfThePackagesOwnNamingThePackageAndThePath(file: string, reason: string): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": UnpackedFilesTests.manifest(UnpackedFilesTests.PACKAGE, [file]),
       "node_modules/@sample/runtime/jxa/script.js": UnpackedFilesTests.SCRIPT,
       "node_modules/@sample/runtime/node_modules/inner/data.txt": UnpackedFilesTests.SCRIPT,
@@ -145,7 +144,7 @@ export class UnpackedFilesTests {
 
   @TestMethod
   public async refusesAFileNamedTwice(): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": UnpackedFilesTests.manifest(UnpackedFilesTests.PACKAGE, ["jxa/script.js", "jxa/script.js"]),
       "node_modules/@sample/runtime/jxa/script.js": UnpackedFilesTests.SCRIPT
     });
@@ -158,7 +157,7 @@ export class UnpackedFilesTests {
   @TestMethod
   @PlatformFixture.posixOnly()
   public async refusesAFileNamedTwiceThroughALinkInThePackage(): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": UnpackedFilesTests.manifest(UnpackedFilesTests.PACKAGE, ["jxa/script.js", "jxa/alias.js"]),
       "node_modules/@sample/runtime/jxa/script.js": UnpackedFilesTests.SCRIPT
     });
@@ -176,7 +175,7 @@ export class UnpackedFilesTests {
   @TestData("{}")
   @TestData("null")
   public async refusesAFieldThatIsNotAListOfPaths(field: string): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": JSON.stringify({ name: UnpackedFilesTests.PACKAGE, version: "1.0.0", noldovaDesktop: JsonReader.parseValue(field) }),
       "node_modules/@sample/runtime/jxa/script.js": UnpackedFilesTests.SCRIPT
     });
@@ -188,7 +187,7 @@ export class UnpackedFilesTests {
 
   @TestMethod
   public async listsNoFilesOfAPackageWhoseNoldovaDesktopNamesOnlyItsUpstreamSource(): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": JSON.stringify({ name: UnpackedFilesTests.PACKAGE, version: "1.0.0",
         noldovaDesktop: { sourcePages: ["https://example.com/sample"], sources: [{ url: "https://example.com/sources/sample-1.0.0.tar.gz", size: 10, sha256: "ab".repeat(32) }] } })
     });
@@ -200,7 +199,7 @@ export class UnpackedFilesTests {
 
   @TestMethod
   public async namesAPackageWithoutANameByItsFolder(): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": JSON.stringify({ version: "1.0.0", noldovaDesktop: { unpacked: "jxa/script.js" } })
     });
 
@@ -222,7 +221,7 @@ export class UnpackedFilesTests {
   @TestData("lib/.gitignore", "it leaves out every file and folder named .gitignore.")
   @TestData("build/Makefile", "it leaves out gyp's Makefile in a package's folders whose names end in build.")
   public async refusesANamedFileElectronBuilderNeverShipsNamingThePackageThePathAndTheRule(file: string, reason: string): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": UnpackedFilesTests.manifest(UnpackedFilesTests.PACKAGE, [file]),
       [`node_modules/@sample/runtime/${file}`]: UnpackedFilesTests.SCRIPT
     });
@@ -234,7 +233,7 @@ export class UnpackedFilesTests {
 
   @TestMethod
   public async keepsANamedProgramOrLibraryForWindowsAndLeavesItOutOfOtherTargetsWhereElectronBuilderDoesNotShipIt(): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": UnpackedFilesTests.manifest(UnpackedFilesTests.PACKAGE, ["bin/helper.exe", "bin/helper.dll", "bin/helper.sh"]),
       "node_modules/@sample/runtime/bin/helper.exe": UnpackedFilesTests.SCRIPT,
       "node_modules/@sample/runtime/bin/helper.dll": UnpackedFilesTests.SCRIPT,
@@ -248,7 +247,7 @@ export class UnpackedFilesTests {
 
   @TestMethod
   public async namesAMissingFileOfAPackageWithoutANameByItsFolder(): Promise<void> {
-    await using folder = await UnpackedFilesTests.createFolderAsync({
+    await using folder = await SourceTreeFixture.createAsync({
       "node_modules/nameless/package.json": JSON.stringify({ version: "1.0.0", noldovaDesktop: { unpacked: ["missing.js"] } })
     });
 
@@ -257,8 +256,8 @@ export class UnpackedFilesTests {
     Assert.areEqual("node_modules/nameless names missing.js to keep outside app.asar, but the package holds no file there.", error.message);
   }
 
-  private static createLinkedFolderAsync(file: string): Promise<{ path: string } & AsyncDisposable> {
-    return UnpackedFilesTests.createFolderAsync({
+  private static createLinkedFolderAsync(file: string): Promise<SourceTreeFixture> {
+    return SourceTreeFixture.createAsync({
       "node_modules/@sample/runtime/package.json": UnpackedFilesTests.manifest(UnpackedFilesTests.PACKAGE, [file]),
       "node_modules/@sample/runtime/node_modules/inner/data.txt": UnpackedFilesTests.SCRIPT,
       "outside/script.js": UnpackedFilesTests.SCRIPT
@@ -267,15 +266,5 @@ export class UnpackedFilesTests {
 
   private static manifest(name: string, unpacked: readonly string[]): string {
     return JSON.stringify({ name, version: "1.0.0", noldovaDesktop: { unpacked } });
-  }
-
-  private static async createFolderAsync(files: Readonly<Record<string, string>>): Promise<{ path: string } & AsyncDisposable> {
-    const folder = await mkdtemp(path.join(tmpdir(), "unpacked-files-"));
-    for (const [name, content] of Object.entries(files)) {
-      const file = path.join(folder, ...name.split("/"));
-      await FolderFixture.ensureAsync(path.dirname(file));
-      await writeFile(file, content);
-    }
-    return { path: folder, [Symbol.asyncDispose]: () => rm(folder, { recursive: true, force: true }) };
   }
 }

@@ -17,8 +17,8 @@ import { CodePointComparer } from "@noldova/context.text";
 
 import { PackageReport } from "../../models/packaging/package-report.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
+import { VerifiedReports } from "../../models/release/verified-reports.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
-import type { IVerifiedReports } from "../../interfaces/i-verified-reports.ts";
 import { Resources } from "../../resources.ts";
 
 export class ReleaseReports {
@@ -30,7 +30,7 @@ export class ReleaseReports {
     this.targets = targets;
   }
 
-  public async verifyAsync(folder: string): Promise<IVerifiedReports> {
+  public async verifyAsync(folder: string): Promise<VerifiedReports> {
     let entries: Dirent[];
     try {
       entries = await readdir(folder, { withFileTypes: true });
@@ -62,8 +62,8 @@ export class ReleaseReports {
     }
     if (problems.length > 0)
       throw new BuildException(Resources.formatReportsMismatch(problems));
-    return { text: Resources.formatReportsVerified(this.signedPlatforms), unstarted: this.targets.filter(t => !reports.some(u => u.target === t.id && u.isStarted)),
-      sourcePages: [...new Set(reports.flatMap(t => t.sourcePages))] };
+    return new VerifiedReports(Resources.formatReportsVerified(this.signedPlatforms), this.targets.filter(t => !reports.some(u => u.target === t.id && u.isStarted)),
+      [...new Set(reports.flatMap(t => t.sourcePages))]);
   }
 
   private static async readAsync(folder: string, entry: Dirent): Promise<PackageReport | string> {
