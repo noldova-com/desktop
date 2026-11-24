@@ -2656,6 +2656,11 @@ export class Resources {
     return `Uninstalling the app left its install folder ${folder}${left}.${Object.isNull(holders) ? String.empty : `\n${holders}`}`;
   }
 
+  public static formatSharedFolderChanged(folder: string, before: readonly string[], after: readonly string[]): string {
+    const now = after.length === 0 ? "nothing" : after.join(Resources.listSeparator);
+    return `Uninstalling the app changed what else ${folder} holds: ${before.join(Resources.listSeparator)} before, ${now} after.`;
+  }
+
   public static formatCopiedUninstallerHeld(uninstaller: string, error: unknown, holders: string): string {
     return `The copy of the uninstaller ${uninstaller} could not be removed after it and every process it started had exited: ${String(error)}${Resources.lineSeparator}${holders}`;
   }

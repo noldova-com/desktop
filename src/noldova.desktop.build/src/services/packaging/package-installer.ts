@@ -77,6 +77,8 @@ export class PackageInstaller {
     await rm(path.dirname(neighbour), { recursive: true });
     const environment = this.createInstallerEnvironment();
     await this.runInstallerAsync(this.locatePackage(target, product, version, Resources.installerTarget), Resources.silentInstallArguments, installFolder, folder, environment);
+    const menuFolder = path.dirname(installFolder);
+    const others = (await readdir(menuFolder)).filter(t => t !== path.basename(installFolder)).sort();
     const uninstaller = path.join(folder, path.basename(PackageInstaller.locateUninstaller(installFolder, product)));
     await copyFile(PackageInstaller.locateUninstaller(installFolder, product), uninstaller);
     const command = Buffer.from(Resources.uninstallWaitScript, Resources.powershellScriptEncoding).toString(Resources.powershellCommandEncoding);
@@ -89,11 +91,16 @@ export class PackageInstaller {
       throw new BuildException(Resources.formatCopiedUninstallerHeld(uninstaller, error, await new FileHolders(this.runner, folder, environment).describeAsync([uninstaller])),
         new ExceptionOptions(error));
     }
-    const menuFolder = path.dirname(installFolder);
-    if (existsSync(menuFolder)) {
-      const left = await this.readLeftAsync(menuFolder, folder, environment);
-      throw new BuildException(Resources.formatInstallFolderKept(menuFolder, left.names, left.holders));
+    const kept = others.length === 0 ? menuFolder : installFolder;
+    if (existsSync(kept)) {
+      const left = await this.readLeftAsync(kept, folder, environment);
+      throw new BuildException(Resources.formatInstallFolderKept(kept, left.names, left.holders));
     }
+    if (others.length === 0)
+      return;
+    const after = existsSync(menuFolder) ? (await readdir(menuFolder)).sort() : [];
+    if (after.join(Resources.listSeparator) !== others.join(Resources.listSeparator))
+      throw new BuildException(Resources.formatSharedFolderChanged(menuFolder, others, after));
   }
 
   public async removeWindowsLeftoverAsync(product: ProductIdentity, folder: string, userPath: UserPath): Promise<string | null> {
