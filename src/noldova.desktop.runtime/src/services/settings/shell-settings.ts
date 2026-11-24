@@ -43,11 +43,11 @@ export class ShellSettings {
 
   private static readonly common: readonly SettingDefinition[] = [
     ShellSettings.appearance(ShellSettings.mode, Resources.modeTitle, Resources.modeDescription,
-      ShellSettings.choiceOf(Resources.modeOptions), Resources.defaultMode, SettingLocality.Shared, Resources.themeGroup),
+      SettingType.choice(Resources.modeOptions), Resources.defaultMode, SettingLocality.Shared, Resources.themeGroup),
     ShellSettings.appearance(ShellSettings.interfaceFont, Resources.interfaceFontTitle, Resources.interfaceFontDescription,
-      ShellSettings.choiceOf(Resources.fontOptions), Resources.defaultFont, SettingLocality.Device, Resources.textGroup),
+      SettingType.choice(Resources.fontOptions), Resources.defaultFont, SettingLocality.Device, Resources.textGroup),
     ShellSettings.appearance(ShellSettings.codeFont, Resources.codeFontTitle, Resources.codeFontDescription,
-      ShellSettings.choiceOf(Resources.fontOptions), Resources.defaultFont, SettingLocality.Device, Resources.textGroup),
+      SettingType.choice(Resources.fontOptions), Resources.defaultFont, SettingLocality.Device, Resources.textGroup),
     ShellSettings.appearance(ShellSettings.panelSize, Resources.panelSizeTitle, Resources.panelSizeDescription,
       ShellSettings.textSize(), Resources.defaultPanelSize, SettingLocality.Device, Resources.textGroup),
     ShellSettings.appearance(ShellSettings.messageSize, Resources.messageSizeTitle, Resources.messageSizeDescription,
@@ -55,11 +55,11 @@ export class ShellSettings {
     ShellSettings.appearance(ShellSettings.codeSize, Resources.codeSizeTitle, Resources.codeSizeDescription,
       ShellSettings.textSize(), Resources.defaultCodeSize, SettingLocality.Device, Resources.textGroup),
     ShellSettings.appearance(ShellSettings.leftDockStyle, Resources.leftDockStyleTitle, Resources.leftDockStyleDescription,
-      ShellSettings.choiceOf(Resources.dockStyleOptions), Resources.defaultDockStyle, SettingLocality.Shared, Resources.layoutGroup),
+      SettingType.choice(Resources.dockStyleOptions), Resources.defaultDockStyle, SettingLocality.Shared, Resources.layoutGroup),
     ShellSettings.appearance(ShellSettings.rightDockStyle, Resources.rightDockStyleTitle, Resources.rightDockStyleDescription,
-      ShellSettings.choiceOf(Resources.dockStyleOptions), Resources.defaultDockStyle, SettingLocality.Shared, Resources.layoutGroup),
+      SettingType.choice(Resources.dockStyleOptions), Resources.defaultDockStyle, SettingLocality.Shared, Resources.layoutGroup),
     ShellSettings.appearance(ShellSettings.menuBar, Resources.menuBarTitle, Resources.menuBarDescription,
-      ShellSettings.choiceOf(Resources.menuBarOptions), Resources.defaultMenuBar, SettingLocality.Shared, Resources.layoutGroup),
+      SettingType.choice(Resources.menuBarOptions), Resources.defaultMenuBar, SettingLocality.Shared, Resources.layoutGroup),
     ShellSettings.appearance(ShellSettings.previewTabs, Resources.previewTabsTitle, Resources.previewTabsDescription,
       SettingType.boolean(), true, SettingLocality.Shared, Resources.layoutGroup),
     ShellSettings.appearance(ShellSettings.recentCommandCount, Resources.recentCommandCountTitle, Resources.recentCommandCountDescription,
@@ -86,16 +86,12 @@ export class ShellSettings {
       new SettingDefinition(ShellSettings.keyBindings, Resources.keyBindingsTitle, Resources.keyBindingsDescription,
         SettingType.keyBindings(), {}, SettingLocality.Shared, [], Resources.shortcutsPage, Resources.shortcutsGroup),
       new SettingDefinition(ShellSettings.updateChecks, Resources.updateChecksTitle, Resources.updateChecksDescription,
-        ShellSettings.choiceOf(Resources.updateChecksOptions), Resources.defaultUpdateChecks, SettingLocality.Device, [], Resources.aboutPage, Resources.updatesGroup)
+        SettingType.choice(Resources.updateChecksOptions), Resources.defaultUpdateChecks, SettingLocality.Device, [], Resources.aboutPage, Resources.updatesGroup)
     ];
   }
 
   private static named(member: string): QualifiedName {
     return new QualifiedName(Resources.reservedModuleId, member);
-  }
-
-  private static choiceOf(options: readonly (readonly [string, string])[]): SettingType {
-    return SettingType.choice(options.map(([value, title]) => new SettingOption(value, title)));
   }
 
   private static textSize(): SettingType {
