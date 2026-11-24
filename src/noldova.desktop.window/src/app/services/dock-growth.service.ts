@@ -59,8 +59,8 @@ export class DockGrowthService {
       asked.delete(tab.key);
       return asked;
     });
-    this.layout.releaseGrowth(tab.key);
     if (!Object.isNull(growth.side) && this.layout.layout().dock(growth.side).size === growth.grown)
       this.layout.restoreDock(growth.side, growth.before);
+    this.layout.releaseGrowth(tab.key);
   }
 }

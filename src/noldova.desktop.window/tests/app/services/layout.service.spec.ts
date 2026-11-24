@@ -320,8 +320,8 @@ describe("LayoutService", () => {
       service.setViewport(100, 40);
       service.growDock(DockSide.Right, 30, "a");
       const grown = shown();
-      service.releaseGrowth("a");
       service.restoreDock(DockSide.Right, null);
+      service.releaseGrowth("a");
       const released = shown();
       service.resizeDock(DockSide.Right, 30);
       service.reset();
@@ -338,8 +338,8 @@ describe("LayoutService", () => {
 
       service.growDock(DockSide.Left, 35, "a");
       const grown = shown();
-      service.releaseGrowth("a");
       service.restoreDock(DockSide.Left, null);
+      service.releaseGrowth("a");
 
       expect([dragged, grown]).toEqual([[26, 30, 43], [35, 30, 34]]);
       expect(shown()).toEqual([26, 30, 43]);
@@ -352,8 +352,8 @@ describe("LayoutService", () => {
       service.growDock(DockSide.Left, 35, "a");
       service.resizeDock(DockSide.Right, 40);
       const dragged = shown();
-      service.releaseGrowth("a");
       service.restoreDock(DockSide.Left, null);
+      service.releaseGrowth("a");
 
       expect(dragged).toEqual([35, 40, 24]);
       expect(shown()).toEqual([26, 40, 33]);
@@ -376,11 +376,11 @@ describe("LayoutService", () => {
       service.growDock(DockSide.Left, 35, "a");
       service.growDock(DockSide.Right, 30, "b");
       const both = shown();
-      service.releaseGrowth("a");
       service.restoreDock(DockSide.Left, null);
+      service.releaseGrowth("a");
       const first = shown();
-      service.releaseGrowth("b");
       service.restoreDock(DockSide.Right, 13);
+      service.releaseGrowth("b");
 
       expect([both, first]).toEqual([[35, 30, 34], [26, 30, 43]]);
       expect(shown()).toEqual([26, 13, 60]);
@@ -391,14 +391,28 @@ describe("LayoutService", () => {
       service.setViewport(100, 40);
       service.growDock(DockSide.Left, 35, "a");
       service.growDock(DockSide.Right, 30, "b");
-      service.releaseGrowth("b");
       service.restoreDock(DockSide.Right, 13);
+      service.releaseGrowth("b");
       const first = shown();
-      service.releaseGrowth("a");
       service.restoreDock(DockSide.Left, null);
+      service.releaseGrowth("a");
 
       expect(first).toEqual([35, 13, 51]);
       expect(shown()).toEqual([26, 13, 60]);
+    });
+
+    it("keeps the other dock at its size when a growth of a dragged dock is released", async () => {
+      await loadAsync(Layout.createDefault(wideRegistry).openDocument(LayoutFixture.plan).openDocument(wide));
+      service.setViewport(100, 40);
+      service.resizeDock(DockSide.Left, 28);
+      const dragged = shown();
+      service.growDock(DockSide.Left, 35, "a");
+      const grown = shown();
+      service.restoreDock(DockSide.Left, 28);
+      service.releaseGrowth("a");
+
+      expect([dragged, grown]).toEqual([[28, 13, 58], [35, 13, 51]]);
+      expect([shown(), service.layout().dock(DockSide.Right).size]).toEqual([[28, 13, 58], 13]);
     });
 
     it("holds nothing for a growth released while another document is in front, or one released after Reset layout", async () => {
@@ -406,8 +420,8 @@ describe("LayoutService", () => {
       service.setViewport(100, 40);
       service.growDock(DockSide.Left, 35, "a");
       service.activate(LayoutFixture.plan);
-      service.releaseGrowth("a");
       service.restoreDock(DockSide.Left, null);
+      service.releaseGrowth("a");
       service.activate(wide);
       const away = shown();
       service.growDock(DockSide.Left, 35, "b");

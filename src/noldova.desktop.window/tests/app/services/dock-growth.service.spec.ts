@@ -10,8 +10,10 @@ import { TestBed } from "@angular/core/testing";
 
 import { DockSide } from "../../../src/app/enums/dock-side";
 import { Bounds } from "../../../src/app/models/layout/bounds";
+import { DocumentTab } from "../../../src/app/models/layout/document-tab";
 import { Layout } from "../../../src/app/models/layout/layout";
 import { SideDropTarget } from "../../../src/app/models/layout/side-drop-target";
+import { ViewRegistry } from "../../../src/app/models/layout/view-registry";
 import { DockGrowthService } from "../../../src/app/services/dock-growth.service";
 import { LayoutStoreService } from "../../../src/app/services/layout-store.service";
 import { LayoutService } from "../../../src/app/services/layout.service";
@@ -109,6 +111,22 @@ describe("DockGrowthService", () => {
 
     expect(fitted).toEqual([null, 14, 14]);
     expect(bottom()).toEqual([14, 14]);
+  });
+
+  it("puts a side dock back before it gives up its hold on a wide document's width, so the other dock keeps its size", () => {
+    layout.setRegistry(new ViewRegistry(registry.views, ["notes.note", "notes.wide", "desktop.settings"], new Map(), new Set(), new Map([["notes.wide", 60]])));
+    layout.openDocument(new DocumentTab("notes.wide", "board"));
+    layout.setViewport(100, 40);
+    const shown = (): number[] => [layout.geometry().dock(DockSide.Left).width, layout.geometry().dock(DockSide.Right).width, layout.geometry().middle.width];
+    layout.resizeDock(DockSide.Left, 28);
+    const release = growth.grow(LayoutFixture.files, 35);
+
+    growth.fit(LayoutFixture.files, new Bounds(0, 0, 28, 30));
+    const grown = shown();
+    release();
+
+    expect(grown).toEqual([35, 13, 51]);
+    expect([shown(), layout.layout().dock(DockSide.Right).size]).toEqual([[28, 13, 58], 13]);
   });
 
   it("leaves a dock the person resized after it grew at the person's size at the release", () => {
