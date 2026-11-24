@@ -37,6 +37,7 @@ const clicksPage ="<!doctype html><title>Clicks 0</title><body style=\"margin:0;
 const linksPage = "<!doctype html><title>Loading</title><body style=\"margin:0;display:flex\"><a id=\"l\" href=\"/first\" style=\"width:50px;height:50px\">L</a><div id=\"d\" style=\"width:50px;height:50px\">D</div><a id=\"p\" href=\"/second\" style=\"width:50px;height:50px\">P</a><script>const d = document.getElementById(\"d\"); const p = document.getElementById(\"p\"); d.addEventListener(\"mousedown\", e => { if (e.button === 1) e.preventDefault(); }); d.addEventListener(\"auxclick\", e => { if (e.button === 1) window.open(\"/a\"); }); for (const type of [\"auxclick\", \"click\"]) p.addEventListener(type, e => { e.preventDefault(); window.open(p.href); }); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Links\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
 const pressPage = "<!doctype html><title>Loading</title><body style=\"margin:0\"><div id=\"d\" style=\"width:200px;height:100px\">D</div><script>const d = document.getElementById(\"d\"); d.addEventListener(\"pointerdown\", e => { if (e.button === 1) { e.preventDefault(); window.open(\"/a\"); window.open(\"/b\"); } else if (e.pointerType === \"mouse\" && e.button === 0) window.open(\"/r\"); }); addEventListener(\"touchend\", () => window.open(\"/t\")); addEventListener(\"keydown\", e => window.open(\"/k/\" + e.key)); new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Presses\"; } }).observe({ type: \"paint\", buffered: true });</script></body>";
 const framePage = "<!doctype html><title>Frame</title><p>Frame</p><script>globalThis.isLive = true; navigation.addEventListener(\"navigate\", event => parent.postMessage(event.destination.url, \"*\")); addEventListener(\"message\", event => { location.href = event.data; });</script>";
+const linkFramePage = "<!doctype html><title>Out</title><body style=\"margin:0\"><a href=\"/first\" style=\"display:block;font-size:40px;width:300px;height:60px\">Out</a></body>";
 const openerPage = "<!doctype html><title>Loading</title><a href=\"/first\" target=\"_blank\" style=\"display:block;font-size:40px\">First</a><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName(\"first-contentful-paint\").length > 0) { observer.disconnect(); document.title = \"Opener\"; } }).observe({ type: \"paint\", buffered: true });</script>";
 
 function png(side: number): Buffer {
@@ -248,6 +249,17 @@ function readFirstFrameAsync(mainProcess: MainProcessFixture, script: string): P
   }, script);
 }
 
+function readFrameInViewAtAsync(mainProcess: MainProcessFixture, url: string): Promise<{ address: string; text: unknown } | null> {
+  return mainProcess.application.evaluate(async ({ webContents }, address) => {
+    const frame = webContents.getAllWebContents().find(t => t.getType() === "webview" && t.getURL() === address)?.mainFrame.frames[0];
+    return frame === undefined ? null : { address: frame.url, text: await frame.executeJavaScript("document.body?.innerText ?? null").catch(() => null) };
+  }, url);
+}
+
+function framedPage(frame: string): string {
+  return `<!doctype html><title>Loading</title><body style="margin:0"><p style="margin:0;height:40px">Framed</p><iframe src="${frame}" style="border:0;display:block;width:400px;height:200px"></iframe><script>new PerformanceObserver((list, observer) => { if (list.getEntriesByName("first-contentful-paint").length > 0) { observer.disconnect(); document.title = "Framed"; } }).observe({ type: "paint", buffered: true });</script></body>`;
+}
+
 function readFirstViewAddressAsync(mainProcess: MainProcessFixture): Promise<{ address: string; isLoading: boolean } | null> {
   return mainProcess.application.evaluate(({ webContents }) => {
     const [first] = webContents.getAllWebContents().filter(t => t.getType() === "webview").sort((a, b) => a.id - b.id);
@@ -338,6 +350,14 @@ async function startServerAsync(): Promise<Server> {
     }
     if (request.url === "/frame") {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(framePage);
+      return;
+    }
+    if (request.url === "/link-frame") {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(linkFramePage);
+      return;
+    }
+    if (request.url?.startsWith("/framed?") === true) {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(framedPage(decodeURIComponent(request.url.slice("/framed?".length))));
       return;
     }
     if (request.url === "/opener") {
@@ -1307,6 +1327,32 @@ test.describe("web views", () => {
     }
     finally {
       await Promise.all([stopServerAsync(server), stopServerAsync(frameServer)]);
+    }
+  });
+
+  test("a module's web view takes one click on a link in a frame of another site as soon as that frame shows its text and the page around it has painted, and the frame follows the link", async ({ mainProcess }) => {
+    const window = mainProcess.window;
+    const server = await startServerAsync();
+    try {
+      const origin = `http://${host}:${portOf(server)}`;
+      const frameOrigin = `http://localhost:${portOf(server)}`;
+      const page = `${origin}/framed?${encodeURIComponent(`${frameOrigin}/link-frame`)}`;
+      await expect(window.locator("[data-fixture-content=notes-list]")).toBeVisible();
+      await CommandSearchFixture.searchAsync(window, "Open the page");
+      await expect(window.getByRole("option").first()).toHaveAttribute("data-item", "desktop.commands/pages.openPage");
+      await window.keyboard.press("Enter");
+      await expect(view(window, 1)).toHaveAttribute("data-view", /./);
+      await requestAsync(window, "pages.allow", [origin, frameOrigin]);
+      expect(await requestAsync(window, "pages.navigate", { view: 0, url: page })).toEqual({ kind: "Started", origin: null });
+      await expect.poll(() => readFrameInViewAtAsync(mainProcess, page)).toEqual({ address: `${frameOrigin}/link-frame`, text: "Out" });
+      await expect(view(window, 0)).toHaveText("Framed");
+
+      await requestAsync(window, "pages.click", { view: 0, x: 30, y: 70 });
+
+      await expect.poll(async () => (await readFrameInViewAtAsync(mainProcess, page))?.address).toBe(`${frameOrigin}/first`);
+    }
+    finally {
+      await stopServerAsync(server);
     }
   });
 
