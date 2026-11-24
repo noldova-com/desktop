@@ -64,7 +64,9 @@ export class WindowRowComponent {
   private readonly host: HTMLElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly foldedValue: WritableSignal<boolean> = signal(false);
   private readonly shiftValue: WritableSignal<number> = signal(0);
-  private readonly identityRoom: WritableSignal<number | null> = signal(null);
+  private readonly iconShownValue: WritableSignal<boolean> = signal(true);
+  private readonly nameShownValue: WritableSignal<boolean> = signal(true);
+  private readonly nameRoom: WritableSignal<number | null> = signal(null);
   private readonly fontLoads: WritableSignal<number> = signal(0);
   private readonly fullScreenValue: WritableSignal<boolean> = signal(false);
   private readonly bar: Signal<ElementRef<HTMLElement> | undefined> = viewChild("bar", { read: ElementRef });
@@ -74,14 +76,19 @@ export class WindowRowComponent {
   private readonly controls: Signal<ElementRef<HTMLElement> | undefined> = viewChild(WindowControlsComponent, { read: ElementRef });
   private readonly middle: Signal<ElementRef<HTMLElement>> = viewChild.required("middle", { read: ElementRef });
   private readonly field: Signal<ElementRef<HTMLElement>> = viewChild.required("field", { read: ElementRef });
+  private readonly identity: Signal<ElementRef<HTMLElement> | undefined> = viewChild("identity", { read: ElementRef });
+  private readonly identityIcon: Signal<ElementRef<HTMLElement> | undefined> = viewChild("identityIcon", { read: ElementRef });
   private returnFocus: HTMLElement | null = null;
   private isAltAlone: boolean = false;
 
   protected readonly resources: typeof Resources = Resources;
   protected readonly titleBar: IProductTitleBar = inject(BuildTokens.titleBar);
   protected readonly hasIdentity: boolean = !Object.isNull(this.titleBar.name) || !Object.isNull(this.titleBar.icon);
-  protected readonly identityWidth: Signal<string | null> = computed(() => {
-    const room = this.identityRoom();
+  protected readonly isIconShown: Signal<boolean> = this.iconShownValue.asReadonly();
+  protected readonly isNameShown: Signal<boolean> = this.nameShownValue.asReadonly();
+  protected readonly isIdentityShown: Signal<boolean> = computed(() => this.isIconShown() || (!Object.isNull(this.titleBar.name) && this.isNameShown()));
+  protected readonly nameWidth: Signal<string | null> = computed(() => {
+    const room = this.nameRoom();
     return Object.isNull(room) ? null : Resources.formatPixels(room);
   });
   protected readonly isMac: boolean = this.bridge.isMac;
@@ -263,8 +270,27 @@ export class WindowRowComponent {
     this.foldedValue.set(isFolded);
     const menuButton = this.menuButton()?.nativeElement;
     const menu = isFolded || Object.isUndefined(bar) ? (Object.isUndefined(menuButton) ? 0 : WindowRowComponent.outerWidth(menuButton)) : WindowRowComponent.outerWidth(bar);
-    this.identityRoom.set(Math.max(Math.floor(room - menu - Resources.searchFieldMinimumRem * rem), 0));
+    this.placeIdentity(room - menu - Resources.searchFieldMinimumRem * rem, rem);
     this.shiftValue.set(this.centringShift());
+  }
+
+  private placeIdentity(room: number, rem: number): void {
+    const identity = this.identity()?.nativeElement;
+    if (Object.isUndefined(identity))
+      return;
+    const style = getComputedStyle(identity);
+    const icon = this.identityIcon()?.nativeElement;
+    const end = parseFloat(style.paddingRight);
+    const iconWidth = Object.isUndefined(icon) ? 0 : parseFloat(getComputedStyle(icon).width) + parseFloat(style.columnGap);
+    const host = this.host.getBoundingClientRect();
+    const middle = this.middle().nativeElement;
+    const lead = middle.getBoundingClientRect().left + parseFloat(getComputedStyle(middle).paddingLeft) - host.left - identity.getBoundingClientRect().width;
+    const centred = host.width / 2 - parseFloat(getComputedStyle(this.host).getPropertyValue(Resources.searchFieldWidthProperty)) * rem / 2 - lead;
+    const isIconShown = !Object.isUndefined(icon) && room >= iconWidth + end;
+    this.iconShownValue.set(isIconShown);
+    const nameRoom = Math.floor(Math.min(room, centred) - end - (isIconShown ? iconWidth : 0));
+    this.nameShownValue.set(nameRoom >= Resources.titleBarNameMinimumRem * rem);
+    this.nameRoom.set(nameRoom);
   }
 
   private centringShift(): number {

@@ -148,6 +148,10 @@
   white-space: nowrap;
 }
 
+.nol-window-row-identity-hidden {
+  display: none;
+}
+
 .nol-window-row-menu-bar {
   flex: none;
   margin-inline-end: var(--nol-space-1);

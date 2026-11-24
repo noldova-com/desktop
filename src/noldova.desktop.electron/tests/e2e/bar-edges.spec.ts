@@ -29,7 +29,7 @@ async function edgesAsync(window: Page): Promise<IBarEdges> {
     const row = document.querySelector<HTMLElement>("nol-window-row");
     if (row === null)
       throw new Error("Nothing matches nol-window-row.");
-    const first = [...row.querySelectorAll(".nol-window-row-identity, .nol-window-row-menu-bar:not(.nol-window-row-menu-bar-folded) .nol-window-row-menu-bar-item, .nol-window-row-menu, .nol-window-row-start")][0];
+    const first = [...row.querySelectorAll(".nol-window-row-identity:not(.nol-window-row-identity-hidden), .nol-window-row-menu-bar:not(.nol-window-row-menu-bar-folded) .nol-window-row-menu-bar-item, .nol-window-row-menu, .nol-window-row-start")][0];
     const overlay = navigator.windowControlsOverlay;
     const area = overlay?.visible === true ? overlay.getTitlebarAreaRect() : null;
     const drawn = boxes("nol-window-controls")[0];

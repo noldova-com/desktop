@@ -7,12 +7,12 @@ LICENSE file in the root directory of this source tree.
 -->
 
 @if (hasIdentity) {
-  <div class="nol-window-row-identity" [style.max-width]="identityWidth()">
+  <div #identity class="nol-window-row-identity" [class.nol-window-row-identity-hidden]="!isIdentityShown()">
     @if (titleBar.icon; as icon) {
-      <img class="nol-window-row-identity-icon" [src]="icon" alt="" draggable="false" />
+      <img #identityIcon class="nol-window-row-identity-icon" [class.nol-window-row-identity-hidden]="!isIconShown()" [src]="icon" alt="" draggable="false" />
     }
     @if (titleBar.name; as name) {
-      <span class="nol-window-row-identity-name" data-truncates>{{ name }}</span>
+      <span class="nol-window-row-identity-name" [class.nol-window-row-identity-hidden]="!isNameShown()" [style.max-width]="nameWidth()" data-truncates>{{ name }}</span>
     }
   </div>
 }
