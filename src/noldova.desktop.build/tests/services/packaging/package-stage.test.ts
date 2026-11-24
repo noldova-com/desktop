@@ -23,6 +23,7 @@ import { BuildLayout } from "../../../src/services/packages/build-layout.js";
 import { PackageLayout } from "../../../src/services/packaging/package-layout.js";
 import { PackageStage } from "../../../src/services/packaging/package-stage.js";
 import { NpmCommand } from "../../../src/services/toolchain/npm-command.js";
+import { ArchivedPackageFixture } from "../../fixtures/archived-package.fixture.js";
 import { InstalledAppFixture } from "../../fixtures/installed-app.fixture.js";
 import { OverrideFormFixture } from "../../fixtures/override-form.fixture.js";
 import { SdkHostStageFixture } from "../../fixtures/sdk-host-stage.fixture.js";
@@ -364,7 +365,7 @@ export class PackageStageTests {
     await app.writeAppFileAsync("src/noldova.desktop.tools/package.json", JSON.stringify({ name: "@noldova/desktop.tools", version: "__VERSION__" }));
     const archives = new BuildLayout(app.path).archivesFolder;
     await mkdir(archives, { recursive: true });
-    for (const [name, version] of [[runtime, "0.0.1"], [format, "1.2.3"]] as const)
+    for (const { name, version } of [new ArchivedPackageFixture(runtime, "0.0.1"), new ArchivedPackageFixture(format, "1.2.3")])
       await writeFile(path.join(archives, BuildLayout.nameArchive(name, version)), TarballFixture.create({ "package.json": JSON.stringify({ name, version, license: "MIT" }) }));
     const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
 
