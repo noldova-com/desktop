@@ -2658,8 +2658,22 @@ export class Resources {
     return `${shortcut} could not be read: ${Resources.windowsPowershellCommand} exited with ${exitCode}:${Resources.lineSeparator}${output}`;
   }
 
-  public static formatInstallFolderKept(folder: string): string {
-    return `Uninstalling the app left its install folder ${folder}.`;
+  public static formatInstallFolderKept(folder: string, names: readonly string[], holders: string | null): string {
+    return `Uninstalling the app left its install folder ${folder}${Resources.formatKeptEntries(names, holders)}`;
+  }
+
+  public static formatSharedFolderKept(folder: string, names: readonly string[], holders: string | null): string {
+    return `Uninstalling the app left ${folder}, the shared folder its install folder was in, which held nothing else${Resources.formatKeptEntries(names, holders)}`;
+  }
+
+  public static formatKeptEntries(names: readonly string[], holders: string | null): string {
+    const left = names.length === 0 ? ", empty" : `, with ${names.join(Resources.listSeparator)} in it`;
+    return `${left}.${Object.isNull(holders) ? String.empty : `\n${holders}`}`;
+  }
+
+  public static formatSharedFolderChanged(folder: string, before: readonly string[], after: readonly string[]): string {
+    const now = after.length === 0 ? "nothing" : after.join(Resources.listSeparator);
+    return `Uninstalling the app changed what else ${folder} holds: ${before.join(Resources.listSeparator)} before, ${now} after.`;
   }
 
   public static formatCopiedUninstallerHeld(uninstaller: string, error: unknown, holders: string): string {

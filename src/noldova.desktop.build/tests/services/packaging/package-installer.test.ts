@@ -101,6 +101,8 @@ class MovingRunner extends ProcessRunner {
   public shortcutAnswer: ProcessResult | null;
   public isFolderKept: boolean;
   public isCopyHeld: boolean;
+  public keptEntry: string | null;
+  public isOtherRemoved: boolean;
   public waitedUninstaller: string | undefined;
 
   public constructor(programs: string, appData: string) {
@@ -116,6 +118,8 @@ class MovingRunner extends ProcessRunner {
     this.shortcutAnswer = null;
     this.isFolderKept = false;
     this.isCopyHeld = false;
+    this.keptEntry = null;
+    this.isOtherRemoved = false;
     this.waitedUninstaller = undefined;
   }
 
@@ -186,7 +190,15 @@ class MovingRunner extends ProcessRunner {
     if (!isCopy)
       return;
     await rmdir(folder);
-    if (!this.isFolderKept)
+    if (!Object.isNull(this.keptEntry)) {
+      const kept = path.join(path.dirname(folder), this.keptEntry);
+      await FolderFixture.ensureAsync(path.extname(kept) === String.empty ? kept : path.dirname(kept));
+      if (path.extname(kept) !== String.empty)
+        await writeFile(kept, "kept");
+    }
+    if (this.isOtherRemoved)
+      await rm(path.join(path.dirname(folder), "Other App"), { recursive: true });
+    if (!this.isFolderKept && (await readdir(path.dirname(folder))).length === 0)
       await rmdir(path.dirname(folder));
   }
 }
@@ -458,7 +470,98 @@ export class PackageInstallerTests {
       const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
         BuildException);
 
-      Assert.areEqual(`Uninstalling the app left its install folder ${path.dirname(runner.app)}.`, error.message);
+      Assert.areEqual(`Uninstalling the app left ${path.dirname(runner.app)}, the shared folder its install folder was in, which held nothing else, empty.`, error.message);
+    });
+  }
+
+  @TestMethod
+  public async keepsTheSharedFolderAndTheOtherAppsInItWhenUninstalling(): Promise<void> {
+    await PackageInstallerTests.withMovingAsync(async (folder, runner, installer) => {
+      await installer.installAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder);
+      const other = path.join(path.dirname(runner.app), "Other App", "Other App.exe");
+      await PackageInstallerTests.writeAsync(other, "other");
+
+      await installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder);
+
+      Assert.isFalse(existsSync(runner.app));
+      Assert.areEqual("Other App", (await readdir(path.dirname(runner.app))).join(","));
+      Assert.isTrue(existsSync(other));
+    });
+  }
+
+  @TestMethod
+  public async namesTheAppFolderKeptBesideAnotherApp(): Promise<void> {
+    await PackageInstallerTests.withMovingAsync(async (folder, runner, installer) => {
+      runner.keptEntry = path.join("Sample App", "crash.log");
+      await installer.installAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder);
+      await PackageInstallerTests.writeAsync(path.join(path.dirname(runner.app), "Other App", "Other App.exe"), "other");
+
+      const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
+        BuildException);
+
+      Assert.areEqual(`Uninstalling the app left its install folder ${runner.app}, with crash.log in it.\n`
+        + `What holds them now:\n${path.join(runner.app, "crash.log")}: MsMpEng.exe (4321).`, error.message);
+    });
+  }
+
+  @TestMethod
+  public async refusesAnUninstallThatRemovesAnotherAppInTheSharedFolder(): Promise<void> {
+    await PackageInstallerTests.withMovingAsync(async (folder, runner, installer) => {
+      runner.isOtherRemoved = true;
+      await installer.installAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder);
+      await PackageInstallerTests.writeAsync(path.join(path.dirname(runner.app), "Other App", "Other App.exe"), "other");
+
+      const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
+        BuildException);
+
+      Assert.areEqual(`Uninstalling the app changed what else ${path.dirname(runner.app)} holds: Other App before, nothing after.`, error.message);
+      Assert.isFalse(existsSync(path.dirname(runner.app)));
+    });
+  }
+
+  @TestMethod
+  public async refusesAnUninstallThatAddsToTheSharedFolder(): Promise<void> {
+    await PackageInstallerTests.withMovingAsync(async (folder, runner, installer) => {
+      runner.keptEntry = "Crash Reports";
+      await installer.installAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder);
+      await PackageInstallerTests.writeAsync(path.join(path.dirname(runner.app), "Other App", "Other App.exe"), "other");
+
+      const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
+        BuildException);
+
+      Assert.areEqual(`Uninstalling the app changed what else ${path.dirname(runner.app)} holds: Other App before, Crash Reports, Other App after.`, error.message);
+    });
+  }
+
+  @TestMethod
+  public async namesWhatTheKeptInstallFolderHoldsAndWhatHoldsItsFiles(): Promise<void> {
+    await PackageInstallerTests.withMovingAsync(async (folder, runner, installer) => {
+      runner.keptEntry = path.join("Sample App", "crash.log");
+      await installer.installAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder);
+
+      const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
+        BuildException);
+
+      const log = path.join(runner.app, "crash.log");
+      Assert.areEqual(`Uninstalling the app left ${path.dirname(runner.app)}, the shared folder its install folder was in, which held nothing else, `
+        + `with Sample App, ${path.join("Sample App", "crash.log")} in it.\n`
+        + `What holds them now:\n${log}: MsMpEng.exe (4321).`, error.message);
+    });
+  }
+
+  @TestMethod
+  public async namesTheFoldersLeftInTheKeptInstallFolderWithoutAskingWhatHoldsThem(): Promise<void> {
+    await PackageInstallerTests.withMovingAsync(async (folder, runner, installer) => {
+      runner.keptEntry = "Sample App";
+      await installer.installAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder);
+      const before = runner.calls.length;
+
+      const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
+        BuildException);
+
+      Assert.areEqual(`Uninstalling the app left ${path.dirname(runner.app)}, the shared folder its install folder was in, which held nothing else, with Sample App in it.`,
+        error.message);
+      Assert.areEqual(1, runner.calls.slice(before).filter(t => t.startsWith("powershell.exe")).length);
     });
   }
 
