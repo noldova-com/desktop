@@ -38,4 +38,10 @@ export class UpdateFeedAddressTests {
     Assert.areEqual("updates.example.com:8443", new UpdateFeedAddress("https://updates.example.com:8443/desktop/").host);
     Assert.areEqual("an invalid address", new UpdateFeedAddress("not an address").host);
   }
+
+  @TestMethod
+  public refusesByNamingTheFeedsHostAlone(): void {
+    Assert.areEqual("This development build doesn't check for updates at updates.example.com; a build that isn't packaged checks only a feed on this machine.",
+      new UpdateFeedAddress("https://updates.example.com/desktop/?token=x").refusal);
+  }
 }

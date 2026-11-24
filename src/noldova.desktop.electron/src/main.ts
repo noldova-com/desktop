@@ -173,7 +173,7 @@ else
         return null;
       const feedAddress = new UpdateFeedAddress(address);
       if (!feedAddress.isAllowed(isPackaged)) {
-        log(Resources.formatDevelopmentFeedRefused(feedAddress.host));
+        log(feedAddress.refusal);
         return null;
       }
       const guard = new FeedRequestGuard(address, [product.slug, product.version, process.platform, process.arch],

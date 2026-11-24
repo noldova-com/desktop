@@ -23,6 +23,10 @@ export class UpdateFeedAddress {
     return URL.canParse(this.address) ? new URL(this.address).host : Resources.invalidAddress;
   }
 
+  public get refusal(): string {
+    return Resources.formatDevelopmentFeedRefused(this.host);
+  }
+
   public isLocal(): boolean {
     return URL.canParse(this.address) && Resources.localFeedHosts.includes(new URL(this.address).hostname);
   }
