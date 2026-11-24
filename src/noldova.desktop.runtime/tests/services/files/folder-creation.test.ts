@@ -35,7 +35,7 @@ export class FolderCreationTests {
   public async keepsAFolderThatExistsWhenWindowsAnswersEpermForIt(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
 
-    const created = await FolderCreation.createAsync(folder.path, 0o700, () => Promise.reject(FolderCreationTests.fail("EPERM", folder.path)));
+    const created = await FolderCreation.createAsync(folder.path, 0o700, FolderCreationTests.deny("EPERM", folder.path));
 
     Assert.isUndefined(created);
   }
@@ -48,7 +48,7 @@ export class FolderCreationTests {
     const target = path.join(folder.path, name);
     await writeFile(path.join(folder.path, "file"), "");
 
-    const error = await Assert.throwsAsync(() => FolderCreation.createAsync(target, 0o700, () => Promise.reject(FolderCreationTests.fail("EPERM", target))), Error);
+    const error = await Assert.throwsAsync(() => FolderCreation.createAsync(target, 0o700, FolderCreationTests.deny("EPERM", target)), Error);
 
     Assert.areEqual(`EPERM: operation not permitted, mkdir '${target}'`, error.message);
   }
@@ -57,7 +57,7 @@ export class FolderCreationTests {
   public async passesOnAnyOtherFailureEvenForAFolderThatExists(): Promise<void> {
     await using folder = await TemporaryFolderFixture.createAsync();
 
-    const error = await Assert.throwsAsync(() => FolderCreation.createAsync(folder.path, 0o700, () => Promise.reject(FolderCreationTests.fail("EACCES", folder.path))), Error);
+    const error = await Assert.throwsAsync(() => FolderCreation.createAsync(folder.path, 0o700, FolderCreationTests.deny("EACCES", folder.path)), Error);
 
     Assert.areEqual(`EACCES: operation not permitted, mkdir '${folder.path}'`, error.message);
   }
@@ -114,6 +114,12 @@ export class FolderCreationTests {
     }), Error);
 
     Assert.areEqual(`${code}: operation not permitted, mkdir '${target}'`, error.message);
+  }
+
+  private static deny(code: string, folder: string): () => Promise<never> {
+    return async () => {
+      throw FolderCreationTests.fail(code, folder);
+    };
   }
 
   private static fail(code: string, folder: string): Error {
