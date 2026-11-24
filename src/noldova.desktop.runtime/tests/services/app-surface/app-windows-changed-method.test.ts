@@ -17,6 +17,7 @@ import { RequestContext } from "../../../src/models/request-context.js";
 import { AppSurface } from "../../../src/services/app-surface/app-surface.js";
 import { AppWindowsChangedMethod } from "../../../src/services/app-surface/app-windows-changed-method.js";
 import { ClientClosures } from "../../../src/services/endpoint/client-closures.js";
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
 
@@ -83,9 +84,9 @@ export class AppWindowsChangedMethodTests {
   @TestMethod
   public refusesAWindowsOrShortcutsReportFromAnyoneButTheMainProcessItselfAndAnInvalidOneOverTheProtocol(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["watch", AppWindowsChangedMethodTests.PART]]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("watch", AppWindowsChangedMethodTests.PART)]));
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       cli.sendMessages(
         new Request("cli:1", ShellMethods.appWindowsChanged, AppWindowsChangedMethodTests.WINDOWS.toJson()),

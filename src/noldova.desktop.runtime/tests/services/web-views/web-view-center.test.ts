@@ -18,6 +18,7 @@ import {
 import { EventRegistry, RuntimeBuild, WebViewCenter, WebViewFailureException } from "@noldova/desktop.runtime";
 
 import { EventSinkFixture } from "../../fixtures/event-sink.fixture.js";
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import type { RawConnectionFixture } from "../../fixtures/raw-connection.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
@@ -216,10 +217,10 @@ export class WebViewCenterHostTests {
   @TestMethod
   public relaysAModulesCallsToTheMainProcessTakesOnlyItsAnswersAndEventsAndFailsThemWhileItIsGone(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", WebViewCenterHostTests.createPart()]], ["clock"]));
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", WebViewCenterHostTests.createPart())], ["clock"]));
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
       const before = await WebViewCenterHostTests.callAsync(cli, "cli:1", WebViewCenterHostTests.ECHO, null);
-      const [main] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: main } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const listing = await UpdateBarrierFixture.readEventAsync(main, ShellEvents.webViewCommand);
       const view = { id: "1", module: "clock", pane: { name: "clock.face" }, profileKey: "workspace-1" };

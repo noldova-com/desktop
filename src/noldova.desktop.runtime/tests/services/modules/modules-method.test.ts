@@ -15,6 +15,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { ModuleStatusList, QualifiedName, Request, ShellMethods, StopPolicy, StopRequest } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
 @TestClass
@@ -22,10 +23,10 @@ export class ModulesMethodTests {
   @TestMethod
   public activatesItsModulesAndReportsThemToAClientThatAsks(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const declarations = await fixture.writeModulesAsync([["notes", RuntimeHostFixture.PART], ["broken", null]]);
+      const declarations = await fixture.writeModulesAsync([new ModuleSourceFixture("notes", RuntimeHostFixture.PART), new ModuleSourceFixture("broken", null)]);
       const host = await fixture.startAsync(30_000, declarations);
 
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       connection.sendMessages(new Request("main:1", new QualifiedName("notes", "echo"), { text: "hi" }), new Request("main:2", ShellMethods.modules, null));
       const responses = [await connection.readResponseAsync(), await connection.readResponseAsync()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
       connection.sendMessages(new Request("main:3", ShellMethods.stop, new StopRequest(StopPolicy.IfIdle).toJson()));

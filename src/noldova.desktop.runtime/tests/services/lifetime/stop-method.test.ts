@@ -15,6 +15,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { CommandRun, FailureCode, QualifiedName, Request, ShellMethods, StopPolicy, StopRequest } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
 @TestClass
@@ -22,8 +23,8 @@ export class StopMethodTests {
   @TestMethod
   public reportsAModulesWorkAndStopsItOnlyWhenAskedToStopTheWork(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", RuntimeHostFixture.createWorkPart()]]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", RuntimeHostFixture.createWorkPart())]));
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       connection.sendMessages(new Request("main:1", ShellMethods.runCommand, new CommandRun(QualifiedName.parse("clock.tick"), null).toJson()));
       const began = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
@@ -43,16 +44,16 @@ export class StopMethodTests {
   @TestMethod
   public keepsTheRuntimeAndItsWorkForAClientThatConnectedFirstWhileTheCliStopStaysUnchanged(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", RuntimeHostFixture.createWorkPart()]]));
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", RuntimeHostFixture.createWorkPart())]));
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       mainProcess.sendMessages(new Request("main:1", ShellMethods.runCommand, new CommandRun(QualifiedName.parse("clock.tick"), null).toJson()));
       await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
       const kept = await RuntimeHostFixture.callAsync(mainProcess, "main:2", ShellMethods.stop, new StopRequest(StopPolicy.StopWork, true).toJson());
       const descriptions = [...host.work.descriptions];
       cli.sendMessages(new Request("cli:1", ShellMethods.stop, new StopRequest(StopPolicy.StopWork).toJson()));
-      const [responses, events] = await RuntimeHostFixture.readMessagesAsync(cli, 3);
+      const { responses, events } = await RuntimeHostFixture.readMessagesAsync(cli, 3);
       await host.waitForStopAsync();
 
       Assert.areEqual("{\"keptFor\":1}", JSON.stringify(kept.payload));
@@ -66,8 +67,8 @@ export class StopMethodTests {
   @TestMethod
   public appliesThePolicyToAClientAloneAndKeepsTheRuntimeOnceAnotherConnectsEvenOfTheSameName(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", RuntimeHostFixture.createWorkPart()]]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", RuntimeHostFixture.createWorkPart())]));
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       mainProcess.sendMessages(new Request("main:1", ShellMethods.runCommand, new CommandRun(QualifiedName.parse("clock.tick"), null).toJson()));
       await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
@@ -76,7 +77,7 @@ export class StopMethodTests {
       const kept = await RuntimeHostFixture.callAsync(mainProcess, "main:3", ShellMethods.stop, new StopRequest(StopPolicy.StopWork, true).toJson());
       const descriptions = [...host.work.descriptions];
       mainProcess.sendMessages(new Request("main:4", ShellMethods.stop, new StopRequest(StopPolicy.StopWork).toJson()));
-      const [responses] = await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
+      const { responses } = await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
       await host.waitForStopAsync();
 
       Assert.areEqual(`${FailureCode.Conflict}|{"descriptions":["Ticking"]}`, `${refused.failure?.code}|${JSON.stringify(refused.failure?.details)}`);

@@ -19,7 +19,7 @@ export class RecentCommandsStoreTests {
   public keepsRecentCommandsAcrossRuntimes(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       const first = await fixture.startAsync();
-      const [writer] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: writer } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       writer.sendMessages(
         new Request("main:1", ShellMethods.recordCommand, new RecentCommandUse("d1", "notes.newNote").toJson()),
         new Request("main:2", ShellMethods.recordCommand, new RecentCommandUse("d1", "desktop.openSettings").toJson()));
@@ -28,7 +28,7 @@ export class RecentCommandsStoreTests {
       await first.waitForStopAsync();
 
       await fixture.startAsync();
-      const [reader] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: reader } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       reader.sendMessages(new Request("main:3", ShellMethods.recentCommands, new RecentCommandsQuery("d1").toJson()));
 
       Assert.areEqual("desktop.openSettings,notes.newNote", RecentCommands.fromJson((await reader.readResponseAsync()).payload).ids.join(","));

@@ -19,14 +19,14 @@ export class RecentCommandsMethodTests {
   public answersNoCommandsForADeviceThatUsedNoneAndEachDevicesOwnOtherwise(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync();
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       connection.sendMessages(
         new Request("main:1", ShellMethods.recentCommands, new RecentCommandsQuery("d1").toJson()),
         new Request("main:2", ShellMethods.recordCommand, new RecentCommandUse("d1", "c1").toJson()),
         new Request("main:3", ShellMethods.recordCommand, new RecentCommandUse("d2", "c0").toJson()),
         new Request("main:4", ShellMethods.recentCommands, new RecentCommandsQuery("d2").toJson()));
-      const [responses] = await RuntimeHostFixture.readMessagesAsync(connection, 4 + 2);
+      const { responses } = await RuntimeHostFixture.readMessagesAsync(connection, 4 + 2);
 
       Assert.areEqual(JSON.stringify({ ids: [] }), JSON.stringify(responses.get("main:1")?.payload));
       Assert.areEqual(JSON.stringify({ ids: ["c0"] }), JSON.stringify(responses.get("main:4")?.payload));

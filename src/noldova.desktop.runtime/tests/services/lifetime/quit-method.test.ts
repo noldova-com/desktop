@@ -19,7 +19,7 @@ export class QuitMethodTests {
   public answersNoMainProcessAtOnceWhenNoMainProcessIsConnected(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync();
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
       await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       const answer = await RuntimeHostFixture.callAsync(cli, "cli:1", ShellMethods.quit, null);

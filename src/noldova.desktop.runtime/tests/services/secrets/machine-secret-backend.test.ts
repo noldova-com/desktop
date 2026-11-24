@@ -19,6 +19,7 @@ import {
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
 import { CliAndMainFixture } from "../../fixtures/cli-and-main.fixture.js";
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import type { RawConnectionFixture } from "../../fixtures/raw-connection.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 import { UpdateBarrierFixture } from "../../fixtures/update-barrier.fixture.js";
@@ -32,8 +33,8 @@ export class MachineSecretBackendTests {
   @TestMethod
   public refusesEveryCallWithUnavailableWhileTheAppsMainProcessHasNeverConnected(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["vault", MachineSecretBackendTests.createPart()]]));
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("vault", MachineSecretBackendTests.createPart())]));
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
       const reference = new SecretReference(MachineSecretBackendTests.TOKEN).toJson();
 
       const answers = [
@@ -55,9 +56,9 @@ export class MachineSecretBackendTests {
   @TestMethod
   public savesReadsReplacesAndRemovesThroughTheMainProcessAndKeepsOnlyTheCiphertextForItsDevice(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["vault", MachineSecretBackendTests.createPart()]]));
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
-      const [main] = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("vault", MachineSecretBackendTests.createPart())]));
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: main } = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
       const reference = new SecretReference(MachineSecretBackendTests.TOKEN).toJson();
       const device: JsonValue[] = [];
 
@@ -94,9 +95,9 @@ export class MachineSecretBackendTests {
   @TestMethod
   public takesAnswersOnlyFromTheMainProcessItAskedAndKeepsItsDeviceForRemovingAndStatusOnceItGoes(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["vault", MachineSecretBackendTests.createPart()]]));
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
-      const [main] = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("vault", MachineSecretBackendTests.createPart())]));
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: main } = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
       const reference = new SecretReference(MachineSecretBackendTests.TOKEN).toJson();
       await MachineSecretBackendTests.answerAsync(cli, main, [], new Request("cli:0", ShellMethods.secretStatus, reference), new SecretAnswered(1, "device-1"));
 
@@ -126,9 +127,9 @@ export class MachineSecretBackendTests {
   @TestMethod
   public turnsTheMainProcesssFailuresIntoReasonsAModuleCanShowNamingNoValue(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["vault", MachineSecretBackendTests.createPart()]]));
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
-      const [main] = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("vault", MachineSecretBackendTests.createPart())]));
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: main } = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
       const reference = new SecretReference(MachineSecretBackendTests.TOKEN).toJson();
       const value = new SecretValue(MachineSecretBackendTests.TOKEN, "s3cret").toJson();
       const commands: JsonValue[] = [];
@@ -165,9 +166,9 @@ export class MachineSecretBackendTests {
   @TestMethod
   public appliesASaveStillWaitingForItsCiphertextBeforeARemoveAskedAfterItSoTheRemoveStands(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["vault", MachineSecretBackendTests.createPart()]]));
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
-      const [main] = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("vault", MachineSecretBackendTests.createPart())]));
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: main } = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
       const reference = new SecretReference(MachineSecretBackendTests.TOKEN).toJson();
       await MachineSecretBackendTests.answerAsync(cli, main, [], new Request("cli:1", ShellMethods.secretStatus, reference), new SecretAnswered(1, "device-1"));
 
@@ -189,7 +190,7 @@ export class MachineSecretBackendTests {
   @TestMethod
   public keepsEachDevicesSecretsApartSoAnotherDeviceNeitherSeesReadsNorRemovesThem(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const declarations = await fixture.writeModulesAsync([["vault", MachineSecretBackendTests.createPart()]]);
+      const declarations = await fixture.writeModulesAsync([new ModuleSourceFixture("vault", MachineSecretBackendTests.createPart())]);
       const reference = new SecretReference(MachineSecretBackendTests.TOKEN).toJson();
 
       const { cli, main } = await MachineSecretBackendTests.startWithMainAsync(fixture, declarations);
@@ -214,7 +215,7 @@ export class MachineSecretBackendTests {
   @TestMethod
   public asksTheMainProcessForItsDeviceOnceItConnectsSoAModuleReadsThatDevicesSetting(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const { cli, main } = await MachineSecretBackendTests.startWithMainAsync(fixture, await fixture.writeModulesAsync([["vault", MachineSecretBackendTests.createPart()]]));
+      const { cli, main } = await MachineSecretBackendTests.startWithMainAsync(fixture, await fixture.writeModulesAsync([new ModuleSourceFixture("vault", MachineSecretBackendTests.createPart())]));
       const asked = await UpdateBarrierFixture.readEventAsync(main, ShellEvents.secretCommand);
       const checks = (device: string): JsonValue => new SettingValue(new SettingKey(QualifiedName.parse("desktop.updateChecks"), null, device), "OnRequest").toJson();
       await MachineSecretBackendTests.callAsync(main, "main:1", ShellMethods.setSetting, checks("device-1"));
@@ -231,7 +232,7 @@ export class MachineSecretBackendTests {
   @TestMethod
   public logsThatItDoesNotKnowItsDeviceWhenTheMainProcessCannotSayAndModulesReadTheDefaultAndAsksAgainForASecret(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const { cli, main } = await MachineSecretBackendTests.startWithMainAsync(fixture, await fixture.writeModulesAsync([["vault", MachineSecretBackendTests.createPart()]]));
+      const { cli, main } = await MachineSecretBackendTests.startWithMainAsync(fixture, await fixture.writeModulesAsync([new ModuleSourceFixture("vault", MachineSecretBackendTests.createPart())]));
       await UpdateBarrierFixture.readEventAsync(main, ShellEvents.secretCommand);
       await MachineSecretBackendTests.callAsync(main, "main:1", ShellMethods.secretAnswered, new SecretAnswered(1, null, SecretFailureKind.NoDevice).toJson());
       const read = await MachineSecretBackendTests.callAsync(cli, "cli:1", MachineSecretBackendTests.ECHO, { op: "setting" });
@@ -249,8 +250,8 @@ export class MachineSecretBackendTests {
 
   private static async startWithMainAsync(fixture: RuntimeHostFixture, declarations: string): Promise<CliAndMainFixture> {
     await fixture.startAsync(30_000, declarations);
-    const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
-    const [main] = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
+    const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+    const { connection: main } = await fixture.handshakeAsync("main", RuntimeBuild.identity, false);
     return new CliAndMainFixture(cli, main);
   }
 

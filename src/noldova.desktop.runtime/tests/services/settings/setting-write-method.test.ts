@@ -19,7 +19,7 @@ export class SettingWriteMethodTests {
   public writesASettingAndPublishesTheChangeButRefusesAnInvalidValueOrAnUndeclaredSetting(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync(30_000, await fixture.writeModulesAsync([]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const mode = new SettingKey(QualifiedName.parse("desktop.mode"));
       const quiet = new SettingKey(QualifiedName.parse("desktop.doNotDisturb"), null, "d1");
 
@@ -28,7 +28,7 @@ export class SettingWriteMethodTests {
         new Request("main:2", ShellMethods.setSetting, new SettingValue(quiet, true).toJson()),
         new Request("main:3", ShellMethods.setSetting, new SettingValue(mode, "Blue").toJson()),
         new Request("main:4", ShellMethods.setSetting, new SettingValue(new SettingKey(QualifiedName.parse("desktop.speed")), 1).toJson()));
-      const [responses, events] = await RuntimeHostFixture.readMessagesAsync(connection, 7);
+      const { responses, events } = await RuntimeHostFixture.readMessagesAsync(connection, 7);
       const changes = events.filter(t => t.name.text === "desktop.settingsChanged");
 
       Assert.isTrue(["main:1", "main:2"].every(t => responses.get(t)?.hasFailed === false));
