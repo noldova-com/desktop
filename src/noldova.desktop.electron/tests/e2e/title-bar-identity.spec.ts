@@ -11,8 +11,8 @@ import type { Page } from "@playwright/test";
 import type { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 
-const VIEWPORT_WIDTH = 1920;
-const VIEWPORT_HEIGHT = 1056;
+const WINDOW_WIDTH = 1200;
+const WINDOW_HEIGHT = 700;
 
 interface IIdentityGeometry {
   readonly name: string;
@@ -40,8 +40,8 @@ async function layOutAsync(mainProcess: MainProcessFixture, width: number): Prom
 }
 
 async function zoomInAsync(mainProcess: MainProcessFixture, width: number): Promise<void> {
-  await test.step(`zoom in to a ${width} CSS px row from a ${VIEWPORT_WIDTH} × ${VIEWPORT_HEIGHT} viewport`, async () => {
-    await mainProcess.useViewportAsync(VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+  await test.step(`zoom in to a ${width} CSS px row from a ${WINDOW_WIDTH} × ${WINDOW_HEIGHT} window`, async () => {
+    await mainProcess.useWindowAsync(WINDOW_WIDTH, WINDOW_HEIGHT);
     const natural: number = await mainProcess.window.evaluate(() => innerWidth);
     expect(natural, `The ${natural} CSS px viewport isn't wider than the ${width} px row, so the zoom wouldn't zoom in.`).toBeGreaterThan(width);
     await mainProcess.zoomAsync(natural / width, width);
