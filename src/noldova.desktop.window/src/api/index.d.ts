@@ -1958,7 +1958,9 @@ export interface IWindowPartContext {
    * ```ts
    * import type { IWindowPartContext } from "@noldova/desktop.window";
    *
-   * export function provideWriteUndo(context: IWindowPartContext, writes: { canUndo(): boolean; undoLastAsync(): Promise<void> }): () => void {
+   * import type { WriteHistory } from "./write-history.js";
+   *
+   * export function provideWriteUndo(context: IWindowPartContext, writes: WriteHistory): () => void {
    *   return context.provideUndo({ canUndo: () => writes.canUndo(), undoAsync: () => writes.undoLastAsync() });
    * }
    * ```
