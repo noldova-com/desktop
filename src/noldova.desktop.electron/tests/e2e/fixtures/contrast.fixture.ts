@@ -7,6 +7,8 @@
  */
 import { type Locator, expect } from "@playwright/test";
 
+import { RowTextMissingException } from "../exceptions/row-text-missing.exception.ts";
+
 export class ContrastFixture {
   public static readonly MINIMUM_TEXT_CONTRAST: number = 4.5;
   public static readonly SELECTED_ROW_BACKGROUND: { readonly light: string; readonly dark: string } = { light: "rgb(230, 230, 230)", dark: "rgb(56, 56, 56)" };
@@ -27,7 +29,7 @@ export class ContrastFixture {
       .filter(u => [...u.childNodes].some(v => v.nodeType === Node.TEXT_NODE && (v.textContent ?? "").trim() !== ""))
       .map(u => getComputedStyle(u).color));
     if (colors.length === 0)
-      throw new Error("The row shows no text.");
+      throw new RowTextMissingException();
     return Math.min(...colors.map(t => ContrastFixture.measureContrast(t, background)));
   }
 }

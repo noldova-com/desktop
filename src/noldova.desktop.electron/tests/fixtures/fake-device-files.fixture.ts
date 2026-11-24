@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { FakeDeviceFileMissingException } from "../exceptions/fake-device-file-missing.exception.js";
 import { FakeDeviceFileStore } from "./fake-device-file-store.fixture.js";
 
 export class FakeDeviceFiles {
@@ -27,7 +28,7 @@ export class FakeDeviceFiles {
       case "window-state.json":
         return this.windowState;
       default:
-        throw new Error(`No fake device file is named ${fileName}.`);
+        throw new FakeDeviceFileMissingException(fileName);
     }
   }
 }

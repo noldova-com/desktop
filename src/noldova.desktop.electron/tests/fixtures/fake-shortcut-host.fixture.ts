@@ -9,6 +9,8 @@
 import "@noldova/context.core";
 import type { IShortcutHost } from "@noldova/desktop.electron";
 
+import { ShortcutNotTakenException } from "../exceptions/shortcut-not-taken.exception.js";
+
 export class FakeShortcutHost implements IShortcutHost {
   public readonly held: Map<string, () => void> = new Map();
   public readonly steps: string[] = [];
@@ -33,7 +35,7 @@ export class FakeShortcutHost implements IShortcutHost {
   public press(accelerator: string): void {
     const callback = this.held.get(accelerator);
     if (Object.isUndefined(callback))
-      throw new Error(`The key ${accelerator} is not taken.`);
+      throw new ShortcutNotTakenException(accelerator);
     callback();
   }
 }

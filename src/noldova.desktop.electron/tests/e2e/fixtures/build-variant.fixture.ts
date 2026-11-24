@@ -10,6 +10,8 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { BuildVariantMissingException } from "../exceptions/build-variant-missing.exception.ts";
+
 export class BuildVariantFixture {
   public static readonly noModules: string = "no-modules";
 
@@ -25,7 +27,7 @@ export class BuildVariantFixture {
     await BuildVariantFixture.restoreAsync();
     const variant = path.join(BuildVariantFixture.VARIANTS_FOLDER, name);
     if (!existsSync(variant))
-      throw new Error(`The build variant ${name} is missing; build it with npm run build -- --test --without <module id> --output ${variant}.`);
+      throw new BuildVariantMissingException(name, variant);
     await mkdir(BuildVariantFixture.SWAPPED_FOLDER, { recursive: true });
     for (const [built, kept, source] of BuildVariantFixture.swaps(variant)) {
       await rename(built, kept);

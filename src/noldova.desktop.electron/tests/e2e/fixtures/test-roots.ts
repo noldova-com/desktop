@@ -16,6 +16,8 @@ import { DataDirectory, RuntimeServer } from "@noldova/desktop.runtime";
 
 import { CleanupSteps } from "./cleanup-steps.ts";
 import { ErrorCodeFixture } from "./error-code.fixture.ts";
+import { FolderNotDeletedException } from "../exceptions/folder-not-deleted.exception.ts";
+import { SocketPathTooLongException } from "../exceptions/socket-path-too-long.exception.ts";
 import { UiRun } from "./ui-run.ts";
 import { WholeFile } from "./whole-file.ts";
 
@@ -91,7 +93,7 @@ export class TestRoots {
     const longest = TestRoots.longestSocketPath(TestRoots.runFolderIn(TestRoots.baseFor(given, platform)), workers);
     const length = Buffer.byteLength(longest);
     if (length > RuntimeServer.maximumSocketPathLength)
-      throw new Error(`A test of this run would start the runtime with the socket path ${longest}, which is ${length} bytes, over the ${RuntimeServer.maximumSocketPathLength} the runtime accepts, so the run stops before its tests; run it from a shorter temporary folder.`);
+      throw new SocketPathTooLongException(longest, length, RuntimeServer.maximumSocketPathLength);
   }
 
   public static async useRunFolderAsync(run: UiRun): Promise<string> {
@@ -120,7 +122,7 @@ export class TestRoots {
     if (Object.isNull(names) || names.some(t => TestRoots.ROOT_NAME.test(t) || TestRoots.STAGING_NAME.test(t)))
       return;
     await rm(folder, { recursive: true, force: true, maxRetries: TestRoots.RUN_FOLDER_RETRIES }).catch((error: unknown) => {
-      throw new Error(`Deleting the run's temporary folder ${folder} failed, so the next UI run's set-up tries again: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+      throw new FolderNotDeletedException(folder, error);
     });
   }
 
@@ -195,7 +197,7 @@ export class TestRoots {
 
   private static async deleteAsync(removed: string, maxRetries: number): Promise<void> {
     await rm(removed, { recursive: true, force: true, maxRetries }).catch((error: unknown) => {
-      throw new Error(`Deleting ${removed} failed, so the next UI run's set-up tries again: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+      throw new FolderNotDeletedException(removed, error);
     });
   }
 }

@@ -7,6 +7,8 @@
  */
 import { type Locator, type Page, expect } from "@playwright/test";
 
+import { TabKeyMissingException } from "../exceptions/tab-key-missing.exception.ts";
+
 export class TabRowFixture {
   public static readonly CLEAR: string = "clear";
 
@@ -26,7 +28,7 @@ export class TabRowFixture {
   public static async showAsync(window: Page, tab: Locator): Promise<void> {
     const key = await tab.getAttribute("data-tab-key");
     if (key === null)
-      throw new Error("The tab has no data-tab-key.");
+      throw new TabKeyMissingException();
     if (await tab.evaluate(t => t.classList.contains("nol-tab-overflowed"))) {
       await tab.locator("xpath=ancestor::nol-tab-group").locator(".nol-tab-group-overflow").click();
       await window.locator(`.cdk-overlay-container .nol-tab-group-overflow-tab[data-tab="${key}"]`).click();

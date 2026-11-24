@@ -10,6 +10,7 @@ import "@noldova/context.core";
 import type { IWebViewContents, IWebViewEngine } from "@noldova/desktop.electron";
 
 import { FakeClock } from "./fake-clock.fixture.js";
+import { FakeSessionMissingException } from "../exceptions/fake-session-missing.exception.js";
 import { FakeWebView } from "./fake-web-view.fixture.js";
 import { FakeWebViewSession } from "./fake-web-view-session.fixture.js";
 
@@ -61,7 +62,7 @@ export class FakeWebViewEngine implements IWebViewEngine {
   public session(partition: string): FakeWebViewSession {
     const session = this.sessions.get(partition);
     if (Object.isUndefined(session))
-      throw new Error(`No session for ${partition}.`);
+      throw new FakeSessionMissingException(partition);
     return session;
   }
 }

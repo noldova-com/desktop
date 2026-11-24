@@ -15,6 +15,7 @@ import { JsonReader } from "@noldova/context.json";
 import { CleanupSteps } from "./cleanup-steps.ts";
 import { ErrorCodeFixture } from "./error-code.fixture.ts";
 import { ProcessListFixture } from "./process-list.fixture.ts";
+import { ProcessesNotKilledException } from "../exceptions/processes-not-killed.exception.ts";
 import { TestRoots } from "./test-roots.ts";
 
 export interface IProcessRecordEntry {
@@ -63,7 +64,7 @@ export class ProcessRecord {
       }
       const left = await ProcessListFixture.waitForExitAsync(owned.map(([t]) => t), ProcessRecord.EXIT_TIMEOUT);
       if (left.length > 0)
-        throw new Error(`Processes ${left.join(", ")} still ran ${ProcessRecord.EXIT_TIMEOUT / 1000} s after they were killed, so ${entry.root} is kept.`);
+        throw new ProcessesNotKilledException(left, ProcessRecord.EXIT_TIMEOUT / 1000, entry.root);
       await TestRoots.removeAsync(entry.root);
     }));
     if (failures.length > 0)
