@@ -580,6 +580,19 @@ export interface IViewOptions {
    * order they were registered in, as views with the same order do.
    */
   readonly defaultOrder?: number;
+
+  /**
+   * The width, in rem, the view would like the document area to have
+   * while its tab is the active tab of the active document group, a finite
+   * number greater than 0, such as 60 for a screen with wide tables; the
+   * window's own 30 rem when left out. While it is in front, the side
+   * docks give way to it as they do to the window's own width: each shrinks
+   * to its minimum, the right one first, and then closes to its strip, the
+   * right one first. A dock the person opens from its strip stays open, a
+   * dock the person hid stays hidden, and the docks come back once a tab
+   * without the width is in front or the window has room.
+   */
+  readonly preferredWidth?: number;
 }
 
 /**
@@ -609,6 +622,19 @@ export interface IDocumentContributionOptions {
    * {@link IWindowPartContext.updateDocument}.
    */
   readonly isRenamable?: boolean;
+
+  /**
+   * The width, in rem, the document would like the document area to have
+   * while its tab is the active tab of the active document group, a finite
+   * number greater than 0, such as 60 for a screen with wide tables; the
+   * window's own 30 rem when left out. While it is in front, the side
+   * docks give way to it as they do to the window's own width: each shrinks
+   * to its minimum, the right one first, and then closes to its strip, the
+   * right one first. A dock the person opens from its strip stays open, a
+   * dock the person hid stays hidden, and the docks come back once a tab
+   * without the width is in front or the window has room.
+   */
+  readonly preferredWidth?: number;
 }
 
 /**
@@ -3682,6 +3708,13 @@ export declare class DocumentContribution {
   public readonly isRenamable: boolean;
 
   /**
+   * The width, in rem, the document would like the document area to have,
+   * as {@link IDocumentContributionOptions.preferredWidth} describes it, or
+   * null.
+   */
+  public readonly preferredWidth: number | null;
+
+  /**
    * Creates the document's contribution.
    *
    * @param name The document's name, `<module id>.<name>`.
@@ -3691,7 +3724,8 @@ export declare class DocumentContribution {
    * @param options What the document declares besides its component and
    * padding; nothing when left out.
    * @throws ArgumentException synchronously when the name, or the
-   * options' tab-row place, is not `<module id>.<name>`.
+   * options' tab-row place, is not `<module id>.<name>`, or the options'
+   * preferred width is not a finite number greater than 0.
    * @example
    * ```ts
    * import { Component } from "@angular/core";
@@ -4565,6 +4599,13 @@ export declare class ViewContribution {
   public readonly defaultOrder: number | null;
 
   /**
+   * The width, in rem, the view would like the document area to have while
+   * it is the active document, as {@link IViewOptions.preferredWidth}
+   * describes it, or null.
+   */
+  public readonly preferredWidth: number | null;
+
+  /**
    * Creates the view's contribution.
    *
    * @param name The view's name, `<module id>.<name>`.
@@ -4576,11 +4617,12 @@ export declare class ViewContribution {
    * loads lazily so activation stays light.
    * @param padding The padding of its page; left out, its module decides.
    * @param options Whether it has instances, the place of its tab-row
-   * buttons and its group and order in a new layout, as
-   * {@link IViewOptions} describes them; none when left out.
+   * buttons, its group and order in a new layout and its preferred width,
+   * as {@link IViewOptions} describes them; none when left out.
    * @throws ArgumentException synchronously when the name or the tab-row
-   * place is not `<module id>.<name>`, the title or icon is blank, or the
-   * default group or order is not a whole number of 0 or more.
+   * place is not `<module id>.<name>`, the title or icon is blank, the
+   * default group or order is not a whole number of 0 or more, or the
+   * preferred width is not a finite number greater than 0.
    * @example
    * ```ts
    * import { Component } from "@angular/core";

@@ -885,6 +885,7 @@ export class Resources {
   public static readonly invalidContributionName: string = "A contribution name has the form <module id>.<name>.";
   public static readonly renamableViewWithoutInstances: string = "Only a view with instances can be renamable.";
   public static readonly invalidDefaultPlace: string = "A view's default group and default order are whole numbers of 0 or more.";
+  public static readonly invalidPreferredWidth: string = "A preferred width is a finite number of rem greater than 0.";
   public static readonly invalidModuleId: string = "A module id is lowercase kebab-case.";
   public static readonly windowPartLoadFailed: string = "Its window part could not be loaded.";
   public static readonly windowPartActivationFailed: string = "Its window part failed to activate.";
@@ -1135,6 +1136,7 @@ export class Resources {
   public static readonly nameParameterName: string = "name";
   public static readonly optionsParameterName: string = "options";
   public static readonly partsParameterName: string = "parts";
+  public static readonly preferredWidthsParameterName: string = "preferredWidths";
   public static readonly previewParameterName: string = "preview";
   public static readonly renamableDocumentsParameterName: string = "renamableDocuments";
   public static readonly sizeParameterName: string = "size";

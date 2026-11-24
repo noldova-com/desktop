@@ -14,7 +14,7 @@
       "notes.timeline", "notes.references", "notes.activity", "notes.comments", "notes.reviews", "notes.history", "notes.terminal", "notes.problems",
       "notes.output", "notes.debug", "notes.session", "notes.board"
     ],
-    "documents": ["notes.note", "notes.feed"],
+    "documents": ["notes.note", "notes.feed", "notes.wide"],
     "placeholders": ["notes.welcome"],
     "statusBarItems": ["notes.count"],
     "topBarActions": ["notes.compose", "notes.back"],

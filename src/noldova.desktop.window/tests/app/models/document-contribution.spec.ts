@@ -45,6 +45,17 @@ describe("DocumentContribution", () => {
       .toEqual([false, true]);
   });
 
+  it("keeps the preferred width it declares, and none when it declares none", () => {
+    expect([new DocumentContribution("git.history", load).preferredWidth, new DocumentContribution("git.history", load, undefined, { preferredWidth: 60 }).preferredWidth])
+      .toEqual([null, 60]);
+  });
+
+  for (const preferredWidth of [0, -1, Number.NaN, Number.POSITIVE_INFINITY])
+    it(`refuses the preferred width ${preferredWidth}`, () => {
+      expect(() => new DocumentContribution("git.history", load, undefined, { preferredWidth }))
+        .toThrowError("A preferred width is a finite number of rem greater than 0.");
+    });
+
   it("refuses a tab-row place without its module id", () => {
     expect(() => new DocumentContribution("browser.page", load, undefined, { tabRowPlace: "tabRow" })).toThrowError(ArgumentException);
   });

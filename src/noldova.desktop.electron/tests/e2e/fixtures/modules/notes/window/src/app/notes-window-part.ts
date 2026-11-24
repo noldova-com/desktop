@@ -132,6 +132,11 @@ export class NotesWindowPart implements IWindowPart {
         () => import("./components/notes-feed/notes-feed.component").then(t => t.NotesFeedComponent)));
       context.openDocument("notes.feed", "messages", "Messages");
     }
+    if (options.readBoolean("hasWide")) {
+      context.registerDocument(new DocumentContribution("notes.wide",
+        () => import("./components/notes-outline/notes-outline.component").then(t => t.NotesOutlineComponent), ContentPadding.None, { preferredWidth: 60 }));
+      context.openDocument("notes.wide", "board", "Board");
+    }
     this.continueAsync = async () => {
       await NotesWindowPart.readOptionsAsync(context, counter);
       NotesState.continued.update(t => t + 1);

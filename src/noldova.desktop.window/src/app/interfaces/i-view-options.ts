@@ -12,4 +12,5 @@ export interface IViewOptions {
   readonly isRenamable?: boolean;
   readonly defaultGroup?: number;
   readonly defaultOrder?: number;
+  readonly preferredWidth?: number;
 }

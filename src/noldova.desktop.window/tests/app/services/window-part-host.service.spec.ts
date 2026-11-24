@@ -1287,6 +1287,18 @@ describe("WindowPartHostService", () => {
     expect(heard).toEqual(["list 1 Inbox", "note 2 Plans"]);
   });
 
+  it("gives the registry the preferred width of each of a part's views and documents that declares one", async () => {
+    const part = new WindowPartFixture("notes", log, t => {
+      t.registerView(new ViewContribution("notes.list", "Notes", "sticky_note_2", DockSide.Left, false, load, undefined, { preferredWidth: 60 }));
+      t.registerDocument(new DocumentContribution("notes.note", load));
+      t.registerDocument(new DocumentContribution("notes.page", load, undefined, { preferredWidth: 55.5 }));
+    });
+    const { layout } = start([source("notes", part, [], ["notes.list"], [], [], [], [], ["notes.note", "notes.page"])], [status("notes")]);
+    await vi.waitFor(() => expect(layout.registry().hasDocument("notes.page")).toBe(true));
+
+    expect(["notes.list", "notes.note", "notes.page"].map(t => layout.registry().preferredWidth(t))).toEqual([60, null, 55.5]);
+  });
+
   it("tells a part when the person closes one of its document tabs, and never of one it closed itself, once it deactivates or when the window goes away", async () => {
     const note = (instance: string): DocumentTab => new DocumentTab("notes.note", instance);
     const heard: string[] = [];

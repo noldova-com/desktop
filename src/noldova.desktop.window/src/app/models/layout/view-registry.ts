@@ -17,9 +17,10 @@ export class ViewRegistry {
   private readonly documentNames: ReadonlySet<string>;
   private readonly documentPlaces: ReadonlyMap<string, string>;
   private readonly renamableDocuments: ReadonlySet<string>;
+  private readonly preferredWidths: ReadonlyMap<string, number>;
 
   public constructor(views: readonly ViewType[], documents: readonly string[], documentPlaces: ReadonlyMap<string, string> = new Map(),
-    renamableDocuments: ReadonlySet<string> = new Set()) {
+    renamableDocuments: ReadonlySet<string> = new Set(), preferredWidths: ReadonlyMap<string, number> = new Map()) {
     if (documents.some(t => !Resources.contributionNamePattern.test(t)))
       throw new ArgumentException(Resources.invalidContributionName, Resources.documentsParameterName);
     if (new Set(views.map(t => t.name)).size !== views.length || new Set(documents).size !== documents.length)
@@ -28,11 +29,14 @@ export class ViewRegistry {
       throw new ArgumentException(Resources.invalidContributionName, Resources.documentPlacesParameterName);
     if ([...renamableDocuments].some(t => !documents.includes(t)))
       throw new ArgumentException(Resources.invalidContributionName, Resources.renamableDocumentsParameterName);
+    if ([...preferredWidths].some(([name, width]) => !(documents.includes(name) || views.some(t => t.name === name)) || !(Number.isFinite(width) && width > 0)))
+      throw new ArgumentException(Resources.invalidPreferredWidth, Resources.preferredWidthsParameterName);
 
     this.viewTypes = new Map(views.map(t => [t.name, t]));
     this.documentNames = new Set(documents);
     this.documentPlaces = documentPlaces;
     this.renamableDocuments = renamableDocuments;
+    this.preferredWidths = preferredWidths;
   }
 
   public static createEmpty(): ViewRegistry {
@@ -53,6 +57,10 @@ export class ViewRegistry {
 
   public documentTabRowPlace(name: string): string | null {
     return this.documentPlaces.get(name) ?? null;
+  }
+
+  public preferredWidth(name: string): number | null {
+    return this.preferredWidths.get(name) ?? null;
   }
 
   public isRenamableView(name: string): boolean {
