@@ -130,14 +130,14 @@ export class ReleaseNotesTests {
   @TestMethod
   public linksEachSourceArchiveThePackagesNameLast(): void {
     const sha256 = "ab".repeat(32);
-    const sources = [new SourceArchive("https://example.com/releases/download/sources-1/sample-source-unix.tar", 10, sha256),
-      new SourceArchive("https://example.com/releases/download/sources-1/sample-source-windows.tar", 20, sha256)];
+    const unix = "https://example.com/releases/download/sources-1/sample-source-unix.tar";
+    const windows = "https://example.com/releases/download/sources-1/sample-source-windows.tar";
 
     const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], ReleaseNotesTests.REPOSITORY, ReleaseNotesTests.RUN, ReleaseNotesTests.REPOSITORY,
-      "example/sample-app", ReleaseNotesTests.REPOSITORY, [], sources);
+      "example/sample-app", ReleaseNotesTests.REPOSITORY, [], [new SourceArchive(unix, 10, sha256), new SourceArchive(windows, 20, sha256)]);
 
-    Assert.isTrue(notes.endsWith(`${ReleaseNotesTests.RUN}\n\nThe packages ship components whose licences call for their complete corresponding source, which this release carries beside the `
-      + `installers: [sample-source-unix.tar](${sources[0]?.url ?? String.empty}), SHA-256 ${sha256}, [sample-source-windows.tar](${sources[1]?.url ?? String.empty}), SHA-256 ${sha256}.`), notes);
+    Assert.isTrue(notes.endsWith(`${ReleaseNotesTests.RUN}\n\nSource code: the packages ship components whose licences call for their complete corresponding source, which is published at `
+      + `[sample-source-unix.tar](${unix}), SHA-256 ${sha256}, [sample-source-windows.tar](${windows}), SHA-256 ${sha256}.`), notes);
     Assert.isFalse(ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], []).includes("corresponding source"));
   }
 

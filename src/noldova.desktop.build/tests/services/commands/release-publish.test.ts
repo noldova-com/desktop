@@ -210,17 +210,19 @@ export class ReleasePublishTests {
   }
 
   @TestMethod
-  public async publishesNothingWhenASourceArchiveThePackagesNameCannotBeDownloadedAsync(): Promise<void> {
-    const source = new SourceArchive("https://127.0.0.1:9/sources-1/sample-source.tar", 10, "ab".repeat(32));
+  public async linksInTheNotesTheSourceArchivesThePackagesNameAndUploadsOnlyTheReleaseFilesAsync(): Promise<void> {
+    const source = new SourceArchive("https://example.com/releases/download/sources-1/sample-source.tar", 10, "ab".repeat(32));
     await using app = await ReleasePublishTests.createAppAsync("1.2.3", ReleasePublishTests.TARGETS, [], [source]);
     const github = new GitHubReleasesFixture();
     const environment = { ...ReleasePublishTests.environment(app, String.empty), RELEASE_INTERNAL_VERSION: undefined };
 
     const result = await ReleasePublishTests.runAsync(app.path, github, environment);
 
-    Assert.areEqual(1, result.exitCode, result.output);
-    Assert.isTrue(result.output.startsWith(`${ReleasePublishTests.REPORTS_CHECKED}The source archive ${source.url} could not be downloaded: TypeError`), result.output);
-    Assert.areEqual(0, github.requests.length, github.requests.join("\n"));
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith(`with ${new ReleaseFileSet("Sample App", "1.2.3", ReleasePublishTests.TARGETS).listAll().length} files.\n`), result.output);
+    Assert.isTrue(github.requests.some(t => t.includes("--raw-field body=") && t.includes(`[sample-source.tar](${source.url}), SHA-256 ${source.sha256}.`)),
+      github.requests.join("\n"));
+    Assert.isFalse(github.requests.some(t => t.includes("sample-source.tar") && !t.includes("--raw-field body=")), github.requests.join("\n"));
   }
 
   private static environment(app: InstalledAppFixture, version: string): NodeJS.ProcessEnv {

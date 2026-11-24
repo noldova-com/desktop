@@ -201,7 +201,6 @@ export class Resources {
   public static readonly appleStapledRequirement: string = "a stapled ticket";
   public static readonly appleStapledOfflineRequirement: string = `a stapled ticket confirmed by stapler validate, which lost its network connection on all ${Resources.staplerAttempts} attempts`;
   public static readonly fileReadFlag: string = "r";
-  public static readonly writeFileFlag: string = "w";
   public static readonly asarSizeLength: number = 8;
   public static readonly asarHeaderSizeOffset: number = 4;
   public static readonly asarHeaderLengthOffset: number = 4;
@@ -363,7 +362,6 @@ export class Resources {
   public static readonly macNotarizationWait: string = "45m";
   public static readonly macStapleTimeout: number = 300_000;
   public static readonly macPackagingLimit: number = 4_200_000;
-  public static readonly sourceArchiveDownloadLimit: number = 1_800_000;
   public static readonly millisecondsPerMinute: number = 60_000;
   public static readonly macNotarizationAcceptedPattern: RegExp = /"status"\s*:\s*"Accepted"/;
   public static readonly macNotarizationSubmissionPattern: RegExp = /"id"\s*:\s*"([^"]+)"/;
@@ -2156,7 +2154,7 @@ export class Resources {
   }
 
   public static formatSourceNotice(id: string, license: string, url: string, sha256: string): string {
-    return `${id}\nComplete corresponding source: ${url}, with the SHA-256 ${sha256}; each release of the app also carries it beside its installers.\n\n${license}\n`;
+    return `${id}\nComplete corresponding source: ${url}, with the SHA-256 ${sha256}.\n\n${license}\n`;
   }
 
   public static formatStageWindowPackages(names: readonly string[]): string {
@@ -2474,22 +2472,6 @@ export class Resources {
 
   public static formatReportSourceArchivesDiffer(url: string): string {
     return `The package reports give ${url} with different sizes or SHA-256s.`;
-  }
-
-  public static formatSourceArchiveNameTaken(name: string): string {
-    return `The source archive ${name} has the name of a release file or of another source archive.`;
-  }
-
-  public static formatSourceArchiveUnavailable(url: string, status: number): string {
-    return `The source archive ${url} could not be downloaded: HTTP ${String(status)}.`;
-  }
-
-  public static formatSourceArchiveDownloadFailed(url: string, error: unknown): string {
-    return `The source archive ${url} could not be downloaded: ${String(error)}`;
-  }
-
-  public static formatSourceArchiveDiffers(url: string, size: number, sha256: string, namedSize: number, namedSha256: string): string {
-    return `The source archive ${url} has ${String(size)} bytes and the SHA-256 ${sha256}, not the ${String(namedSize)} bytes and ${namedSha256} its package names.`;
   }
 
   public static formatUpdateFeedNeedsSigning(repository: string, productName: string, unsigned: readonly string[]): string {
@@ -4983,7 +4965,7 @@ export class Resources {
   }
 
   public static formatReleaseSourceArchives(archives: readonly string[]): string {
-    return `The packages ship components whose licences call for their complete corresponding source, which this release carries beside the installers: ${archives.join(Resources.listSeparator)}.`;
+    return `Source code: the packages ship components whose licences call for their complete corresponding source, which is published at ${archives.join(Resources.listSeparator)}.`;
   }
 
   public static formatReleaseSourceArchive(name: string, url: string, sha256: string): string {

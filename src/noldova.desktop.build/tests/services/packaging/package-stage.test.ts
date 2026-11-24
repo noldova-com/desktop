@@ -342,8 +342,8 @@ export class PackageStageTests {
     const notice = await readFile(new PackageLayout(app.path).thirdPartyLicenses, "utf8");
 
     Assert.areEqual(JSON.stringify([source]), JSON.stringify(sources));
-    Assert.isTrue(notice.endsWith(`\n\nshared-type@1.0.0\nComplete corresponding source: ${source.url}, with the SHA-256 ${source.sha256}; each release of the app also carries it `
-      + "beside its installers.\n\nShared license\n"), notice);
+    Assert.isTrue(notice.endsWith(`\n\nshared-type@1.0.0\nComplete corresponding source: ${source.url}, with the SHA-256 ${source.sha256}.\n\nShared license\n`),
+      notice);
   }
 
   @TestMethod

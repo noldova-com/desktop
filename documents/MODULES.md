@@ -176,7 +176,7 @@ Noldova Desktop's packages take context's packages and the kit as ranges, as mod
   The package publishes the archive at that address before an app ships the package, and holds its licence file.
   `noldovaDesktop.unpacked` may then be left out.
 - Packaging adds the package's licence and the archive's address and SHA-256 to the app's third-party licence notice, and lists the archive in the target's package report, as [BUILD.md](BUILD.md#packaging) says; it refuses, naming the package, a record of another shape and a package without a licence file.
-- Publication downloads each archive the packages name, refuses one whose size or SHA-256 differs, attaches it to the release beside the installers, and links it in the release notes, as [BUILD.md](BUILD.md#publication) says.
+- Each release's notes link each archive the packages name, at that address and with its SHA-256, as [BUILD.md](BUILD.md#publication) says; the release doesn't copy the archive, so the address must keep serving it.
 
 ### What fails closed
 
