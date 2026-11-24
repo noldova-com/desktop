@@ -85,7 +85,7 @@ describe("UndoService", () => {
     expect(undone).toBe(0);
   });
 
-  it("takes Undo back once the focused field leaves the page, which fires no focusout", async () => {
+  it("takes Undo back once the focused field leaves the page with no focusout", async () => {
     const undo = TestBed.inject(UndoService);
     const field = page.find(".field", HTMLInputElement);
     undo.provide(provider);
