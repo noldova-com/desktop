@@ -52,12 +52,38 @@ export class WebViewEventCutTests {
   }
 
   @TestMethod
-  public keepsACutFromSplittingACharactersSurrogatePair(): void {
+  public cutsWholeCharactersByTheirBytesSoAnEmojiOverByItsOwnSizeLosesOnlyItself(): void {
     const params = { text: "a\u{1F600}\u{1F600}" };
+    const limit = WebViewEventCutTests.measure(params) - 4;
 
-    const event = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, WebViewEventCutTests.measure(params) - 4);
+    const event = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, limit);
+    const split = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, WebViewEventCutTests.measure(params) - 2);
 
-    Assert.areEqual(JSON.stringify({ text: "a" }), JSON.stringify(event?.details["params"]));
+    Assert.areEqual(JSON.stringify({ text: "a\u{1F600}" }), JSON.stringify(event?.details["params"]));
+    Assert.areEqual(limit, Buffer.byteLength(JSON.stringify(event?.toJson())));
+    Assert.areEqual(JSON.stringify({ text: "a\u{1F600}" }), JSON.stringify(split?.details["params"]));
+  }
+
+  @TestMethod
+  public cutsAWideScriptTextByItsBytesToFitItsLimitExactly(): void {
+    const params = { text: "中".repeat(31_744) };
+    const limit = WebViewEventCutTests.measure(params) - 30;
+
+    const event = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, limit);
+
+    Assert.areEqual(JSON.stringify({ text: "中".repeat(31_734) }), JSON.stringify(event?.details["params"]));
+    Assert.areEqual(limit, Buffer.byteLength(JSON.stringify(event?.toJson())));
+  }
+
+  @TestMethod
+  public cutsEscapedCharactersByTheSizeTheyTakeAsJson(): void {
+    const params = { quotes: "\"\"\"\"", control: "ab\u0001\u0001" };
+    const limit = WebViewEventCutTests.measure(params) - 6;
+
+    const event = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, limit);
+
+    Assert.areEqual(JSON.stringify({ quotes: "\"\"\"\"", control: "ab\u0001" }), JSON.stringify(event?.details["params"]));
+    Assert.areEqual(limit, Buffer.byteLength(JSON.stringify(event?.toJson())));
   }
 
   @TestMethod

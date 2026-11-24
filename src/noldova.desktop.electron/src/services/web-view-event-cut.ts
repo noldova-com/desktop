@@ -23,8 +23,8 @@ export class WebViewEventCut {
     const cap = WebViewEventCut.findCap(lengths, excess);
     if (Object.isNull(cap))
       return null;
-    const spare = lengths.reduce((total, length) => total + Math.max(0, length - cap), 0) - excess;
-    return WebViewEventCut.create(module, view, method, new TextCap(cap, spare).apply(params), true);
+    const slack = lengths.reduce((total, length) => total + Math.max(0, length - cap), 0) - excess;
+    return WebViewEventCut.create(module, view, method, new TextCap(cap, slack).apply(params), true);
   }
 
   private static create(module: string, view: string, method: string, params: JsonObject, isCut: boolean): WebViewEvent {
@@ -37,7 +37,7 @@ export class WebViewEventCut {
 
   private static collect(value: JsonValue, lengths: number[]): void {
     if (Object.isString(value))
-      lengths.push(value.length);
+      lengths.push(TextCap.sizeOf(value));
     else if (Object.isObject(value))
       for (const item of Object.values(value))
         WebViewEventCut.collect(item, lengths);

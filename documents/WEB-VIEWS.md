@@ -342,7 +342,7 @@ The file is an object with five optional fields: `methods`, each `{ "name": "<Do
 | An address | At most 32,768 characters. |
 | A relay call's timeout | At most 10 seconds. |
 | A relay reply | At most 4 MiB as JSON. |
-| A relay event | At most 64 KiB as JSON; the host cuts the longest string values from their ends to one length, in one pass, by what the event is over, never splitting a character, and sets `isCut`. |
+| A relay event | At most 64 KiB as JSON; the host cuts the longest string values from their ends to one size in bytes as JSON, in one pass, by what the event is over, at whole characters, and sets `isCut`. |
 | A view's event backlog | At most 256 events; an overflow drops the oldest and marks the drop. |
 | Declared keys | Up to 32 names, each with up to 4 keys on each platform. |
 | New-window requests | Up to 5 a second per view; the host refuses the rest. |

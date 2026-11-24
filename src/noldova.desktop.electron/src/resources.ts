@@ -1050,6 +1050,14 @@ export class Resources {
   public static readonly faviconPngPrefix: string = "data:image/png;base64,";
   public static readonly faviconPngSignature: readonly number[] = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
   public static readonly faviconBase64Pattern: RegExp = /^[A-Za-z0-9+/]+={0,2}$/u;
+  public static readonly jsonShortEscapes: readonly number[] = [0x08, 0x09, 0x0a, 0x0c, 0x0d, 0x22, 0x5c];
+  public static readonly jsonShortEscapeSize: number = 2;
+  public static readonly jsonControlLimit: number = 0x20;
+  public static readonly jsonUnicodeEscapeSize: number = 6;
+  public static readonly surrogateFirst: number = 0xd800;
+  public static readonly surrogateLast: number = 0xdfff;
+  public static readonly utf8SizeLimits: readonly number[] = [0x80, 0x800];
+  public static readonly utf8PairSize: number = 4;
 
   public static get updateUnderWay(): string {
     return `Another update of ${Resources.applicationName} is under way.`;

@@ -9,22 +9,38 @@
 import "@noldova/context.core";
 import type { JsonObject, JsonValue } from "@noldova/context.json";
 
+import { Resources } from "../resources.js";
+
 export class TextCap {
   private readonly cap: number;
-  private spare: number;
+  private slack: number;
 
-  public constructor(cap: number, spare: number) {
+  public constructor(cap: number, slack: number) {
     this.cap = cap;
-    this.spare = spare;
+    this.slack = slack;
+  }
+
+  public static sizeOf(text: string): number {
+    let size = 0;
+    for (const character of text)
+      size += TextCap.sizeOfCharacter(character);
+    return size;
+  }
+
+  private static sizeOfCharacter(character: string): number {
+    if (character.length > 1)
+      return Resources.utf8PairSize;
+    const code = character.charCodeAt(0);
+    if (Resources.jsonShortEscapes.includes(code))
+      return Resources.jsonShortEscapeSize;
+    if (code < Resources.jsonControlLimit || (code >= Resources.surrogateFirst && code <= Resources.surrogateLast))
+      return Resources.jsonUnicodeEscapeSize;
+    const index = Resources.utf8SizeLimits.findIndex(t => code < t);
+    return (index < 0 ? Resources.utf8SizeLimits.length : index) + 1;
   }
 
   private static isList(value: JsonObject | readonly JsonValue[]): value is readonly JsonValue[] {
     return Array.isArray(value);
-  }
-
-  private static cut(text: string, length: number): string {
-    const code = text.charCodeAt(length - 1);
-    return text.slice(0, code >= 0xd800 && code <= 0xdbff ? length - 1 : length);
   }
 
   public apply(holder: JsonObject): JsonObject {
@@ -36,9 +52,27 @@ export class TextCap {
 
   private applyValue(value: JsonValue): JsonValue {
     if (Object.isString(value))
-      return value.length > this.cap ? TextCap.cut(value, this.spare-- > 0 ? this.cap + 1 : this.cap) : value;
+      return this.applyText(value);
     if (!Object.isObject(value))
       return value;
     return TextCap.isList(value) ? value.map(item => this.applyValue(item)) : this.apply(value);
+  }
+
+  private applyText(text: string): string {
+    let kept = 0;
+    let end = 0;
+    for (const character of text) {
+      const size = TextCap.sizeOfCharacter(character);
+      if (kept + size > this.cap) {
+        this.slack += this.cap - kept;
+        if (size > this.slack)
+          return text.slice(0, end);
+        this.slack -= size;
+        return text.slice(0, end + character.length);
+      }
+      kept += size;
+      end += character.length;
+    }
+    return text;
   }
 }

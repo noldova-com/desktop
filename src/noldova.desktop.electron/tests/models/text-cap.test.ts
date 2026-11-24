@@ -30,9 +30,25 @@ export class TextCapTests {
   }
 
   @TestMethod
-  public dropsTheFirstHalfOfASurrogatePairThatTheCutWouldEndOn(): void {
+  public cutsAtWholeCharactersCountingTheBytesEachTakes(): void {
     const capped = new TextCap(2, 0).apply({ text: "a\u{1F600}b", whole: "\u{1F600}cd" });
 
-    Assert.areEqual(JSON.stringify({ text: "a", whole: "\u{1F600}" }), JSON.stringify(capped));
+    Assert.areEqual(JSON.stringify({ text: "a", whole: "" }), JSON.stringify(capped));
+  }
+
+  @TestMethod
+  public keepsTheCharacterAfterTheCapWhenTheSlackHoldsItsBytes(): void {
+    const capped = new TextCap(1, 3).apply({ first: "aéé", second: "b中中" });
+
+    Assert.areEqual(JSON.stringify({ first: "aé", second: "b" }), JSON.stringify(capped));
+  }
+
+  @TestMethod
+  public sizesEachCharacterAsItsJsonTakesInUtf8(): void {
+    const sizes = ["a", "é", "中", "\u{1F600}", "\"", "\\", "\n", "\u0001", "\ud800", "\u007f"].map(t => TextCap.sizeOf(t));
+    const text = "aé\u{1F600}\"\n\u0001";
+
+    Assert.areEqual(JSON.stringify([1, 2, 3, 4, 2, 2, 2, 6, 6, 1]), JSON.stringify(sizes));
+    Assert.areEqual(Buffer.byteLength(JSON.stringify(text)) - 2, TextCap.sizeOf(text));
   }
 }
