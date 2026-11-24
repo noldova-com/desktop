@@ -22,6 +22,7 @@ import { ProcessTableFixture } from "../../fixtures/process-table.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.js";
 import { UnreadableFileFixture } from "../../fixtures/unreadable-file.fixture.js";
+import { UnreadableReadFixture } from "../../fixtures/unreadable-read.fixture.js";
 import { UpdateBarrierFixture } from "../../fixtures/update-barrier.fixture.js";
 import { WaitFixture } from "../../fixtures/wait.fixture.js";
 import { WindowsProcessApiFixture } from "../../fixtures/windows-process-api.fixture.js";
@@ -247,7 +248,7 @@ export class UpdatePreparationTests {
 
       mainProcess.sendMessages(new Request("main:1", ShellMethods.update, new UpdateRequest(installation.folder).toJson()));
       const { responses } = await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
-      const [isRead, [, unreadable]] = await UpdatePreparationTests.readWhileUnreadableAsync(installation.barrierFile,
+      const { isRead, result: { response: unreadable } } = await UpdatePreparationTests.readWhileUnreadableAsync(installation.barrierFile,
         () => fixture.handshakeAsync("unreadable", RuntimeBuild.identity));
       await writeFile(installation.barrierFile, "{\"holder\":");
       using reads = new FileReadsFixture(installation.barrierFile);
@@ -353,9 +354,9 @@ export class UpdatePreparationTests {
     });
   }
 
-  private static async readWhileUnreadableAsync<T>(file: string, readAsync: () => Promise<T>): Promise<[boolean, T]> {
+  private static async readWhileUnreadableAsync<T>(file: string, readAsync: () => Promise<T>): Promise<UnreadableReadFixture<T>> {
     using barrier = new UnreadableFileFixture(file);
     const isRead = await WaitFixture.untilAsync(() => barrier.refused > 0, 5_000, 20);
-    return [isRead, await readAsync()];
+    return new UnreadableReadFixture(isRead, await readAsync());
   }
 }
