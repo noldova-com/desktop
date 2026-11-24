@@ -342,6 +342,7 @@ The main process owns updates: it checks, downloads, validates and installs, and
   The date is recorded once the marked request's response starts; when that request fails, as when the app starts offline, the day's next request carries `daily` instead.
 - **Which builds read it:** the build decides, never a setting, a variable or an argument.
   Only a packaged build names the production feed; a test build may name a local feed given to its build.
+  A main process that isn't packaged checks only a feed on this machine, at `127.0.0.1`, `localhost` or `[::1]`, and logs any other feed's host and checks nothing, so a development build never asks the production feed or counts as an install.
 - **Versions:** only a version higher than the installed one is offered, and only `X.Y.Z` or an internal build's `X.Y.Z-internal.N`, which sorts after the release before it and before `X.Y.Z`; any other suffix is never offered.
 - **Checks:** the device setting `desktop.updateChecks` chooses Automatically, the default, Only at start or Only when I ask; one main process of an installation checks at a time.
   Modules that look for newer versions of the tools they use read the same setting, as [MODULES.md](MODULES.md#settings-and-their-scopes) says, and with Only when I ask they wait for the person too.

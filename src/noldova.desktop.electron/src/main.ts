@@ -27,6 +27,7 @@ import {
 import type { IUpdateHandoff } from "./interfaces/i-update-handoff.js";
 import type { IUpdater } from "./interfaces/i-updater.js";
 import { FeedSource } from "./models/feed-source.js";
+import { UpdateFeedAddress } from "./models/update-feed-address.js";
 import type { UpdateReadyRecord } from "./models/update-ready-record.js";
 import { Resources } from "./resources.js";
 import { AppImageHandoff } from "./services/app-image-handoff.js";
@@ -165,11 +166,16 @@ else
       await promisify(execFile)(program, [...args]);
     }),
     t => MainProcessRecord.recordAsync(t, presence, process.pid),
-    (installation, _isPackaged, logsFolder, log) => {
+    (installation, isPackaged, logsFolder, log) => {
       const product = ProductInfo.current;
       const address = product.updateFeed;
       if (Object.isNull(address))
         return null;
+      const feedAddress = new UpdateFeedAddress(address);
+      if (!feedAddress.isAllowed(isPackaged)) {
+        log(Resources.formatDevelopmentFeedRefused(feedAddress.host));
+        return null;
+      }
       const guard = new FeedRequestGuard(address, [product.slug, product.version, process.platform, process.arch],
         new DailyCheckMark(join(installation.folder, Resources.dailyCheckFile), () => new Date(), log), log);
       const feedSession = new FeedSession(() => {

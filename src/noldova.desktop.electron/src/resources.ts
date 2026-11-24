@@ -475,6 +475,7 @@ export class Resources {
   public static readonly userAgentHeader: string = "User-Agent";
   public static readonly dailyCheckToken: string = "daily";
   public static readonly dailyCheckFile: string = "last-daily-update-check";
+  public static readonly localFeedHosts: readonly string[] = ["127.0.0.1", "localhost", "[::1]"];
   public static readonly invalidAddress: string = "an invalid address";
   public static readonly downloadProgressEvent: "download-progress" = "download-progress";
   public static readonly pendingUpdateFolder: string = "pending";
@@ -2006,6 +2007,10 @@ export class Resources {
 
   public static formatUpdateCheckNotReleased(error: string): string {
     return `The update check could not let go of its lock: ${error}`;
+  }
+
+  public static formatDevelopmentFeedRefused(host: string): string {
+    return `This development build doesn't check for updates at ${host}; a build that isn't packaged checks only a feed on this machine.`;
   }
 
   public static formatUpdaterNotCreated(error: string): string {
