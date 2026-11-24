@@ -284,6 +284,7 @@ The file is an object with five optional fields: `methods`, each `{ "name": "<Do
 | `Page.setDownloadBehavior` | The host refuses downloads. |
 | `Page.close`, `Page.crash` | The host owns the view's lifetime. |
 | `Network.setRequestInterception`, `Network.continueInterceptedRequest` | They rewrite requests past the origin check. |
+| `DOM.setFileInputFiles`, `Input.dispatchDragEvent` | They hand the page files from the person's disk, which only the person chooses. |
 | `Target`, `Browser`, `Fetch` and `Security` | Target reaches other pages and sessions; Browser controls the whole engine, its downloads and its permissions; Fetch rewrites and answers requests past the origin check; Security accepts certificate errors. |
 
 - A declared key's `name` is a lowercase letter followed by letters and digits, once in the file; it is what the `Key` event holds.

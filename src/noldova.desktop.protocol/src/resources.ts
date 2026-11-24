@@ -396,7 +396,7 @@ export class Resources {
   public static readonly webViewRefusedMethods: readonly string[] = [
     "Page.navigate", "Page.navigateToHistoryEntry", "Page.reload", "Page.setDocumentContent", "Page.resetNavigationHistory",
     "Page.setInterceptFileChooserDialog", "Page.disable", "Page.setDownloadBehavior", "Page.close", "Page.crash",
-    "Network.setRequestInterception", "Network.continueInterceptedRequest"
+    "Network.setRequestInterception", "Network.continueInterceptedRequest", "DOM.setFileInputFiles", "Input.dispatchDragEvent"
   ];
   public static readonly webViewRefusedDomains: readonly string[] = ["Target", "Browser", "Fetch", "Security"];
   public static readonly webViewKeysLimit: number = 32;
