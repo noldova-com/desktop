@@ -201,6 +201,7 @@ export class Resources {
   public static readonly appleStapledRequirement: string = "a stapled ticket";
   public static readonly appleStapledOfflineRequirement: string = `a stapled ticket confirmed by stapler validate, which lost its network connection on all ${Resources.staplerAttempts} attempts`;
   public static readonly fileReadFlag: string = "r";
+  public static readonly writeFileFlag: string = "w";
   public static readonly asarSizeLength: number = 8;
   public static readonly asarHeaderSizeOffset: number = 4;
   public static readonly asarHeaderLengthOffset: number = 4;
@@ -362,6 +363,7 @@ export class Resources {
   public static readonly macNotarizationWait: string = "45m";
   public static readonly macStapleTimeout: number = 300_000;
   public static readonly macPackagingLimit: number = 4_200_000;
+  public static readonly sourceArchiveDownloadLimit: number = 1_800_000;
   public static readonly millisecondsPerMinute: number = 60_000;
   public static readonly macNotarizationAcceptedPattern: RegExp = /"status"\s*:\s*"Accepted"/;
   public static readonly macNotarizationSubmissionPattern: RegExp = /"id"\s*:\s*"([^"]+)"/;
@@ -746,6 +748,7 @@ export class Resources {
   public static readonly trustedSigningModuleUrl: string =
     `https://www.powershellgallery.com/api/v2/package/${Resources.trustedSigningModuleName}/${Resources.trustedSigningModuleVersion}`;
   public static readonly desktopUnpackedField: string = "unpacked";
+  public static readonly desktopSourceArchiveField: string = "sourceArchive";
   public static readonly installedPackageFolderPattern: RegExp = /(?:^|\/)node_modules\/(?:@[^/]+\/)?[^@/][^/]*$/u;
   public static readonly absolutePathPattern: RegExp = /^(?:\/|[A-Za-z]:)/u;
   public static readonly currentFolderSegment: string = ".";
@@ -1878,11 +1881,18 @@ export class Resources {
   public static readonly typeOnlyPeersField: string = "typeOnlyPeers";
   public static readonly typeOnlyPeersListField: string = "peers";
   public static readonly typeOnlyPeersShape: string = `The root package.json's ${Resources.typeOnlyPeersSection} must map each package, as <name>@<version>, to { "peers": [<peer name>, ...], "reason": "<why the package never loads them>" }.`;
-  public static readonly packageReportFieldCount: number = 4;
+  public static readonly packageReportFieldCount: number = 5;
   public static readonly packageReportTargetField: "target" = "target";
   public static readonly packageReportSignedField: "signed" = "signed";
   public static readonly packageReportCheckedField: "checked" = "checked";
   public static readonly packageReportStartedField: "started" = "started";
+  public static readonly packageReportSourcesField: "sources" = "sources";
+  public static readonly sourceArchiveFieldCount: number = 3;
+  public static readonly sourceArchiveUrlField: string = "url";
+  public static readonly sourceArchiveSizeField: string = "size";
+  public static readonly sourceArchiveSha256Field: string = "sha256";
+  public static readonly sourceArchiveSha256Pattern: RegExp = /^[0-9a-f]{64}$/;
+  public static readonly sourceArchiveNamePattern: RegExp = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
   public static readonly zipArchiveTarget: string = "zip";
   public static readonly packagePlatforms: ReadonlyMap<string, string> = new Map([
     [Resources.windowsPlatform, Resources.windowsTarget], [Resources.macPlatform, Resources.macosTarget], [Resources.linuxPlatform, Resources.linuxTarget]
@@ -2135,6 +2145,18 @@ export class Resources {
 
   public static formatStageCompanyPackages(ids: readonly string[]): string {
     return `The company's packages in the stage: ${ids.join(Resources.listSeparator) || Resources.noneLabel}.\n`;
+  }
+
+  public static formatStageSourceArchives(archives: readonly string[]): string {
+    return `The stage's packages that name the archive of their complete source: ${archives.join(Resources.listSeparator) || Resources.noneLabel}.\n`;
+  }
+
+  public static formatStageSourceArchive(id: string, url: string): string {
+    return `${id} (${url})`;
+  }
+
+  public static formatSourceNotice(id: string, license: string, url: string, sha256: string): string {
+    return `${id}\nComplete corresponding source: ${url}, with the SHA-256 ${sha256}; each release of the app also carries it beside its installers.\n\n${license}\n`;
   }
 
   public static formatStageWindowPackages(names: readonly string[]): string {
@@ -2448,6 +2470,26 @@ export class Resources {
 
   public static formatReportsVerified(signedPlatforms: readonly string[]): string {
     return `Every target of the release has one package report, and the signed ones were signed and checked: ${signedPlatforms.length === 0 ? "none" : signedPlatforms.join(", ")}.`;
+  }
+
+  public static formatReportSourceArchivesDiffer(url: string): string {
+    return `The package reports give ${url} with different sizes or SHA-256s.`;
+  }
+
+  public static formatSourceArchiveNameTaken(name: string): string {
+    return `The source archive ${name} has the name of a release file or of another source archive.`;
+  }
+
+  public static formatSourceArchiveUnavailable(url: string, status: number): string {
+    return `The source archive ${url} could not be downloaded: HTTP ${String(status)}.`;
+  }
+
+  public static formatSourceArchiveDownloadFailed(url: string, error: unknown): string {
+    return `The source archive ${url} could not be downloaded: ${String(error)}`;
+  }
+
+  public static formatSourceArchiveDiffers(url: string, size: number, sha256: string, namedSize: number, namedSha256: string): string {
+    return `The source archive ${url} has ${String(size)} bytes and the SHA-256 ${sha256}, not the ${String(namedSize)} bytes and ${namedSha256} its package names.`;
   }
 
   public static formatUpdateFeedNeedsSigning(repository: string, productName: string, unsigned: readonly string[]): string {
@@ -3023,6 +3065,14 @@ export class Resources {
 
   public static formatUnpackedFieldInvalid(name: string): string {
     return `${name}'s package.json must give ${Resources.noldovaDesktopField}.${Resources.desktopUnpackedField} as a list of paths of the package's own files, with / between folders.`;
+  }
+
+  public static formatSourceArchiveInvalid(id: string): string {
+    return `${id}'s package.json must give ${Resources.noldovaDesktopField}.${Resources.desktopSourceArchiveField} as an object of exactly ${Resources.sourceArchiveUrlField}, the HTTPS address of one file, ${Resources.sourceArchiveSizeField}, its size in bytes, and ${Resources.sourceArchiveSha256Field}, its SHA-256 in lowercase hex.`;
+  }
+
+  public static formatSourceArchiveNoLicense(id: string): string {
+    return `${id} names the archive of its source in ${Resources.noldovaDesktopField}.${Resources.desktopSourceArchiveField} but holds no licence file for the app's licence notice to give with it.`;
   }
 
   public static formatUnpackedNeverShipped(omission: string | null | undefined): string {
@@ -4930,6 +4980,14 @@ export class Resources {
 
   public static formatReleaseSource(repository: string, revision: string): string {
     return `Built from ${repository} at ${revision}.`;
+  }
+
+  public static formatReleaseSourceArchives(archives: readonly string[]): string {
+    return `The packages ship components whose licences call for their complete corresponding source, which this release carries beside the installers: ${archives.join(Resources.listSeparator)}.`;
+  }
+
+  public static formatReleaseSourceArchive(name: string, url: string, sha256: string): string {
+    return `[${name}](${url}), SHA-256 ${sha256}`;
   }
 
   public static formatUnsignedTestRelease(name: string, repository: string): string {

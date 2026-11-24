@@ -18,6 +18,7 @@ import { ProcessTimeoutException } from "../../../src/exceptions/process-timeout
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackageReport } from "../../../src/models/packaging/package-report.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
+import { SourceArchive } from "../../../src/models/packaging/source-archive.js";
 import { Resources } from "../../../src/resources.js";
 import { ReleasePublish } from "../../../src/services/commands/release-publish.js";
 import { ReleaseFileSet } from "../../../src/services/release/release-file-set.js";
@@ -208,6 +209,20 @@ export class ReleasePublishTests {
       + "but didn't install or start: https://github.com/example/sample-app/actions/runs/1")), github.requests.join("\n"));
   }
 
+  @TestMethod
+  public async publishesNothingWhenASourceArchiveThePackagesNameCannotBeDownloadedAsync(): Promise<void> {
+    const source = new SourceArchive("https://127.0.0.1:9/sources-1/sample-source.tar", 10, "ab".repeat(32));
+    await using app = await ReleasePublishTests.createAppAsync("1.2.3", ReleasePublishTests.TARGETS, [], [source]);
+    const github = new GitHubReleasesFixture();
+    const environment = { ...ReleasePublishTests.environment(app, String.empty), RELEASE_INTERNAL_VERSION: undefined };
+
+    const result = await ReleasePublishTests.runAsync(app.path, github, environment);
+
+    Assert.areEqual(1, result.exitCode, result.output);
+    Assert.isTrue(result.output.startsWith(`${ReleasePublishTests.REPORTS_CHECKED}The source archive ${source.url} could not be downloaded: TypeError`), result.output);
+    Assert.areEqual(0, github.requests.length, github.requests.join("\n"));
+  }
+
   private static environment(app: InstalledAppFixture, version: string): NodeJS.ProcessEnv {
     return {
       RELEASE_REPOSITORY: "example/sample-app",
@@ -230,7 +245,7 @@ export class ReleasePublishTests {
   }
 
   private static async createAppAsync(written: string = ReleasePublishTests.VERSION, targets: readonly PackageTarget[] = ReleasePublishTests.TARGETS,
-    unstarted: readonly string[] = []): Promise<InstalledAppFixture> {
+    unstarted: readonly string[] = [], sources: readonly SourceArchive[] = []): Promise<InstalledAppFixture> {
     const app = await InstalledAppFixture.createAsync();
     const manifest = await readFile(path.join(app.path, "package.json"), "utf8");
     await app.writeAppFileAsync("package.json", manifest.replace("\"desktop\":{", `"desktop":{"signedPlatforms":${JSON.stringify(ReleasePublishTests.SIGNED)},`));
@@ -240,7 +255,7 @@ export class ReleasePublishTests {
         await app.writeAppFileAsync(`release/${name}`, `${name} bytes`);
       await set.writeAsync(path.join(app.path, "release"), target, ReleasePublishTests.DATE, () => null);
       const isSigned = ReleasePublishTests.SIGNED.includes(target.platform);
-      await new PackageReport(target.id, isSigned, isSigned, !unstarted.includes(target.id)).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
+      await new PackageReport(target.id, isSigned, isSigned, !unstarted.includes(target.id), sources).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
     }
     return app;
   }

@@ -10,11 +10,12 @@ import type { ProductIdentity } from "../../models/packages/product-identity.ts"
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { ReleaseRequest } from "../../models/release/release-request.ts";
+import type { SourceArchive } from "../../models/packaging/source-archive.ts";
 import { Resources } from "../../resources.ts";
 
 export class ReleaseNotes {
   public static compose(product: ProductIdentity, targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[], request: ReleaseRequest,
-    runUrl: string, unstarted: readonly PackageTarget[]): string {
+    runUrl: string, unstarted: readonly PackageTarget[], sources: readonly SourceArchive[]): string {
     if (!URL.canParse(runUrl) || new URL(runUrl).protocol !== Resources.secureProtocol)
       throw new BuildException(Resources.formatReleaseRunInvalid(runUrl));
     const name = product.name;
@@ -28,6 +29,8 @@ export class ReleaseNotes {
       paragraphs.push(unstarted.length === 0 ? Resources.formatReleaseRunCheck(runUrl) : Resources.formatReleaseRunCheckExcept(runUrl, ReleaseNotes.formatTargets(unstarted)));
     if (request.isSeparate)
       paragraphs.push(Resources.formatReleaseSource(request.sourceRepository, request.revision));
+    if (sources.length > 0)
+      paragraphs.push(Resources.formatReleaseSourceArchives(sources.map(t => Resources.formatReleaseSourceArchive(t.fileName, t.url, t.sha256))));
     if (!product.isReleaseRepository(request.repository))
       paragraphs.unshift(Resources.formatUnsignedTestRelease(name, request.repository));
     return paragraphs.join(Resources.paragraphSeparator);

@@ -170,6 +170,14 @@ Noldova Desktop's packages take context's packages and the kit as ranges, as mod
 - The module's code gives the other program the file's unpacked copy, with Runtime's `PackagedPath.unpacked(file)`, which turns the path's first `app.asar` segment into `app.asar.unpacked` and leaves a checkout's path as it is.
   Electron's own file access reads either path.
 
+### Source the app must offer
+
+- A package whose licence calls for its complete corresponding source to go with the app, such as a GPL program it ships, names one archive of that source in its `package.json`, under `noldovaDesktop.sourceArchive`, as `{ "url", "size", "sha256" }`: the HTTPS address of one file, whose name is letters, digits, `.`, `_` and `-`, its size in bytes and its SHA-256 in lowercase hex, such as `"noldovaDesktop": { "sourceArchive": { "url": "https://github.com/<owner>/<repo>/releases/download/<tag>/<name>.tar", "size": 8541696, "sha256": "<64 hex digits>" } }`.
+  The package publishes the archive at that address before an app ships the package, and holds its licence file.
+  `noldovaDesktop.unpacked` may then be left out.
+- Packaging adds the package's licence and the archive's address and SHA-256 to the app's third-party licence notice, and lists the archive in the target's package report, as [BUILD.md](BUILD.md#packaging) says; it refuses, naming the package, a record of another shape and a package without a licence file.
+- Publication downloads each archive the packages name, refuses one whose size or SHA-256 differs, attaches it to the release beside the installers, and links it in the release notes, as [BUILD.md](BUILD.md#publication) says.
+
 ### What fails closed
 
 The build refuses:

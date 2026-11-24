@@ -18,6 +18,7 @@ import { ReleaseFileSet } from "../release/release-file-set.ts";
 import { ReleaseNotes } from "../release/release-notes.ts";
 import { ReleasePublisher } from "../release/release-publisher.ts";
 import { ReleaseReports } from "../release/release-reports.ts";
+import { ReleaseSources } from "../release/release-sources.ts";
 import { ReleaseTargets } from "../release/release-targets.ts";
 import { ReleaseRequest } from "../../models/release/release-request.ts";
 import { ReleaseSigning } from "../release/release-signing.ts";
@@ -80,14 +81,16 @@ export class ReleasePublish {
     const supported = await SupportedTargets.readAsync(this.root);
     const targets = ReleaseTargets.read(this.environment, supported);
     const verified = await new ReleaseReports(signed, targets).verifyAsync(reports);
-    const notes = ReleaseNotes.compose(product, targets, supported ?? [], signed, request, this.environment[Resources.releaseRunVariable] ?? String.empty, verified.unstarted);
+    const notes = ReleaseNotes.compose(product, targets, supported ?? [], signed, request, this.environment[Resources.releaseRunVariable] ?? String.empty, verified.unstarted,
+      verified.sources);
     this.output.write(Resources.formatOutputLine(verified.text));
     const files = await new ReleaseFileSet(product.name, internal.length > 0 ? internal : request.version.text, targets.map(t => t.withInstallFolder(product.installFolder))).verifyAsync(folder);
     if (internal.length > 0) {
       this.output.write(Resources.formatInternalFilesChecked(internal));
       return;
     }
-    await new ReleasePublisher(new GitHubApi(request.repository, this.runner, this.root), this.output).publishAsync(request, folder, files, notes);
+    const sources = await new ReleaseSources(folder, files.map(t => t.name)).downloadAsync(verified.sources);
+    await new ReleasePublisher(new GitHubApi(request.repository, this.runner, this.root), this.output).publishAsync(request, folder, [...files, ...sources], notes);
   }
 
   private static requireInternal(internal: string, request: ReleaseRequest, signed: readonly string[]): void {

@@ -41,7 +41,8 @@ export class UnpackedFiles {
     const name = Object.isString(named) ? named : folder;
     let files: readonly string[];
     try {
-      files = manifest.readObject(Resources.noldovaDesktopField).readStringArray(Resources.desktopUnpackedField);
+      const desktop = manifest.readObject(Resources.noldovaDesktopField);
+      files = desktop.hasField(Resources.desktopUnpackedField) ? desktop.readStringArray(Resources.desktopUnpackedField) : [];
     }
     catch (error) {
       throw new BuildException(Resources.formatUnpackedFieldInvalid(name), new ExceptionOptions(error));

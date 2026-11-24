@@ -28,6 +28,7 @@ import { NativeBinaries } from "../packaging/native-binaries.ts";
 import { PackageConfiguration } from "../packaging/package-configuration.ts";
 import { PackageLayout } from "../packaging/package-layout.ts";
 import { PackageReport } from "../../models/packaging/package-report.ts";
+import type { SourceArchive } from "../../models/packaging/source-archive.ts";
 import { PackageStage } from "../packaging/package-stage.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { PackagedArchitecture } from "../packaging/packaged-architecture.ts";
@@ -88,7 +89,7 @@ export class Package {
       const configuration = new PackageConfiguration(this.root, product, version, target, this.stage.folder, layout.output, electron.folder, await electron.readVersionAsync(),
         !Object.isNull(signing), signing?.windowsPublisher ?? null, await new ModuleCatalog(this.root).hasWebViewsAsync());
       await configuration.writeAsync(layout.configuration);
-      await this.stage.stageAsync(target, this.output, updateFeed, signing?.windowsPublisher ?? null, signing?.updateKeys);
+      const sources = await this.stage.stageAsync(target, this.output, updateFeed, signing?.windowsPublisher ?? null, signing?.updateKeys);
       const natives = ShippedFiles.filter(await NativeBinaries.listAsync(this.stage.folder), target);
       const unpackedFiles = new Set([...natives, ...await UnpackedFiles.listAsync(this.stage.folder, target)]);
       await configuration.writeAsync(layout.configuration, PackagedUnpackedFiles.toPatterns([...unpackedFiles]));
@@ -98,7 +99,7 @@ export class Package {
         if (!Object.isNull(signing) && target.platform === Resources.macosTarget)
           this.runner.start(Resources.macPackagingLimit);
         await signing?.prepareAsync();
-        await this.buildAsync(target, layout, configuration, signing, product);
+        await this.buildAsync(target, layout, configuration, signing, product, sources);
       }
       finally {
         this.runner.stop();
@@ -125,8 +126,8 @@ export class Package {
     }
   }
 
-  private async buildAsync(target: PackageTarget, layout: PackageLayout, configuration: PackageConfiguration, signing: IPackageSigning | null, product: ProductIdentity):
-    Promise<void> {
+  private async buildAsync(target: PackageTarget, layout: PackageLayout, configuration: PackageConfiguration, signing: IPackageSigning | null, product: ProductIdentity,
+    sources: readonly SourceArchive[]): Promise<void> {
     await FolderCreation.createAsync(layout.toolCache);
     await writeFile(path.join(layout.toolCache, Resources.packageManifestFileName), Resources.commonJsScope);
     const exitCode = await this.runBuilderAsync(target, [Package.BUILDER, layout.configuration, ...Object.isNull(product.installFolder) ? [] : [product.installFolder]],
@@ -147,7 +148,7 @@ export class Package {
     if (target.platform === Resources.macosTarget)
       for (const archive of files.filter(t => path.extname(t) === Resources.zipExtension))
         this.output.write(Resources.formatOutputLine(await new MacUpdateArchiveCheck(this.runner, layout.archiveCheck, this.environment).verifyAsync(archive, layout.output, product.name)));
-    await new PackageReport(target.id, !Object.isNull(signing), !Object.isNull(signing)).writeAsync(layout.report);
+    await new PackageReport(target.id, !Object.isNull(signing), !Object.isNull(signing), false, sources).writeAsync(layout.report);
   }
 
   private async runBuilderAsync(target: PackageTarget, builderArguments: readonly string[], environment: NodeJS.ProcessEnv): Promise<number | null> {

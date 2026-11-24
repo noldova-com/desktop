@@ -20,6 +20,7 @@ import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { RootManifest } from "../../../src/models/packages/root-manifest.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { BuildLayout } from "../../../src/services/packages/build-layout.js";
+import { PackageLayout } from "../../../src/services/packaging/package-layout.js";
 import { PackageStage } from "../../../src/services/packaging/package-stage.js";
 import { NpmCommand } from "../../../src/services/toolchain/npm-command.js";
 import { InstalledAppFixture } from "../../fixtures/installed-app.fixture.js";
@@ -325,6 +326,24 @@ export class PackageStageTests {
     const names = Object.keys(JsonReader.parse(await readFile(path.join(stage.folder, "package.json"), "utf8")).readObject("dependencies").toJson());
 
     Assert.areEqual(JSON.stringify([InstalledAppFixture.CLI, InstalledAppFixture.ELECTRON, clock]), JSON.stringify(names));
+  }
+
+  @TestMethod
+  public async givesTheLicenceAndSourceArchiveOfEachStagedPackageThatNamesOneInTheNoticeAndReturnsTheArchives(): Promise<void> {
+    const end = TemporaryFolderRunnerFixture.startTest();
+    const source = { url: "https://example.com/sources-1/shared-source.tar", size: 10, sha256: "ab".repeat(32) };
+    await using app = await InstalledAppFixture.createAsync();
+    await app.installAsync(InstalledAppFixture.CLI, null, { "shared-type": "1.0.0" });
+    await app.installAsync(InstalledAppFixture.ELECTRON);
+    await app.addThirdPartyAsync("shared-type", "MIT", { LICENSE: "Shared license" }, { noldovaDesktop: { sourceArchive: source } });
+    const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
+
+    const sources = await stage.stageAsync(PackageStageTests.TARGET, new PassThrough(), null, null);
+    const notice = await readFile(new PackageLayout(app.path).thirdPartyLicenses, "utf8");
+
+    Assert.areEqual(JSON.stringify([source]), JSON.stringify(sources));
+    Assert.isTrue(notice.endsWith(`\n\nshared-type@1.0.0\nComplete corresponding source: ${source.url}, with the SHA-256 ${source.sha256}; each release of the app also carries it `
+      + "beside its installers.\n\nShared license\n"), notice);
   }
 
   @TestMethod
