@@ -18,9 +18,6 @@ import type { IStagedSource } from "../../interfaces/i-staged-source.ts";
 import { PackageSource } from "../../models/packaging/package-source.ts";
 import { Resources } from "../../resources.ts";
 
-// Lists the packages of the stage whose package.json names, in noldovaDesktop.sourcePages and noldovaDesktop.sources,
-// where upstream publishes their complete corresponding source, with their licence text, so the licence notice and the
-// release can point to it.
 export class StagedSources {
   public static async listAsync(stage: string): Promise<readonly IStagedSource[]> {
     const folders = (await readdir(stage, { recursive: true, withFileTypes: true }))

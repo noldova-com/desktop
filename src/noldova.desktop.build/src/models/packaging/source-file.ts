@@ -10,7 +10,6 @@ import "@noldova/context.core";
 
 import { Resources } from "../../resources.ts";
 
-// One file of a package's complete corresponding source, where its upstream publishes it.
 export class SourceFile {
   public readonly url: string;
   public readonly size: number;

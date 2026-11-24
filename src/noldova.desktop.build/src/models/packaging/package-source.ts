@@ -11,8 +11,6 @@ import "@noldova/context.core";
 import { Resources } from "../../resources.ts";
 import { SourceFile } from "./source-file.ts";
 
-// The complete corresponding source a package names in its noldovaDesktop field: the upstream pages that publish it,
-// and each of its files.
 export class PackageSource {
   public readonly pages: readonly string[];
   public readonly files: readonly SourceFile[];
