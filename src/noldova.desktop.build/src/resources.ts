@@ -2652,8 +2652,16 @@ export class Resources {
   }
 
   public static formatInstallFolderKept(folder: string, names: readonly string[], holders: string | null): string {
-    const left = names.length === 0 ? ", empty" : ` with ${names.join(Resources.listSeparator)} in it`;
-    return `Uninstalling the app left its install folder ${folder}${left}.${Object.isNull(holders) ? String.empty : `\n${holders}`}`;
+    return `Uninstalling the app left its install folder ${folder}${Resources.formatKeptEntries(names, holders)}`;
+  }
+
+  public static formatSharedFolderKept(folder: string, names: readonly string[], holders: string | null): string {
+    return `Uninstalling the app left ${folder}, the shared folder its install folder was in, which held nothing else${Resources.formatKeptEntries(names, holders)}`;
+  }
+
+  public static formatKeptEntries(names: readonly string[], holders: string | null): string {
+    const left = names.length === 0 ? ", empty" : `, with ${names.join(Resources.listSeparator)} in it`;
+    return `${left}.${Object.isNull(holders) ? String.empty : `\n${holders}`}`;
   }
 
   public static formatSharedFolderChanged(folder: string, before: readonly string[], after: readonly string[]): string {

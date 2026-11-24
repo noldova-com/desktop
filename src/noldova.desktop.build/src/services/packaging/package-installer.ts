@@ -94,7 +94,8 @@ export class PackageInstaller {
     const kept = others.length === 0 ? menuFolder : installFolder;
     if (existsSync(kept)) {
       const left = await this.readLeftAsync(kept, folder, environment);
-      throw new BuildException(Resources.formatInstallFolderKept(kept, left.names, left.holders));
+      throw new BuildException(others.length === 0 ? Resources.formatSharedFolderKept(kept, left.names, left.holders)
+        : Resources.formatInstallFolderKept(kept, left.names, left.holders));
     }
     if (others.length === 0)
       return;

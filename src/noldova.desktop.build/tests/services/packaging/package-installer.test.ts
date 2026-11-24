@@ -469,7 +469,7 @@ export class PackageInstallerTests {
       const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
         BuildException);
 
-      Assert.areEqual(`Uninstalling the app left its install folder ${path.dirname(runner.app)}, empty.`, error.message);
+      Assert.areEqual(`Uninstalling the app left ${path.dirname(runner.app)}, the shared folder its install folder was in, which held nothing else, empty.`, error.message);
     });
   }
 
@@ -498,7 +498,7 @@ export class PackageInstallerTests {
       const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
         BuildException);
 
-      Assert.areEqual(`Uninstalling the app left its install folder ${runner.app} with crash.log in it.\n`
+      Assert.areEqual(`Uninstalling the app left its install folder ${runner.app}, with crash.log in it.\n`
         + `What holds them now:\n${path.join(runner.app, "crash.log")}: MsMpEng.exe (4321).`, error.message);
     });
   }
@@ -542,7 +542,8 @@ export class PackageInstallerTests {
         BuildException);
 
       const log = path.join(runner.app, "crash.log");
-      Assert.areEqual(`Uninstalling the app left its install folder ${path.dirname(runner.app)} with Sample App, ${path.join("Sample App", "crash.log")} in it.\n`
+      Assert.areEqual(`Uninstalling the app left ${path.dirname(runner.app)}, the shared folder its install folder was in, which held nothing else, `
+        + `with Sample App, ${path.join("Sample App", "crash.log")} in it.\n`
         + `What holds them now:\n${log}: MsMpEng.exe (4321).`, error.message);
     });
   }
@@ -557,7 +558,8 @@ export class PackageInstallerTests {
       const error = await Assert.throwsAsync(() => installer.uninstallWindowsAsync(PackageInstallerTests.WINDOWS, PackageInstallerTests.foldered("Sample Makers"), "1.2.3", folder),
         BuildException);
 
-      Assert.areEqual(`Uninstalling the app left its install folder ${path.dirname(runner.app)} with Sample App in it.`, error.message);
+      Assert.areEqual(`Uninstalling the app left ${path.dirname(runner.app)}, the shared folder its install folder was in, which held nothing else, with Sample App in it.`,
+        error.message);
       Assert.areEqual(1, runner.calls.slice(before).filter(t => t.startsWith("powershell.exe")).length);
     });
   }
