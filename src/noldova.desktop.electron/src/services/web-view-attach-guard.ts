@@ -43,6 +43,8 @@ export class WebViewAttachGuard {
     preferences.nodeIntegrationInWorker = false;
     preferences.contextIsolation = true;
     preferences.sandbox = true;
+    preferences.webSecurity = true;
+    preferences.allowRunningInsecureContent = false;
     preferences.webviewTag = false;
     preferences.navigateOnDragDrop = false;
     preferences.safeDialogs = true;

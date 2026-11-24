@@ -17,6 +17,8 @@ export interface IWebViewAttachPreferences {
   nodeIntegrationInWorker?: boolean;
   contextIsolation?: boolean;
   sandbox?: boolean;
+  webSecurity?: boolean;
+  allowRunningInsecureContent?: boolean;
   webviewTag?: boolean;
   navigateOnDragDrop?: boolean;
   safeDialogs?: boolean;
