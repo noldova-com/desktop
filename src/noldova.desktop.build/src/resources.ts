@@ -2651,8 +2651,9 @@ export class Resources {
     return `${shortcut} could not be read: ${Resources.windowsPowershellCommand} exited with ${exitCode}:${Resources.lineSeparator}${output}`;
   }
 
-  public static formatInstallFolderKept(folder: string): string {
-    return `Uninstalling the app left its install folder ${folder}.`;
+  public static formatInstallFolderKept(folder: string, names: readonly string[], holders: string | null): string {
+    const left = names.length === 0 ? ", empty" : ` with ${names.join(Resources.listSeparator)} in it`;
+    return `Uninstalling the app left its install folder ${folder}${left}.${Object.isNull(holders) ? String.empty : `\n${holders}`}`;
   }
 
   public static formatCopiedUninstallerHeld(uninstaller: string, error: unknown, holders: string): string {

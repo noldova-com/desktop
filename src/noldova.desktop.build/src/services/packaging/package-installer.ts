@@ -20,6 +20,7 @@ import { AppleSignatureCheck } from "./apple-signature-check.ts";
 import { ProcessTimeoutException } from "../../exceptions/process-timeout.exception.ts";
 import { FileHolders } from "./file-holders.ts";
 import { InstalledPackage } from "../../models/packaging/installed-package.ts";
+import { LeftEntries } from "../../models/packaging/left-entries.ts";
 import { PackageLayout } from "./package-layout.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { StoppedInstaller } from "./stopped-installer.ts";
@@ -88,8 +89,11 @@ export class PackageInstaller {
       throw new BuildException(Resources.formatCopiedUninstallerHeld(uninstaller, error, await new FileHolders(this.runner, folder, environment).describeAsync([uninstaller])),
         new ExceptionOptions(error));
     }
-    if (existsSync(path.dirname(installFolder)))
-      throw new BuildException(Resources.formatInstallFolderKept(path.dirname(installFolder)));
+    const menuFolder = path.dirname(installFolder);
+    if (existsSync(menuFolder)) {
+      const left = await this.readLeftAsync(menuFolder, folder, environment);
+      throw new BuildException(Resources.formatInstallFolderKept(menuFolder, left.names, left.holders));
+    }
   }
 
   public async removeWindowsLeftoverAsync(product: ProductIdentity, folder: string, userPath: UserPath): Promise<string | null> {
@@ -199,14 +203,17 @@ export class PackageInstaller {
     catch (error) {
       throw new BuildException(Resources.formatUninstallerNotRemoved(uninstaller, error), new ExceptionOptions(error));
     }
-    const left = await readdir(installFolder, { recursive: true, withFileTypes: true });
-    if (left.length > 0) {
-      const files = left.filter(t => t.isFile()).map(t => path.join(t.parentPath, t.name)).sort();
-      const names = left.map(t => path.relative(installFolder, path.join(t.parentPath, t.name))).sort();
-      const holders = files.length === 0 ? null : await new FileHolders(this.runner, folder, environment).describeAsync(files);
-      throw new BuildException(Resources.formatUninstallerLeft(names, installFolder, holders));
-    }
+    const left = await this.readLeftAsync(installFolder, folder, environment);
+    if (left.names.length > 0)
+      throw new BuildException(Resources.formatUninstallerLeft(left.names, installFolder, left.holders));
     await rmdir(installFolder);
+  }
+
+  private async readLeftAsync(installFolder: string, folder: string, environment: NodeJS.ProcessEnv): Promise<LeftEntries> {
+    const left = await readdir(installFolder, { recursive: true, withFileTypes: true });
+    const files = left.filter(t => t.isFile()).map(t => path.join(t.parentPath, t.name)).sort();
+    const names = left.map(t => path.relative(installFolder, path.join(t.parentPath, t.name))).sort();
+    return new LeftEntries(names, files.length === 0 ? null : await new FileHolders(this.runner, folder, environment).describeAsync(files));
   }
 
   private async installWindowsAsync(installer: string, product: ProductIdentity, folder: string): Promise<InstalledPackage> {
