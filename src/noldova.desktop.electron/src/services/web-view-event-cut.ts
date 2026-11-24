@@ -10,6 +10,7 @@ import "@noldova/context.core";
 import type { JsonObject, JsonValue } from "@noldova/context.json";
 import { WebViewEvent, WebViewEventKind } from "@noldova/desktop.protocol";
 
+import { TextCap } from "../models/text-cap.js";
 import { Resources } from "../resources.js";
 
 export class WebViewEventCut {
@@ -22,8 +23,8 @@ export class WebViewEventCut {
     const cap = WebViewEventCut.findCap(lengths, excess);
     if (Object.isNull(cap))
       return null;
-    const spare = { count: lengths.reduce((total, length) => total + Math.max(0, length - cap), 0) - excess };
-    return WebViewEventCut.create(module, view, method, WebViewEventCut.capObject(params, cap, spare), true);
+    const spare = lengths.reduce((total, length) => total + Math.max(0, length - cap), 0) - excess;
+    return WebViewEventCut.create(module, view, method, new TextCap(cap, spare).apply(params), true);
   }
 
   private static create(module: string, view: string, method: string, params: JsonObject, isCut: boolean): WebViewEvent {
@@ -52,26 +53,5 @@ export class WebViewEventCut {
         return cap;
     }
     return null;
-  }
-
-  private static capObject(holder: JsonObject, cap: number, spare: { count: number }): JsonObject {
-    return Object.fromEntries(Object.entries(holder).map(([key, item]): [string, JsonValue] => [key, WebViewEventCut.capValue(item, cap, spare)]));
-  }
-
-  private static capValue(value: JsonValue, cap: number, spare: { count: number }): JsonValue {
-    if (Object.isString(value))
-      return value.length > cap ? WebViewEventCut.cut(value, spare.count-- > 0 ? cap + 1 : cap) : value;
-    if (!Object.isObject(value))
-      return value;
-    return WebViewEventCut.isList(value) ? value.map(item => WebViewEventCut.capValue(item, cap, spare)) : WebViewEventCut.capObject(value, cap, spare);
-  }
-
-  private static isList(value: JsonObject | readonly JsonValue[]): value is readonly JsonValue[] {
-    return Array.isArray(value);
-  }
-
-  private static cut(text: string, length: number): string {
-    const code = text.charCodeAt(length - 1);
-    return text.slice(0, code >= 0xd800 && code <= 0xdbff ? length - 1 : length);
   }
 }
