@@ -278,7 +278,7 @@ export class ForegroundProcessGroupReaderTests {
   @TestData("linux")
   @TestData("darwin")
   public async throwsWhenAProgramOfAProcessThatRunsCannotBeRead(platform: string): Promise<void> {
-    const group = String(process.pid);
+    const group = String(ForegroundProcessGroupReaderTests.runningOtherThan(4_120));
     const command: AnsweringCommand = new AnsweringCommand(() => command.calls.length === 1
       ? Promise.resolve(ForegroundProcessGroupReaderTests.status(group))
       : Promise.reject(new CommandFailedException("/bin/ps", new Error("timed out"))));
@@ -295,19 +295,23 @@ export class ForegroundProcessGroupReaderTests {
   }
 
   @TestMethod
-  @TestData("EACCES", "EACCES", "null|null")
-  @TestData("EACCES", "", "null|sudo apt upgrade")
-  @TestData("EPERM", "", "null|sudo apt upgrade")
-  @TestData("ENOENT", "ENOENT", "null|null")
-  public async readsALeaderWhoseProgramCannotBeReadWhileItRunsAsNotTheTerminalsProgramOnLinux(exeCode: string, commandLineCode: string, leader: string): Promise<void> {
-    const group = String(process.pid);
+  @TestData(false, "EACCES", "EACCES", "null|null")
+  @TestData(false, "EACCES", "", "null|sudo apt upgrade")
+  @TestData(false, "EPERM", "", "null|sudo apt upgrade")
+  @TestData(false, "ENOENT", "ENOENT", "null|null")
+  @TestData(true, "EACCES", "EACCES", "null|null")
+  public async readsALeaderWhoseProgramCannotBeReadWhileItRunsAsNotTheTerminalsProgramOnLinux(
+    isTerminalTheRunner: boolean, exeCode: string, commandLineCode: string, leader: string
+  ): Promise<void> {
+    const terminal = isTerminalTheRunner ? process.pid : 4_120;
+    const group = String(ForegroundProcessGroupReaderTests.runningOtherThan(terminal));
     const failing: Record<string, string> = { [`${group}/exe`]: exeCode };
     if (commandLineCode !== String.empty)
       failing[`${group}/cmdline`] = commandLineCode;
-    const reader = ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat(group),
-      { 4120: ["/usr/bin/bash", "/bin/bash -i"], [process.pid]: ["/usr/bin/sudo", "sudo apt upgrade"] }, [], failing);
+    const reader = ForegroundProcessGroupReaderTests.linuxWith(ForegroundProcessGroupReaderTests.stat(group, String(terminal)),
+      { [terminal]: ["/usr/bin/bash", "/bin/bash -i"], [Number(group)]: ["/usr/bin/sudo", "sudo apt upgrade"] }, [], failing);
 
-    const foreground = await reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED);
+    const foreground = await reader.readProcessAsync(terminal, ForegroundProcessGroupReaderTests.STARTED);
 
     Assert.areEqual(`${group} ${leader} /usr/bin/bash|/bin/bash -i false`, ForegroundProcessGroupReaderTests.describe(foreground));
   }
@@ -334,6 +338,10 @@ export class ForegroundProcessGroupReaderTests {
 
     Assert.isNull(await reader.readProcessAsync(4_120, ForegroundProcessGroupReaderTests.STARTED));
     Assert.areEqual(platform === "darwin" ? 1 : 0, command.calls.length + read.length - (platform === "linux" ? 1 : 0));
+  }
+
+  private static runningOtherThan(processId: number): number {
+    return process.pid === processId ? process.ppid : process.pid;
   }
 
   private static describe(foreground: ForegroundProcess | null): string {
