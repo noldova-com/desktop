@@ -6,10 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { SourceArchive } from "../models/packaging/source-archive.ts";
+import type { PackageSource } from "../models/packaging/package-source.ts";
 
 export interface IStagedSource {
   readonly id: string;
   readonly license: string;
-  readonly archive: SourceArchive;
+  readonly source: PackageSource;
 }

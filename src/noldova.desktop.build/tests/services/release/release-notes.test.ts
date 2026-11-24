@@ -13,7 +13,6 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { ProductIdentity } from "../../../src/models/packages/product-identity.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
-import { SourceArchive } from "../../../src/models/packaging/source-archive.js";
 import { ReleaseRequest } from "../../../src/models/release/release-request.js";
 import { ReleaseNotes } from "../../../src/services/release/release-notes.js";
 
@@ -128,22 +127,21 @@ export class ReleaseNotesTests {
   }
 
   @TestMethod
-  public linksEachSourceArchiveThePackagesNameLast(): void {
-    const sha256 = "ab".repeat(32);
-    const unix = "https://example.com/releases/download/sources-1/sample-source-unix.tar";
-    const windows = "https://example.com/releases/download/sources-1/sample-source-windows.tar";
+  public linksEachUpstreamSourcePageThePackagesNameLast(): void {
+    const git = "https://example.com/git/tree/v1.0.0";
+    const native = "https://example.com/native/tree/0123456";
 
     const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], ReleaseNotesTests.REPOSITORY, ReleaseNotesTests.RUN, ReleaseNotesTests.REPOSITORY,
-      "example/sample-app", ReleaseNotesTests.REPOSITORY, [], [new SourceArchive(unix, 10, sha256), new SourceArchive(windows, 20, sha256)]);
+      "example/sample-app", ReleaseNotesTests.REPOSITORY, [], [git, native]);
 
-    Assert.isTrue(notes.endsWith(`${ReleaseNotesTests.RUN}\n\nSource code: the packages ship components whose licences call for their complete corresponding source, which is published at `
-      + `[sample-source-unix.tar](${unix}), SHA-256 ${sha256}, [sample-source-windows.tar](${windows}), SHA-256 ${sha256}.`), notes);
+    Assert.isTrue(notes.endsWith(`${ReleaseNotesTests.RUN}\n\nSource code: the packages ship components whose licences call for their complete corresponding source, which their upstream `
+      + `publishes at ${git}, ${native}; the app's licence notice lists each source file with its address and SHA-256.`), notes);
     Assert.isFalse(ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], []).includes("corresponding source"));
   }
 
   private static compose(targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[] = [], repository: string = ReleaseNotesTests.REPOSITORY,
     run: string = ReleaseNotesTests.RUN, source: string = repository, releaseRepository: string = "example/sample-app", build: string = source,
-    unstarted: readonly PackageTarget[] = [], sources: readonly SourceArchive[] = []): string {
+    unstarted: readonly PackageTarget[] = [], sourcePages: readonly string[] = []): string {
     const product = ProductIdentity.fromManifest(JsonReader.fromValue({
       desktop: {
         product: {
@@ -161,6 +159,6 @@ export class ReleaseNotesTests {
       }
     }));
     const request = ReleaseRequest.read({ RELEASE_REPOSITORY: repository, RELEASE_SOURCE_REPOSITORY: source, RELEASE_BUILD_REPOSITORY: build, RELEASE_TAG_PREFIX: repository === source ? String.empty : "sample-app-", RELEASE_VERSION: "0.0.2", RELEASE_REVISION: "0123456789abcdef0123456789abcdef01234567" });
-    return ReleaseNotes.compose(product, targets, supported, signed, request, run, unstarted, sources);
+    return ReleaseNotes.compose(product, targets, supported, signed, request, run, unstarted, sourcePages);
   }
 }

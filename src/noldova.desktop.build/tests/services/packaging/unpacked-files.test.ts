@@ -187,10 +187,10 @@ export class UnpackedFilesTests {
   }
 
   @TestMethod
-  public async listsNoFilesOfAPackageWhoseNoldovaDesktopNamesOnlyItsSourceArchive(): Promise<void> {
+  public async listsNoFilesOfAPackageWhoseNoldovaDesktopNamesOnlyItsUpstreamSource(): Promise<void> {
     await using folder = await UnpackedFilesTests.createFolderAsync({
       "node_modules/@sample/runtime/package.json": JSON.stringify({ name: UnpackedFilesTests.PACKAGE, version: "1.0.0",
-        noldovaDesktop: { sourceArchive: { url: "https://example.com/sources-1/sample-source.tar", size: 10, sha256: "ab".repeat(32) } } })
+        noldovaDesktop: { sourcePages: ["https://example.com/sample"], sources: [{ url: "https://example.com/sources/sample-1.0.0.tar.gz", size: 10, sha256: "ab".repeat(32) }] } })
     });
 
     const files = await UnpackedFiles.listAsync(folder.path, UnpackedFilesTests.TARGET);

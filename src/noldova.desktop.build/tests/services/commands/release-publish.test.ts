@@ -18,7 +18,6 @@ import { ProcessTimeoutException } from "../../../src/exceptions/process-timeout
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackageReport } from "../../../src/models/packaging/package-report.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
-import { SourceArchive } from "../../../src/models/packaging/source-archive.js";
 import { Resources } from "../../../src/resources.js";
 import { ReleasePublish } from "../../../src/services/commands/release-publish.js";
 import { ReleaseFileSet } from "../../../src/services/release/release-file-set.js";
@@ -210,9 +209,9 @@ export class ReleasePublishTests {
   }
 
   @TestMethod
-  public async linksInTheNotesTheSourceArchivesThePackagesNameAndUploadsOnlyTheReleaseFilesAsync(): Promise<void> {
-    const source = new SourceArchive("https://example.com/releases/download/sources-1/sample-source.tar", 10, "ab".repeat(32));
-    await using app = await ReleasePublishTests.createAppAsync("1.2.3", ReleasePublishTests.TARGETS, [], [source]);
+  public async linksInTheNotesTheUpstreamSourcePagesThePackagesNameAndUploadsOnlyTheReleaseFilesAsync(): Promise<void> {
+    const page = "https://example.com/git/tree/v1.0.0";
+    await using app = await ReleasePublishTests.createAppAsync("1.2.3", ReleasePublishTests.TARGETS, [], [page]);
     const github = new GitHubReleasesFixture();
     const environment = { ...ReleasePublishTests.environment(app, String.empty), RELEASE_INTERNAL_VERSION: undefined };
 
@@ -220,9 +219,9 @@ export class ReleasePublishTests {
 
     Assert.areEqual(0, result.exitCode, result.output);
     Assert.isTrue(result.output.endsWith(`with ${new ReleaseFileSet("Sample App", "1.2.3", ReleasePublishTests.TARGETS).listAll().length} files.\n`), result.output);
-    Assert.isTrue(github.requests.some(t => t.includes("--raw-field body=") && t.includes(`[sample-source.tar](${source.url}), SHA-256 ${source.sha256}.`)),
+    Assert.isTrue(github.requests.some(t => t.includes("--raw-field body=") && t.includes(`which their upstream publishes at ${page}; the app's licence notice lists each source file`)),
       github.requests.join("\n"));
-    Assert.isFalse(github.requests.some(t => t.includes("sample-source.tar") && !t.includes("--raw-field body=")), github.requests.join("\n"));
+    Assert.isFalse(github.requests.some(t => t.includes(page) && !t.includes("--raw-field body=")), github.requests.join("\n"));
   }
 
   private static environment(app: InstalledAppFixture, version: string): NodeJS.ProcessEnv {
@@ -247,7 +246,7 @@ export class ReleasePublishTests {
   }
 
   private static async createAppAsync(written: string = ReleasePublishTests.VERSION, targets: readonly PackageTarget[] = ReleasePublishTests.TARGETS,
-    unstarted: readonly string[] = [], sources: readonly SourceArchive[] = []): Promise<InstalledAppFixture> {
+    unstarted: readonly string[] = [], sourcePages: readonly string[] = []): Promise<InstalledAppFixture> {
     const app = await InstalledAppFixture.createAsync();
     const manifest = await readFile(path.join(app.path, "package.json"), "utf8");
     await app.writeAppFileAsync("package.json", manifest.replace("\"desktop\":{", `"desktop":{"signedPlatforms":${JSON.stringify(ReleasePublishTests.SIGNED)},`));
@@ -257,7 +256,7 @@ export class ReleasePublishTests {
         await app.writeAppFileAsync(`release/${name}`, `${name} bytes`);
       await set.writeAsync(path.join(app.path, "release"), target, ReleasePublishTests.DATE, () => null);
       const isSigned = ReleasePublishTests.SIGNED.includes(target.platform);
-      await new PackageReport(target.id, isSigned, isSigned, !unstarted.includes(target.id), sources).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
+      await new PackageReport(target.id, isSigned, isSigned, !unstarted.includes(target.id), sourcePages).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
     }
     return app;
   }

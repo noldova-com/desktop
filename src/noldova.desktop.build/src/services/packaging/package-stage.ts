@@ -29,13 +29,12 @@ import { CompanyPackage } from "../../models/packaging/company-package.ts";
 import { ForeignAddons } from "./foreign-addons.ts";
 import type { LockedPackage } from "../../models/packaging/locked-package.ts";
 import { OmittedOptionals } from "../../models/packaging/omitted-optionals.ts";
-import type { SourceArchive } from "../../models/packaging/source-archive.ts";
 import { PackageAssets } from "./package-assets.ts";
 import { PackageLayout } from "./package-layout.ts";
 import type { PackageTarget } from "../../models/packaging/package-target.ts";
 import type { PackagedBuild } from "./packaged-build.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
-import { SourceArchives } from "./source-archives.ts";
+import { StagedSources } from "./staged-sources.ts";
 import { ThirdPartyClosure } from "./third-party-closure.ts";
 import { ThirdPartyPackage } from "../../models/packaging/third-party-package.ts";
 import { TypeOnlyPeers } from "../../models/packaging/type-only-peers.ts";
@@ -84,7 +83,7 @@ export class PackageStage {
   }
 
   public async stageAsync(target: PackageTarget, output: Writable, updateFeed: string | null, windowsPublisher: string | null, updateKeys: readonly string[] = []):
-    Promise<readonly SourceArchive[]> {
+    Promise<readonly string[]> {
     const product = await ProductIdentity.readAsync(this.root);
     const license = this.assets.require(Resources.licenseSegments, Resources.stageLicenseRole);
     const icons = this.assets.require(product.icons.split(Resources.pathSegmentSeparator), Resources.stageIconsRole);
@@ -144,16 +143,17 @@ export class PackageStage {
     output.write(Resources.formatStageAcceptedLicenses(thirdParty.filter(t => t.license.isAccepted)
       .map(t => Resources.formatStageLicensedPackage(t.locked.id, t.license.expression))));
     output.write(Resources.formatStageThirdPartyPackages(thirdParty.map(t => Resources.formatStageLicensedPackage(t.locked.id, t.license.chosen))));
-    const sources = await SourceArchives.listAsync(this.folder);
-    const notices = sources.map(t => Resources.formatSourceNotice(t.id, t.license, t.archive.url, t.archive.sha256)).join(Resources.stageNoticeSeparator);
+    const sources = await StagedSources.listAsync(this.folder);
+    const notices = sources.map(t => Resources.formatSourceNotice(t.id, t.license, t.source.pages, t.source.files.map(u => Resources.formatSourceNoticeFile(u.url, u.sha256))))
+      .join(Resources.stageNoticeSeparator);
     if (sources.length > 0)
       await appendFile(this.layout.thirdPartyLicenses, thirdParty.length > 0 ? `${Resources.stageNoticeSeparator}${notices}` : notices);
-    output.write(Resources.formatStageSourceArchives(sources.map(t => Resources.formatStageSourceArchive(t.id, t.archive.url))));
+    output.write(Resources.formatStageSources(sources.map(t => Resources.formatStageSource(t.id, t.source.pages))));
 
     await cp(icons, path.join(this.folder, product.icons), { recursive: true });
     await cp(dictionaries, path.join(this.folder, ...Resources.dictionariesSegments), { recursive: true });
     await copyFile(license, path.join(this.folder, ...Resources.licenseSegments));
-    return [...new Map(sources.map(t => [t.archive.url, t.archive] as const)).values()];
+    return [...new Set(sources.flatMap(t => t.source.pages))];
   }
 
   private async packCompanyAsync(locked: readonly LockedPackage[], windowPackages: ReadonlySet<string>): Promise<readonly CompanyPackage[]> {

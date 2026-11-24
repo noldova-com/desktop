@@ -746,7 +746,8 @@ export class Resources {
   public static readonly trustedSigningModuleUrl: string =
     `https://www.powershellgallery.com/api/v2/package/${Resources.trustedSigningModuleName}/${Resources.trustedSigningModuleVersion}`;
   public static readonly desktopUnpackedField: string = "unpacked";
-  public static readonly desktopSourceArchiveField: string = "sourceArchive";
+  public static readonly desktopSourcePagesField: string = "sourcePages";
+  public static readonly desktopSourcesField: string = "sources";
   public static readonly installedPackageFolderPattern: RegExp = /(?:^|\/)node_modules\/(?:@[^/]+\/)?[^@/][^/]*$/u;
   public static readonly absolutePathPattern: RegExp = /^(?:\/|[A-Za-z]:)/u;
   public static readonly currentFolderSegment: string = ".";
@@ -1884,13 +1885,12 @@ export class Resources {
   public static readonly packageReportSignedField: "signed" = "signed";
   public static readonly packageReportCheckedField: "checked" = "checked";
   public static readonly packageReportStartedField: "started" = "started";
-  public static readonly packageReportSourcesField: "sources" = "sources";
-  public static readonly sourceArchiveFieldCount: number = 3;
-  public static readonly sourceArchiveUrlField: string = "url";
-  public static readonly sourceArchiveSizeField: string = "size";
-  public static readonly sourceArchiveSha256Field: string = "sha256";
-  public static readonly sourceArchiveSha256Pattern: RegExp = /^[0-9a-f]{64}$/;
-  public static readonly sourceArchiveNamePattern: RegExp = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+  public static readonly packageReportSourcePagesField: "sourcePages" = "sourcePages";
+  public static readonly sourceFileFieldCount: number = 3;
+  public static readonly sourceFileUrlField: string = "url";
+  public static readonly sourceFileSizeField: string = "size";
+  public static readonly sourceFileSha256Field: string = "sha256";
+  public static readonly sourceFileSha256Pattern: RegExp = /^[0-9a-f]{64}$/;
   public static readonly zipArchiveTarget: string = "zip";
   public static readonly packagePlatforms: ReadonlyMap<string, string> = new Map([
     [Resources.windowsPlatform, Resources.windowsTarget], [Resources.macPlatform, Resources.macosTarget], [Resources.linuxPlatform, Resources.linuxTarget]
@@ -2145,16 +2145,20 @@ export class Resources {
     return `The company's packages in the stage: ${ids.join(Resources.listSeparator) || Resources.noneLabel}.\n`;
   }
 
-  public static formatStageSourceArchives(archives: readonly string[]): string {
-    return `The stage's packages that name the archive of their complete source: ${archives.join(Resources.listSeparator) || Resources.noneLabel}.\n`;
+  public static formatStageSources(packages: readonly string[]): string {
+    return `The stage's packages that name the upstream source of their complete source: ${packages.join(Resources.listSeparator) || Resources.noneLabel}.\n`;
   }
 
-  public static formatStageSourceArchive(id: string, url: string): string {
-    return `${id} (${url})`;
+  public static formatStageSource(id: string, pages: readonly string[]): string {
+    return `${id} (${pages.join(Resources.listSeparator)})`;
   }
 
-  public static formatSourceNotice(id: string, license: string, url: string, sha256: string): string {
-    return `${id}\nComplete corresponding source: ${url}, with the SHA-256 ${sha256}.\n\n${license}\n`;
+  public static formatSourceNotice(id: string, license: string, pages: readonly string[], files: readonly string[]): string {
+    return `${id}\nComplete corresponding source, as its upstream publishes it: ${pages.join(Resources.listSeparator)}.\nIts source files, each with its SHA-256:\n${files.join("\n")}\n\n${license}\n`;
+  }
+
+  public static formatSourceNoticeFile(url: string, sha256: string): string {
+    return `${url} ${sha256}`;
   }
 
   public static formatStageWindowPackages(names: readonly string[]): string {
@@ -2468,10 +2472,6 @@ export class Resources {
 
   public static formatReportsVerified(signedPlatforms: readonly string[]): string {
     return `Every target of the release has one package report, and the signed ones were signed and checked: ${signedPlatforms.length === 0 ? "none" : signedPlatforms.join(", ")}.`;
-  }
-
-  public static formatReportSourceArchivesDiffer(url: string): string {
-    return `The package reports give ${url} with different sizes or SHA-256s.`;
   }
 
   public static formatUpdateFeedNeedsSigning(repository: string, productName: string, unsigned: readonly string[]): string {
@@ -3049,12 +3049,14 @@ export class Resources {
     return `${name}'s package.json must give ${Resources.noldovaDesktopField}.${Resources.desktopUnpackedField} as a list of paths of the package's own files, with / between folders.`;
   }
 
-  public static formatSourceArchiveInvalid(id: string): string {
-    return `${id}'s package.json must give ${Resources.noldovaDesktopField}.${Resources.desktopSourceArchiveField} as an object of exactly ${Resources.sourceArchiveUrlField}, the HTTPS address of one file, ${Resources.sourceArchiveSizeField}, its size in bytes, and ${Resources.sourceArchiveSha256Field}, its SHA-256 in lowercase hex.`;
+  public static formatPackageSourceInvalid(id: string): string {
+    return `${id}'s package.json must give ${Resources.noldovaDesktopField}.${Resources.desktopSourcePagesField} as a non-empty list of HTTPS addresses, and `
+      + `${Resources.noldovaDesktopField}.${Resources.desktopSourcesField} as a non-empty list of objects of exactly ${Resources.sourceFileUrlField}, the HTTPS address of one file, `
+      + `${Resources.sourceFileSizeField}, its size in bytes, and ${Resources.sourceFileSha256Field}, its SHA-256 in lowercase hex.`;
   }
 
-  public static formatSourceArchiveNoLicense(id: string): string {
-    return `${id} names the archive of its source in ${Resources.noldovaDesktopField}.${Resources.desktopSourceArchiveField} but holds no licence file for the app's licence notice to give with it.`;
+  public static formatPackageSourceNoLicense(id: string): string {
+    return `${id} names its upstream source in ${Resources.noldovaDesktopField}.${Resources.desktopSourcesField} but holds no licence file for the app's licence notice to give with it.`;
   }
 
   public static formatUnpackedNeverShipped(omission: string | null | undefined): string {
@@ -4964,12 +4966,9 @@ export class Resources {
     return `Built from ${repository} at ${revision}.`;
   }
 
-  public static formatReleaseSourceArchives(archives: readonly string[]): string {
-    return `Source code: the packages ship components whose licences call for their complete corresponding source, which is published at ${archives.join(Resources.listSeparator)}.`;
-  }
-
-  public static formatReleaseSourceArchive(name: string, url: string, sha256: string): string {
-    return `[${name}](${url}), SHA-256 ${sha256}`;
+  public static formatReleaseSourcePages(pages: readonly string[]): string {
+    return `Source code: the packages ship components whose licences call for their complete corresponding source, which their upstream publishes at `
+      + `${pages.join(Resources.listSeparator)}; the app's licence notice lists each source file with its address and SHA-256.`;
   }
 
   public static formatUnsignedTestRelease(name: string, repository: string): string {

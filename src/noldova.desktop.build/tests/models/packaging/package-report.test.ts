@@ -16,36 +16,34 @@ import { JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { PackageReport } from "../../../src/models/packaging/package-report.js";
-import { SourceArchive } from "../../../src/models/packaging/source-archive.js";
 
 @TestClass
 export class PackageReportTests {
-  private static readonly SOURCE: { readonly url: string; readonly size: number; readonly sha256: string } =
-    { url: "https://example.com/releases/download/sources-1/sample-source.tar", size: 10, sha256: "ab".repeat(32) };
+  private static readonly PAGE: string = "https://example.com/sample/releases/tag/v1.0.0";
 
   @TestMethod
   public readsAReportWithExactlyItsFiveFields(): void {
-    const report = PackageReport.parse(JsonReader.fromValue({ target: "windows-x64", signed: true, checked: false, started: true, sources: [PackageReportTests.SOURCE] }));
+    const report = PackageReport.parse(JsonReader.fromValue({ target: "windows-x64", signed: true, checked: false, started: true, sourcePages: [PackageReportTests.PAGE] }));
 
-    Assert.areEqual(`{"target":"windows-x64","isSigned":true,"isChecked":false,"isStarted":true,"sources":[${JSON.stringify(PackageReportTests.SOURCE)}]}`, JSON.stringify(report));
+    Assert.areEqual(`{"target":"windows-x64","isSigned":true,"isChecked":false,"isStarted":true,"sourcePages":["${PackageReportTests.PAGE}"]}`, JSON.stringify(report));
   }
 
   @TestMethod
   public readsNoReportWithOtherFieldsOrTypes(): void {
     const reports = [
       { target: "windows-x64", signed: true, checked: false, started: false },
-      { target: "windows-x64", signed: true, checked: false, started: false, sources: [], extra: 1 },
-      { target: "windows-x64", signed: true, checked: false, other: false, sources: [] },
-      { target: "windows-x64", signed: true, other: false, started: false, sources: [] },
-      { target: "windows-x64", other: true, checked: false, started: false, sources: [] },
-      { other: "windows-x64", signed: true, checked: false, started: false, sources: [] },
+      { target: "windows-x64", signed: true, checked: false, started: false, sourcePages: [], extra: 1 },
+      { target: "windows-x64", signed: true, checked: false, other: false, sourcePages: [] },
+      { target: "windows-x64", signed: true, other: false, started: false, sourcePages: [] },
+      { target: "windows-x64", other: true, checked: false, started: false, sourcePages: [] },
+      { other: "windows-x64", signed: true, checked: false, started: false, sourcePages: [] },
       { target: "windows-x64", signed: true, checked: false, started: false, other: [] },
-      { target: 1, signed: true, checked: false, started: false, sources: [] },
-      { target: "windows-x64", signed: "yes", checked: false, started: false, sources: [] },
-      { target: "windows-x64", signed: true, checked: "no", started: false, sources: [] },
-      { target: "windows-x64", signed: true, checked: false, started: "no", sources: [] },
-      { target: "windows-x64", signed: true, checked: false, started: false, sources: PackageReportTests.SOURCE },
-      { target: "windows-x64", signed: true, checked: false, started: false, sources: [PackageReportTests.SOURCE, { ...PackageReportTests.SOURCE, size: -1 }] }
+      { target: 1, signed: true, checked: false, started: false, sourcePages: [] },
+      { target: "windows-x64", signed: "yes", checked: false, started: false, sourcePages: [] },
+      { target: "windows-x64", signed: true, checked: "no", started: false, sourcePages: [] },
+      { target: "windows-x64", signed: true, checked: false, started: "no", sourcePages: [] },
+      { target: "windows-x64", signed: true, checked: false, started: false, sourcePages: PackageReportTests.PAGE },
+      { target: "windows-x64", signed: true, checked: false, started: false, sourcePages: [PackageReportTests.PAGE, "http://example.com/sample"] }
     ];
 
     for (const report of reports)
@@ -59,7 +57,7 @@ export class PackageReportTests {
 
       await new PackageReport("macos-arm64", false, true).writeAsync(file);
 
-      Assert.areEqual("{\n  \"target\": \"macos-arm64\",\n  \"signed\": false,\n  \"checked\": true,\n  \"started\": false,\n  \"sources\": []\n}\n", await readFile(file, "utf8"));
+      Assert.areEqual("{\n  \"target\": \"macos-arm64\",\n  \"signed\": false,\n  \"checked\": true,\n  \"started\": false,\n  \"sourcePages\": []\n}\n", await readFile(file, "utf8"));
     });
   }
 
@@ -67,13 +65,12 @@ export class PackageReportTests {
   public marksAWrittenReportStarted(): Promise<void> {
     return PackageReportTests.withFolderAsync(async folder => {
       const file = path.join(folder, "report.json");
-      const source = SourceArchive.parse(PackageReportTests.SOURCE);
-      await new PackageReport("linux-arm64", false, true, false, Object.isNull(source) ? [] : [source]).writeAsync(file);
+      await new PackageReport("linux-arm64", false, true, false, [PackageReportTests.PAGE]).writeAsync(file);
 
       await PackageReport.markStartedAsync(file);
 
-      Assert.areEqual(`{\n  "target": "linux-arm64",\n  "signed": false,\n  "checked": true,\n  "started": true,\n  "sources": [\n    {\n      "url": "${PackageReportTests.SOURCE.url}",\n`
-        + `      "size": 10,\n      "sha256": "${PackageReportTests.SOURCE.sha256}"\n    }\n  ]\n}\n`, await readFile(file, "utf8"));
+      Assert.areEqual(`{\n  "target": "linux-arm64",\n  "signed": false,\n  "checked": true,\n  "started": true,\n  "sourcePages": [\n    "${PackageReportTests.PAGE}"\n  ]\n}\n`,
+        await readFile(file, "utf8"));
     });
   }
 

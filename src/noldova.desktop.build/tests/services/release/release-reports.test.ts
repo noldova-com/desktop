@@ -16,7 +16,6 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { PackageReport } from "../../../src/models/packaging/package-report.js";
 import { PackageTarget } from "../../../src/models/packaging/package-target.js";
-import { SourceArchive } from "../../../src/models/packaging/source-archive.js";
 import { ReleaseReports } from "../../../src/services/release/release-reports.js";
 import { Resources } from "../../../src/resources.js";
 
@@ -62,35 +61,20 @@ export class ReleaseReportsTests {
   }
 
   @TestMethod
-  public async listsEachSourceArchiveTheReportsNameOnceAsync(): Promise<void> {
+  public async listsEachSourcePageTheReportsNameOnceAsync(): Promise<void> {
     const targets = [new PackageTarget("linux", "x64"), new PackageTarget("windows", "x64"), new PackageTarget("macos", "arm64")];
-    const unix = new SourceArchive("https://example.com/sources-1/sample-source-unix.tar", 10, "ab".repeat(32));
-    const windows = new SourceArchive("https://example.com/sources-1/sample-source-windows.tar", 20, "cd".repeat(32));
+    const git = "https://example.com/git/tree/v1.0.0";
+    const windows = "https://example.com/git-for-windows/releases/tag/v1.0.0.windows.1";
+    const native = "https://example.com/native/tree/0123456";
     await using folder = await ReleaseReportsTests.createEntriesAsync([
-      ["linux-x64", new PackageReport("linux-x64", false, false, true, [unix])],
+      ["linux-x64", new PackageReport("linux-x64", false, false, true, [git, native])],
       ["windows-x64", new PackageReport("windows-x64", false, false, true, [windows])],
-      ["macos-arm64", new PackageReport("macos-arm64", false, false, true, [new SourceArchive(unix.url, unix.size, unix.sha256)])]
+      ["macos-arm64", new PackageReport("macos-arm64", false, false, true, [git, native])]
     ]);
 
     const verified = await new ReleaseReports([], targets).verifyAsync(folder.path);
 
-    Assert.areEqual(JSON.stringify([unix, windows]), JSON.stringify(verified.sources));
-  }
-
-  @TestMethod
-  public async refusesReportsThatGiveOneSourceArchiveDifferentlyAsync(): Promise<void> {
-    const targets = [new PackageTarget("linux", "x64"), new PackageTarget("linux", "arm64"), new PackageTarget("macos", "arm64")];
-    const unix = new SourceArchive("https://example.com/sources-1/sample-source-unix.tar", 10, "ab".repeat(32));
-    await using folder = await ReleaseReportsTests.createEntriesAsync([
-      ["linux-arm64", new PackageReport("linux-arm64", false, false, true, [unix])],
-      ["linux-x64", new PackageReport("linux-x64", false, false, true, [new SourceArchive(unix.url, 11, unix.sha256)])],
-      ["macos-arm64", new PackageReport("macos-arm64", false, false, true, [new SourceArchive(unix.url, unix.size, "ef".repeat(32))])]
-    ]);
-
-    const error = await Assert.throwsAsync(() => new ReleaseReports([], targets).verifyAsync(folder.path), BuildException);
-
-    Assert.isTrue(error.message.endsWith(`The package reports give ${unix.url} with different sizes or SHA-256s.`), error.message);
-    Assert.areEqual(1, error.message.split(unix.url).length - 1, error.message);
+    Assert.areEqual(JSON.stringify([git, native, windows]), JSON.stringify(verified.sourcePages));
   }
 
   @TestMethod

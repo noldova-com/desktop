@@ -329,21 +329,23 @@ export class PackageStageTests {
   }
 
   @TestMethod
-  public async givesTheLicenceAndSourceArchiveOfEachStagedPackageThatNamesOneInTheNoticeAndReturnsTheArchives(): Promise<void> {
+  public async givesTheLicenceAndUpstreamSourceOfEachStagedPackageThatNamesOneInTheNoticeAndReturnsThePages(): Promise<void> {
     const end = TemporaryFolderRunnerFixture.startTest();
-    const source = { url: "https://example.com/sources-1/shared-source.tar", size: 10, sha256: "ab".repeat(32) };
+    const pages = ["https://example.com/shared/tree/v1.0.0", "https://example.com/builder/tree/0123456"];
+    const shared = { url: "https://example.com/sources/shared-1.0.0.tar.xz", size: 10, sha256: "ab".repeat(32) };
+    const builder = { url: "https://example.com/sources/builder-0123456.tar.gz", size: 20, sha256: "cd".repeat(32) };
     await using app = await InstalledAppFixture.createAsync();
     await app.installAsync(InstalledAppFixture.CLI, null, { "shared-type": "1.0.0" });
     await app.installAsync(InstalledAppFixture.ELECTRON);
-    await app.addThirdPartyAsync("shared-type", "MIT", { LICENSE: "Shared license" }, { noldovaDesktop: { sourceArchive: source } });
+    await app.addThirdPartyAsync("shared-type", "MIT", { LICENSE: "Shared license" }, { noldovaDesktop: { sourcePages: pages, sources: [shared, builder] } });
     const stage = new PackageStage(app.path, await PackageStageTests.createNpmAsync(app.path, end), new StandInBuildFixture(app.path));
 
-    const sources = await stage.stageAsync(PackageStageTests.TARGET, new PassThrough(), null, null);
+    const sourcePages = await stage.stageAsync(PackageStageTests.TARGET, new PassThrough(), null, null);
     const notice = await readFile(new PackageLayout(app.path).thirdPartyLicenses, "utf8");
 
-    Assert.areEqual(JSON.stringify([source]), JSON.stringify(sources));
-    Assert.isTrue(notice.endsWith(`\n\nshared-type@1.0.0\nComplete corresponding source: ${source.url}, with the SHA-256 ${source.sha256}.\n\nShared license\n`),
-      notice);
+    Assert.areEqual(JSON.stringify(pages), JSON.stringify(sourcePages));
+    Assert.isTrue(notice.endsWith(`\n\nshared-type@1.0.0\nComplete corresponding source, as its upstream publishes it: ${pages.join(", ")}.\nIts source files, each with its SHA-256:\n`
+      + `${shared.url} ${shared.sha256}\n${builder.url} ${builder.sha256}\n\nShared license\n`), notice);
   }
 
   @TestMethod

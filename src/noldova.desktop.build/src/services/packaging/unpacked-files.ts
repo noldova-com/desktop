@@ -42,7 +42,7 @@ export class UnpackedFiles {
     let files: readonly string[];
     try {
       const desktop = manifest.readObject(Resources.noldovaDesktopField);
-      files = !desktop.hasField(Resources.desktopUnpackedField) && desktop.hasField(Resources.desktopSourceArchiveField) ? []
+      files = !desktop.hasField(Resources.desktopUnpackedField) && desktop.hasField(Resources.desktopSourcesField) ? []
         : desktop.readStringArray(Resources.desktopUnpackedField);
     }
     catch (error) {

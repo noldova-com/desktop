@@ -15,12 +15,13 @@ import { CodePointComparer } from "@noldova/context.text";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { IStagedSource } from "../../interfaces/i-staged-source.ts";
-import { SourceArchive } from "../../models/packaging/source-archive.ts";
+import { PackageSource } from "../../models/packaging/package-source.ts";
 import { Resources } from "../../resources.ts";
 
-// Lists the packages of the stage whose package.json names, in noldovaDesktop.sourceArchive, the archive of their
-// complete corresponding source, with their licence text, so the licence notice and the release can carry it.
-export class SourceArchives {
+// Lists the packages of the stage whose package.json names, in noldovaDesktop.sourcePages and noldovaDesktop.sources,
+// where upstream publishes their complete corresponding source, with their licence text, so the licence notice and the
+// release can point to it.
+export class StagedSources {
   public static async listAsync(stage: string): Promise<readonly IStagedSource[]> {
     const folders = (await readdir(stage, { recursive: true, withFileTypes: true }))
       .filter(t => t.isFile() && t.name === Resources.packageManifestFileName)
@@ -29,7 +30,7 @@ export class SourceArchives {
       .sort();
     const sources: IStagedSource[] = [];
     for (const folder of folders) {
-      const source = await SourceArchives.readPackageAsync(path.join(stage, folder), folder);
+      const source = await StagedSources.readPackageAsync(path.join(stage, folder), folder);
       if (!Object.isNull(source))
         sources.push(source);
     }
@@ -48,20 +49,20 @@ export class SourceArchives {
     if (!Object.isPlainObject(named))
       return null;
     const desktop: Readonly<Record<string, unknown>> = Object.fromEntries(Object.entries(named));
-    if (!Object.hasOwn(desktop, Resources.desktopSourceArchiveField))
+    if (!PackageSource.names(desktop))
       return null;
     const name = manifest[Resources.manifestNameField];
     const version = manifest[Resources.manifestVersionField];
     const id = Object.isString(name) && Object.isString(version) ? Resources.formatPackageId(name, version) : relative;
-    const archive = SourceArchive.parse(desktop[Resources.desktopSourceArchiveField]);
-    if (Object.isNull(archive))
-      throw new BuildException(Resources.formatSourceArchiveInvalid(id));
+    const source = PackageSource.parse(desktop);
+    if (Object.isNull(source))
+      throw new BuildException(Resources.formatPackageSourceInvalid(id));
     const [license] = (await readdir(folder, { withFileTypes: true }))
       .filter(t => t.isFile() && Resources.licenseFilePattern.test(t.name))
       .map(t => t.name)
       .sort((left, right) => CodePointComparer.compare(left, right));
     if (Object.isUndefined(license))
-      throw new BuildException(Resources.formatSourceArchiveNoLicense(id));
-    return { id, license: await readFile(path.join(folder, license), Resources.textEncoding), archive };
+      throw new BuildException(Resources.formatPackageSourceNoLicense(id));
+    return { id, license: await readFile(path.join(folder, license), Resources.textEncoding), source };
   }
 }

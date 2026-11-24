@@ -17,7 +17,6 @@ import { CodePointComparer } from "@noldova/context.text";
 
 import { PackageReport } from "../../models/packaging/package-report.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
-import type { SourceArchive } from "../../models/packaging/source-archive.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { IVerifiedReports } from "../../interfaces/i-verified-reports.ts";
 import { Resources } from "../../resources.ts";
@@ -61,18 +60,10 @@ export class ReleaseReports {
       else if (report.isSigned !== isSigned || report.isChecked !== isSigned)
         problems.push(Resources.formatReportSigningMismatch(target.id, ReleaseReports.describe(report), isSigned, target.platform));
     }
-    const sources = new Map<string, SourceArchive>();
-    for (const source of reports.flatMap(t => t.sources)) {
-      const known = sources.get(source.url);
-      if (Object.isUndefined(known))
-        sources.set(source.url, source);
-      else if (!known.isSame(source) && !problems.includes(Resources.formatReportSourceArchivesDiffer(source.url)))
-        problems.push(Resources.formatReportSourceArchivesDiffer(source.url));
-    }
     if (problems.length > 0)
       throw new BuildException(Resources.formatReportsMismatch(problems));
     return { text: Resources.formatReportsVerified(this.signedPlatforms), unstarted: this.targets.filter(t => !reports.some(u => u.target === t.id && u.isStarted)),
-      sources: [...sources.values()] };
+      sourcePages: [...new Set(reports.flatMap(t => t.sourcePages))] };
   }
 
   private static async readAsync(folder: string, entry: Dirent): Promise<PackageReport | string> {
