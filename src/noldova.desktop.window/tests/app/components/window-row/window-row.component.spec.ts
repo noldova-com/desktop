@@ -1414,4 +1414,131 @@ describe("WindowRowComponent", () => {
     expect(before).toBeGreaterThan(1);
     expect(Math.abs(centreOf(field) - centreOf(row))).toBeLessThanOrEqual(0.5);
   });
+  describe("the app's name and icon", () => {
+    const icon = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Crect%20width%3D%2216%22%20height%3D%2216%22%2F%3E%3C%2Fsvg%3E";
+    const longName = "Sample Notes for the Clinic Portal Team and Everyone Who Plans the Next Release Together";
+
+    function giveTitleBar(name: string | null, image: string | null): void {
+      TestBed.configureTestingModule({ providers: [{ provide: BuildTokens.titleBar, useValue: { name, icon: image } }] });
+    }
+
+    async function renderAsync(width: number): Promise<HTMLElement> {
+      const fixture = TestBed.createComponent(WindowRowComponent);
+      const row: HTMLElement = DomFixture.host(fixture);
+      row.style.width = `${width}px`;
+      fixture.detectChanges();
+      await settle(fixture);
+      fixture.detectChanges();
+      await settle(fixture);
+      return row;
+    }
+
+    it("shows nothing before the menu bar when the app gives neither, as before", async () => {
+      PreloadBridgeFixture.install("win32");
+      useNotesMenus([]);
+      apply();
+
+      const row = await renderAsync(1100);
+
+      expect([row.querySelector(".nol-window-row-identity"), row.firstElementChild?.tagName.toLowerCase()]).toEqual([null, "nol-menu-bar"]);
+    });
+
+    it("shows only the name when the app gives no icon", async () => {
+      PreloadBridgeFixture.install("win32");
+      giveTitleBar("Sample Notes", null);
+      apply();
+
+      const row = await renderAsync(1100);
+
+      expect([row.querySelector(".nol-window-row-identity-icon"), row.querySelector(".nol-window-row-identity-name")?.textContent]).toEqual([null, "Sample Notes"]);
+      expect(row.firstElementChild?.classList.contains("nol-window-row-identity")).toBe(true);
+    });
+
+    it("shows only the icon, as decoration, when the app gives no name", async () => {
+      PreloadBridgeFixture.install("win32");
+      giveTitleBar(null, icon);
+      apply();
+
+      const row = await renderAsync(1100);
+      const image = DomFixture.one(row, ".nol-window-row-identity-icon");
+
+      expect([row.querySelector(".nol-window-row-identity-name"), image.getAttribute("src"), image.getAttribute("alt"), image.getAttribute("draggable")]).toEqual([null, icon, "", "false"]);
+    });
+
+    for (const mode of AppearanceFixture.modes)
+      for (const panelSize of [12, 18])
+        it(`starts the row with the 1rem icon and the name 0.25rem after it in the title bar's text, centred on the menu's items 0.5rem before them, inside the drag region, at panel size ${panelSize} in ${mode} mode`, async () => {
+          PreloadBridgeFixture.install("win32");
+          giveTitleBar("Sample Notes", icon);
+          useNotesMenus([]);
+          apply(DefaultTheme.theme, mode, panelSize);
+
+          const row = await renderAsync(1400);
+          const style = getComputedStyle(row);
+          const identity = DomFixture.one(row, ".nol-window-row-identity");
+          const image = DomFixture.one(row, ".nol-window-row-identity-icon").getBoundingClientRect();
+          const name = DomFixture.one(row, ".nol-window-row-identity-name");
+          const words = name.getBoundingClientRect();
+          const item = DomFixture.one(row, ".nol-window-row-menu-bar-item").getBoundingClientRect();
+          const bar = DomFixture.one(row, "nol-menu-bar").getBoundingClientRect();
+          const nameStyle = getComputedStyle(name);
+
+          AppearanceFixture.expectPixels(image.left - row.getBoundingClientRect().left, parseFloat(style.paddingLeft));
+          AppearanceFixture.expectPixels(image.width, AppearanceFixture.toPixels(1, panelSize));
+          AppearanceFixture.expectPixels(image.height, AppearanceFixture.toPixels(1, panelSize));
+          AppearanceFixture.expectPixels(words.left - image.right, AppearanceFixture.toPixels(0.25, panelSize));
+          AppearanceFixture.expectPixels(bar.left - words.right, AppearanceFixture.toPixels(0.5, panelSize));
+          AppearanceFixture.expectPixels(image.top + image.height / 2, item.top + item.height / 2);
+          AppearanceFixture.expectPixels(words.top + words.height / 2, item.top + item.height / 2);
+          expect([name.scrollWidth > name.clientWidth, nameStyle.color, nameStyle.fontSize]).toEqual([false, style.color, style.fontSize]);
+          expect([identity, DomFixture.one(row, ".nol-window-row-identity-icon"), name].map(t => getComputedStyle(t).getPropertyValue("app-region"))).not.toContain("no-drag");
+        });
+
+    for (const platform of ["win32", "linux"] as const)
+      it(`cuts a long name with an ellipsis rather than fold the menu bar or narrow the search field below 12rem on ${platform}`, async () => {
+        PreloadBridgeFixture.install(platform);
+        giveTitleBar(longName, icon);
+        useNotesMenus([]);
+        apply();
+
+        const row = await renderAsync(1100);
+        const name = DomFixture.one(row, ".nol-window-row-identity-name");
+        const field = DomFixture.one(row, ".nol-window-row-search").getBoundingClientRect();
+        const bar = DomFixture.one(row, "nol-menu-bar");
+
+        expect([bar.classList.contains("nol-window-row-menu-bar-folded"), name.scrollWidth > name.clientWidth, getComputedStyle(name).textOverflow]).toEqual([false, true, "ellipsis"]);
+        expect(DomFixture.one(row, ".nol-window-row-identity").getBoundingClientRect().right).toBeLessThanOrEqual(bar.getBoundingClientRect().left + 0.5);
+        expect(field.width).toBeGreaterThanOrEqual(AppearanceFixture.toPixels(12) - 0.5);
+      });
+
+    it("keeps the name before the menu button once the menu bar folds", async () => {
+      PreloadBridgeFixture.install("win32");
+      giveTitleBar(longName, icon);
+      useNotesMenus([]);
+      apply();
+
+      const row = await renderAsync(560);
+      const identity = DomFixture.one(row, ".nol-window-row-identity").getBoundingClientRect();
+      const button = DomFixture.one(row, ".nol-window-row-menu").getBoundingClientRect();
+
+      expect(DomFixture.one(row, "nol-menu-bar").classList.contains("nol-window-row-menu-bar-folded")).toBe(true);
+      expect(identity.right).toBeLessThanOrEqual(button.left + 0.5);
+      expect(DomFixture.one(row, ".nol-window-row-search").getBoundingClientRect().width).toBeGreaterThanOrEqual(AppearanceFixture.toPixels(12) - 0.5);
+    });
+
+    it("starts the name and icon after the traffic lights on macOS, where the row draws no menu, cut before the search field's 12rem", async () => {
+      PreloadBridgeFixture.install("darwin");
+      giveTitleBar(longName, icon);
+      useNotesMenus([]);
+      apply();
+
+      const row = await renderAsync(760);
+      const image = DomFixture.one(row, ".nol-window-row-identity-icon").getBoundingClientRect();
+      const name = DomFixture.one(row, ".nol-window-row-identity-name");
+
+      expect([row.querySelector("nol-menu-bar"), row.querySelector(".nol-window-row-menu"), name.scrollWidth > name.clientWidth]).toEqual([null, null, true]);
+      AppearanceFixture.expectPixels(image.left - row.getBoundingClientRect().left, 78);
+      expect(DomFixture.one(row, ".nol-window-row-search").getBoundingClientRect().width).toBeGreaterThanOrEqual(AppearanceFixture.toPixels(12) - 0.5);
+    });
+  });
 });

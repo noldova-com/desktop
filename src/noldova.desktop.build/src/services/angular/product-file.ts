@@ -13,6 +13,7 @@ import "@noldova/context.core";
 
 import { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { AboutLogo } from "./about-logo.ts";
+import { TitleBarIcon } from "./title-bar-icon.ts";
 import { Resources } from "../../resources.ts";
 
 export class ProductFile {
@@ -35,6 +36,7 @@ export class ProductFile {
       String.empty,
       Resources.formatProductNameLine(product.name),
       Resources.formatProductAboutLine({ ...product.about.toJson(), logo: AboutLogo.of(this.root, product)?.toJson() ?? null }),
+      Resources.formatProductTitleBarLine({ name: product.titleBarName, icon: TitleBarIcon.of(this.root, product)?.address ?? null }),
       String.empty
     ].join(Resources.lineSeparator));
   }

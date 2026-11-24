@@ -40,6 +40,10 @@ export class ProductIdentity {
   public readonly about: ProductAbout;
   public readonly namedUpdateFeed: string | null;
   public readonly installFolder: string | null;
+  /** The name the title bar shows at its start, or null to show none. */
+  public readonly titleBarName: string | null;
+  /** The title bar's icon: a PNG or SVG file's path from the app's root, or a data: URL of one; null to show none. */
+  public readonly titleBarIcon: string | null;
 
   public constructor(
     name: string,
@@ -57,9 +61,11 @@ export class ProductIdentity {
     permissionsModule: string | null = null,
     about: ProductAbout = ProductAbout.NONE,
     namedUpdateFeed: string | null = null,
-    installFolder: string | null = null) {
+    installFolder: string | null = null,
+    titleBar: readonly [name: string | null, icon: string | null] = [null, null]) {
     const [windows, macos, linux] = deviceFolders;
     const [macCategory, linuxCategory] = categories;
+    const [titleBarName, titleBarIcon] = titleBar;
     ProductIdentity.require(name.trim().length > 0 && !Resources.productUnsafeNamePattern.test(name), Resources.productNameField, Resources.productNameExpected);
     ProductIdentity.require(publisher.trim().length > 0 && !Resources.productUnsafePublisherPattern.test(publisher), Resources.productPublisherField, Resources.productPublisherExpected);
     ProductIdentity.require(Resources.productSlugPattern.test(slug), Resources.productSlugField, Resources.productSlugExpected);
@@ -81,6 +87,9 @@ export class ProductIdentity {
     ProductIdentity.require(Object.isNull(namedUpdateFeed) || UpdateFeed.isNamed(namedUpdateFeed), Resources.productUpdateFeedField, Resources.productUpdateFeedExpected);
     ProductIdentity.require(Object.isNull(installFolder) || Resources.productInstallFolderPattern.test(installFolder), Resources.productInstallFolderField,
       Resources.productInstallFolderExpected);
+    ProductIdentity.require(Object.isNull(titleBarName) || (titleBarName.trim().length > 0 && !Resources.productLineBreakPattern.test(titleBarName)),
+      Resources.productTitleBarNameField, Resources.productTitleBarNameExpected);
+    ProductIdentity.require(Object.isNull(titleBarIcon) || ProductIdentity.isTitleBarIcon(titleBarIcon), Resources.productTitleBarIconField, Resources.productTitleBarIconExpected);
 
     this.name = name;
     this.publisher = publisher;
@@ -101,6 +110,8 @@ export class ProductIdentity {
     this.about = about;
     this.namedUpdateFeed = namedUpdateFeed;
     this.installFolder = installFolder;
+    this.titleBarName = titleBarName;
+    this.titleBarIcon = titleBarIcon;
   }
 
   public static async readAsync(root: string): Promise<ProductIdentity> {
@@ -143,7 +154,8 @@ export class ProductIdentity {
       new ProductAbout(ProductIdentity.readOptionalText(about, Resources.productDescriptionField), ProductIdentity.readOptionalText(about, Resources.productWebsiteField),
         ProductIdentity.readOptionalText(about, Resources.productReleasesField), ProductIdentity.readOptionalText(about, Resources.productLicensesField)),
       ProductIdentity.readOptionalText(product, Resources.productUpdateFeedField),
-      ProductIdentity.readOptionalText(product, Resources.productInstallFolderField));
+      ProductIdentity.readOptionalText(product, Resources.productInstallFolderField),
+      [ProductIdentity.readOptionalText(product, Resources.productTitleBarNameField), ProductIdentity.readOptionalText(product, Resources.productTitleBarIconField)]);
   }
 
   public get updateFeed(): string {
@@ -166,6 +178,10 @@ export class ProductIdentity {
   private static isRelativeFolder(folder: string): boolean {
     return folder.split(Resources.pathSegmentSeparator).every(t => t.length > 0 && t !== Resources.currentFolderSegment && t !== Resources.parentFolderSegment
       && !Resources.productUnsafeSegmentPattern.test(t));
+  }
+
+  private static isTitleBarIcon(icon: string): boolean {
+    return Resources.productTitleBarIconDataPattern.test(icon) || (ProductIdentity.isRelativeFolder(icon) && Resources.productTitleBarIconFilePattern.test(icon));
   }
 
   private static isSecureAddress(address: string): boolean {

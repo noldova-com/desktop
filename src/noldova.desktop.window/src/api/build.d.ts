@@ -64,6 +64,26 @@ export interface IProductLogo {
 }
 
 /**
+ * What an app shows at the start of the title bar, from its
+ * `desktop.product.titleBarName` and `titleBarIcon`, each null when the app
+ * gives none.
+ */
+export interface IProductTitleBar {
+  /**
+   * The app's name, shown after the icon in the title bar's text and cut
+   * short with an ellipsis before it would push the menu, or null.
+   */
+  readonly name: string | null;
+
+  /**
+   * The icon's address: a file's, relative to the window's page, which the
+   * build copies beside the window's files under `title-bar/`, or the app's
+   * data: URL as it is; null for none.
+   */
+  readonly icon: string | null;
+}
+
+/**
  * What an app's build gives the window when it starts it: what the build
  * generates from the app and its modules, which the window package itself
  * doesn't hold.
@@ -81,6 +101,13 @@ export interface IWindowInputs {
    * shows none of it when it is left out.
    */
   readonly about?: IProductAbout;
+
+  /**
+   * The name and icon the title bar shows at its start, which the build
+   * writes as `productTitleBar`; the title bar shows neither when it is left
+   * out.
+   */
+  readonly titleBar?: IProductTitleBar;
 
   /**
    * Where each module with a window part loads it from, in the order the

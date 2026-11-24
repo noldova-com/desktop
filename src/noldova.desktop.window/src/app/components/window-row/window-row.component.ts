@@ -14,12 +14,14 @@ import { Component, DestroyRef, ElementRef, ErrorHandler, PendingTasks, type Sig
 import { AppearanceService, DialogService, IconButtonComponent, MenuBarComponent, MenuBarItemComponent, MenuComponent, MenuItemComponent, MenuTriggerDirective, OverlaySide, TooltipDirective } from "@noldova/ui.components.angular";
 import type { JsonValue } from "@noldova/context.json";
 
+import { BuildTokens } from "../../models/build-tokens.js";
 import { ProductName } from "../../models/product-name.js";
 import { Resources } from "../../../resources.js";
 import { DockSide } from "../../enums/dock-side.js";
 import { MenuBarStyle } from "../../enums/menu-bar-style.js";
 import { WindowAppearance } from "../../models/window-appearance.js";
 import type { DocumentHeading } from "../../models/document-heading.js";
+import type { IProductTitleBar } from "../../interfaces/i-product-title-bar.js";
 import { DocumentTab } from "../../models/layout/document-tab.js";
 import { ViewTab } from "../../models/layout/view-tab.js";
 import { BarItemsService } from "../../services/bar-items.service.js";
@@ -62,6 +64,7 @@ export class WindowRowComponent {
   private readonly host: HTMLElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly foldedValue: WritableSignal<boolean> = signal(false);
   private readonly shiftValue: WritableSignal<number> = signal(0);
+  private readonly identityRoom: WritableSignal<number | null> = signal(null);
   private readonly fontLoads: WritableSignal<number> = signal(0);
   private readonly fullScreenValue: WritableSignal<boolean> = signal(false);
   private readonly bar: Signal<ElementRef<HTMLElement> | undefined> = viewChild("bar", { read: ElementRef });
@@ -75,6 +78,14 @@ export class WindowRowComponent {
   private isAltAlone: boolean = false;
 
   protected readonly resources: typeof Resources = Resources;
+  /** The app's name and icon at the row's start, each null when the app gives none. */
+  protected readonly titleBar: IProductTitleBar = inject(BuildTokens.titleBar);
+  protected readonly hasIdentity: boolean = !Object.isNull(this.titleBar.name) || !Object.isNull(this.titleBar.icon);
+  /** The widest the name and icon may be: the room the menu and the search field's narrowest width leave, so the name is cut before it pushes them. */
+  protected readonly identityWidth: Signal<string | null> = computed(() => {
+    const room = this.identityRoom();
+    return Object.isNull(room) ? null : Resources.formatPixels(room);
+  });
   protected readonly isMac: boolean = this.bridge.isMac;
   protected readonly isDrawingControls: boolean = this.bridge.platform === Resources.linuxPlatform;
   protected readonly bars: BarItemsService = inject(BarItemsService);
@@ -250,7 +261,11 @@ export class WindowRowComponent {
     const room = inner - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - start.getBoundingClientRect().width - end.getBoundingClientRect().width
       - controlsWidth - Resources.windowRowMinimumDragRem * rem;
     const bar = this.bar()?.nativeElement;
-    this.foldedValue.set(!Object.isUndefined(bar) && WindowRowComponent.outerWidth(bar) > room - Resources.searchFieldMinimumRem * rem);
+    const isFolded = !Object.isUndefined(bar) && WindowRowComponent.outerWidth(bar) > room - Resources.searchFieldMinimumRem * rem;
+    this.foldedValue.set(isFolded);
+    const menuButton = this.menuButton()?.nativeElement;
+    const menu = isFolded || Object.isUndefined(bar) ? (Object.isUndefined(menuButton) ? 0 : WindowRowComponent.outerWidth(menuButton)) : WindowRowComponent.outerWidth(bar);
+    this.identityRoom.set(Math.max(Math.floor(room - menu - Resources.searchFieldMinimumRem * rem), 0));
     this.shiftValue.set(this.centringShift());
   }
 

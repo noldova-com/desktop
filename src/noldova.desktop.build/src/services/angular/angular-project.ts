@@ -22,6 +22,7 @@ import { InstalledPackages } from "../packages/installed-packages.ts";
 import { PackageManifest } from "../../models/packages/package-manifest.ts";
 import { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { AboutLogo } from "./about-logo.ts";
+import { TitleBarIcon } from "./title-bar-icon.ts";
 import { PackageNaming } from "../packages/package-naming.ts";
 import { RootManifest } from "../../models/packages/root-manifest.ts";
 import type { ProcessRunner } from "../processes/process-runner.ts";
@@ -96,7 +97,10 @@ export class AngularProject {
       this.app);
     if (exitCode !== 0)
       throw new BuildException(Resources.formatWindowBuildFailed(exitCode));
-    await AboutLogo.of(this.root, await ProductIdentity.readAsync(this.root))?.copyAsync(outputPath ?? path.join(this.root, ...Resources.windowOutputSegments));
+    const product = await ProductIdentity.readAsync(this.root);
+    const windowFolder = outputPath ?? path.join(this.root, ...Resources.windowOutputSegments);
+    await AboutLogo.of(this.root, product)?.copyAsync(windowFolder);
+    await TitleBarIcon.of(this.root, product)?.copyAsync(windowFolder);
   }
 
   public async verifyWithoutAsync(outputPath: string | null, texts: readonly string[]): Promise<void> {

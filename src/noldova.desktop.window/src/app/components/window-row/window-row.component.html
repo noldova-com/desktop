@@ -6,6 +6,16 @@ This source code is licensed under the license found in the
 LICENSE file in the root directory of this source tree.
 -->
 
+@if (hasIdentity) {
+  <div class="nol-window-row-identity" [style.max-width]="identityWidth()">
+    @if (titleBar.icon; as icon) {
+      <img class="nol-window-row-identity-icon" [src]="icon" alt="" draggable="false" />
+    }
+    @if (titleBar.name; as name) {
+      <span class="nol-window-row-identity-name" data-truncates>{{ name }}</span>
+    }
+  </div>
+}
 @if (isBarShown()) {
   <nol-menu-bar #bar class="nol-window-row-menu-bar" [class.nol-window-row-menu-bar-folded]="isFolded()" [label]="resources.menuBarLabel"
     [attr.inert]="isFolded() ? '' : null" [attr.aria-hidden]="isFolded() ? true : null">

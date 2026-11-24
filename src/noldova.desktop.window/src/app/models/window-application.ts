@@ -37,6 +37,7 @@ export class WindowApplication {
         { provide: BuildTokens.sources, useValue: inputs.windowParts },
         { provide: BuildTokens.menus, useValue: Object.entries(inputs.menus).map(([id, menus]) => MenuDeclarations.fromJson(id, menus)) },
         { provide: BuildTokens.about, useValue: inputs.about ?? BuildTokens.noAbout },
+        { provide: BuildTokens.titleBar, useValue: inputs.titleBar ?? BuildTokens.noTitleBar },
         { provide: GalleryTokens.component, useValue: inputs.gallery },
         { provide: ClipboardWriter, useExisting: PreloadBridgeService },
         { provide: ModuleSwitchTokens.saver, useExisting: ClosingService },

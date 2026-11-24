@@ -876,6 +876,7 @@ export class Resources {
   public static readonly supportGroup: string = "desktop.support";
   public static readonly windowPartMenusToken: string = "The build's module menus";
   public static readonly productAboutToken: string = "The app's About details";
+  public static readonly productTitleBarToken: string = "The app's name and icon in the title bar";
   public static readonly tabInput: string = "tab";
   public static readonly dockedInput: string = "isDocked";
   public static readonly shownInput: string = "isShown";

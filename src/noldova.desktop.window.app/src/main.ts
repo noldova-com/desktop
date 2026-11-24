@@ -9,7 +9,7 @@
 import { WindowApplication } from "@noldova/desktop.window/build";
 
 import { gallery } from "../../../_build/generated/gallery";
-import { productAbout, productName } from "../../../_build/generated/product";
+import { productAbout, productName, productTitleBar } from "../../../_build/generated/product";
 import { moduleMenus, windowPartSources } from "../../../_build/generated/window-parts";
 
-await WindowApplication.startAsync({ productName, about: productAbout, windowParts: windowPartSources, menus: moduleMenus, gallery });
+await WindowApplication.startAsync({ productName, about: productAbout, titleBar: productTitleBar, windowParts: windowPartSources, menus: moduleMenus, gallery });

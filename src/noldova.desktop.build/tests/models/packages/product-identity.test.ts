@@ -110,6 +110,34 @@ export class ProductIdentityTests {
   }
 
   @TestMethod
+  public readsTheTitleBarsNameAndIconTheAppGivesAndNoneWhenItGivesNone(): void {
+    const given = ProductIdentityTests.read({ titleBarName: "Sample: Notes", titleBarIcon: "assets/Title Bar.SVG" });
+    const none = ProductIdentityTests.read({});
+    const icons = ["assets/title-bar.png", "data:image/png;base64,iVBORw0KGgo=", "data:image/svg+xml,%3Csvg%2F%3E"].map(t => ProductIdentityTests.read({ titleBarIcon: t }).titleBarIcon);
+
+    Assert.areEqual(JSON.stringify([["Sample: Notes", "assets/Title Bar.SVG"], [null, null], ["assets/title-bar.png", "data:image/png;base64,iVBORw0KGgo=", "data:image/svg+xml,%3Csvg%2F%3E"]]),
+      JSON.stringify([[given.titleBarName, given.titleBarIcon], [none.titleBarName, none.titleBarIcon], icons]));
+  }
+
+  @TestMethod
+  public refusesATitleBarNameThatIsNotOneLineOfText(): void {
+    for (const titleBarName of ["Sample\nNotes", "Sample\rNotes", " ", String.empty, 42]) {
+      const refusal = Assert.throws(() => ProductIdentityTests.read({ titleBarName }), BuildException);
+      Assert.areEqual("The root package.json's desktop.product.titleBarName must be one line of text.", refusal.message, JSON.stringify(titleBarName));
+    }
+  }
+
+  @TestMethod
+  public refusesATitleBarIconThatIsNotAPngOrSvgInTheAppOrADataUrlOfOne(): void {
+    for (const titleBarIcon of ["assets/title-bar.jpg", "assets/title-bar", "/assets/title-bar.svg", "../title-bar.svg", "assets/../title-bar.svg", "assets//title-bar.svg",
+      "C:\\title-bar.svg", "https://example.test/title-bar.svg", "data:image/jpeg;base64,AAAA", "data:image/png;base64,", "data:text/html,<svg/>", String.empty, 42]) {
+      const refusal = Assert.throws(() => ProductIdentityTests.read({ titleBarIcon }), BuildException);
+      Assert.areEqual("The root package.json's desktop.product.titleBarIcon must be a PNG or SVG file's path from the app's root, such as assets/title-bar.svg, "
+        + "or a data: URL of a PNG or SVG image.", refusal.message, JSON.stringify(titleBarIcon));
+    }
+  }
+
+  @TestMethod
   public async readsTheProductFromTheRootsManifestOrRefusesWithoutOneAsync(): Promise<void> {
     const root = await mkdtemp(path.join(tmpdir(), "product-identity-"));
     try {
