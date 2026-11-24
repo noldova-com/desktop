@@ -25,6 +25,7 @@ import { PackageStage } from "../../../src/services/packaging/package-stage.js";
 import { NpmCommand } from "../../../src/services/toolchain/npm-command.js";
 import { ArchivedPackageFixture } from "../../fixtures/archived-package.fixture.js";
 import { InstalledAppFixture } from "../../fixtures/installed-app.fixture.js";
+import { ListingCommandFixture } from "../../fixtures/listing-command.fixture.js";
 import { OverrideFormFixture } from "../../fixtures/override-form.fixture.js";
 import { SdkHostStageFixture } from "../../fixtures/sdk-host-stage.fixture.js";
 import { StageFolderFixture } from "../../fixtures/stage-folder.fixture.js";
@@ -197,7 +198,7 @@ export class PackageStageTests {
     const script = `${marker} process.on("SIGTERM", () => {}); require("node:fs").writeFileSync(ready, ""); setInterval(() => {}, 1_000)`;
     const waits = `${marker} const watch = setInterval(() => { if (require("node:fs").existsSync(ready)) clearInterval(watch); }, 25);`;
 
-    const { lines } = await PackageStageTests.stallAsync(script, 500, t => [process.execPath, ["-e", waits, t]], PackageStageTests.STOP_WAIT);
+    const { lines } = await PackageStageTests.stallAsync(script, 500, t => new ListingCommandFixture(process.execPath, ["-e", waits, t]), PackageStageTests.STOP_WAIT);
 
     Assert.isTrue(lines.includes(process.platform === "win32" ? "It ended at SIGTERM." : "It outlived the wait after SIGTERM, and ended at SIGKILL."), lines.join("\n"));
   }
@@ -208,14 +209,14 @@ export class PackageStageTests {
     const script = `${marker} process.on("SIGTERM", () => setTimeout(() => process.exit(0), 4_000)); require("node:fs").writeFileSync(ready, ""); setInterval(() => {}, 1_000)`;
     const waits = `${marker} const watch = setInterval(() => { if (require("node:fs").existsSync(ready)) clearInterval(watch); }, 25);`;
 
-    const { lines } = await PackageStageTests.stallAsync(script, 500, t => [process.execPath, ["-e", waits, t]]);
+    const { lines } = await PackageStageTests.stallAsync(script, 500, t => new ListingCommandFixture(process.execPath, ["-e", waits, t]));
 
     Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
   }
 
   @TestMethod
   public async stopsAStalledInstallTheListingMisses(): Promise<void> {
-    const { lines } = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, () => [process.execPath, ["-e", String.empty]]);
+    const { lines } = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, () => new ListingCommandFixture(process.execPath, ["-e", String.empty]));
     const id = Number(lines.find(t => t.startsWith("Its process, "))?.split(", ")[1]);
 
     Assert.isTrue(Number.isInteger(id) && id > 0, lines.join("\n"));
@@ -226,7 +227,7 @@ export class PackageStageTests {
 
   @TestMethod
   public async stopsAStalledInstallBeforeTheTestsEndWhenTheListingHangs(): Promise<void> {
-    const { lines } = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, () => [process.execPath, ["-e", "setInterval(() => {}, 1_000)"]], PackageStageTests.STOP_WAIT);
+    const { lines } = await PackageStageTests.stallAsync("setInterval(() => {}, 1_000)", 500, () => new ListingCommandFixture(process.execPath, ["-e", "setInterval(() => {}, 1_000)"]), PackageStageTests.STOP_WAIT);
 
     Assert.isTrue(lines.some(t => t.startsWith("The listing failed: Error: Command failed: ")), lines.join("\n"));
     Assert.isTrue(lines.includes("It ended at SIGTERM."), lines.join("\n"));
@@ -436,7 +437,7 @@ export class PackageStageTests {
     return new SdkHostStageFixture(null, await PackageStageTests.readVersionAsync(path.join(stage.folder, "node_modules", "shared-type")), written["overrides"]);
   }
 
-  private static async stallAsync(script: string, stall: number, listing: ((folder: string) => readonly [string, readonly string[]]) | null = null,
+  private static async stallAsync(script: string, stall: number, listing: ((folder: string) => ListingCommandFixture) | null = null,
     wait: number = Number.POSITIVE_INFINITY): Promise<StallRunFixture> {
     const folder = await mkdtemp(path.join(tmpdir(), "package-stage-"));
     try {

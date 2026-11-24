@@ -18,6 +18,7 @@ import { PackageConfiguration } from "./package-configuration.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { PinnedPackage } from "../../models/packaging/pinned-package.ts";
 import { ResponseBody } from "../../models/response-body.ts";
+import { TrustedSigningDownload } from "../../models/packaging/trusted-signing-download.ts";
 import { WindowsSigningAccount } from "../../models/packaging/windows-signing-account.ts";
 import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
@@ -58,31 +59,34 @@ export class TrustedSigningModule {
     const missing = Resources.windowsSigningCredentials.filter(t => (credentials[t] ?? String.empty).length === 0);
     if (missing.length > 0)
       throw new BuildException(Resources.formatWindowsSigningCredentialsMissing(missing));
-    return { ...Object.fromEntries(Resources.windowsSigningCredentials.map(t => [t, credentials[t]])), [Resources.trustedSigningFolderVariable]: this.folder, ...this.accountVariables };
+    const given = new Map<string, string | undefined>();
+    for (const name of Resources.windowsSigningCredentials)
+      given.set(name, credentials[name]);
+    return { ...Object.fromEntries(given), [Resources.trustedSigningFolderVariable]: this.folder, ...this.accountVariables };
   }
 
   public async prepareAsync(sources: readonly PinnedPackage[]): Promise<void> {
-    const downloads: (readonly [archive: string, destination: string, bytes: Buffer])[] = [];
+    const downloads: TrustedSigningDownload[] = [];
     for (const source of sources) {
       const bytes = await TrustedSigningModule.downloadAsync(source.url);
       const hash = createHash(Resources.pinnedPackageHashAlgorithm).update(bytes).digest(Resources.hashDigestEncoding);
       if (hash !== source.sha512)
         throw new BuildException(Resources.formatPinnedPackageHashMismatch(source.url, hash, source.sha512));
-      downloads.push([path.join(this.folder, `${path.basename(source.folder)}${Resources.zipExtension}`),
-        path.join(this.folder, ...source.folder.split(Resources.pathSegmentSeparator)), bytes]);
+      downloads.push(new TrustedSigningDownload(path.join(this.folder, `${path.basename(source.folder)}${Resources.zipExtension}`),
+        path.join(this.folder, ...source.folder.split(Resources.pathSegmentSeparator)), bytes));
     }
     await rm(this.folder, { recursive: true, force: true });
     await FolderCreation.createAsync(this.folder);
     try {
-      for (const [archive, , bytes] of downloads)
+      for (const { archive, bytes } of downloads)
         await writeFile(archive, bytes);
       await this.runAsync(Resources.trustedSigningExpandScript, {
-        [Resources.trustedSigningArchivesVariable]: downloads.map(([archive]) => archive).join(Resources.lineSeparator),
-        [Resources.trustedSigningDestinationsVariable]: downloads.map(([, destination]) => destination).join(Resources.lineSeparator)
+        [Resources.trustedSigningArchivesVariable]: downloads.map(t => t.archive).join(Resources.lineSeparator),
+        [Resources.trustedSigningDestinationsVariable]: downloads.map(t => t.destination).join(Resources.lineSeparator)
       }, this.folder, Resources.trustedSigningExpandAction);
     }
     finally {
-      await Promise.all(downloads.map(([archive]) => rm(archive, { force: true })));
+      await Promise.all(downloads.map(t => rm(t.archive, { force: true })));
     }
   }
 

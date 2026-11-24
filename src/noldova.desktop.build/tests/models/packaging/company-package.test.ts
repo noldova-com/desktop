@@ -492,7 +492,7 @@ export class CompanyPackageTests {
     await writeFile(file, archive);
     const resolved = `file:${"../".repeat(appFolder.length)}_packages/noldova-sample-1.0.0.tgz`;
     const npm = await CompanyPackageTests.npmInstallAsync(root.path, app, resolved);
-    const [[locked]] = (await ThirdPartyClosure.readAsync(app, PackageTarget.fromProcess("linux", "x64"))).collect([], ["@noldova/sample"]);
+    const [locked] = (await ThirdPartyClosure.readAsync(app, PackageTarget.fromProcess("linux", "x64"))).collect([], ["@noldova/sample"]).shipped;
     if (Object.isUndefined(locked))
       throw new Error("npm locked no @noldova/sample.");
 
@@ -503,7 +503,7 @@ export class CompanyPackageTests {
     await writeFile(file, rebuilt);
     const changed = await Assert.throwsAsync(() => CompanyPackage.packAsync(locked, app, path.join(root.path, "packed"), npm, new Set()), BuildException);
     await CompanyPackageTests.dropIntegrityAsync(app);
-    const [[unchecked]] = (await ThirdPartyClosure.readAsync(app, PackageTarget.fromProcess("linux", "x64"))).collect([], ["@noldova/sample"]);
+    const [unchecked] = (await ThirdPartyClosure.readAsync(app, PackageTarget.fromProcess("linux", "x64"))).collect([], ["@noldova/sample"]).shipped;
     if (Object.isUndefined(unchecked))
       throw new Error("The lock without integrity holds no @noldova/sample.");
     const asItIs = await CompanyPackage.packAsync(unchecked, app, path.join(root.path, "packed"), npm, new Set());

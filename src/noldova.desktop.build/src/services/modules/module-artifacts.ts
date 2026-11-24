@@ -11,6 +11,7 @@ import path from "node:path";
 
 import "@noldova/context.core";
 
+import { FormerDocumentName } from "../../models/modules/former-document-name.ts";
 import type { ModuleDeclaration } from "../../models/modules/module-declaration.ts";
 import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
@@ -45,16 +46,16 @@ export class ModuleArtifacts {
         t.dependencies,
         Resources.windowPartSourceKinds.map(u => t.contributions.get(u) ?? []),
         ModuleArtifacts.locateWindowImport(t),
-        [t.contributions.get(Resources.placeholdersKind) ?? [], t.optionalDependencies, t.settingsPages, ModuleArtifacts.listFormerDocumentNames(t)]));
+        [t.contributions.get(Resources.placeholdersKind) ?? [], t.optionalDependencies, t.settingsPages, ModuleArtifacts.listFormerDocumentNames(t).map(u => u.toJson())]));
     const menus = declarations
       .filter(t => t.menus.places.length > 0 || t.menus.groups.length > 0)
       .map(t => Resources.formatModuleMenusEntry(t.id, t.menus.toJson()));
     await ModuleArtifacts.writeFileAsync(this.windowPartsFile, Resources.formatWindowPartsFile(sources, menus));
   }
 
-  private static listFormerDocumentNames(declaration: ModuleDeclaration): readonly (readonly [string, string])[] {
+  private static listFormerDocumentNames(declaration: ModuleDeclaration): readonly FormerDocumentName[] {
     const documents = declaration.contributions.get(Resources.documentsKind) ?? [];
-    return [...declaration.formerNames].filter(([name]) => documents.includes(name)).flatMap(([name, formers]) => formers.map(t => [t, name] as const));
+    return [...declaration.formerNames].filter(([name]) => documents.includes(name)).flatMap(([name, formers]) => formers.map(t => new FormerDocumentName(t, name)));
   }
 
   private static locateWindowImport(declaration: ModuleDeclaration): string {
