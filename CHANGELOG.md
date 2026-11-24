@@ -4,6 +4,14 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.16
+
+- A window part's `IWindowPartContext.returnView(name, instance)` gives a group's front back to the tab that was in front before the part's last `openView` of the instance that brought its tab forward, such as a detail view the part showed for a document the person leaves, without moving the focus or the group the tab commands act on.
+  It does nothing when no open brought the tab forward, or since then the person chose a tab in that group, moved, closed or added a tab there, or another open changed the group; the testing fake records it as it records `openView`.
+- Closing the active tab makes the tab that was active before it, still open in its group, the active one, and only a group with no such tab makes the neighbour active as before; the saved layout keeps each group's order.
+- On a workspace shorter than the default 1280×800 window's 46.5 rem, the bottom dock's default height gives way in proportion, down to the dock's minimum, so a 905×616 window's bottom dock is 10 rem; a height the person chose stays as it is.
+- The Windows package smoke gives the app's start as another user 120 s, since signing a new account in can take tens of seconds, and writes when the account got access to the app's folder and when it was signed in.
+
 ## 0.0.15
 
 - A view or document can show its own toolbar band: a `toolbar` place in `menus.json` may name a `band`, one of the module's own views or documents, and its page shows that band with `<nol-view-toolbar-band />`, with the window band's look, dragging, new rows and Toolbars menu.
