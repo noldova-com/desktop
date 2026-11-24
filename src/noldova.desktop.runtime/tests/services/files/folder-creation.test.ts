@@ -26,7 +26,7 @@ export class FolderCreationTests {
     const created = await FolderCreation.createAsync(nested);
     const kept = await FolderCreation.createAsync(nested);
 
-    Assert.areEqual(path.join(folder.path, "logs"), created);
+    Assert.areEqual(path.toNamespacedPath(path.join(folder.path, "logs")), path.toNamespacedPath(String(created)));
     Assert.isUndefined(kept);
     Assert.isTrue(existsSync(nested));
   }
@@ -84,7 +84,7 @@ export class FolderCreationTests {
     const created = FolderCreation.create(nested);
     const kept = FolderCreation.create(nested);
 
-    Assert.areEqual(path.join(folder.path, "data"), created);
+    Assert.areEqual(path.toNamespacedPath(path.join(folder.path, "data")), path.toNamespacedPath(String(created)));
     Assert.isUndefined(kept);
     Assert.isTrue(existsSync(nested));
   }

@@ -26,7 +26,7 @@ export class FolderCreationTests {
       const created = await FolderCreation.createAsync(nested);
       const kept = await FolderCreation.createAsync(nested);
 
-      Assert.areEqual(path.join(folder, "package"), created);
+      Assert.areEqual(path.toNamespacedPath(path.join(folder, "package")), path.toNamespacedPath(String(created)));
       Assert.isUndefined(kept);
       Assert.isTrue(existsSync(nested));
     });
