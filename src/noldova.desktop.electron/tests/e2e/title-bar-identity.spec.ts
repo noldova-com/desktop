@@ -11,8 +11,6 @@ import type { Page } from "@playwright/test";
 import type { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 
-// The emulated viewport the zoom test starts from: as wide as the fixture's, and 1056 px high, so the 1.92 zoom to a 1000 px row leaves the page a whole
-// 550 px height, which the fixture's check that the viewport was kept needs.
 const VIEWPORT_WIDTH = 1920;
 const VIEWPORT_HEIGHT = 1056;
 
@@ -41,7 +39,6 @@ async function layOutAsync(mainProcess: MainProcessFixture, width: number): Prom
   });
 }
 
-// The window the app places is as narrow as the runner's display allows, which can be under the row, so the zoom starts from the fixture's emulated viewport.
 async function zoomInAsync(mainProcess: MainProcessFixture, width: number): Promise<void> {
   await test.step(`zoom in to a ${width} CSS px row from a ${VIEWPORT_WIDTH} × ${VIEWPORT_HEIGHT} viewport`, async () => {
     await mainProcess.useViewportAsync(VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
