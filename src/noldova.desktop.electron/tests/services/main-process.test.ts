@@ -2020,20 +2020,49 @@ export class MainProcessTests {
   }
 
   @TestMethod
-  public async tellsItsUpdaterWhetherItRunsFromAPackagedBuild(): Promise<void> {
-    const told: boolean[] = [];
-    const builds: readonly (readonly [boolean, boolean])[] = [[true, false], [false, false], [true, true]];
-    for (const [isPackaged, isDefaultApp] of builds) {
-      const process = new FakeMainProcessEnvironment("linux");
-      process.isDefaultApp = isDefaultApp;
-      await MainProcessStartFixture.startAsync(new FakeElectron(true, isPackaged), process, new FakeRuntimeLauncher(), new FakeDeviceIdentity(), new FakeDeviceFiles(), new FakePathCommand(), [],
-        () => Promise.resolve(true), (_, packaged) => {
-          told.push(packaged);
-          return null;
-        });
-    }
+  @TestData(true, false, true)
+  @TestData(false, false, false)
+  @TestData(true, true, false)
+  public async checksAFeedOffThisMachineOnlyFromAPackagedBuildAndLogsTheRefusedFeedsHost(isPackaged: boolean, isDefaultApp: boolean, isChecked: boolean): Promise<void> {
+    const created: string[] = [];
+    const process = new FakeMainProcessEnvironment("linux");
+    process.isDefaultApp = isDefaultApp;
 
-    Assert.areEqual(JSON.stringify([true, false, false]), JSON.stringify(told));
+    await MainProcessStartFixture.startAsync(new FakeElectron(true, isPackaged), process, new FakeRuntimeLauncher(), new FakeDeviceIdentity(), new FakeDeviceFiles(), new FakePathCommand(), [],
+      () => Promise.resolve(true), (_, feed) => {
+        created.push(feed);
+        return null;
+      }, undefined, undefined, undefined, "https://updates.example.com/desktop/");
+
+    Assert.areEqual(JSON.stringify(isChecked ? ["https://updates.example.com/desktop/"] : []), JSON.stringify(created));
+    Assert.areEqual(isChecked ? 0 : 1, MainProcessStartFixture.readErrors(process,
+      "This development build doesn't check for updates at updates.example.com; a build that isn't packaged checks only a feed on this machine.").length);
+  }
+
+  @TestMethod
+  public async checksAFeedOnThisMachineFromABuildThatIsNotPackaged(): Promise<void> {
+    const created: string[] = [];
+
+    await MainProcessStartFixture.startAsync(new FakeElectron(true, false), new FakeMainProcessEnvironment("linux"), new FakeRuntimeLauncher(), new FakeDeviceIdentity(), new FakeDeviceFiles(), new FakePathCommand(), [],
+      () => Promise.resolve(true), (_, feed) => {
+        created.push(feed);
+        return null;
+      });
+
+    Assert.areEqual(JSON.stringify([MainProcessStartFixture.LOCAL_FEED]), JSON.stringify(created));
+  }
+
+  @TestMethod
+  public async createsNoUpdaterForABuildThatNamesNoFeed(): Promise<void> {
+    const created: string[] = [];
+
+    await MainProcessStartFixture.startAsync(new FakeElectron(true, true), new FakeMainProcessEnvironment("linux"), new FakeRuntimeLauncher(), new FakeDeviceIdentity(), new FakeDeviceFiles(), new FakePathCommand(), [],
+      () => Promise.resolve(true), (_, feed) => {
+        created.push(feed);
+        return null;
+      }, undefined, undefined, undefined, null);
+
+    Assert.areEqual(0, created.length);
   }
 
   @TestMethod

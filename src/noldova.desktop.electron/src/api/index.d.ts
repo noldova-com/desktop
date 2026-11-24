@@ -7192,9 +7192,12 @@ export declare class MainProcess {
    * @param recordMainProcessAsync Records this main process in its installation, as {@link MainProcessRecord.recordAsync} does, while
    * the main process checks the launch barrier, so an update waits for it to quit. A main process it could not record is logged
    * and starts anyway.
-   * @param createUpdater Creates the updater of the installation and the handoff of its platform, given whether the
-   * main process runs from a packaged build and the data directory's `logs` folder for the handoff's programs, or gives
-   * `null` for a build that names no update feed, whose updates stay Off; the updater's log is the main process's. The
+   * @param readUpdateFeed Reads the update feed the build names, or `null` for a build that names none, whose updates stay Off.
+   * A main process that doesn't run from a packaged build checks only a feed on this machine, at `127.0.0.1`, `localhost` or
+   * `[::1]`; for any other feed it logs the feed's host, creates no updater and its updates stay Off.
+   * @param createUpdater Creates the updater of the installation and the handoff of its platform, given the feed to check
+   * and the data directory's `logs` folder for the handoff's programs, or gives `null` when the feed has no update
+   * information for this platform, whose updates stay Off; the updater's log is the main process's. The
    * {@link UpdateController} it drives keeps `update-ready.json` in the installation's folder, follows
    * `desktop.updateChecks`, pushes each state on `desktop:updateState` and posts `desktop.updateReady` once over the
    * runtime connection. Before the updater starts, the handoff removes what an earlier one left. Restart to update runs
@@ -7224,6 +7227,7 @@ export declare class MainProcess {
    *     t => PathCommand.forBundle(t, () => Promise.resolve()),
    *     t => MainProcessRecord.recordAsync(t, ProcessPresence.create(process.platform), process.processId),
    *     () => null,
+   *     () => null,
    *     (t, log) => new UpdateCheckLock(t.folder, () => Promise.resolve(null), () => Promise.resolve(false), log));
    * }
    * ```
@@ -7237,7 +7241,8 @@ export declare class MainProcess {
     createDeviceFile: (folder: string, fileName: string) => IDeviceFileStore,
     createPathCommand: (executablePath: string) => PathCommand,
     recordMainProcessAsync: (installation: Installation) => Promise<boolean>,
-    createUpdater: (installation: Installation, isPackaged: boolean, logsFolder: string, log: (text: string) => void) => IUpdateSetup | null,
+    readUpdateFeed: () => string | null,
+    createUpdater: (installation: Installation, feed: string, logsFolder: string, log: (text: string) => void) => IUpdateSetup | null,
     createUpdateLock: (installation: Installation, log: (text: string) => void) => IUpdateCheckLock): Promise<void>;
 }
 

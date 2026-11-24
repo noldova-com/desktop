@@ -165,11 +165,9 @@ else
       await promisify(execFile)(program, [...args]);
     }),
     t => MainProcessRecord.recordAsync(t, presence, process.pid),
-    (installation, _isPackaged, logsFolder, log) => {
+    () => ProductInfo.current.updateFeed,
+    (installation, address, logsFolder, log) => {
       const product = ProductInfo.current;
-      const address = product.updateFeed;
-      if (Object.isNull(address))
-        return null;
       const guard = new FeedRequestGuard(address, [product.slug, product.version, process.platform, process.arch],
         new DailyCheckMark(join(installation.folder, Resources.dailyCheckFile), () => new Date(), log), log);
       const feedSession = new FeedSession(() => {

@@ -40,6 +40,7 @@ import type { IUpdateHost } from "../interfaces/i-update-host.js";
 import type { IUpdateCheckLock } from "../interfaces/i-update-check-lock.js";
 import type { ICreatedUpdater } from "../interfaces/i-created-updater.js";
 import type { IUpdateSetup } from "../interfaces/i-update-setup.js";
+import { UpdateFeedAddress } from "../models/update-feed-address.js";
 import { UpdateStatus } from "../models/update-status.js";
 import { MainProcessFailureKind } from "../enums/main-process-failure-kind.js";
 import { StartupStateKind } from "../enums/startup-state-kind.js";
@@ -234,7 +235,8 @@ export class MainProcess {
     createDeviceFile: (folder: string, fileName: string) => IDeviceFileStore,
     createPathCommand: (executablePath: string) => PathCommand,
     recordMainProcessAsync: (installation: Installation) => Promise<boolean>,
-    createUpdater: (installation: Installation, isPackaged: boolean, logsFolder: string, log: (text: string) => void) => IUpdateSetup | null,
+    readUpdateFeed: () => string | null,
+    createUpdater: (installation: Installation, feed: string, logsFolder: string, log: (text: string) => void) => IUpdateSetup | null,
     createUpdateLock: (installation: Installation, log: (text: string) => void) => IUpdateCheckLock): Promise<void> {
     const recovery = new MainProcessRecovery(electron.app, electron.dialog, process.errorOutput, new DiagnosticRedactor(process.homeFolder));
     TerminalRelaunch.forgetConsole(process);
@@ -293,7 +295,7 @@ export class MainProcess {
       : await SpellingDictionaries.installAsync(join(moduleDirectory, ...Resources.repositoryRootSegments, ...Resources.dictionaryFolderSegments), profileFolder, t => log.write(t));
     const spelling = new SpellChecker(
       () => electron.session.defaultSession, languages, SpellingDictionaries.addressOf(profileFolder), process.platform, () => electron.app.getPreferredSystemLanguages(), t => log.write(t));
-    const updater = MainProcess.createUpdater(createUpdater, installation, isPackaged, dataDirectory, log);
+    const updater = MainProcess.createUpdater(readUpdateFeed, createUpdater, installation, isPackaged, dataDirectory, log);
     const application = new MainProcess({
       electron,
       process,
@@ -631,13 +633,22 @@ export class MainProcess {
   }
 
   private static createUpdater(
-    create: (installation: Installation, isPackaged: boolean, logsFolder: string, log: (text: string) => void) => IUpdateSetup | null,
+    readFeed: () => string | null,
+    create: (installation: Installation, feed: string, logsFolder: string, log: (text: string) => void) => IUpdateSetup | null,
     installation: Installation,
     isPackaged: boolean,
     dataDirectory: DataDirectory,
     log: MainProcessLog): ICreatedUpdater {
     try {
-      return { setup: create(installation, isPackaged, dataDirectory.logsFolder, t => log.write(t)), status: UpdateStatus.off };
+      const address = readFeed();
+      if (Object.isNull(address))
+        return { setup: null, status: UpdateStatus.off };
+      const feed = new UpdateFeedAddress(address);
+      if (!feed.isAllowed(isPackaged)) {
+        log.write(feed.refusal);
+        return { setup: null, status: UpdateStatus.off };
+      }
+      return { setup: create(installation, feed.address, dataDirectory.logsFolder, t => log.write(t)), status: UpdateStatus.off };
     }
     catch (error) {
       log.write(Resources.formatUpdaterNotCreated(String(error)));
