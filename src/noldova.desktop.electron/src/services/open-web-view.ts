@@ -109,6 +109,7 @@ export class OpenWebView {
   private lookupCount: number = 0;
   private pageReady: Promise<void> = Promise.resolve();
   private isPageReady: boolean = true;
+  private documentReady: PromiseWithResolvers<void> | null = null;
   private historyRestored: Promise<void> = Promise.resolve();
   private isFocusHeld: boolean = false;
   private isClosed: boolean = false;
@@ -213,19 +214,28 @@ export class OpenWebView {
     const ready = Promise.withResolvers<void>();
     this.pageReady = ready.promise;
     this.isPageReady = false;
+    this.documentReady = null;
     this.historyRestored = Promise.resolve();
     try {
       return await this.startGuestAsync(guest, previous, isPristine);
     }
     finally {
-      void this.historyRestored.then(() => {
-        ready.resolve();
-        if (this.pageReady !== ready.promise)
-          return;
-        this.isPageReady = true;
-        this.deliverHeld();
-      });
+      this.documentReady = ready;
+      void this.historyRestored.then(() => this.markPageReady(ready));
     }
+  }
+
+  private markDocumentReady(guest: IWebViewContents): void {
+    if (this.isBound(guest) && !Object.isNull(this.documentReady))
+      this.markPageReady(this.documentReady);
+  }
+
+  private markPageReady(ready: PromiseWithResolvers<void>): void {
+    ready.resolve();
+    if (this.pageReady !== ready.promise || this.isPageReady)
+      return;
+    this.isPageReady = true;
+    this.deliverHeld();
   }
 
   private async startGuestAsync(guest: IWebViewContents, previous: IWebViewContents | null, isPristine: boolean): Promise<boolean> {
@@ -586,6 +596,7 @@ export class OpenWebView {
       if (this.isBound(guest))
         this.noteInput(input);
     });
+    guest.on(Resources.domReadyEvent, () => this.markDocumentReady(guest));
     guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
     guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
     guest.on(Resources.willAttachWebviewEvent, event => this.prevent(guest, event, Resources.nestedViewRequest));

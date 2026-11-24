@@ -948,6 +948,36 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async sendsTheHeldKeysOnceTheRestoredPagesDocumentIsReadyThoughItsHistoryRestoreNeverSettles(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.session.addresses.set("example.com", ["93.184.216.34"]);
+    harness.contents.show("https://example.com/a");
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    await harness.open.keepAsync();
+    OpenWebViewTests.destroy(harness);
+    const fresh = OpenWebViewTests.rendererless();
+    fresh.restoreAnswer = () => new Promise(() => undefined);
+
+    await harness.open.bindAsync(fresh, true);
+    harness.answers.forEach(t => t(false));
+    await OpenWebViewTests.drainAsync();
+    const beforeDocument = fresh.inputs.length;
+    harness.contents.emit("dom-ready");
+    fresh.emit("dom-ready");
+    await Condition.waitAsync(() => fresh.inputs.length > 0);
+    fresh.emit("dom-ready");
+    await OpenWebViewTests.drainAsync();
+
+    Assert.isTrue(fresh.calls.some(t => t.startsWith("restore ")));
+    Assert.areEqual(0, beforeDocument);
+    Assert.areEqual("keyDown k,keyDown a,char a", fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
   public async asksForANewWindowOnlyWhenItsDeclaredAndTellsWhetherAPersonJustActed(): Promise<void> {
     const refusing = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     const asking = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();
