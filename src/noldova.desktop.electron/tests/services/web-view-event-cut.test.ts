@@ -54,10 +54,10 @@ export class WebViewEventCutTests {
   @TestMethod
   public cutsWholeCharactersByTheirBytesSoAnEmojiOverByItsOwnSizeLosesOnlyItself(): void {
     const params = { text: "a\u{1F600}\u{1F600}" };
-    const limit = WebViewEventCutTests.measure(params) - 4;
+    const limit = WebViewEventCutTests.measure(params) - 5;
 
     const event = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, limit);
-    const split = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, WebViewEventCutTests.measure(params) - 2);
+    const split = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, WebViewEventCutTests.measure(params) - 3);
 
     Assert.areEqual(JSON.stringify({ text: "a\u{1F600}" }), JSON.stringify(event?.details["params"]));
     Assert.areEqual(limit, Buffer.byteLength(JSON.stringify(event?.toJson())));
@@ -67,7 +67,7 @@ export class WebViewEventCutTests {
   @TestMethod
   public cutsAWideScriptTextByItsBytesToFitItsLimitExactly(): void {
     const params = { text: "中".repeat(31_744) };
-    const limit = WebViewEventCutTests.measure(params) - 30;
+    const limit = WebViewEventCutTests.measure(params) - 31;
 
     const event = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, limit);
 
@@ -78,7 +78,7 @@ export class WebViewEventCutTests {
   @TestMethod
   public cutsEscapedCharactersByTheSizeTheyTakeAsJson(): void {
     const params = { quotes: "\"\"\"\"", control: "ab\u0001\u0001" };
-    const limit = WebViewEventCutTests.measure(params) - 6;
+    const limit = WebViewEventCutTests.measure(params) - 7;
 
     const event = WebViewEventCut.fit("browser", "1", WebViewEventCutTests.METHOD, params, limit);
 
