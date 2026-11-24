@@ -11,16 +11,21 @@ import type { Page } from "@playwright/test";
 import type { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 
+const WINDOW_WIDTH = 1200;
+const WINDOW_HEIGHT = 700;
+
 interface IIdentityGeometry {
   readonly name: string;
   readonly isNameShown: boolean;
   readonly isNameCut: boolean;
   readonly isLoaded: boolean;
   readonly rem: number;
-  readonly icon: readonly [number, number];
+  readonly iconWidth: number;
+  readonly iconHeight: number;
   readonly iconStart: number;
   readonly rowStart: number;
-  readonly centres: readonly [number, number];
+  readonly iconCentre: number;
+  readonly nextCentre: number;
   readonly gap: number;
   readonly regions: readonly string[];
   readonly fieldCentre: number;
@@ -30,6 +35,15 @@ interface IIdentityGeometry {
 async function layOutAsync(mainProcess: MainProcessFixture, width: number): Promise<void> {
   await test.step(`lay the window out ${width} CSS px wide, since the hosted runners' display size varies`, async () => {
     const natural: number = await mainProcess.window.evaluate(() => innerWidth);
+    await mainProcess.zoomAsync(natural / width, width);
+  });
+}
+
+async function zoomInAsync(mainProcess: MainProcessFixture, width: number): Promise<void> {
+  await test.step(`zoom in to a ${width} CSS px row from a ${WINDOW_WIDTH} × ${WINDOW_HEIGHT} window`, async () => {
+    await mainProcess.useWindowAsync(WINDOW_WIDTH, WINDOW_HEIGHT);
+    const natural: number = await mainProcess.window.evaluate(() => innerWidth);
+    expect(natural, `The ${natural} CSS px viewport isn't wider than the ${width} px row, so the zoom wouldn't zoom in.`).toBeGreaterThan(width);
     await mainProcess.zoomAsync(natural / width, width);
   });
 }
@@ -61,10 +75,12 @@ async function readAsync(window: Page): Promise<IIdentityGeometry> {
       isNameCut: name.scrollWidth > name.clientWidth,
       isLoaded: image.complete && image.naturalWidth > 0,
       rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
-      icon: [icon.width, icon.height],
+      iconWidth: icon.width,
+      iconHeight: icon.height,
       iconStart: icon.left,
       rowStart: row.getBoundingClientRect().left + parseFloat(getComputedStyle(row).paddingLeft),
-      centres: [icon.top + icon.height / 2, after.top + after.height / 2],
+      iconCentre: icon.top + icon.height / 2,
+      nextCentre: after.top + after.height / 2,
       gap: after.left - name.getBoundingClientRect().right,
       regions: [regionAt(icon), regionAt(identity.getBoundingClientRect())],
       fieldCentre: field.left + field.width / 2 - innerWidth / 2,
@@ -79,10 +95,10 @@ function near(actual: number, expected: number): void {
 
 function expectIconPlaced(geometry: IIdentityGeometry): void {
   expect([geometry.name, geometry.isLoaded, geometry.regions]).toEqual(["Noldova Desktop Sample", true, ["drag", "drag"]]);
-  near(geometry.icon[0], geometry.rem);
-  near(geometry.icon[1], geometry.rem);
+  near(geometry.iconWidth, geometry.rem);
+  near(geometry.iconHeight, geometry.rem);
   near(geometry.iconStart, geometry.rowStart);
-  near(geometry.centres[0], geometry.centres[1]);
+  near(geometry.iconCentre, geometry.nextCentre);
 }
 
 test.describe("the app's name and icon in the window row", () => {
@@ -117,7 +133,7 @@ test.describe("the app's name and icon in the window row", () => {
   });
 
   test("keep the icon at 1rem in its place when zoomed in to a 1000 px row, while the search field keeps at least 12rem", async ({ mainProcess }) => {
-    await layOutAsync(mainProcess, 1000);
+    await zoomInAsync(mainProcess, 1000);
     const geometry = await readAsync(mainProcess.window);
 
     expect(await mainProcess.window.evaluate(() => devicePixelRatio)).toBeGreaterThan(1);
