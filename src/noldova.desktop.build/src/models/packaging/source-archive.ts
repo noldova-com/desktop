@@ -26,11 +26,14 @@ export class SourceArchive {
   }
 
   public static parse(value: unknown): SourceArchive | null {
-    if (!Object.isPlainObject(value) || Object.keys(value).length !== Resources.sourceArchiveFieldCount)
+    if (!Object.isPlainObject(value))
       return null;
-    const url: unknown = value[Resources.sourceArchiveUrlField];
-    const size: unknown = value[Resources.sourceArchiveSizeField];
-    const sha256: unknown = value[Resources.sourceArchiveSha256Field];
+    const fields: Readonly<Record<string, unknown>> = Object.fromEntries(Object.entries(value));
+    if (Object.keys(fields).length !== Resources.sourceArchiveFieldCount)
+      return null;
+    const url = fields[Resources.sourceArchiveUrlField];
+    const size = fields[Resources.sourceArchiveSizeField];
+    const sha256 = fields[Resources.sourceArchiveSha256Field];
     if (!Object.isString(url) || !Object.isNumber(size) || !Object.isString(sha256) || !Number.isSafeInteger(size) || size <= 0 || !Resources.sourceArchiveSha256Pattern.test(sha256)
       || !URL.canParse(url) || new URL(url).protocol !== Resources.secureProtocol || !Resources.sourceArchiveNamePattern.test(new SourceArchive(url, size, sha256).fileName))
       return null;

@@ -44,8 +44,11 @@ export class SourceArchives {
     catch {
       return null;
     }
-    const desktop = manifest[Resources.noldovaDesktopField];
-    if (!Object.isPlainObject(desktop) || !Object.hasOwn(desktop, Resources.desktopSourceArchiveField))
+    const named = manifest[Resources.noldovaDesktopField];
+    if (!Object.isPlainObject(named))
+      return null;
+    const desktop: Readonly<Record<string, unknown>> = Object.fromEntries(Object.entries(named));
+    if (!Object.hasOwn(desktop, Resources.desktopSourceArchiveField))
       return null;
     const name = manifest[Resources.manifestNameField];
     const version = manifest[Resources.manifestVersionField];
