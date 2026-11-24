@@ -7,7 +7,7 @@
  */
 
 import { DOCUMENT } from "@angular/common";
-import { Injectable, type Signal, type WritableSignal, inject, signal } from "@angular/core";
+import { Injectable, type Signal, type WritableSignal, computed, inject, signal } from "@angular/core";
 
 import { EditAction } from "@noldova/desktop.protocol";
 
@@ -21,12 +21,22 @@ export class EditTargetService {
   private readonly targetValue: WritableSignal<EditTarget | null> = signal(null);
   private readonly sources: Map<HTMLElement, ISelectionSource> = new Map();
   private readonly sourceElement: WritableSignal<HTMLElement | null> = signal(null, { equal: () => false });
+  private readonly focusedElement: WritableSignal<HTMLElement | null> = signal(null);
+  private readonly hasFocusValue: WritableSignal<boolean> = signal(this.document.hasFocus());
 
   public readonly target: Signal<EditTarget | null> = this.targetValue.asReadonly();
+  public readonly hasFocus: Signal<boolean> = this.hasFocusValue.asReadonly();
+  public readonly isEditFocused: Signal<boolean> = computed(() => {
+    this.sourceElement();
+    const element = this.focusedElement();
+    return !Object.isNull(element) && (EditTarget.isEditable(element) || !Object.isNull(this.sourceOf(element)));
+  });
 
   public constructor() {
     this.document.addEventListener(Resources.focusInEvent, event => this.follow(event.target), true);
-    this.document.addEventListener(Resources.focusOutEvent, event => this.keep(event.target), true);
+    this.document.addEventListener(Resources.focusOutEvent, event => this.keep(event.target, event.relatedTarget), true);
+    this.document.defaultView?.addEventListener(Resources.windowFocusEvent, () => this.hasFocusValue.set(true));
+    this.document.defaultView?.addEventListener(Resources.windowBlurEvent, () => this.hasFocusValue.set(false));
   }
 
   public registerSource(element: HTMLElement, source: ISelectionSource): () => void {
@@ -80,11 +90,14 @@ export class EditTargetService {
   private follow(element: EventTarget | null): void {
     if (!(element instanceof HTMLElement) || !Object.isNull(element.closest(Resources.transientFocusSelector)))
       return;
+    this.focusedElement.set(element);
     this.sourceElement.set(this.sourceOf(element));
     this.targetValue.set(EditTarget.isEditable(element) ? EditTarget.capture(element, this.document) : null);
   }
 
-  private keep(element: EventTarget | null): void {
+  private keep(element: EventTarget | null, next: EventTarget | null): void {
+    if (Object.isNull(next) && element === this.focusedElement())
+      this.focusedElement.set(null);
     const sourceElement = this.sourceElement();
     if (!Object.isNull(sourceElement) && element instanceof Node && sourceElement.contains(element))
       this.sourceElement.update(t => t);

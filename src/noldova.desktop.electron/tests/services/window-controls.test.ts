@@ -27,7 +27,7 @@ export class WindowControlsTests {
     const electron = await MainProcessStartFixture.startReadyAsync("darwin");
     const window = MainProcessStartFixture.firstWindow(electron);
     electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"),
-      { menus: [{ place: "desktop.file", title: "File", rows: [{ type: "Command", id: "desktop.file/desktop.close/0", label: "Close the tab", key: null, enabled: true, check: "None", checked: false }] }] });
+      { menus: [{ place: "desktop.file", title: "File", rows: [{ type: "Command", id: "desktop.file/desktop.close/0", label: "Close the tab", key: null, enabled: true, check: "None", checked: false }] }], undo: null });
     const file = electron.menu.templates.at(-1)?.[1]?.submenu;
 
     window.destroy();
@@ -43,7 +43,7 @@ export class WindowControlsTests {
     const window = MainProcessStartFixture.firstWindow(electron);
     const standard = electron.menu.menu;
     electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"),
-      { menus: [{ place: "desktop.file", title: "File", rows: [{ type: "Command", id: "desktop.file/desktop.close/0", label: "Close the tab", key: null, enabled: true, check: "None", checked: false }] }] });
+      { menus: [{ place: "desktop.file", title: "File", rows: [{ type: "Command", id: "desktop.file/desktop.close/0", label: "Close the tab", key: null, enabled: true, check: "None", checked: false }] }], undo: null });
     const shown = electron.menu.menu;
 
     window.destroy();

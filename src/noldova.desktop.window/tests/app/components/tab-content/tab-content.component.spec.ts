@@ -135,6 +135,7 @@ describe("TabContentComponent", () => {
     setTabWorking: () => undefined,
     setTabWaiting: () => undefined,
     registerSelectionSource: () => () => undefined,
+    provideUndo: () => () => undefined,
     openLinkAsync: () => Promise.resolve(),
     showLinkMenu: () => undefined,
     registerInAppBrowser: () => () => undefined,

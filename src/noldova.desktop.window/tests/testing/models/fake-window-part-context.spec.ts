@@ -37,6 +37,7 @@ const MEMBERS: Readonly<Record<keyof IWindowPartContext, FakeMember<IWindowPartC
   registerTopBarAction: ["answered", t => t.registerTopBarAction(new TopBarActionContribution("notes.print", new TopBarActionState("print", "Print", "notes.print")))],
   registerSave: ["tracked", t => t.registerSave(() => Promise.resolve())],
   registerSelectionSource: ["tracked", t => t.registerSelectionSource(document.createElement("div"), { hasSelection: () => false, readSelection: () => String.empty })],
+  provideUndo: ["tracked", t => t.provideUndo({ canUndo: () => false, undoAsync: () => Promise.resolve() })],
   provideMenuGroup: ["tracked", t => t.provideMenuGroup("notes.context", () => [])],
   provideSettingOptions: ["tracked", t => t.provideSettingOptions("notes.sort", () => null)],
   refreshSettingOptions: ["told", t => t.refreshSettingOptions("notes.sort")],

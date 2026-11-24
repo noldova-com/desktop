@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { MenuItemConstructorOptions } from "electron";
+
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { MainProcessStartFixture } from "../fixtures/main-process-start.fixture.js";
@@ -34,13 +36,14 @@ export class MenuBarTemplateTests {
         { place: "desktop.empty", title: "Empty", rows: [] },
         { place: "desktop.window", title: "Window", rows: [command("desktop.window/notes.windows/0", "Notes window", null, true, "None", false)] },
         { place: "desktop.help", title: "Help", rows: [command("desktop.help/notes.help/0", "Notes help", null, true, "None", false)] }
-      ]
+      ],
+      undo: null
     });
     const template = electron.menu.templates.at(-1) ?? [];
     const file = template[1]?.submenu;
     Assert.isTrue(Array.isArray(file));
     MainProcessStartFixture.click(file[0]);
-    electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"), { menus: [{ place: "desktop.edit", title: "Edit", rows: [command("desktop.edit/notes.edit/0", "Tidy", null, true, "None", false)] }] });
+    electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"), { menus: [{ place: "desktop.edit", title: "Edit", rows: [command("desktop.edit/notes.edit/0", "Tidy", null, true, "None", false)] }], undo: null });
     const edit = electron.menu.templates.at(-1)?.[1]?.submenu;
 
     Assert.areEqual(JSON.stringify([
@@ -70,5 +73,26 @@ export class MenuBarTemplateTests {
     ]), JSON.stringify(template));
     Assert.areEqual(JSON.stringify([["desktop:menuCommand", "desktop.file/notes.create/0"]]), JSON.stringify(window.webContents.sent.filter(t => t[0] === "desktop:menuCommand")));
     Assert.areEqual(13, Array.isArray(edit) ? edit.length : 0);
+  }
+
+  @TestMethod
+  public async putsTheWindowsUndoRowWithItsOwnCmdZInPlaceOfTheNativeOneWhileTheWindowSendsItAndRunsItInThatWindow(): Promise<void> {
+    const electron = await MainProcessStartFixture.startReadyAsync("darwin");
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const send = (undo: unknown): MenuItemConstructorOptions | undefined => {
+      electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"), { menus: [{ place: "desktop.edit", title: "Edit", rows: [] }], undo });
+      const edit = electron.menu.templates.at(-1)?.[1]?.submenu;
+      return Array.isArray(edit) ? edit[0] : undefined;
+    };
+
+    const enabled = send({ id: "desktop.undo", enabled: true });
+    const greyed = send({ id: "desktop.undo", enabled: false });
+    const native = send(null);
+    MainProcessStartFixture.click(enabled);
+
+    Assert.areEqual(JSON.stringify({ id: "desktop.undo", label: "Undo", enabled: true, accelerator: "CmdOrCtrl+Z" }), JSON.stringify(enabled));
+    Assert.areEqual(JSON.stringify({ id: "desktop.undo", label: "Undo", enabled: false, accelerator: "CmdOrCtrl+Z" }), JSON.stringify(greyed));
+    Assert.areEqual(JSON.stringify({ role: "undo" }), JSON.stringify(native));
+    Assert.areEqual(JSON.stringify([["desktop:menuCommand", "desktop.undo"]]), JSON.stringify(window.webContents.sent.filter(t => t[0] === "desktop:menuCommand")));
   }
 }

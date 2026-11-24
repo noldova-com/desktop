@@ -78,6 +78,10 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A right-click inside a registered element that isn't on a field opens the text field menu at the pointer for whatever has the focus inside that element, such as a terminal's helper text area, so its Copy follows the source and its Paste goes there; while the focus is outside the element, the right-click opens no menu.
   A copy the main process refuses leaves the clipboard as it was; the main process logs the refusal and the window logs that the selection wasn't copied, neither with the text.
   The other Edit commands, and Copy anywhere else, act on the field as before; deactivation removes a part's sources, and a part removes the source of an element it discards.
+- A window part with an undo of its own, such as a Git client's last write, gives it to the window with the context's `provideUndo`, one provider for each window, from whichever module; a second is refused with `UndoProviderTakenException`.
+  While the window's page has the focus and it is on none of a text field, an editable element and an element inside a registered selection source, Edit → Undo and Mod+Z run the provider's `undoAsync`, and Undo is greyed while its `canUndo` is `false`; otherwise they run the native undo, as without a provider, so a web view's page and a field keep theirs.
+  On macOS the menu bar's own Undo row takes Cmd+Z while the provider takes Undo, and the native row comes back when it doesn't; on Windows and Linux the window takes Ctrl+Z, except inside an element that keeps Ctrl keys, such as a terminal.
+  Withdrawing the provider, or deactivating its part, brings back the native undo.
 
 ## Workspace
 
