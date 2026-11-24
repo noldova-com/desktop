@@ -10,7 +10,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 
-interface IdentityGeometry {
+interface IIdentityGeometry {
   readonly name: string;
   readonly isLoaded: boolean;
   readonly rem: number;
@@ -22,7 +22,7 @@ interface IdentityGeometry {
   readonly regions: readonly string[];
 }
 
-async function readAsync(window: Page): Promise<IdentityGeometry> {
+async function readAsync(window: Page): Promise<IIdentityGeometry> {
   await expect(window.locator("nol-window-row .nol-window-row-identity-icon")).toBeVisible();
   return window.locator("nol-window-row").evaluate(row => {
     const one = <T extends HTMLElement>(selector: string): T => {
@@ -56,7 +56,7 @@ async function readAsync(window: Page): Promise<IdentityGeometry> {
   });
 }
 
-function expectPlaced(geometry: IdentityGeometry): void {
+function expectPlaced(geometry: IIdentityGeometry): void {
   const near = (actual: number, expected: number): void => expect(Math.abs(actual - expected)).toBeLessThanOrEqual(0.5);
   expect([geometry.name, geometry.isLoaded, geometry.regions]).toEqual(["Noldova Desktop Sample", true, ["drag", "drag"]]);
   near(geometry.icon[0], geometry.rem);

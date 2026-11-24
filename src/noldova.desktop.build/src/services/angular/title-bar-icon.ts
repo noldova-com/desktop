@@ -16,7 +16,6 @@ import type { ProductIdentity } from "../../models/packages/product-identity.ts"
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
 
-/** The icon an app gives its title bar: a data: URL the window shows as it is, or a file in the app's tree that the build copies beside the window's files. */
 export class TitleBarIcon {
   public readonly address: string;
   private readonly file: string | null;
@@ -26,7 +25,6 @@ export class TitleBarIcon {
     this.file = file;
   }
 
-  /** The app's title bar icon, or null when it gives none; a file the app names but doesn't have stops the build. */
   public static of(root: string, product: ProductIdentity): TitleBarIcon | null {
     const icon = product.titleBarIcon;
     if (Object.isNull(icon))
@@ -39,7 +37,6 @@ export class TitleBarIcon {
     return new TitleBarIcon([Resources.titleBarIconFolder, encodeURIComponent(path.basename(file))].join(Resources.pathSegmentSeparator), file);
   }
 
-  /** Copies a file icon into the built window's `browser/title-bar/`; a data: URL needs no file. */
   public async copyAsync(windowFolder: string): Promise<void> {
     if (Object.isNull(this.file))
       return;

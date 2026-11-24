@@ -78,10 +78,8 @@ export class WindowRowComponent {
   private isAltAlone: boolean = false;
 
   protected readonly resources: typeof Resources = Resources;
-  /** The app's name and icon at the row's start, each null when the app gives none. */
   protected readonly titleBar: IProductTitleBar = inject(BuildTokens.titleBar);
   protected readonly hasIdentity: boolean = !Object.isNull(this.titleBar.name) || !Object.isNull(this.titleBar.icon);
-  /** The widest the name and icon may be: the room the menu and the search field's narrowest width leave, so the name is cut before it pushes them. */
   protected readonly identityWidth: Signal<string | null> = computed(() => {
     const room = this.identityRoom();
     return Object.isNull(room) ? null : Resources.formatPixels(room);

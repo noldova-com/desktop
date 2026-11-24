@@ -40,9 +40,7 @@ export class ProductIdentity {
   public readonly about: ProductAbout;
   public readonly namedUpdateFeed: string | null;
   public readonly installFolder: string | null;
-  /** The name the title bar shows at its start, or null to show none. */
   public readonly titleBarName: string | null;
-  /** The title bar's icon: a PNG or SVG file's path from the app's root, or a data: URL of one; null to show none. */
   public readonly titleBarIcon: string | null;
 
   public constructor(
