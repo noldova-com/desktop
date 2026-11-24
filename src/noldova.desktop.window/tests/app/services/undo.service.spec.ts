@@ -92,6 +92,7 @@ describe("UndoService", () => {
 
     field.focus();
     const onField = undo.takesUndo();
+    window.addEventListener("focusout", event => event.stopImmediatePropagation(), { capture: true, once: true });
     field.remove();
     const removed = [undo.takesUndo(), undo.canUndo()];
     await undo.undoAsync();

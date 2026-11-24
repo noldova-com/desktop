@@ -238,6 +238,7 @@ describe("EditTargetService", () => {
     const inWebView = edits.isEditFocused();
     field.focus();
     const onField = edits.isEditFocused();
+    window.addEventListener("focusout", event => event.stopImmediatePropagation(), { capture: true, once: true });
     field.remove();
 
     expect([inDialog, onButton, inWebView, onField]).toEqual([true, false, true, true]);
