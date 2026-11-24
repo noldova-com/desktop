@@ -482,6 +482,7 @@ export class MainProcess {
     });
     window.on(Resources.showEvent, () => describe(window.getTitle()));
     window.on(Resources.hideEvent, () => describe(window.getTitle()));
+    window.on(Resources.focusEvent, () => this.controls.focusWindow(contentsId));
     window.on(Resources.pageTitleUpdatedEvent, (_event, title) => describe(title));
     window.once(Resources.closedEvent, () => {
       this.updates.restart.dismiss(open);

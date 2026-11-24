@@ -186,6 +186,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On macOS nothing changes, since Cmd is the window's.
 - While a modal dialog is open, only the Edit commands run from keys, and a view's dialog adds its own module's commands.
 - On macOS the main process builds the native menu bar from the rows the window gives it, keeping the system's own items; choosing a row runs it in the window, and the window's key handling stays the only one.
+  It shows the rows only of the window that has the focus: rows a window sends while it doesn't are kept and shown once it has the focus again.
   Once the window whose rows it shows closes, the main process puts back the standard menu bar it starts with, the app, Edit and Window menus with the system's items, so no row is left that runs nowhere.
 - An app that gives the window `titleBar`, as [BUILD.md](BUILD.md#an-apps-inputs) says, shows its icon and name, each only when given, at the very start of the window row, after the traffic lights on macOS: the icon 1rem square, the name 0.25rem after it in the row's own text, both level with the row's buttons and 0.5rem before the menus or the buttons that follow.
   They stay in the row's drag region and never fold the menus: the name takes only the room that leaves the search field its full width in the window's centre, cut with an ellipsis and hidden below 3rem, and the icon stays until the field is down to its 12rem.

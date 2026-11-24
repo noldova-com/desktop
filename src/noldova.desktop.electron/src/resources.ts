@@ -754,6 +754,7 @@ export class Resources {
   public static readonly clickEvent: "click" = "click";
   public static readonly showEvent: "show" = "show";
   public static readonly hideEvent: "hide" = "hide";
+  public static readonly focusEvent: "focus" = "focus";
   public static readonly failedEvent: "failed" = "failed";
   public static readonly dataEvent: "data" = "data";
   public static readonly errorEvent: "error" = "error";

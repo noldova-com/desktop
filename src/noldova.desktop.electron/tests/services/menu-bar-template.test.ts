@@ -18,6 +18,7 @@ export class MenuBarTemplateTests {
   public async buildsTheMacOSMenuBarFromItsWindowsMenusAndRunsTheChosenRowInThatWindow(): Promise<void> {
     const electron = await MainProcessStartFixture.startReadyAsync("darwin");
     const window = MainProcessStartFixture.firstWindow(electron);
+    window.gainFocus();
     const command = (id: string, label: string, key: string | null, enabled: boolean, check: string, checked: boolean): unknown =>
       ({ type: "Command", id, label, key, enabled, check, checked });
 
@@ -79,6 +80,7 @@ export class MenuBarTemplateTests {
   public async putsTheWindowsUndoRowWithItsOwnCmdZInPlaceOfTheNativeOneWhileTheWindowSendsItAndRunsItInThatWindow(): Promise<void> {
     const electron = await MainProcessStartFixture.startReadyAsync("darwin");
     const window = MainProcessStartFixture.firstWindow(electron);
+    window.gainFocus();
     const send = (undo: unknown): MenuItemConstructorOptions | undefined => {
       electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"), { menus: [{ place: "desktop.edit", title: "Edit", rows: [] }], undo });
       const edit = electron.menu.templates.at(-1)?.[1]?.submenu;

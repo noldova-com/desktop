@@ -26,6 +26,7 @@ export class WindowControlsTests {
   public async runsNoMenuRowOnceItsWindowHasClosed(): Promise<void> {
     const electron = await MainProcessStartFixture.startReadyAsync("darwin");
     const window = MainProcessStartFixture.firstWindow(electron);
+    window.gainFocus();
     electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"),
       { menus: [{ place: "desktop.file", title: "File", rows: [{ type: "Command", id: "desktop.file/desktop.close/0", label: "Close the tab", key: null, enabled: true, check: "None", checked: false }] }], undo: null });
     const file = electron.menu.templates.at(-1)?.[1]?.submenu;
@@ -41,6 +42,7 @@ export class WindowControlsTests {
   public async putsBackTheStandardMenuBarOnMacOsOnceTheWindowWhoseMenuItShowsHasClosed(): Promise<void> {
     const electron = await MainProcessStartFixture.startReadyAsync("darwin");
     const window = MainProcessStartFixture.firstWindow(electron);
+    window.gainFocus();
     const standard = electron.menu.menu;
     electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"),
       { menus: [{ place: "desktop.file", title: "File", rows: [{ type: "Command", id: "desktop.file/desktop.close/0", label: "Close the tab", key: null, enabled: true, check: "None", checked: false }] }], undo: null });
@@ -61,13 +63,37 @@ export class WindowControlsTests {
   @TestMethod
   public async keepsTheMenuBarWhenAWindowWhoseMenuItDoesNotShowCloses(): Promise<void> {
     const electron = await MainProcessStartFixture.startReadyAsync("darwin");
+    const window = MainProcessStartFixture.firstWindow(electron);
     const standard = electron.menu.menu;
     const built = electron.menu.templates.length;
 
-    MainProcessStartFixture.firstWindow(electron).destroy();
+    window.gainFocus();
+    window.destroy();
 
     Assert.isTrue(standard === electron.menu.menu);
     Assert.areEqual(built, electron.menu.templates.length);
+  }
+
+  @TestMethod
+  public async keepsTheBarAWindowSendsWhileAnotherAppHasTheFocusAndShowsItOnceTheWindowHasTheFocusAgain(): Promise<void> {
+    const electron = await MainProcessStartFixture.startReadyAsync("darwin");
+    const window = MainProcessStartFixture.firstWindow(electron);
+    const standard = electron.menu.menu;
+    const bar = (title: string): unknown => ({ menus: [{ place: "desktop.file", title, rows: [] }], undo: null });
+    const titles = (): string => (electron.menu.templates.find(t => t === electron.menu.menu) ?? []).slice(1).map(t => t.label).join(",");
+    window.gainFocus();
+    electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"), bar("Focused"));
+    const focused = titles();
+    window.isFocusedNow = false;
+
+    electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"), bar("Late"));
+    const late = titles();
+    window.gainFocus();
+
+    Assert.isFalse(standard === electron.menu.menu);
+    Assert.areEqual("Focused", focused);
+    Assert.areEqual("Focused", late);
+    Assert.areEqual("Late", titles());
   }
 
   @TestMethod
@@ -76,9 +102,12 @@ export class WindowControlsTests {
   @TestData("darwin", false)
   public async leavesTheMenuBarAloneOnWindowsAndLinuxAndForAnotherSender(platform: string, isTrusted: boolean): Promise<void> {
     const electron = await MainProcessStartFixture.startReadyAsync(platform);
+    const window = MainProcessStartFixture.firstWindow(electron);
     const built = electron.menu.templates.length;
 
-    electron.ipcMain.send("desktop:menuBar", isTrusted ? MainProcessStartFixture.trustedEvent(platform) : { sender: { id: 1 }, senderFrame: null }, { menus: [] });
+    window.gainFocus();
+    electron.ipcMain.send("desktop:menuBar", isTrusted ? MainProcessStartFixture.trustedEvent(platform) : { sender: { id: 1 }, senderFrame: null }, { menus: [], undo: null });
+    window.gainFocus();
 
     Assert.areEqual(built, electron.menu.templates.length);
   }

@@ -47,6 +47,7 @@ export class WindowControls {
   private readonly windows: WindowRegistry;
   private readonly spelling: SpellChecker;
   private readonly log: (text: string) => void;
+  private readonly bars: Map<number, MenuBar> = new Map();
   private menuOwner: number | null = null;
 
   public constructor(menu: IMenuHost, settings: MainProcessSettings, windows: WindowRegistry, spelling: SpellChecker, log: (text: string) => void) {
@@ -98,16 +99,23 @@ export class WindowControls {
     if (Object.isNull(open) || !this.settings.isMac)
       return;
     try {
-      const template = MenuBarTemplate.build(MenuBar.fromJson(menuBar), id => this.windows.find(contentsId)?.window.webContents.send(Resources.menuCommandChannel, id));
-      this.menu.setApplicationMenu(this.menu.buildFromTemplate(template));
-      this.menuOwner = contentsId;
+      this.bars.set(contentsId, MenuBar.fromJson(menuBar));
     }
     catch (error) {
       this.log(Resources.formatMenuBarRejected(String(error)));
+      return;
     }
+    if (open.window.isFocused())
+      this.applyMenuBar(contentsId);
+  }
+
+  public focusWindow(contentsId: number): void {
+    if (this.settings.isMac)
+      this.applyMenuBar(contentsId);
   }
 
   public closeWindow(contentsId: number): void {
+    this.bars.delete(contentsId);
     if (this.menuOwner !== contentsId)
       return;
     this.menuOwner = null;
@@ -122,5 +130,14 @@ export class WindowControls {
       [Resources.wordField]: params.misspelledWord,
       [Resources.suggestionsField]: [...params.dictionarySuggestions]
     });
+  }
+
+  private applyMenuBar(contentsId: number): void {
+    const bar = this.bars.get(contentsId);
+    if (Object.isUndefined(bar))
+      return;
+    const template = MenuBarTemplate.build(bar, id => this.windows.find(contentsId)?.window.webContents.send(Resources.menuCommandChannel, id));
+    this.menu.setApplicationMenu(this.menu.buildFromTemplate(template));
+    this.menuOwner = contentsId;
   }
 }
