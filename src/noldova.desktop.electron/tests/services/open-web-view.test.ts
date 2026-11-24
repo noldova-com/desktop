@@ -900,6 +900,54 @@ export class OpenWebViewTests {
   }
 
   @TestMethod
+  public async holdsKeysTypedIntoANewGuestBehindTheKeysStillWaitingForItsPageSoTheyArriveInOrder(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const enabled = Promise.withResolvers<unknown>();
+    fresh.debugger.replies.set("Page.enable", () => enabled.promise);
+
+    const binding = harness.open.bindAsync(fresh, true);
+    harness.answers.forEach(t => t(false));
+    const isHeld = fresh.prevent("before-input-event", OpenWebViewTests.input("b", "KeyB", false));
+    const whileBinding = fresh.inputs.length;
+    enabled.resolve({});
+    await binding;
+    await Condition.waitAsync(() => fresh.inputs.length > 0);
+    const isPassed = fresh.prevent("before-input-event", OpenWebViewTests.input("c", "KeyC", false));
+
+    Assert.isTrue(isHeld);
+    Assert.areEqual(0, whileBinding);
+    Assert.areEqual("keyDown k,keyDown a,char a,keyDown b,char b", fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+    Assert.isFalse(isPassed);
+  }
+
+  @TestMethod
+  public async sendsNothingHeldForAShortcutsAnswerWhenTheViewClosesMidBindAndTheNewPageThenBecomesReady(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const enabled = Promise.withResolvers<unknown>();
+    fresh.debugger.replies.set("Page.enable", () => enabled.promise);
+
+    const binding = harness.open.bindAsync(fresh, true);
+    harness.answers.forEach(t => t(false));
+    harness.open.close();
+    enabled.resolve({});
+    const isBound = await binding;
+
+    Assert.isFalse(isBound);
+    Assert.areEqual(String.empty, harness.contents.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+    Assert.areEqual(String.empty, fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
   public async asksForANewWindowOnlyWhenItsDeclaredAndTellsWhetherAPersonJustActed(): Promise<void> {
     const refusing = await new OpenWebViewHarness(OpenWebViewTests.DECLARATION).startAsync();
     const asking = await new OpenWebViewHarness(OpenWebViewTests.NEW_WINDOWS).startAsync();

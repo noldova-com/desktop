@@ -457,8 +457,6 @@ export class OpenWebView {
     if (this.isClosed)
       return;
     this.isClosed = true;
-    this.heldInputs = [];
-    this.undeliveredInputs = [];
     this.favicon.close();
     this.end(WebViewFailureKind.ViewClosed);
     this.endAttachWaits(WebViewFailureKind.ViewClosed);
@@ -1232,11 +1230,15 @@ export class OpenWebView {
       this.replays.splice(replay, 1);
       return;
     }
-    if (this.isAnswerAwaited) {
+    if (this.isAnswerAwaited || this.undeliveredInputs.length > 0) {
       event.preventDefault();
       const heldRelayKey = isDown ? this.relayKeys.find(t => OpenWebView.isSameStroke(t, stroke)) : undefined;
       this.forgetRelayKey(heldRelayKey ?? null);
-      this.heldInputs = [...this.heldInputs, new WebViewHeldInput(input, Object.isUndefined(heldRelayKey) ? HeldInputKind.Typed : HeldInputKind.Relayed)];
+      const held = new WebViewHeldInput(input, Object.isUndefined(heldRelayKey) ? HeldInputKind.Typed : HeldInputKind.Relayed);
+      if (this.isAnswerAwaited)
+        this.heldInputs = [...this.heldInputs, held];
+      else
+        this.undeliveredInputs = [...this.undeliveredInputs, held];
       return;
     }
     if (!isDown) {
