@@ -8,13 +8,13 @@
 
 import { randomBytes } from "node:crypto";
 import type { Stats } from "node:fs";
-import { lstat, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { lstat, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
 import { FileGrant, type Response } from "@noldova/desktop.protocol";
-import { FileIdentity } from "@noldova/desktop.runtime";
+import { FileIdentity, FolderCreation } from "@noldova/desktop.runtime";
 
 import type { IShownPathFiles } from "../interfaces/i-shown-path-files.js";
 import { IssuedFiles } from "../models/issued-files.js";
@@ -102,7 +102,7 @@ export class FileGrantIssuer {
   private async grantBytesAsync(grant: string, file: OfferedFile, bytes: Uint8Array, module: string, window: number, page: number, lifetime: number): Promise<FileGrant | string> {
     const copy = path.join(this.stagedFolder, grant);
     try {
-      await mkdir(this.stagedFolder, { recursive: true, mode: Resources.stagedFolderMode });
+      await FolderCreation.createAsync(this.stagedFolder, Resources.stagedFolderMode);
       await writeFile(copy, bytes, { flag: Resources.createOnlyFlag, mode: Resources.stagedFileMode });
     }
     catch (error) {

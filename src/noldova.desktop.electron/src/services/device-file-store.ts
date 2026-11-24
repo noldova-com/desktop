@@ -6,11 +6,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import { type JsonObject, JsonReader } from "@noldova/context.json";
+import { FolderCreation } from "@noldova/desktop.runtime";
 
 import type { IDeviceFileStore } from "../interfaces/i-device-file-store.js";
 import { Resources } from "../resources.js";
@@ -48,7 +49,7 @@ export class DeviceFileStore implements IDeviceFileStore {
 
   private async writeNowAsync(value: JsonObject): Promise<void> {
     const temporary = `${this.file}${Resources.temporarySuffix}`;
-    await mkdir(this.folder, { recursive: true });
+    await FolderCreation.createAsync(this.folder);
     await writeFile(temporary, JSON.stringify(value), Resources.textEncoding);
     await rename(temporary, this.file);
   }

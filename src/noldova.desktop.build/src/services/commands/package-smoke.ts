@@ -44,6 +44,7 @@ import type { ProcessResult } from "../../models/processes/process-result.ts";
 import { ProcessRunner } from "../processes/process-runner.ts";
 import type { StartedProcess } from "../processes/started-process.ts";
 import { TemporaryFolder } from "../processes/temporary-folder.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class PackageSmoke {
@@ -693,7 +694,7 @@ export class PackageSmoke {
   private async captureScreenAsync(target: PackageTarget, folder: string): Promise<void> {
     const evidence = new PackageLayout(this.root).smoke;
     const file = path.join(evidence, Resources.formatSmokeScreenshotFile(target.platform, target.architecture));
-    await mkdir(evidence, { recursive: true });
+    await FolderCreation.createAsync(evidence);
     const result = await this.runner.captureAsync(Resources.smokeScreenCaptureCommand, [Resources.smokeSilentCaptureOption, file], folder, Resources.smokeCommandLimit);
     if (result.isSuccessful) {
       this.output.write(Resources.formatSmokeScreenCaptured(file));

@@ -14,6 +14,7 @@ import { basename, join } from "node:path";
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 import type { IWindowsProcessApi } from "@noldova/desktop.runtime";
+import { FolderCreation } from "@noldova/desktop.runtime";
 
 import { InstallerNotCopiedException } from "../exceptions/installer-not-copied.exception.js";
 import { InstallerNotHeldException } from "../exceptions/installer-not-held.exception.js";
@@ -75,7 +76,7 @@ export class InstallerHandoff implements IUpdateHandoff {
 
   private async copyAsync(folder: string, file: string, installer: string): Promise<void> {
     try {
-      await mkdir(this.folder, { recursive: true });
+      await FolderCreation.createAsync(this.folder);
       await mkdir(folder);
       await this.protectAsync(folder);
       await copyFile(file, installer, constants.COPYFILE_EXCL);

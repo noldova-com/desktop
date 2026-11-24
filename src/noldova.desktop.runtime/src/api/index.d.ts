@@ -10,7 +10,7 @@
 
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { EventEmitter } from "node:events";
-import type { BigIntStats, RmOptions } from "node:fs";
+import type { BigIntStats, mkdirSync, RmOptions } from "node:fs";
 import type { FileHandle, mkdir } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
@@ -2532,6 +2532,27 @@ export declare class FolderCreation {
    * ```
    */
   public static createAsync(folder: string, mode?: number, create?: typeof mkdir): Promise<string | undefined>;
+
+  /**
+   * Creates the folder and every missing folder above it, waiting for each, as
+   * {@link FolderCreation.createAsync} does.
+   *
+   * @param folder The folder to create.
+   * @param create Creates the folders, Node.js's `mkdirSync` by default.
+   * @returns The first folder it created, or `undefined` when the folder
+   * already existed.
+   * @throws Error When the folder can't be created, or `EPERM` is answered and
+   * no folder is there.
+   * @example
+   * ```ts
+   * import { FolderCreation } from "@noldova/desktop.runtime";
+   *
+   * export function prepare(folder: string): void {
+   *   FolderCreation.create(folder);
+   * }
+   * ```
+   */
+  public static create(folder: string, create?: typeof mkdirSync): string | undefined;
 }
 
 /**

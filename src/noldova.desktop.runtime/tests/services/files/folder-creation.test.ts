@@ -76,6 +76,46 @@ export class FolderCreationTests {
     Assert.areEqual(`${path.join(folder.path, "private")} {"recursive":true,"mode":448}`, asked.join());
   }
 
+  @TestMethod
+  public async createsAFolderAndKeepsOneThatExistsWhileItWaits(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const nested = path.join(folder.path, "data", "owned");
+
+    const created = FolderCreation.create(nested);
+    const kept = FolderCreation.create(nested);
+
+    Assert.areEqual(path.join(folder.path, "data"), created);
+    Assert.isUndefined(kept);
+    Assert.isTrue(existsSync(nested));
+  }
+
+  @TestMethod
+  public async keepsAFolderThatExistsWhenWindowsAnswersEpermForItWhileItWaits(): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+
+    const created = FolderCreation.create(folder.path, () => {
+      throw FolderCreationTests.fail("EPERM", folder.path);
+    });
+
+    Assert.isUndefined(created);
+  }
+
+  @TestMethod
+  @TestData("missing", "EPERM")
+  @TestData("file", "EPERM")
+  @TestData("", "EACCES")
+  public async passesOnAFailureWhileItWaitsUnlessEpermMeetsAFolder(name: string, code: string): Promise<void> {
+    await using folder = await TemporaryFolderFixture.createAsync();
+    const target = path.join(folder.path, name);
+    await writeFile(path.join(folder.path, "file"), "");
+
+    const error = Assert.throws(() => FolderCreation.create(target, () => {
+      throw FolderCreationTests.fail(code, target);
+    }), Error);
+
+    Assert.areEqual(`${code}: operation not permitted, mkdir '${target}'`, error.message);
+  }
+
   private static fail(code: string, folder: string): Error {
     return Object.assign(new Error(`${code}: operation not permitted, mkdir '${folder}'`), { code });
   }

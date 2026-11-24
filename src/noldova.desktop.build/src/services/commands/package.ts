@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -39,6 +39,7 @@ import { UnpackedFiles } from "../packaging/unpacked-files.ts";
 import { WindowsSigning } from "../packaging/windows-signing.ts";
 import { DeadlineRunner } from "../processes/deadline-runner.ts";
 import { ProcessRunner } from "../processes/process-runner.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class Package {
@@ -126,7 +127,7 @@ export class Package {
 
   private async buildAsync(target: PackageTarget, layout: PackageLayout, configuration: PackageConfiguration, signing: IPackageSigning | null, product: ProductIdentity):
     Promise<void> {
-    await mkdir(layout.toolCache, { recursive: true });
+    await FolderCreation.createAsync(layout.toolCache);
     await writeFile(path.join(layout.toolCache, Resources.packageManifestFileName), Resources.commonJsScope);
     const exitCode = await this.runBuilderAsync(target, [Package.BUILDER, layout.configuration, ...Object.isNull(product.installFolder) ? [] : [product.installFolder]],
       { ...this.createBuilderEnvironment(layout, target), ...signing?.builderEnvironment });

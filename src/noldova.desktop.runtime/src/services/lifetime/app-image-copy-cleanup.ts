@@ -7,7 +7,7 @@
  */
 
 import { rmSync } from "node:fs";
-import { mkdir, readdir, realpath, rm } from "node:fs/promises";
+import { readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Writable } from "node:stream";
@@ -16,6 +16,7 @@ import "@noldova/context.core";
 
 import { AppImageCopyRecord } from "../../models/app-image-copy-record.js";
 import { SystemErrorCode } from "../../models/system-error-code.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import { AppImageKeepalive } from "../client/app-image-keepalive.js";
 import type { DataDirectory } from "../data-directory/data-directory.js";
@@ -24,7 +25,7 @@ import type { ProcessPresence } from "../installation/process-presence.js";
 export class AppImageCopyCleanup {
   public static async removeAsync(directory: DataDirectory, diagnostics: Writable, presence: ProcessPresence,
     findWriters: (file: string) => readonly number[] = AppImageKeepalive.findWriters): Promise<void> {
-    await mkdir(directory.logsFolder, { recursive: true });
+    await FolderCreation.createAsync(directory.logsFolder);
     const records = (await readdir(directory.logsFolder)).filter(t => Resources.copyRecordNamePattern.test(t)).map(t => path.join(directory.logsFolder, t));
     await Promise.all(records.map(t => AppImageCopyCleanup.endAsync(t, presence, findWriters).catch((error: unknown) => {
       diagnostics.write(Resources.formatCopyNotEnded(t, String(error)));

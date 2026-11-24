@@ -8,7 +8,7 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
-import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { cp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
@@ -19,6 +19,7 @@ import { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { RootManifest } from "../../models/packages/root-manifest.ts";
 import { ProcessRunner } from "../processes/process-runner.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class DevelopmentBinary {
@@ -62,7 +63,7 @@ export class DevelopmentBinary {
       if (!existsSync(distribution))
         await this.runAsync(process.execPath, [path.join(this.root, ...Resources.electronInstallerSegments)], Resources.electronInstallTimeout);
       await rm(output, { recursive: true, force: true });
-      await mkdir(path.dirname(output), { recursive: true });
+      await FolderCreation.createAsync(path.dirname(output));
       await cp(distribution, output, { recursive: true, verbatimSymlinks: true });
       if (this.platform === Resources.windowsPlatform)
         await this.relabelWindowsAsync(output, binary, product, manifest.productVersion, icons);
@@ -74,7 +75,7 @@ export class DevelopmentBinary {
     }
     await writeFile(path.join(output, Resources.electronPathFile), binary, Resources.textEncoding);
     const packageFolder = this.packageFolder;
-    await mkdir(packageFolder, { recursive: true });
+    await FolderCreation.createAsync(packageFolder);
     await writeFile(path.join(packageFolder, Resources.packageManifestFileName), Resources.formatJsonFile({
       name: product.slug,
       productName: product.name,
@@ -148,7 +149,7 @@ export class DevelopmentBinary {
     const iconset = path.join(output, `${product.name}${Resources.macIconsetExtension}`);
     const source = path.join(icons, Resources.macIconFile);
     const iconFile = `${product.slug}${Resources.macIconExtension}`;
-    await mkdir(iconset, { recursive: true });
+    await FolderCreation.createAsync(iconset);
     for (const [name, size] of Resources.macIconsetSizes)
       await this.runAsync(Resources.macResizeCommand, [Resources.macResizeSizeOption, String(size), String(size), source, Resources.macResizeOutputOption, path.join(iconset, name)]);
     const resources = path.join(bundle, ...Resources.macResourcesSegments);

@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { mkdirSync, statSync } from "node:fs";
 import { mkdir, stat } from "node:fs/promises";
 
 import { SystemErrorCode } from "../../models/system-error-code.js";
@@ -18,6 +19,17 @@ export class FolderCreation {
     }
     catch (error) {
       if (!SystemErrorCode.is(error, Resources.deniedFolderCode) || !await FolderCreation.isFolderAsync(folder))
+        throw error;
+      return undefined;
+    }
+  }
+
+  public static create(folder: string, create: typeof mkdirSync = mkdirSync): string | undefined {
+    try {
+      return create(folder, { recursive: true, mode: Resources.folderMode });
+    }
+    catch (error) {
+      if (!SystemErrorCode.is(error, Resources.deniedFolderCode) || statSync(folder, { throwIfNoEntry: false })?.isDirectory() !== true)
         throw error;
       return undefined;
     }

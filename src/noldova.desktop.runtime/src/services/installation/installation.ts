@@ -8,7 +8,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { link, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { link, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -20,6 +20,7 @@ import { UpdateBarrierStatus } from "../../enums/update-barrier-status.js";
 import { CaughtFailure } from "../../models/caught-failure.js";
 import { SystemErrorCode } from "../../models/system-error-code.js";
 import { UpdateBarrier } from "../../models/update-barrier.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import { FilePresence } from "../files/file-presence.js";
 import { FileRenamer } from "../files/file-renamer.js";
@@ -70,7 +71,7 @@ export class Installation {
     const root = path.resolve(dataDirectory);
     const file = path.join(this.recordFolder, `${Installation.digest(root)}${Resources.jsonExtension}`);
     const temporary = path.join(this.recordFolder, Resources.formatTemporaryName(path.basename(file), randomUUID()));
-    await mkdir(this.recordFolder, { recursive: true });
+    await FolderCreation.createAsync(this.recordFolder);
     await writeFile(temporary, JSON.stringify({ [Resources.dataDirectoryField]: root }));
     await this.renamer.renameAsync(temporary, file);
   }
@@ -84,7 +85,7 @@ export class Installation {
   public async recordMainProcessAsync(mainProcess: UpdateProcess): Promise<void> {
     const file = path.join(this.mainProcessFolder, `${mainProcess.processId}${Resources.jsonExtension}`);
     const temporary = path.join(this.mainProcessFolder, Resources.formatTemporaryName(path.basename(file), randomUUID()));
-    await mkdir(this.mainProcessFolder, { recursive: true });
+    await FolderCreation.createAsync(this.mainProcessFolder);
     await writeFile(temporary, JSON.stringify(mainProcess.toJson()));
     await this.renamer.renameAsync(temporary, file);
   }
@@ -98,7 +99,7 @@ export class Installation {
   public async holdAsync(barrier: UpdateBarrier, version: string): Promise<boolean> {
     if (await this.checkAsync(version) !== UpdateBarrierStatus.None)
       return false;
-    await mkdir(this.folder, { recursive: true });
+    await FolderCreation.createAsync(this.folder);
     const temporary = await this.writeTemporaryAsync(barrier);
     let isHeld = false;
     try {

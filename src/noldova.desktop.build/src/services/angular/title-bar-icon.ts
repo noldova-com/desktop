@@ -7,13 +7,14 @@
  */
 
 import { existsSync } from "node:fs";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
 
 import type { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class TitleBarIcon {
@@ -41,7 +42,7 @@ export class TitleBarIcon {
     if (Object.isNull(this.file))
       return;
     const folder = path.join(windowFolder, Resources.windowBrowserFolder, Resources.titleBarIconFolder);
-    await mkdir(folder, { recursive: true });
+    await FolderCreation.createAsync(folder);
     await copyFile(this.file, path.join(folder, path.basename(this.file)));
   }
 }

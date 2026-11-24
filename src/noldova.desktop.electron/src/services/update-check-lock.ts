@@ -7,13 +7,13 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { link, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
 import { UpdateProcess } from "@noldova/desktop.protocol";
-import { StaleFileRemoval } from "@noldova/desktop.runtime";
+import { FolderCreation, StaleFileRemoval } from "@noldova/desktop.runtime";
 
 import { UpdateCheckerUnknownException } from "../exceptions/update-checker-unknown.exception.js";
 import type { IUpdateCheckLock } from "../interfaces/i-update-check-lock.js";
@@ -45,7 +45,7 @@ export class UpdateCheckLock implements IUpdateCheckLock {
 
   public async tryAcquireAsync(): Promise<boolean> {
     const text = await this.identifyAsync();
-    await mkdir(this.folder, { recursive: true });
+    await FolderCreation.createAsync(this.folder);
     if (await this.createAsync(text))
       return this.hold(text);
     const current = await this.readAsync();

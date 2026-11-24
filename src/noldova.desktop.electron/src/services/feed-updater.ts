@@ -6,13 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import { CancellationToken, type ProgressInfo, type UpdateInfo } from "electron-updater";
 
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
+import { FolderCreation } from "@noldova/desktop.runtime";
 
 import { UpdateDownloadInterruptedException } from "../exceptions/update-download-interrupted.exception.js";
 import { UpdateDownloadMismatchException } from "../exceptions/update-download-mismatch.exception.js";
@@ -145,7 +146,7 @@ export class FeedUpdater implements IUpdater {
   private async configureAsync(): Promise<void> {
     if (this.isConfigured)
       return;
-    await mkdir(dirname(this.configFile), { recursive: true });
+    await FolderCreation.createAsync(dirname(this.configFile));
     await writeFile(this.configFile, this.configuration, Resources.textEncoding);
     this.updater.updateConfigPath = this.configFile;
     this.updater.setFeedURL({ provider: Resources.customProvider, updateProvider: FeedProvider, source: this.source });

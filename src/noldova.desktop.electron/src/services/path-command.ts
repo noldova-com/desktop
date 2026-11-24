@@ -7,10 +7,11 @@
  */
 
 import type { Stats } from "node:fs";
-import { lstat, mkdir, readlink, rm, symlink } from "node:fs/promises";
+import { lstat, readlink, rm, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import "@noldova/context.core";
+import { FolderCreation } from "@noldova/desktop.runtime";
 
 import { PathCommandOutcome } from "../enums/path-command-outcome.js";
 import { PathCommandException } from "../exceptions/path-command.exception.js";
@@ -36,7 +37,7 @@ export class PathCommand {
     return new PathCommand(
       join(dirname(executablePath), ...Resources.bundleCommandSegments, Resources.commandName),
       join(Resources.pathCommandFolder, Resources.commandName),
-      { lstat, readlink, rm, mkdir, symlink },
+      { lstat, readlink, rm, mkdir: folder => FolderCreation.createAsync(folder), symlink },
       runProgramAsync);
   }
 

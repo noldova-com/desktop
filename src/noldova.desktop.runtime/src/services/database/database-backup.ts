@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { link, mkdir, open, readdir, rm } from "node:fs/promises";
+import { link, open, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { backup, DatabaseSync } from "node:sqlite";
 import type { Writable } from "node:stream";
@@ -15,6 +15,7 @@ import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 
 import { BackupVerificationException } from "../../exceptions/backup-verification.exception.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import { FilePresence } from "../files/file-presence.js";
 import { BackupGuard } from "./backup-guard.js";
@@ -27,7 +28,7 @@ export class DatabaseBackup {
     waitMilliseconds: number = Resources.backupGuardWaitMilliseconds,
     series: string | null = null,
     diagnostics: Writable = process.stderr): Promise<string> {
-    await mkdir(folder, { recursive: true });
+    await FolderCreation.createAsync(folder);
     const guard = await BackupGuard.holdAsync(folder, waitMilliseconds);
     try {
       const target = await DatabaseBackup.copyAsync(source, path.join(folder, name));

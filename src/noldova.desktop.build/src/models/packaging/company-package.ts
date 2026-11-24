@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { cp, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { cp, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -19,6 +19,7 @@ import type { NpmCommand } from "../../services/toolchain/npm-command.ts";
 import type { LockedPackage } from "./locked-package.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { TarArchive } from "./tar-archive.ts";
+import { FolderCreation } from "../../services/files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class CompanyPackage {
@@ -43,7 +44,7 @@ export class CompanyPackage {
     if (!Object.isNull(archive) && bundled.length === 0)
       return new CompanyPackage(locked, archive[0]);
 
-    await mkdir(folder, { recursive: true });
+    await FolderCreation.createAsync(folder);
     const source = bundled.length === 0 ? installed : path.join(folder, Resources.companyPackageSourcesFolder, ...locked.name.split(Resources.pathSegmentSeparator));
     if (bundled.length > 0) {
       if (Object.isNull(archive))
@@ -155,9 +156,9 @@ export class CompanyPackage {
       }
       const target = path.join(source, ...segments);
       if (isFolder)
-        await mkdir(target, { recursive: true });
+        await FolderCreation.createAsync(target);
       else {
-        await mkdir(path.dirname(target), { recursive: true });
+        await FolderCreation.createAsync(path.dirname(target));
         await writeFile(target, entry.content, { mode: entry.mode & Resources.filePermissionsMask });
       }
     }

@@ -7,7 +7,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -36,6 +35,7 @@ import { RuntimeDiscovery } from "../../models/runtime-discovery.js";
 import type { RunningProgram } from "../../models/running-program.js";
 import type { RuntimeOptions } from "../../models/runtime-options.js";
 import type { ServerSettings } from "../../models/server-settings.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import { AppShortcutsChangedMethod } from "../app-surface/app-shortcuts-changed-method.js";
 import { AppSurface } from "../app-surface/app-surface.js";
@@ -459,7 +459,7 @@ export class RuntimeHost implements IIdleParticipant {
       return this.server.listenTcpAsync();
 
     const folder = this.lock.dataDirectory.discoveryFolder;
-    await mkdir(folder, { recursive: true, mode: Resources.privateFolderMode });
+    await FolderCreation.createAsync(folder, Resources.privateFolderMode);
     return this.server.listenSocketAsync(path.join(folder, Resources.socketFileName));
   }
 

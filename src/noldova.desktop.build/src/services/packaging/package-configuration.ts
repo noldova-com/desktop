@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,7 @@ import { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { PackageAssets } from "./package-assets.ts";
 import { PackageLayout } from "./package-layout.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class PackageConfiguration {
@@ -92,14 +93,14 @@ export class PackageConfiguration {
   }
 
   public async writeAsync(file: string, unpackedFiles: readonly string[] = []): Promise<void> {
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderCreation.createAsync(path.dirname(file));
     await writeFile(file, Resources.formatJsonFile(this.toJson(unpackedFiles)));
     if (this.target.platform === Resources.windowsTarget) {
-      await mkdir(path.dirname(this.windowsCommand), { recursive: true });
+      await FolderCreation.createAsync(path.dirname(this.windowsCommand));
       await writeFile(this.windowsCommand, this.describeWindowsCommand());
     }
     if (this.target.platform === Resources.macosTarget || this.target.platform === Resources.linuxTarget) {
-      await mkdir(path.dirname(this.posixCommand), { recursive: true });
+      await FolderCreation.createAsync(path.dirname(this.posixCommand));
       await writeFile(this.posixCommand, this.describePosixCommand(), { mode: Resources.executableMode });
     }
     if (this.target.platform === Resources.linuxTarget) {
@@ -131,7 +132,7 @@ export class PackageConfiguration {
 
   private async writeDebianTemplatesAsync(installFolder: string | null): Promise<void> {
     const folder = new PackageLayout(this.root).debianTemplates;
-    await mkdir(folder, { recursive: true });
+    await FolderCreation.createAsync(folder);
     for (const [option, file] of Resources.debianTemplates) {
       const source = path.join(PackageConfiguration.locateBuilderTemplates(), file);
       const text = `${await readFile(source, Resources.textEncoding)}${this.describeDebianTemplateAddition(option)}`;

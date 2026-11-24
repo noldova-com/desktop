@@ -7,7 +7,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm } from "node:fs/promises";
+import { readFile, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -42,6 +42,7 @@ import { ProductInfo } from "../../models/product-info.js";
 import type { RuntimeDiscovery } from "../../models/runtime-discovery.js";
 import { StartedRuntime } from "../../models/started-runtime.js";
 import { SystemErrorCode } from "../../models/system-error-code.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import { DiagnosticRedactor } from "../diagnostics/diagnostic-redactor.js";
 import { StandardErrorCap } from "../diagnostics/standard-error-cap.js";
@@ -274,7 +275,7 @@ export class RuntimeLauncher {
       this.installation.folder
     ];
     const source = this.settings.platform === Resources.linuxPlatform ? AppImageSource.find(this.settings.environment, this.settings.executablePath) : null;
-    await mkdir(directory.logsFolder, { recursive: true });
+    await FolderCreation.createAsync(directory.logsFolder);
     const startLog = path.join(directory.logsFolder, startLogName);
     const processId = await (Object.isNull(source)
       ? this.starter.startAsync(this.settings.executablePath, launchArguments, this.settings.environment, startLog)

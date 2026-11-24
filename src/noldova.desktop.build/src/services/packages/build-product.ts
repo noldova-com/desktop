@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -15,6 +15,7 @@ import { JsonReader } from "@noldova/context.json";
 import type { BuildVariant } from "../../models/modules/build-variant.ts";
 import { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { RootManifest } from "../../models/packages/root-manifest.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class BuildProduct {
@@ -44,7 +45,7 @@ export class BuildProduct {
       build: fingerprint
     };
     const file = this.locate(outputFolder);
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderCreation.createAsync(path.dirname(file));
     await writeFile(file, Resources.formatJsonFile(document));
   }
 

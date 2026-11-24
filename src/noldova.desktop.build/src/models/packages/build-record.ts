@@ -7,9 +7,10 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { FolderCreation } from "../../services/files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class BuildRecord {
@@ -26,7 +27,7 @@ export class BuildRecord {
   }
 
   public async writeAsync(file: string): Promise<void> {
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderCreation.createAsync(path.dirname(file));
     await writeFile(file, this.format());
   }
 

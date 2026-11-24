@@ -6,12 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import "@noldova/context.core";
 import { JsonException, JsonReader } from "@noldova/context.json";
+import { FolderCreation } from "@noldova/desktop.runtime";
 
 import { Resources } from "../resources.js";
 import { FilePresence } from "./file-presence.js";
@@ -57,7 +58,7 @@ export class SpellingDictionaries {
     if (await FilePresence.existsAsync(destination))
       return;
     const content = await readFile(source);
-    await mkdir(target, { recursive: true });
+    await FolderCreation.createAsync(target);
     await writeFile(`${destination}${Resources.temporarySuffix}`, content);
     await rename(`${destination}${Resources.temporarySuffix}`, destination);
   }
