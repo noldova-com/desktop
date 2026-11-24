@@ -38,6 +38,7 @@ export class MainProcessStartFixture {
     .digest("hex")
     .slice(0, 8)}`;
 
+  public static readonly LOCAL_FEED: string = "http://127.0.0.1:47324/";
   public static readonly APPEARANCE: object = { background: "#181818", titleBar: "#181818", titleBarText: "#CCCCCC", titleBarHeight: 35 };
 
   public static async startAsync(
@@ -49,18 +50,19 @@ export class MainProcessStartFixture {
     pathCommand: FakePathCommand = new FakePathCommand(),
     installations: Installation[] = [],
     recordMainProcessAsync: (installation: Installation) => Promise<boolean> = () => Promise.resolve(true),
-    createUpdater: (log: (text: string) => void, isPackaged: boolean) => IUpdater | null = () => null,
+    createUpdater: (log: (text: string) => void, feed: string) => IUpdater | null = () => null,
     createUpdateLock: (log: (text: string) => void) => IUpdateCheckLock = () => new FakeUpdateCheckLock(),
     handoff: FakeUpdateHandoff = new FakeUpdateHandoff(),
-    moduleUrl: string = MainProcessStartFixture.MODULE_URL): Promise<LaunchSettings[]> {
+    moduleUrl: string = MainProcessStartFixture.MODULE_URL,
+    updateFeed: string | null = MainProcessStartFixture.LOCAL_FEED): Promise<LaunchSettings[]> {
     const settings: LaunchSettings[] = [];
     await MainProcess.startAsync(electron, process, moduleUrl, (t, installation, log) => {
       settings.push(t);
       installations.push(installation);
       launcher.logs.push(log);
       return launcher;
-    }, t => device.readAsync(t), (folder, fileName) => files.create(folder, fileName), t => pathCommand.create(t), recordMainProcessAsync, (_, isPackaged, _logs, log) => {
-      const updater = createUpdater(log, isPackaged);
+    }, t => device.readAsync(t), (folder, fileName) => files.create(folder, fileName), t => pathCommand.create(t), recordMainProcessAsync, () => updateFeed, (_, feed, _logs, log) => {
+      const updater = createUpdater(log, feed);
       return Object.isNull(updater) ? null : { updater, handoff };
     }, (_, log) => createUpdateLock(log));
     return settings;
