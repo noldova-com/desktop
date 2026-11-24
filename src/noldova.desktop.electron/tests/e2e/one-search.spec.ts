@@ -128,13 +128,15 @@ test.describe("search", () => {
       const window = mainProcess.window;
       await expect(searchField(window)).toBeVisible();
       const natural = await window.evaluate(() => innerWidth);
-      const narrow = Math.round(natural - await overHalfAsync(window));
-      await layOutAsync(mainProcess, natural, narrow);
-      const folded = await overHalfAsync(window);
-      if (folded > 1)
-        await layOutAsync(mainProcess, natural, Math.round(narrow - folded));
+      let width = natural;
+      let over = await overHalfAsync(window);
+      for (let round = 0; round < 4 && over > 1; round++) {
+        width = Math.round(width - over);
+        await layOutAsync(mainProcess, natural, width);
+        over = await overHalfAsync(window);
+      }
 
-      expect(Math.abs(await overHalfAsync(window)), "The row leaves the field about half its width, once a narrow row folds its menu bar.").toBeLessThan(40);
+      expect(Math.abs(over), "The row leaves the field about half its width, once a narrow row folds its menu bar and the app's name and icon yield.").toBeLessThan(40);
       const shown = await searchField(window).evaluate(t => {
         const middle = t.closest(".nol-window-row-middle");
         if (middle === null)

@@ -116,11 +116,11 @@ test.describe("the app's name and icon in the window row", () => {
     await mainProcess.checkpointAsync("title-bar-identity-1280");
   });
 
-  test("keep the icon at 1rem in its place at 200% zoom, while the search field keeps at least 12rem", async ({ mainProcess }) => {
-    const natural: number = await mainProcess.window.evaluate(() => innerWidth);
-    await mainProcess.zoomAsync(2, natural / 2);
+  test("keep the icon at 1rem in its place when zoomed in to a 1000 px row, while the search field keeps at least 12rem", async ({ mainProcess }) => {
+    await layOutAsync(mainProcess, 1000);
     const geometry = await readAsync(mainProcess.window);
 
+    expect(await mainProcess.window.evaluate(() => devicePixelRatio)).toBeGreaterThan(1);
     expectIconPlaced(geometry);
     expect(geometry.fieldWidth).toBeGreaterThanOrEqual(12);
     await mainProcess.checkpointAsync("title-bar-identity-zoom");
