@@ -116,6 +116,20 @@ describe("WindowPartContext", () => {
     expect(host.selectionSources.size).toBe(0);
   });
 
+  it("provides the part's undo to the window until it withdraws it or is withdrawn", () => {
+    const provider = { canUndo: () => true, undoAsync: () => Promise.resolve() };
+
+    const withdrawUndo = context.provideUndo(provider);
+    const provided = [...host.undoProviders];
+    withdrawUndo();
+    const withdrawnByPart = host.calls.filter(t => t === "withdrawUndo").length;
+    context.provideUndo(provider);
+    context.withdraw();
+
+    expect([provided, withdrawnByPart]).toEqual([[provider], 1]);
+    expect(host.calls.filter(t => t === "withdrawUndo")).toHaveLength(3);
+  });
+
   it("refuses a notification of another module, an undeclared kind or another module's command", async () => {
     await context.postNotificationAsync(notification("notes.saved", "Saved", null));
 
@@ -1225,6 +1239,7 @@ describe("WindowPartContext", () => {
     ["registerSave", t => t.registerSave(() => Promise.resolve()), t => t.saves.length],
     ["registerSelectionSource", t => t.registerSelectionSource(document.createElement("div"), { hasSelection: () => true, readSelection: () => "total 8" }),
       () => host.selectionSources.size],
+    ["provideUndo", t => t.provideUndo({ canUndo: () => true, undoAsync: () => Promise.resolve() }), () => host.undoProviders.length],
     ["provideMenuGroup", t => t.provideMenuGroup("notes.recent", () => []), () => host.providers.size],
     ["provideSettingOptions", t => t.provideSettingOptions("notes.model", () => []), () => host.optionProviders.size],
     ["provideSettingCheck", t => t.provideSettingCheck("notes.sites", () => null), () => host.checks.size],

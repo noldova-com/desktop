@@ -656,6 +656,7 @@ export class Resources {
   public static readonly commandField: string = "command";
   public static readonly argumentsField: string = "arguments";
   public static readonly menusField: string = "menus";
+  public static readonly undoField: string = "undo";
   public static readonly rowsField: string = "rows";
   public static readonly typeField: string = "type";
   public static readonly idField: string = "id";
@@ -668,10 +669,14 @@ export class Resources {
   public static readonly submenuRowType: string = "Submenu";
   public static readonly separatorRowType: string = "Separator";
   public static readonly menuRowPathSeparator: string = "/";
+  public static readonly undoRowId: string = "desktop.undo";
+  public static readonly undoKey: string = "Mod+Z";
   public static readonly menuTitleSeparator: string = " › ";
   public static readonly menuGlyph: string = "menu";
-  public static readonly focusInEvent: string = "focusin";
-  public static readonly focusOutEvent: string = "focusout";
+  public static readonly focusInEvent: "focusin" = "focusin";
+  public static readonly focusOutEvent: "focusout" = "focusout";
+  public static readonly windowFocusEvent: "focus" = "focus";
+  public static readonly windowBlurEvent: "blur" = "blur";
   public static readonly pointerDownEvent: string = "pointerdown";
   public static readonly transientFocusSelector: string = ".cdk-overlay-container, [data-nol-chrome]";
   public static readonly textInputTypes: readonly string[] = ["text", "search", "url", "tel", "password", "email", "number"];
@@ -751,6 +756,7 @@ export class Resources {
   public static readonly openLinkInBrowserGlyph: string = "open_in_new";
   public static readonly urlArgument: string = "url";
   public static readonly inAppBrowserTaken: string = "Another window part is already the in-app browser.";
+  public static readonly undoProviderTaken: string = "Another window part already provides Undo in this window.";
   public static readonly noSuggestionsLabel: string = "No suggestions";
   public static readonly textArgument: string = "text";
   public static readonly wordArgument: string = "word";

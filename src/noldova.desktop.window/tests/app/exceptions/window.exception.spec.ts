@@ -21,6 +21,7 @@ import { PreloadBridgeException } from "../../../src/app/exceptions/preload-brid
 import { ProductNameException } from "../../../src/app/exceptions/product-name.exception";
 import { RuntimeDisconnectedException } from "../../../src/app/exceptions/runtime-disconnected.exception";
 import { RuntimeRequestException } from "../../../src/app/exceptions/runtime-request.exception";
+import { UndoProviderTakenException } from "../../../src/app/exceptions/undo-provider-taken.exception";
 import { ViewDialogException } from "../../../src/app/exceptions/view-dialog.exception";
 import { WebViewClosedException } from "../../../src/app/exceptions/web-view-closed.exception";
 import { WebViewNotOpenedException } from "../../../src/app/exceptions/web-view-not-opened.exception";
@@ -40,6 +41,7 @@ describe("WindowException", () => {
       new ProductNameException(),
       new RuntimeDisconnectedException("Not connected."),
       new RuntimeRequestException("Unavailable", "The runtime did not answer."),
+      new UndoProviderTakenException(),
       new ViewDialogException(ViewDialogRefusal.AlreadyOpen),
       new WebViewClosedException(),
       new WebViewNotOpenedException(),
@@ -58,6 +60,7 @@ describe("WindowException", () => {
       [true, true, "ProductNameException"],
       [true, true, "RuntimeDisconnectedException"],
       [true, true, "RuntimeRequestException"],
+      [true, true, "UndoProviderTakenException"],
       [true, true, "ViewDialogException"],
       [true, true, "WebViewClosedException"],
       [true, true, "WebViewNotOpenedException"],

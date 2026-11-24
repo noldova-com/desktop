@@ -280,6 +280,22 @@ export declare class FakeWindowPartContext extends Fake<IWindowPartContext> impl
   public readonly registerSelectionSource: IWindowPartContext["registerSelectionSource"];
 
   /**
+   * Stands in for {@link IWindowPartContext.provideUndo}. Records each
+   * provider, which {@link Fake.activeCallsOf} lists until the disposer it
+   * returns runs; it takes no answer.
+   *
+   * @example
+   * ```ts
+   * import type { FakeWindowPartContext } from "@noldova/desktop.window/testing";
+   *
+   * export function activeProvideUndo(fake: FakeWindowPartContext): number {
+   *   return fake.activeCallsOf("provideUndo").length;
+   * }
+   * ```
+   */
+  public readonly provideUndo: IWindowPartContext["provideUndo"];
+
+  /**
    * Stands in for {@link IWindowPartContext.provideMenuGroup}. Records each
    * registration, which {@link Fake.activeCallsOf} lists until the disposer it
    * returns runs; it takes no answer.

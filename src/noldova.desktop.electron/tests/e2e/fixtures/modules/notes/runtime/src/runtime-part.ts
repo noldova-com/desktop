@@ -28,6 +28,7 @@ export class RuntimePart implements IRuntimePart {
     const hasFeed = existsSync(path.join(context.moduleFolder, Resources.feedMarker));
     const hasBoard = existsSync(path.join(context.moduleFolder, Resources.boardMarker));
     const hasWide = existsSync(path.join(context.moduleFolder, Resources.wideMarker));
+    const hasUndo = existsSync(path.join(context.moduleFolder, Resources.undoMarker));
     this.isHolding = existsSync(path.join(context.moduleFolder, Resources.holdFirstOptionsMarker));
     const runtime = randomUUID();
     const inbox = new SettingScope(QualifiedName.parse(Resources.folderScope), Resources.inbox);
@@ -39,7 +40,7 @@ export class RuntimePart implements IRuntimePart {
           this.isHolding = false;
           await new Promise<void>(resolve => this.held.push(resolve));
         }
-        return { isMany, isLongCount, hasWelcome, hasSessions, hasFeed, hasBoard, hasWide, runtime };
+        return { isMany, isLongCount, hasWelcome, hasSessions, hasFeed, hasBoard, hasWide, hasUndo, runtime };
       }
     });
     context.registerMethod(Resources.holdOptionsMethod, {

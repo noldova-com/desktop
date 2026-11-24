@@ -78,6 +78,10 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A right-click inside a registered element that isn't on a field opens the text field menu at the pointer for whatever has the focus inside that element, such as a terminal's helper text area, so its Copy follows the source and its Paste goes there; while the focus is outside the element, the right-click opens no menu.
   A copy the main process refuses leaves the clipboard as it was; the main process logs the refusal and the window logs that the selection wasn't copied, neither with the text.
   The other Edit commands, and Copy anywhere else, act on the field as before; deactivation removes a part's sources, and a part removes the source of an element it discards.
+- A window part with an undo of its own, such as a Git client's last write, gives it to the window with the context's `provideUndo`, one provider for each window, from whichever module; a second is refused with `UndoProviderTakenException`.
+  While the window's page has the focus and it is on none of a text field, an editable element and an element inside a registered selection source, Edit → Undo and Mod+Z run the provider's `undoAsync`, and Undo is greyed while its `canUndo` is `false`; otherwise they run the native undo, as without a provider, so a web view's page and a field keep theirs.
+  On macOS the menu bar's own Undo row takes Cmd+Z while the provider takes Undo, and the native row comes back when it doesn't; on Windows and Linux the window takes Ctrl+Z, except inside an element that keeps Ctrl keys, such as a terminal.
+  Withdrawing the provider, or deactivating its part, brings back the native undo.
 
 ## Workspace
 
@@ -182,6 +186,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On macOS nothing changes, since Cmd is the window's.
 - While a modal dialog is open, only the Edit commands run from keys, and a view's dialog adds its own module's commands.
 - On macOS the main process builds the native menu bar from the rows the window gives it, keeping the system's own items; choosing a row runs it in the window, and the window's key handling stays the only one.
+  It shows the rows only of the window that has the focus: rows a window sends while it doesn't are kept and shown once it has the focus again.
   Once the window whose rows it shows closes, the main process puts back the standard menu bar it starts with, the app, Edit and Window menus with the system's items, so no row is left that runs nowhere.
 - An app that gives the window `titleBar`, as [BUILD.md](BUILD.md#an-apps-inputs) says, shows its icon and name, each only when given, at the very start of the window row, after the traffic lights on macOS: the icon 1rem square, the name 0.25rem after it in the row's own text, both level with the row's buttons and 0.5rem before the menus or the buttons that follow.
   They stay in the row's drag region and never fold the menus: the name takes only the room that leaves the search field its full width in the window's centre, cut with an ellipsis and hidden below 3rem, and the icon stays until the field is down to its 12rem.

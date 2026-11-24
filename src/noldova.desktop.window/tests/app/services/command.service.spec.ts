@@ -23,6 +23,7 @@ import { CommandService } from "../../../src/app/services/command.service";
 import { PaneKeysService } from "../../../src/app/services/pane-keys.service";
 import { ShellCommandsService } from "../../../src/app/services/shell-commands.service";
 import { StartupService } from "../../../src/app/services/startup.service";
+import { UndoService } from "../../../src/app/services/undo.service";
 import { DomFixture } from "../../fixtures/dom.fixture";
 import { FailureFixture } from "../../fixtures/failure.fixture";
 import { PreloadBridgeFixture } from "../../fixtures/preload-bridge.fixture";
@@ -100,6 +101,42 @@ describe("CommandService", () => {
     const shell = TestBed.inject(ShellCommandsService).commands;
     expect(service.commands().slice(0, shell.length)).toEqual(shell);
     expect(service.commands().slice(shell.length).map(t => t.name)).toEqual(["notes.newNote"]);
+  });
+
+  it("runs the window's undo provider for Ctrl+Z while it takes Undo, but not inside an element that keeps Ctrl keys, nor without a provider", async () => {
+    const service = start("win32");
+    service.setCommands([]);
+    let reach: () => void = () => undefined;
+    const reached = new Promise<void>(resolve => {
+      reach = resolve;
+    });
+    const outsideKeeper = document.createElement("div");
+    outsideKeeper.setAttribute("data-nol-keeps-ctrl-keys", String.empty);
+    document.body.append(outsideKeeper);
+    added.push(outsideKeeper);
+    window.dispatchEvent(new FocusEvent("focus"));
+    const undoKey: KeyboardEventInit = { key: "z", code: "KeyZ", ctrlKey: true };
+
+    const withoutProvider = press(undoKey).defaultPrevented;
+    TestBed.inject(UndoService).provide({ canUndo: () => true, undoAsync: () => Promise.resolve(reach()) });
+    const inKeeper = pressIn(outsideKeeper, undoKey).defaultPrevented;
+    const redo = press({ key: "y", code: "KeyY", ctrlKey: true }).defaultPrevented;
+    const taken = press(undoKey).defaultPrevented;
+    await reached;
+
+    expect([withoutProvider, inKeeper, redo, taken]).toEqual([false, false, false, true]);
+  });
+
+  it("leaves Cmd+Z to the menu bar's Undo on macOS while the window's undo provider takes Undo", () => {
+    const service = start("darwin");
+    service.setCommands([]);
+    window.dispatchEvent(new FocusEvent("focus"));
+    let undone = false;
+    TestBed.inject(UndoService).provide({ canUndo: () => true, undoAsync: () => Promise.resolve(void (undone = true)) });
+
+    const pressed = press({ key: "z", code: "KeyZ", metaKey: true });
+
+    expect([pressed.defaultPrevented, undone]).toEqual([false, false]);
   });
 
   it("runs the command a key press is bound to and keeps the browser from handling it", async () => {

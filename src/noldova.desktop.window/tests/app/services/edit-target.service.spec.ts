@@ -201,6 +201,60 @@ describe("EditTargetService", () => {
     expect([edits.canRun(EditAction.Copy), edits.readSelection()]).toEqual([true, "total 8"]);
   });
 
+  it("knows whether a field, editable text or an element inside a source has the focus, past a menu that takes it, until the focus leaves", () => {
+    const edits = TestBed.inject(EditTargetService);
+    const field = page.find(".field", HTMLInputElement);
+    const terminal = page.find(".terminal", HTMLElement);
+
+    field.focus();
+    overlay.focus();
+    const pastMenu = edits.isEditFocused();
+    elsewhere.focus();
+    const onButton = edits.isEditFocused();
+    page.find(".rich", HTMLElement).focus();
+    const onRich = edits.isEditFocused();
+    field.focus();
+    field.blur();
+    const left = edits.isEditFocused();
+    terminal.focus();
+    const beforeSource = edits.isEditFocused();
+    const remove = edits.registerSource(terminal, { hasSelection: () => false, readSelection: () => String.empty });
+    const inSource = edits.isEditFocused();
+    remove();
+
+    expect([pastMenu, onButton, onRich, left, beforeSource, inSource]).toEqual([true, false, true, false, false, true]);
+    expect(edits.isEditFocused()).toBe(false);
+  });
+
+  it("counts a field in a dialog over the page and a web view as edit focus, and a field that left the page without a focusout as none", () => {
+    const edits = TestBed.inject(EditTargetService);
+    const field = page.find(".field", HTMLInputElement);
+
+    page.find(".dialog-field", HTMLInputElement).focus();
+    const inDialog = edits.isEditFocused();
+    elsewhere.focus();
+    const onButton = edits.isEditFocused();
+    page.find(".guest", HTMLElement).focus();
+    const inWebView = edits.isEditFocused();
+    field.focus();
+    const onField = edits.isEditFocused();
+    window.addEventListener("focusout", event => event.stopImmediatePropagation(), { capture: true, once: true });
+    field.remove();
+
+    expect([inDialog, onButton, inWebView, onField]).toEqual([true, false, true, true]);
+    expect(edits.isEditFocused()).toBe(false);
+  });
+
+  it("knows whether the window's own page has the focus, as the window's focus and blur say", () => {
+    const edits = TestBed.inject(EditTargetService);
+
+    window.dispatchEvent(new FocusEvent("focus"));
+    const focused = edits.hasFocus();
+    window.dispatchEvent(new FocusEvent("blur"));
+
+    expect([focused, edits.hasFocus()]).toEqual([true, false]);
+  });
+
   it("stops following a source once it is removed, replaced or off the page, and a removal after a replacement keeps the new one", () => {
     const edits = TestBed.inject(EditTargetService);
     const terminal = page.find(".terminal", HTMLElement);

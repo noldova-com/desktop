@@ -32,6 +32,7 @@ import { TabRenameService } from "../../../src/app/services/tab-rename.service";
 import { TabFocusService } from "../../../src/app/services/tab-focus.service";
 import { TabStripService } from "../../../src/app/services/tab-strip.service";
 import { ToolbarService } from "../../../src/app/services/toolbar.service";
+import { UndoService } from "../../../src/app/services/undo.service";
 import { UpdateService } from "../../../src/app/services/update.service";
 import { ViewDialogService } from "../../../src/app/services/view-dialog.service";
 import { DomFixture } from "../../fixtures/dom.fixture";
@@ -298,6 +299,32 @@ describe("ShellCommandsService", () => {
     expect(enabledInMenu).toEqual([true, true, true, true, true, true]);
     expect(restored).toEqual([true, 0, 7]);
     expect(bridge.edits).toEqual(["Copy"]);
+  });
+
+  it("runs the window's undo provider for Undo while nothing editable has the focus, greyed while it has nothing to undo, and the field's own Undo otherwise", async () => {
+    const host = document.createElement("div");
+    host.innerHTML = "<input type=\"text\" value=\"Meeting notes\"><button type=\"button\">Elsewhere</button>";
+    document.body.append(host);
+    const field = DomFixture.oneOf(host, "input", HTMLInputElement);
+    const button = DomFixture.oneOf(host, "button", HTMLButtonElement);
+    let undoable = true;
+    let undone = 0;
+    window.dispatchEvent(new FocusEvent("focus"));
+    TestBed.inject(UndoService).provide({ canUndo: () => undoable, undoAsync: () => Promise.resolve(void undone++) });
+
+    button.focus();
+    const offField = [enabled("desktop.undo"), enabled("desktop.redo")];
+    await runAsync("desktop.undo");
+    undoable = false;
+    const nothingToUndo = enabled("desktop.undo");
+    field.focus();
+    const onField = enabled("desktop.undo");
+    await runAsync("desktop.undo");
+    host.remove();
+
+    expect(offField).toEqual([true, false]);
+    expect([undone, nothingToUndo, onField]).toEqual([1, false, true]);
+    expect(bridge.edits).toEqual(["Undo"]);
   });
 
   it("copies a part's own selection through the window's clipboard channel while focus is in its element, from the menus, and only while something is selected", async () => {

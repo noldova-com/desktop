@@ -39,6 +39,7 @@ export class FakeWindowPartContext extends Fake<IWindowPartContext> implements I
   public readonly registerTopBarAction: IWindowPartContext["registerTopBarAction"] = (...args) => this.ask("registerTopBarAction", args, this.answers.registerTopBarAction);
   public readonly registerSave: IWindowPartContext["registerSave"] = (...args) => this.track("registerSave", args);
   public readonly registerSelectionSource: IWindowPartContext["registerSelectionSource"] = (...args) => this.track("registerSelectionSource", args);
+  public readonly provideUndo: IWindowPartContext["provideUndo"] = (...args) => this.track("provideUndo", args);
   public readonly provideMenuGroup: IWindowPartContext["provideMenuGroup"] = (...args) => this.track("provideMenuGroup", args);
   public readonly provideSettingOptions: IWindowPartContext["provideSettingOptions"] = (...args) => this.track("provideSettingOptions", args);
   public readonly refreshSettingOptions: IWindowPartContext["refreshSettingOptions"] = (...args) => this.tell("refreshSettingOptions", args, this.answers.refreshSettingOptions);

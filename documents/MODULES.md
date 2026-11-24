@@ -299,6 +299,12 @@ A module keeps its tokens, keys and passwords in this machine's secret store, by
   The edit menu's keys, such as copy, paste, undo and select all, are not on it, so agents can use them freely.
 - `appWindows.list()` and `shortcuts.list()` are empty while the app's main process isn't connected; `onChanged` is called when a list changes and each time the main process connects or goes, even with no window open, but not when the same main process reports the same list again, and the runtime withdraws its listeners when the part deactivates.
 
+## Undo
+
+- A window part with an undo of its own gives it to the window with the context's `provideUndo({ canUndo, undoAsync })`, which returns a function that withdraws it; deactivation withdraws it too.
+- A window holds one provider at a time, from whichever module, and refuses a second with `UndoProviderTakenException`, so a module provides Undo only for the part that owns the window's main content.
+- Edit → Undo and Mod+Z reach the provider only while nothing editable has the focus; a text field, an editable element, a registered selection source and a web view's page keep their native undo, as [WINDOW.md](WINDOW.md) describes.
+
 ## Contributions
 
 Noldova Desktop owns registration, collisions, the person's overrides, persistence and removal when a part deactivates; each module owns its entries.

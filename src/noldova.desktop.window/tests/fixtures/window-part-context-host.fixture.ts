@@ -23,6 +23,7 @@ import type { IFilePathChoiceOptions } from "../../src/app/interfaces/i-file-pat
 import type { IFileGrantOptions } from "../../src/app/interfaces/i-file-grant-options";
 import type { IInAppBrowser } from "../../src/app/interfaces/i-in-app-browser";
 import type { ILinkOpenOptions } from "../../src/app/interfaces/i-link-open-options";
+import type { IUndoProvider } from "../../src/app/interfaces/i-undo-provider";
 import type { IWebViewHandle } from "../../src/app/interfaces/i-web-view-handle";
 import type { IWindowPalette } from "../../src/app/interfaces/i-window-palette";
 import type { IWindowPartContext } from "../../src/app/interfaces/i-window-part-context";
@@ -50,6 +51,7 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
   public readonly settingListeners: Set<(change: SettingChange) => void> = new Set();
   public readonly dynamicGroups: Set<string> = new Set(["notes.recent"]);
   public readonly selectionSources: Map<HTMLElement, ISelectionSource> = new Map();
+  public readonly undoProviders: IUndoProvider[] = [];
   public readonly inAppBrowsers: [IInAppBrowser, (message: string) => void][] = [];
   public readonly providers: Map<string, (context: JsonObject) => readonly MenuItem[]> = new Map();
   public readonly webViews: WebViewHandleFixture[] = [];
@@ -372,6 +374,11 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
   public registerSelectionSource(element: HTMLElement, source: ISelectionSource): () => void {
     this.selectionSources.set(element, source);
     return () => this.selectionSources.delete(element);
+  }
+
+  public provideUndo(provider: IUndoProvider): () => void {
+    this.undoProviders.push(provider);
+    return () => this.calls.push("withdrawUndo");
   }
 
   public refresh(): void {
