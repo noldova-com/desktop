@@ -287,6 +287,7 @@ The file is an object with five optional fields: `methods`, each `{ "name": "<Do
 | `DOM.setFileInputFiles`, `Input.dispatchDragEvent` | They hand the page files from the person's disk, which only the person chooses. |
 | `Input.setInterceptDrags` | It hands the module's runtime part the person's drags, with the paths of files dragged from their disk, and keeps the drop from the page. |
 | `DOM.getFileInfo` | It reads the path on the person's disk of a file the page holds. |
+| `Input.setIgnoreInputEvents` | It makes the page ignore the person's mouse, keyboard and touch input, so the module's runtime part can lock them out of the page. |
 | `Target`, `Browser`, `Fetch` and `Security` | Target reaches other pages and sessions; Browser controls the whole engine, its downloads and its permissions; Fetch rewrites and answers requests past the origin check; Security accepts certificate errors. |
 
 - A declared key's `name` is a lowercase letter followed by letters and digits, once in the file; it is what the `Key` event holds.

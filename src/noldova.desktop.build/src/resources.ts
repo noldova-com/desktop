@@ -1051,7 +1051,7 @@ export class Resources {
     "Page.navigate", "Page.navigateToHistoryEntry", "Page.reload", "Page.setDocumentContent", "Page.resetNavigationHistory",
     "Page.setInterceptFileChooserDialog", "Page.disable", "Page.setDownloadBehavior", "Page.close", "Page.crash",
     "Network.setRequestInterception", "Network.continueInterceptedRequest", "DOM.setFileInputFiles", "Input.dispatchDragEvent",
-    "Input.setInterceptDrags", "DOM.getFileInfo"
+    "Input.setInterceptDrags", "DOM.getFileInfo", "Input.setIgnoreInputEvents"
   ];
   public static readonly webViewRefusedDomains: readonly string[] = ["Target", "Browser", "Fetch", "Security"];
   public static readonly webViewFields: readonly string[] = [Resources.methodsKind, Resources.eventsKind, Resources.keysField, Resources.newWindowsField, Resources.loadingKeysField];
