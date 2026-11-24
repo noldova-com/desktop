@@ -64,6 +64,17 @@ describe("ViewContribution", () => {
         .toThrowError("A view's default group and default order are whole numbers of 0 or more.");
     });
 
+  it("keeps the preferred width its options give, and none without it", () => {
+    expect([new ViewContribution("git.conflicts", "Conflicts", "merge", DockSide.Right, false, load).preferredWidth,
+      new ViewContribution("git.conflicts", "Conflicts", "merge", DockSide.Right, false, load, undefined, { preferredWidth: 60 }).preferredWidth]).toEqual([null, 60]);
+  });
+
+  for (const preferredWidth of [0, -0.5, Number.NaN, Number.POSITIVE_INFINITY])
+    it(`refuses the preferred width ${preferredWidth}`, () => {
+      expect(() => new ViewContribution("git.conflicts", "Conflicts", "merge", DockSide.Right, false, load, undefined, { preferredWidth }))
+        .toThrowError("A preferred width is a finite number of rem greater than 0.");
+    });
+
   it("refuses a tab-row place that is not <module id>.<name>", () => {
     expect(() => new ViewContribution("terminal.session", "Terminal", "terminal", DockSide.Bottom, false, load, undefined, { tabRowPlace: "tabRow" })).toThrowError(ArgumentException);
   });

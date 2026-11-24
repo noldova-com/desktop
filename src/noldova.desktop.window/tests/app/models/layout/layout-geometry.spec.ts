@@ -131,7 +131,7 @@ describe("LayoutGeometry", () => {
     expect(geometry.frameOf(9)).toBeNull();
   });
 
-  it("previews where a dropped view lands along each side, the bottom across the window and the sides above the bottom dock", () => {
+  it("previews where a dropped view lands along each side, the bottom across the window at the height it opens at, and the sides above the bottom dock", () => {
     const geometry = new LayoutGeometry(120, 60, initial.toggleDock(DockSide.Right).resizeDock(DockSide.Bottom, 20), registry, LayoutMetricsFixture.standard);
     const withBottom = new LayoutGeometry(120, 60, initial.toggleDock(DockSide.Left).openView(LayoutFixture.terminal, registry), registry, LayoutMetricsFixture.standard);
     const between = new LayoutGeometry(120, 60, initial.toggleDock(DockSide.Right).resizeDock(DockSide.Bottom, 20).withBottomSpan(BottomDockSpan.Between), registry, LayoutMetricsFixture.standard);
@@ -144,5 +144,7 @@ describe("LayoutGeometry", () => {
     expect(between.sidePreview(DockSide.Right)).toEqual(new Bounds(94.75, 0, 25, 59.75));
     expect(new LayoutGeometry(20, 10, Layout.createDefault(ViewRegistry.createEmpty()), registry, LayoutMetricsFixture.standard).sidePreview(DockSide.Bottom))
       .toEqual(new Bounds(0.25, 0, 19.5, 9.75));
+    expect(new LayoutGeometry(120, 34.875, Layout.createDefault(ViewRegistry.createEmpty()), registry, LayoutMetricsFixture.standard).sidePreview(DockSide.Bottom))
+      .toEqual(new Bounds(0.25, 22.4375, 119.5, 12.1875));
   });
 });

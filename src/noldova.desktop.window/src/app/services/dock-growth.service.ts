@@ -46,7 +46,7 @@ export class DockGrowthService {
       return;
     }
     const geometry = this.layout.geometry();
-    this.layout.resizeDock(side, Math.min(geometry.maximumSize(side), geometry.dock(side).length(dock.axis) + lacking));
+    this.layout.growDock(side, Math.min(geometry.maximumSize(side), geometry.dock(side).length(dock.axis) + lacking), tab.key);
     this.asked.update(t => new Map(t).set(tab.key, growth.withFitted(side, dock.size, this.layout.layout().dock(side).size)));
   }
 
@@ -61,5 +61,6 @@ export class DockGrowthService {
     });
     if (!Object.isNull(growth.side) && this.layout.layout().dock(growth.side).size === growth.grown)
       this.layout.restoreDock(growth.side, growth.before);
+    this.layout.releaseGrowth(tab.key);
   }
 }

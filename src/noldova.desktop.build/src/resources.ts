@@ -1378,6 +1378,7 @@ export class Resources {
   public static readonly smokeOtherProgramVariable: string = "NOLDOVA_SMOKE_OTHER_PROGRAM";
   public static readonly smokeOtherFolderVariable: string = "NOLDOVA_SMOKE_OTHER_FOLDER";
   public static readonly smokeOtherUserStartLimit: number = 30_000;
+  public static readonly smokeOtherUserCommandLimit: number = 120_000;
   public static readonly smokeOtherOutputFile: string = "other-user-output.log";
   public static readonly smokeOtherErrorFile: string = "other-user-errors.log";
   public static readonly smokeOtherUserSkipped: string = `No other user's app was started, since ${Resources.smokeOtherUserVariable} names no account.\n`;
@@ -1513,9 +1514,11 @@ export class Resources {
   public static readonly windowsCommandShell: string = "cmd.exe";
   public static readonly otherUserStartScript: string = [
     Resources.powershellStopLine,
+    "$watch = [System.Diagnostics.Stopwatch]::StartNew()",
     `$user = $env:${Resources.smokeOtherUserVariable}`,
     `$null = icacls.exe $env:${Resources.smokeOtherFolderVariable} /grant "\${user}:(OI)(CI)RX"`,
     "if ($LASTEXITCODE -ne 0) { throw \"icacls exited with $LASTEXITCODE.\" }",
+    "[Console]::Error.WriteLine(\"Gave $user read access to the app's folder after $($watch.ElapsedMilliseconds) ms.\")",
     `$password = Microsoft.PowerShell.Security\\ConvertTo-SecureString $env:${Resources.smokeOtherPasswordVariable} -AsPlainText -Force`,
     "$credential = Microsoft.PowerShell.Utility\\New-Object System.Management.Automation.PSCredential($user, $password)",
     `$name = [System.IO.Path]::GetFileNameWithoutExtension($env:${Resources.smokeOtherProgramVariable})`,
@@ -1524,6 +1527,7 @@ export class Resources {
     `$shell = Microsoft.PowerShell.Management\\Start-Process -FilePath ${Resources.windowsCommandShell} -ArgumentList '/c', $hold -WorkingDirectory $env:${Resources.smokeOtherFolderVariable} `
       + `-RedirectStandardOutput ${Resources.smokeOtherOutputFile} -RedirectStandardError ${Resources.smokeOtherErrorFile} -Credential $credential -LoadUserProfile -PassThru`,
     "$null = $shell.Handle",
+    `[Console]::Error.WriteLine("Signed $user in, loading their profile, and started ${Resources.windowsCommandShell} after $($watch.ElapsedMilliseconds) ms.")`,
     `$deadline = (Microsoft.PowerShell.Utility\\Get-Date).AddMilliseconds(${String(Resources.smokeOtherUserStartLimit)})`,
     "for (;;) {",
     "  $held = @(Microsoft.PowerShell.Management\\Get-Process -Name $name -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id })",

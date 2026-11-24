@@ -32,10 +32,17 @@ describe("DocumentGroup", () => {
     expect(new DocumentGroup([plan], plan).without(plan)).toEqual(DocumentGroup.createEmpty());
     expect(group.withVisibleTabs(ViewRegistry.createEmpty())).toEqual(DocumentGroup.createEmpty());
     expect(group.without(todo)).toEqual(new DocumentGroup([plan, files], files));
-    expect(group.insert(settings, 0)).toEqual(new DocumentGroup([settings, plan, files, todo], settings));
+    expect(group.insert(settings, 0)).toEqual(new DocumentGroup([settings, plan, files, todo], settings, null, 0, [settings, todo]));
     expect(group.withVisibleTabs(LayoutFixture.createRegistry())).toBe(group);
     expect(new DocumentGroup([new DocumentTab("gone.document"), plan], plan).withVisibleTabs(LayoutFixture.createRegistry()))
       .toEqual(new DocumentGroup([plan], plan));
+  });
+
+  it("returns to the document that was active before the closed one", () => {
+    const opened = new DocumentGroup([plan], plan).insert(todo, 1).activate(plan).insert(settings, 2);
+
+    expect(opened.without(settings)?.active).toBe(plan);
+    expect(opened.without(settings)?.without(plan)?.active).toBe(todo);
   });
 
   it("marks itself as the documents group when written", () => {

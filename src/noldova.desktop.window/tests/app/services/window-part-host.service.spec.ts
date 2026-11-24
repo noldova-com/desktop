@@ -936,7 +936,7 @@ describe("WindowPartHostService", () => {
     expect([heard, errors]).toEqual([[], []]);
   });
 
-  it("applies the instance changes a part makes while activating once the layout loads, in order, and later ones at once", async () => {
+  it("applies the instance changes a part makes while activating once the layout loads, in order, and later ones at once, a front given back among them", async () => {
     const shell = (instance: string): ViewTab => new ViewTab("terminal.shell", instance);
     const terminal = new WindowPartFixture("terminal", log, t => {
       t.registerView(new ViewContribution("terminal.shell", "Terminal", "terminal", DockSide.Bottom, false, load, undefined, { hasInstances: true }));
@@ -952,10 +952,12 @@ describe("WindowPartHostService", () => {
 
     host.openView("terminal", "terminal.shell", "3", new DocumentHeading("zsh", ["Home"]), "code", null);
     const opened = labels.headingOf(shell("3")).text;
+    host.returnView("terminal", "terminal.shell", "3");
+    const front = layout.layout().groupOf(shell("3"))?.active;
     host.updateView("terminal", "terminal.shell", "3", "fish", null, ["Projects"]);
     host.closeView("terminal", "terminal.shell", "1");
 
-    expect([started, opened]).toEqual([[false, "Work / Build"], "Home / zsh"]);
+    expect([started, opened, front]).toEqual([[false, "Work / Build"], "Home / zsh", shell("1")]);
     expect([layout.layout().isOpen(shell("1")), layout.layout().isOpen(shell("3")), labels.of(shell("3")), labels.headingOf(shell("3")).text])
       .toEqual([false, true, new TabLabel("fish", "code"), "Projects / fish"]);
   });
@@ -1283,6 +1285,18 @@ describe("WindowPartHostService", () => {
     expect([layout.registry().isRenamableView("notes.list"), layout.registry().isRenamableDocument("notes.note"), layout.registry().isRenamableDocument("notes.page")])
       .toEqual([true, true, false]);
     expect(heard).toEqual(["list 1 Inbox", "note 2 Plans"]);
+  });
+
+  it("gives the registry the preferred width of each of a part's views and documents that declares one", async () => {
+    const part = new WindowPartFixture("notes", log, t => {
+      t.registerView(new ViewContribution("notes.list", "Notes", "sticky_note_2", DockSide.Left, false, load, undefined, { preferredWidth: 60 }));
+      t.registerDocument(new DocumentContribution("notes.note", load));
+      t.registerDocument(new DocumentContribution("notes.page", load, undefined, { preferredWidth: 55.5 }));
+    });
+    const { layout } = start([source("notes", part, [], ["notes.list"], [], [], [], [], ["notes.note", "notes.page"])], [status("notes")]);
+    await vi.waitFor(() => expect(layout.registry().hasDocument("notes.page")).toBe(true));
+
+    expect(["notes.list", "notes.note", "notes.page"].map(t => layout.registry().preferredWidth(t))).toEqual([60, null, 55.5]);
   });
 
   it("tells a part when the person closes one of its document tabs, and never of one it closed itself, once it deactivates or when the window goes away", async () => {

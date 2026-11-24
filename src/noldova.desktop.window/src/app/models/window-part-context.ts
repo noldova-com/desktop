@@ -436,6 +436,12 @@ export class WindowPartContext implements IWindowPartContext {
       this.host.openView(this.moduleId, name, instance, heading, options.icon ?? null, options.tabGroup ?? null);
   }
 
+  public returnView(name: string, instance: string): void {
+    this.requireInstance(name, instance);
+    if (!this.isWithdrawn)
+      this.host.returnView(this.moduleId, name, instance);
+  }
+
   public updateView(name: string, instance: string, update: IViewUpdate): void {
     this.requireInstance(name, instance);
     const title = Object.isUndefined(update.title) ? null : DocumentHeading.requireTitle(update.title);

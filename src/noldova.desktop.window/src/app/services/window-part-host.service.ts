@@ -359,6 +359,10 @@ export class WindowPartHostService implements IWindowPartHost {
     this.changeView(new PendingViewChange(moduleId, this.activatingModules.has(moduleId), null, () => this.instances.close(name, instance)));
   }
 
+  public returnView(moduleId: string, name: string, instance: string): void {
+    this.changeView(new PendingViewChange(moduleId, this.activatingModules.has(moduleId), null, () => this.instances.returnFront(name, instance)));
+  }
+
   public closeDialog(name: string, instance: string | null): void {
     this.viewDialogs.closeShowing(name, instance);
   }
@@ -502,11 +506,16 @@ export class WindowPartHostService implements IWindowPartHost {
     const failed = failures.flatMap(t => t.viewNames.map(u => ({ name: u, failure: t })));
     for (const view of failed)
       this.labels.register(view.name, new TabLabel(view.failure.displayName, view.failure.glyph));
+    const widths = new Map<string, number>();
+    for (const contribution of [...views, ...this.activations.flatMap(t => t.context.documents)])
+      if (!Object.isNull(contribution.preferredWidth))
+        widths.set(contribution.name, contribution.preferredWidth);
     this.layout.setRegistry(new ViewRegistry(
       [...views.map(t => new ViewType(t.name, t.defaultSide, t.isShownByDefault, t.hasInstances, t.tabRowPlace, t.isRenamable, t.defaultGroup, t.defaultOrder)), ...failed.map(t => new ViewType(t.name, DockSide.Left, false))],
       [...ShellDocuments.all.map(t => t.name), ...this.activations.flatMap(t => t.context.documents.map(u => u.name))],
       new Map(this.activations.flatMap(t => t.context.documents.flatMap((u): [string, string][] => Object.isNull(u.tabRowPlace) ? [] : [[u.name, u.tabRowPlace]]))),
-      new Set(this.activations.flatMap(t => t.context.documents.filter(u => u.isRenamable).map(u => u.name)))));
+      new Set(this.activations.flatMap(t => t.context.documents.filter(u => u.isRenamable).map(u => u.name))),
+      widths));
   }
 
   private createPartInjector(context: IWindowPartContext, isActiveDocument: Signal<boolean>): Injector {

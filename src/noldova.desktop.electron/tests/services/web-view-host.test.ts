@@ -551,6 +551,26 @@ export class WebViewHostTests {
   }
 
   @TestMethod
+  public async answersAKeepWhoseViewCannotKeepItsHistoryAndLogsItAndExpectsThatViewNoMore(): Promise<void> {
+    const [electron, , , process] = await WebViewHostTests.startAsync();
+    await WebViewHostTests.openAsync(electron);
+    await WebViewHostTests.openAsync(electron);
+    WebViewHostTests.view(electron, 0).contents.show("https://example.com/a");
+    const failing = WebViewHostTests.view(electron, 1);
+    failing.contents.show("https://example.com/b");
+    failing.contents.readHistory = () => {
+      throw new Error("The page is gone.");
+    };
+
+    const kept = await WebViewHostTests.keepAsync(electron, [["browser", "1"], ["browser", "2"]]);
+    const expected = [WebViewHostTests.expect(electron, "1"), WebViewHostTests.expect(electron, "2")];
+
+    Assert.areEqual(JSON.stringify([[true, false], [true, false]]), JSON.stringify([kept, expected]));
+    Assert.areEqual(1, MainProcessStartFixture.readErrors(process,
+      "Web view 2 of browser could not keep its history, so its page will not be restored once it moves and loads its address again: Error: The page is gone.").length);
+  }
+
+  @TestMethod
   public async claimsNoWebviewForAViewThatIsClosedOrIsInAnotherWindowAndBindsNoUnclaimedOneOrOneOfAnotherWindow(): Promise<void> {
     const [electron] = await WebViewHostTests.startAsync();
     const window = MainProcessStartFixture.firstWindow(electron);
