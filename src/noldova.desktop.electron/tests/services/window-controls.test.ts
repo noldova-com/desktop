@@ -79,7 +79,7 @@ export class WindowControlsTests {
     const electron = await MainProcessStartFixture.startReadyAsync("darwin");
     const window = MainProcessStartFixture.firstWindow(electron);
     const standard = electron.menu.menu;
-    const bar = (title: string): unknown => ({ menus: [{ place: "desktop.file", title, rows: [] }], undo: null });
+    const bar = (title: string): unknown => ({ menus: [{ place: "desktop.file", title, rows: [{ type: "Command", id: "desktop.file/desktop.close/0", label: "Close the tab", key: null, enabled: true, check: "None", checked: false }] }], undo: null });
     const titles = (): string => (electron.menu.templates.find(t => t === electron.menu.menu) ?? []).slice(1).map(t => t.label).join(",");
     window.gainFocus();
     electron.ipcMain.send("desktop:menuBar", MainProcessStartFixture.trustedEvent("darwin"), bar("Focused"));
