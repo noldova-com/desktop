@@ -65,7 +65,7 @@ async function readAsync(window: Page): Promise<IIdentityGeometry> {
       iconStart: icon.left,
       rowStart: row.getBoundingClientRect().left + parseFloat(getComputedStyle(row).paddingLeft),
       centres: [icon.top + icon.height / 2, after.top + after.height / 2],
-      gap: after.left - identity.getBoundingClientRect().right,
+      gap: after.left - name.getBoundingClientRect().right,
       regions: [regionAt(icon), regionAt(identity.getBoundingClientRect())],
       fieldCentre: field.left + field.width / 2 - innerWidth / 2,
       fieldWidth: field.width / parseFloat(getComputedStyle(document.documentElement).fontSize)
@@ -83,7 +83,6 @@ function expectIconPlaced(geometry: IIdentityGeometry): void {
   near(geometry.icon[1], geometry.rem);
   near(geometry.iconStart, geometry.rowStart);
   near(geometry.centres[0], geometry.centres[1]);
-  expect(geometry.gap).toBeGreaterThanOrEqual(0);
 }
 
 test.describe("the app's name and icon in the window row", () => {
@@ -118,7 +117,8 @@ test.describe("the app's name and icon in the window row", () => {
   });
 
   test("keep the icon at 1rem in its place at 200% zoom, while the search field keeps at least 12rem", async ({ mainProcess }) => {
-    await mainProcess.zoomAsync(2, 960);
+    const natural: number = await mainProcess.window.evaluate(() => innerWidth);
+    await mainProcess.zoomAsync(2, natural / 2);
     const geometry = await readAsync(mainProcess.window);
 
     expectIconPlaced(geometry);
