@@ -32,7 +32,7 @@ export class ShellSettingsTests {
         snapshot.definitions.filter(t => t.name.text.endsWith("Format")).map(t => `${t.type.kind} ${String(t.type.maxLength)} ${t.page} ${t.group}`).join(","));
       Assert.areEqual("Boolean Spelling,Languages Spelling", snapshot.definitions.filter(t => t.name.text.startsWith("desktop.spellCheck")).map(t => `${t.type.kind} ${t.group}`).join(","));
       Assert.areEqual("About Updates", snapshot.definitions.filter(t => t.name.text === "desktop.updateChecks").map(t => `${t.page} ${t.group}`).join(","));
-      Assert.areEqual("System,Light,Dark", snapshot.definitions.find(t => t.name.text === "desktop.mode")?.type.options.map(t => t.value).join(","));
+      Assert.areEqual("Light,Dark,System", snapshot.definitions.find(t => t.name.text === "desktop.mode")?.type.options.map(t => t.value).join(","));
       Assert.areEqual("Automatic Automatically,AtStart Only at start,OnRequest Only when I ask",
         snapshot.definitions.find(t => t.name.text === "desktop.updateChecks")?.type.options.map(t => `${t.value} ${t.title}`).join(","));
     });

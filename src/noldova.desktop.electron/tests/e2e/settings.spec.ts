@@ -618,7 +618,7 @@ test.describe("settings", () => {
     const pill = (name: string): Locator => row(window, "desktop.mode").getByRole("radiogroup", { name: "Mode" }).getByRole("radio", { name, exact: true });
     const backgroundAsync = (): Promise<string> => window.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
-    await expect(row(window, "desktop.mode").getByRole("radio")).toHaveText(["System", "Light", "Dark"]);
+    await expect(row(window, "desktop.mode").getByRole("radio")).toHaveText(["Light", "Dark", "System"]);
     await pill("Light").click();
     await expect.poll(backgroundAsync).toBe(WindowModeFixture.backgrounds.Light);
     await window.keyboard.press("ArrowRight");
@@ -630,11 +630,11 @@ test.describe("settings", () => {
     await window.keyboard.press("ArrowRight");
     await expect(pill("Light")).toBeChecked();
     await window.keyboard.press("End");
-    await expect(pill("Dark")).toBeChecked();
+    await expect(pill("System")).toBeChecked();
     await window.keyboard.press("ArrowLeft");
-    await expect(pill("Light")).toBeChecked();
-    await expect(pill("Dark")).toHaveAttribute("tabindex", "-1");
-    await expect(pill("Light")).toHaveAttribute("tabindex", "0");
+    await expect(pill("Dark")).toBeChecked();
+    await expect(pill("System")).toHaveAttribute("tabindex", "-1");
+    await expect(pill("Dark")).toHaveAttribute("tabindex", "0");
     await mainProcess.checkpointAsync("settings-mode-pills");
   });
 
