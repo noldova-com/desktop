@@ -1430,6 +1430,10 @@ describe("WindowRowComponent", () => {
       await settle(fixture);
       fixture.detectChanges();
       await settle(fixture);
+      fixture.detectChanges();
+      await settle(fixture);
+      fixture.detectChanges();
+      await settle(fixture);
       return row;
     }
 
@@ -1440,7 +1444,7 @@ describe("WindowRowComponent", () => {
     function expectFieldCentred(row: HTMLElement, panelSize?: number): void {
       const field = DomFixture.one(row, ".nol-window-row-search").getBoundingClientRect();
       const box = row.getBoundingClientRect();
-      AppearanceFixture.expectPixels(field.left + field.width / 2, box.left + box.width / 2);
+      expect(Math.abs(field.left + field.width / 2 - (box.left + box.width / 2))).toBeLessThan(1);
       AppearanceFixture.expectPixels(field.width, AppearanceFixture.toPixels(27.5, panelSize));
     }
 
@@ -1479,7 +1483,7 @@ describe("WindowRowComponent", () => {
 
     for (const mode of AppearanceFixture.modes)
       for (const panelSize of [12, 18])
-        it(`starts a wide row with the 1rem icon and the whole name 0.25rem after it in the title bar's text, centred on the menu's items 0.5rem before them, inside the drag region, with the field still centred, at panel size ${panelSize} in ${mode} mode`, async () => {
+        it(`places the 1rem icon and whole name level with the menus in the drag region at panel size ${panelSize} in ${mode} mode`, async () => {
           PreloadBridgeFixture.install("win32");
           giveTitleBar("Sample Notes", icon);
           useNotesMenus([]);
@@ -1508,7 +1512,7 @@ describe("WindowRowComponent", () => {
         });
 
     for (const platform of ["win32", "linux"] as const)
-      it(`cuts a long name with an ellipsis so the full search field stays centred on ${platform}`, async () => {
+      it(`cuts a long name so the search field stays centred on ${platform}`, async () => {
         PreloadBridgeFixture.install(platform);
         giveTitleBar(longName, icon);
         useNotesMenus([]);
@@ -1523,7 +1527,7 @@ describe("WindowRowComponent", () => {
         expectFieldCentred(row);
       });
 
-    it("hides the name and keeps the icon once the field can't stay centred, until the field is down to its 12rem", async () => {
+    it("hides the name but keeps the icon once the field can't stay centred", async () => {
       PreloadBridgeFixture.install("win32");
       giveTitleBar(longName, icon);
       useNotesMenus([]);
@@ -1536,7 +1540,7 @@ describe("WindowRowComponent", () => {
       expect(DomFixture.one(row, "nol-menu-bar").classList.contains("nol-window-row-menu-bar-folded")).toBe(false);
     });
 
-    it("hides a name given without an icon, and with it the whole start, once the field can't stay centred", async () => {
+    it("hides a name without an icon once the field can't stay centred", async () => {
       PreloadBridgeFixture.install("win32");
       giveTitleBar(longName, null);
       useNotesMenus([]);
@@ -1547,7 +1551,7 @@ describe("WindowRowComponent", () => {
       expect(isShown(row, ".nol-window-row-identity")).toBe(false);
     });
 
-    it("hides the icon too once the search field is down to its 12rem, and keeps it before the menu button", async () => {
+    it("hides the icon too once the search field is down to 12rem", async () => {
       PreloadBridgeFixture.install("win32");
       giveTitleBar(longName, icon);
       useNotesMenus([]);
@@ -1561,7 +1565,7 @@ describe("WindowRowComponent", () => {
       expect(identity.right).toBeLessThanOrEqual(button.left + 0.5);
     });
 
-    it("shows the icon and the whole name after the traffic lights on macOS, where the row draws no menu, with the field centred", async () => {
+    it("shows the icon and whole name after the macOS traffic lights", async () => {
       PreloadBridgeFixture.install("darwin");
       giveTitleBar("Sample Notes", icon);
       useNotesMenus([]);

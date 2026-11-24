@@ -186,10 +186,11 @@ export class ProductAboutTests {
       " * LICENSE file in the root directory of this source tree.",
       " */",
       String.empty,
-      "import type { IProductAbout } from \"@noldova/desktop.window/build\";",
+      "import type { IProductAbout, IProductTitleBar } from \"@noldova/desktop.window/build\";",
       String.empty,
       "export const productName: string = \"Sample App\";",
       `export const productAbout: IProductAbout = ${JSON.stringify(about)};`,
+      "export const productTitleBar: IProductTitleBar = {\"name\":null,\"icon\":null};",
       String.empty
     ].join("\n");
   }
