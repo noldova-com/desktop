@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class StatusStartMissingException extends ElectronException {
+export class StatusStartMissingException extends installedElectron.ElectronException {
   public readonly status: string;
   public readonly field: number;
 

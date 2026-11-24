@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class RuntimeNotStoppedException extends ElectronException {
+export class RuntimeNotStoppedException extends installedElectron.ElectronException {
   public readonly processId: number;
   public readonly seconds: number;
   public readonly answer: string;

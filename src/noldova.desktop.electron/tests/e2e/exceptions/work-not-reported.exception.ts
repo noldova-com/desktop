@@ -8,9 +8,10 @@
 
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
-import { ElectronException } from "@noldova/desktop.electron";
 
-export class WorkNotReportedException extends ElectronException {
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
+
+export class WorkNotReportedException extends installedElectron.ElectronException {
   private static readonly LOG_LINES: number = 8;
 
   public readonly reported: string;

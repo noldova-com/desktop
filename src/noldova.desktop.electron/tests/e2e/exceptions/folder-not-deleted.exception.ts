@@ -7,9 +7,10 @@
  */
 
 import { ExceptionOptions } from "@noldova/context.exceptions";
-import { ElectronException } from "@noldova/desktop.electron";
 
-export class FolderNotDeletedException extends ElectronException {
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
+
+export class FolderNotDeletedException extends installedElectron.ElectronException {
   public readonly folder: string;
 
   public constructor(folder: string, cause: unknown) {

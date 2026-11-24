@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class SocketPathTooLongException extends ElectronException {
+export class SocketPathTooLongException extends installedElectron.ElectronException {
   public readonly socketPath: string;
   public readonly length: number;
   public readonly maximum: number;

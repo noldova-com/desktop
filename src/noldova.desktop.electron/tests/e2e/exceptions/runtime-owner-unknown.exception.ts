@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class RuntimeOwnerUnknownException extends ElectronException {
+export class RuntimeOwnerUnknownException extends installedElectron.ElectronException {
   public readonly dataDirectory: string;
   public readonly seconds: number;
 

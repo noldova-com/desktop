@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class WindowNotMovableException extends ElectronException {
+export class WindowNotMovableException extends installedElectron.ElectronException {
   public readonly bounds: string;
   public readonly cursor: string;
   public readonly attempts: readonly string[];

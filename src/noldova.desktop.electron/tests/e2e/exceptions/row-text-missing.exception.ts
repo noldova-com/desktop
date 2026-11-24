@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class RowTextMissingException extends ElectronException {
+export class RowTextMissingException extends installedElectron.ElectronException {
   public constructor() {
     super("The row shows no text.");
   }

@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class FontFacesMissingException extends ElectronException {
+export class FontFacesMissingException extends installedElectron.ElectronException {
   public constructor() {
     super("The window declares no font face, so its text would be measured in fallback fonts.");
   }

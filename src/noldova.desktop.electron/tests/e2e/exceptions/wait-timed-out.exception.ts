@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class WaitTimedOutException extends ElectronException {
+export class WaitTimedOutException extends installedElectron.ElectronException {
   public readonly description: string;
   public readonly milliseconds: number;
 

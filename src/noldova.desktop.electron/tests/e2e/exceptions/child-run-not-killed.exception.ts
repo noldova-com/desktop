@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class ChildRunNotKilledException extends ElectronException {
+export class ChildRunNotKilledException extends installedElectron.ElectronException {
   public readonly seconds: number;
 
   public constructor(seconds: number) {

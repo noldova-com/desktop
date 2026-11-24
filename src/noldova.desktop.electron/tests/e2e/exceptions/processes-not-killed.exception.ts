@@ -7,9 +7,10 @@
  */
 
 import "@noldova/context.core";
-import { ElectronException } from "@noldova/desktop.electron";
 
-export class ProcessesNotKilledException extends ElectronException {
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
+
+export class ProcessesNotKilledException extends installedElectron.ElectronException {
   public readonly processIds: readonly number[];
   public readonly seconds: number;
   public readonly keptFolder: string | null;

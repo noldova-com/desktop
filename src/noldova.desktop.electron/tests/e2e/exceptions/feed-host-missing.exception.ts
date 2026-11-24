@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ElectronException } from "@noldova/desktop.electron";
+import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 
-export class FeedHostMissingException extends ElectronException {
+export class FeedHostMissingException extends installedElectron.ElectronException {
   public readonly host: string;
   public readonly variant: string;
 
