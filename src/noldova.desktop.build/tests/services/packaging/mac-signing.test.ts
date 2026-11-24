@@ -15,6 +15,7 @@ import "@noldova/context.core";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
+import { ProductDeviceFolders } from "../../../src/models/packages/product-device-folders.js";
 import { ProductIdentity } from "../../../src/models/packages/product-identity.js";
 import { ProcessResult } from "../../../src/models/processes/process-result.js";
 import { MacSigning } from "../../../src/services/packaging/mac-signing.js";
@@ -51,7 +52,7 @@ class NotarizingRunner extends ProcessRunner {
 export class MacSigningTests {
   private static readonly PAUSE: number = 5_000;
   private static readonly PRODUCT: ProductIdentity = new ProductIdentity("Sample App", "Sample", "sample-app", "com.example.sample", "com.example.sample.development",
-    ".sample/app", ["Sample/App", "Sample/App", "sample/app"], "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app");
+    ".sample/app", new ProductDeviceFolders("Sample/App", "Sample/App", "sample/app"), "SAMPLE_APP_DATA_DIR", "assets/icons", "example/sample-app");
   private static readonly IMAGE: string = path.join(tmpdir(), "Sample-1.2.3-macos-arm64.dmg");
   private static readonly STAPLED: ProcessResult = new ProcessResult(0, "Processing: Sample.dmg\nThe staple and validate action worked!\n", String.empty);
   private static readonly NETWORK_LOST: ProcessResult = new ProcessResult(68, [

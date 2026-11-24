@@ -18,6 +18,9 @@ import { JsonReader } from "@noldova/context.json";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { UpdateFeed } from "../../services/packages/update-feed.ts";
 import { ProductAbout } from "./product-about.ts";
+import { ProductCategories } from "./product-categories.ts";
+import { ProductDeviceFolders } from "./product-device-folders.ts";
+import { ProductTitleBar } from "./product-title-bar.ts";
 import { Resources } from "../../resources.ts";
 
 export class ProductIdentity {
@@ -50,37 +53,38 @@ export class ProductIdentity {
     applicationId: string,
     developmentApplicationId: string,
     dataFolder: string,
-    deviceFolders: readonly [windows: string, macos: string, linux: string],
+    deviceFolders: ProductDeviceFolders,
     dataDirectoryVariable: string,
     icons: string,
     releaseRepository: string,
-    categories: readonly [macos: string, linux: string] = [Resources.productDefaultMacCategory, Resources.productDefaultLinuxCategory],
+    categories: ProductCategories = ProductCategories.DEFAULT,
     windowsSigning: Readonly<Record<string, unknown>> | null = null,
     permissionsModule: string | null = null,
     about: ProductAbout = ProductAbout.NONE,
     namedUpdateFeed: string | null = null,
     installFolder: string | null = null,
-    titleBar: readonly [name: string | null, icon: string | null] = [null, null]) {
-    const [windows, macos, linux] = deviceFolders;
-    const [macCategory, linuxCategory] = categories;
-    const [titleBarName, titleBarIcon] = titleBar;
+    titleBar: ProductTitleBar = ProductTitleBar.NONE) {
+    const titleBarName = titleBar.name;
+    const titleBarIcon = titleBar.icon;
     ProductIdentity.require(name.trim().length > 0 && !Resources.productUnsafeNamePattern.test(name), Resources.productNameField, Resources.productNameExpected);
     ProductIdentity.require(publisher.trim().length > 0 && !Resources.productUnsafePublisherPattern.test(publisher), Resources.productPublisherField, Resources.productPublisherExpected);
     ProductIdentity.require(Resources.productSlugPattern.test(slug), Resources.productSlugField, Resources.productSlugExpected);
     ProductIdentity.require(Resources.productApplicationIdPattern.test(applicationId), Resources.productApplicationIdField, Resources.productApplicationIdExpected);
     ProductIdentity.require(Resources.productApplicationIdPattern.test(developmentApplicationId) && developmentApplicationId !== applicationId,
       Resources.productDevelopmentApplicationIdField, Resources.productDevelopmentApplicationIdExpected);
-    for (const [field, folder] of [[Resources.productDataFolderField, dataFolder], [Resources.productWindowsDeviceFolderPath, windows], [Resources.productMacosDeviceFolderPath, macos],
-      [Resources.productLinuxDeviceFolderPath, linux], [Resources.productIconsField, icons]] as const)
-      ProductIdentity.require(ProductIdentity.isRelativeFolder(folder), field, Resources.productFolderExpected);
+    ProductIdentity.requireRelativeFolder(dataFolder, Resources.productDataFolderField);
+    ProductIdentity.requireRelativeFolder(deviceFolders.windows, Resources.productWindowsDeviceFolderPath);
+    ProductIdentity.requireRelativeFolder(deviceFolders.macos, Resources.productMacosDeviceFolderPath);
+    ProductIdentity.requireRelativeFolder(deviceFolders.linux, Resources.productLinuxDeviceFolderPath);
+    ProductIdentity.requireRelativeFolder(icons, Resources.productIconsField);
     ProductIdentity.require(Resources.productVariablePattern.test(dataDirectoryVariable), Resources.productDataDirectoryVariableField, Resources.productVariableExpected);
     ProductIdentity.require(Resources.productRepositoryPattern.test(releaseRepository), Resources.productReleaseRepositoryField, Resources.productRepositoryExpected);
-    ProductIdentity.require(Resources.productMacCategoryPattern.test(macCategory), Resources.productMacCategoryPath, Resources.productMacCategoryExpected);
-    ProductIdentity.require(Resources.productLinuxCategoryPattern.test(linuxCategory), Resources.productLinuxCategoryPath, Resources.productLinuxCategoryExpected);
+    ProductIdentity.require(Resources.productMacCategoryPattern.test(categories.macos), Resources.productMacCategoryPath, Resources.productMacCategoryExpected);
+    ProductIdentity.require(Resources.productLinuxCategoryPattern.test(categories.linux), Resources.productLinuxCategoryPath, Resources.productLinuxCategoryExpected);
     ProductIdentity.require(Object.isNull(about.description) || (about.description.trim().length > 0 && !Resources.productLineBreakPattern.test(about.description)),
       Resources.productDescriptionPath, Resources.productDescriptionExpected);
-    for (const [field, address] of [[Resources.productWebsitePath, about.website], [Resources.productReleasesPath, about.releases]] as const)
-      ProductIdentity.require(Object.isNull(address) || ProductIdentity.isSecureAddress(address), field, Resources.productAddressExpected);
+    ProductIdentity.requireSecureAddress(about.website, Resources.productWebsitePath);
+    ProductIdentity.requireSecureAddress(about.releases, Resources.productReleasesPath);
     ProductIdentity.require(Object.isNull(about.licenses) || about.licenses.trim().length > 0, Resources.productLicensesPath, Resources.productLicensesExpected);
     ProductIdentity.require(Object.isNull(namedUpdateFeed) || UpdateFeed.isNamed(namedUpdateFeed), Resources.productUpdateFeedField, Resources.productUpdateFeedExpected);
     ProductIdentity.require(Object.isNull(installFolder) || Resources.productInstallFolderPattern.test(installFolder), Resources.productInstallFolderField,
@@ -95,14 +99,14 @@ export class ProductIdentity {
     this.applicationId = applicationId;
     this.developmentApplicationId = developmentApplicationId;
     this.dataFolder = dataFolder;
-    this.windowsDeviceFolder = windows;
-    this.macosDeviceFolder = macos;
-    this.linuxDeviceFolder = linux;
+    this.windowsDeviceFolder = deviceFolders.windows;
+    this.macosDeviceFolder = deviceFolders.macos;
+    this.linuxDeviceFolder = deviceFolders.linux;
     this.dataDirectoryVariable = dataDirectoryVariable;
     this.icons = icons;
     this.releaseRepository = releaseRepository;
-    this.macCategory = macCategory;
-    this.linuxCategory = linuxCategory;
+    this.macCategory = categories.macos;
+    this.linuxCategory = categories.linux;
     this.windowsSigning = windowsSigning;
     this.permissionsModule = permissionsModule;
     this.about = about;
@@ -141,19 +145,20 @@ export class ProductIdentity {
       ProductIdentity.readText(product, Resources.productApplicationIdField),
       ProductIdentity.readText(product, Resources.productDevelopmentApplicationIdField),
       ProductIdentity.readText(product, Resources.productDataFolderField),
-      [ProductIdentity.readText(folders, Resources.windowsTarget), ProductIdentity.readText(folders, Resources.macosTarget), ProductIdentity.readText(folders, Resources.linuxTarget)],
+      new ProductDeviceFolders(ProductIdentity.readText(folders, Resources.windowsTarget), ProductIdentity.readText(folders, Resources.macosTarget),
+        ProductIdentity.readText(folders, Resources.linuxTarget)),
       ProductIdentity.readText(product, Resources.productDataDirectoryVariableField),
       ProductIdentity.readText(product, Resources.productIconsField),
       ProductIdentity.readText(product, Resources.productReleaseRepositoryField),
-      [ProductIdentity.readText(categories, Resources.macosTarget, Resources.productDefaultMacCategory),
-        ProductIdentity.readText(categories, Resources.linuxTarget, Resources.productDefaultLinuxCategory)],
+      new ProductCategories(ProductIdentity.readText(categories, Resources.macosTarget, Resources.productDefaultMacCategory),
+        ProductIdentity.readText(categories, Resources.linuxTarget, Resources.productDefaultLinuxCategory)),
       ProductIdentity.readRecord(product, Resources.productWindowsSigningField)?.toJson() ?? null,
       Object.isString(permissionsModule) ? permissionsModule : null,
       new ProductAbout(ProductIdentity.readOptionalText(about, Resources.productDescriptionField), ProductIdentity.readOptionalText(about, Resources.productWebsiteField),
         ProductIdentity.readOptionalText(about, Resources.productReleasesField), ProductIdentity.readOptionalText(about, Resources.productLicensesField)),
       ProductIdentity.readOptionalText(product, Resources.productUpdateFeedField),
       ProductIdentity.readOptionalText(product, Resources.productInstallFolderField),
-      [ProductIdentity.readOptionalText(product, Resources.productTitleBarNameField), ProductIdentity.readOptionalText(product, Resources.productTitleBarIconField)]);
+      new ProductTitleBar(ProductIdentity.readOptionalText(product, Resources.productTitleBarNameField), ProductIdentity.readOptionalText(product, Resources.productTitleBarIconField)));
   }
 
   public get updateFeed(): string {
@@ -176,6 +181,14 @@ export class ProductIdentity {
   private static isRelativeFolder(folder: string): boolean {
     return folder.split(Resources.pathSegmentSeparator).every(t => t.length > 0 && t !== Resources.currentFolderSegment && t !== Resources.parentFolderSegment
       && !Resources.productUnsafeSegmentPattern.test(t));
+  }
+
+  private static requireRelativeFolder(folder: string, field: string): void {
+    ProductIdentity.require(ProductIdentity.isRelativeFolder(folder), field, Resources.productFolderExpected);
+  }
+
+  private static requireSecureAddress(address: string | null, field: string): void {
+    ProductIdentity.require(Object.isNull(address) || ProductIdentity.isSecureAddress(address), field, Resources.productAddressExpected);
   }
 
   private static isTitleBarIcon(icon: string): boolean {
