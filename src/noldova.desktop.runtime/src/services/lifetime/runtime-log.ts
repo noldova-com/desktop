@@ -6,13 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
 
 import { ProductInfo } from "../../models/product-info.js";
 import { SystemErrorCode } from "../../models/system-error-code.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import { DiagnosticRedactor } from "../diagnostics/diagnostic-redactor.js";
 import { LogFile } from "../diagnostics/log-file.js";
@@ -44,7 +45,7 @@ export class RuntimeLog {
     writeWait: number = Resources.logWriteWaitMilliseconds): Promise<RuntimeLog> {
     lock.requireHeld();
     const directory = lock.dataDirectory;
-    await mkdir(directory.logsFolder, { recursive: true });
+    await FolderCreation.createAsync(directory.logsFolder);
     const file = new LogFile(directory.runtimeLog, directory.previousRuntimeLog, new DiagnosticRedactor(homeFolder, [ProductInfo.current.name]), now, Resources.logSizeLimit, writeWait);
     file.open();
     const log = new RuntimeLog(file, error);

@@ -7,13 +7,14 @@
  */
 
 import { existsSync } from "node:fs";
-import { lstat, mkdir, readdir, readlink, rm } from "node:fs/promises";
+import { lstat, readdir, readlink, rm } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { ProcessRunner } from "../processes/process-runner.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class MacUpdateArchiveCheck {
@@ -36,7 +37,7 @@ export class MacUpdateArchiveCheck {
       throw new BuildException(Resources.formatMacUpdateCopies(applications.length, bundle, output, archive));
     const [application = bundle] = applications;
     await rm(this.folder, { recursive: true, force: true });
-    await mkdir(this.folder, { recursive: true });
+    await FolderCreation.createAsync(this.folder);
     try {
       await this.runner.requireAsync(Resources.dittoCommand, [...Resources.dittoExtractArguments, archive, this.folder], this.folder, Resources.macUpdateArchiveTimeout,
         this.environment);

@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 import timers from "node:timers/promises";
@@ -18,6 +18,7 @@ import type { NodeGyp } from "../toolchain/node-gyp.ts";
 import type { BuildLayout } from "./build-layout.ts";
 import type { PackageManifest } from "../../models/packages/package-manifest.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class AddonBuilder {
@@ -76,7 +77,7 @@ export class AddonBuilder {
   }
 
   private async installHeadersAsync(): Promise<void> {
-    await mkdir(this.layout.nodeGypFolder, { recursive: true });
+    await FolderCreation.createAsync(this.layout.nodeGypFolder);
     for (let attempt = 1; ; attempt++) {
       const result = await this.nodeGyp.runAsync([...Resources.addonHeadersInstallArguments, ...this.locateHeaders()], this.layout.nodeGypFolder);
       if (result.isSuccessful)
@@ -93,7 +94,7 @@ export class AddonBuilder {
     const source = `${addon}${Resources.addonSourceExtension}`;
     const target = addon.replaceAll(Resources.kebabSeparator, Resources.snakeSeparator);
     await rm(work, { recursive: true, force: true });
-    await mkdir(work, { recursive: true });
+    await FolderCreation.createAsync(work);
     await copyFile(this.layout.locateSource(manifest, ...Resources.addonSourceSegments, source), path.join(work, source));
     await writeFile(path.join(work, Resources.addonProjectFile), Resources.formatJsonFile({
       targets: [{ target_name: target, sources: [source], defines: [Resources.addonNodeApiDefine] }]
@@ -107,7 +108,7 @@ export class AddonBuilder {
         : Resources.formatAddonBuildFailed(manifest.name, kind, addon, result.exitCode, result.text));
 
     const folder = path.join(output, Resources.addonOutputFolder, Resources.formatAddonTarget(this.platform, this.architecture));
-    await mkdir(folder, { recursive: true });
+    await FolderCreation.createAsync(folder);
     await copyFile(path.join(work, ...Resources.addonBuiltSegments, Resources.formatAddonFile(target)), path.join(folder, Resources.formatAddonFile(addon)));
   }
 
@@ -122,7 +123,7 @@ export class AddonBuilder {
 
     for (const build of builds) {
       const file = path.join(output, Resources.addonOutputFolder, ...build.split(Resources.pathSegmentSeparator));
-      await mkdir(path.dirname(file), { recursive: true });
+      await FolderCreation.createAsync(path.dirname(file));
       await copyFile(this.locateReleaseBuild(manifest, build), file);
     }
   }

@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { copyFile, cp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { copyFile, cp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -23,6 +23,7 @@ import { LockedInstallCheck } from "./locked-install-check.ts";
 import type { PackageManifest } from "../../models/packages/package-manifest.ts";
 import type { PackageVersions } from "../../models/packages/package-versions.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class PackageBuilder {
@@ -66,7 +67,7 @@ export class PackageBuilder {
       await this.copyDeclarationsAsync(declarations, output);
     await this.addons.buildAsync(manifest, output);
 
-    await mkdir(this.layout.archivesFolder, { recursive: true });
+    await FolderCreation.createAsync(this.layout.archivesFolder);
     PackageBuilder.require(await this.npm.runAsync([...Resources.npmPackArguments, this.layout.archivesFolder], output), Resources.formatPackingOperation(manifest.name));
     const differences = await this.findArchiveDifferencesAsync(manifest, this.layout.locateArchive(manifest, this.versions.of(manifest.name)));
     if (differences.length > 0)
@@ -200,7 +201,7 @@ export class PackageBuilder {
 
   private async copyDeclarationsAsync(declarations: string, output: string): Promise<void> {
     const folder = path.join(output, ...Resources.declarationSegments.slice(0, -1));
-    await mkdir(folder, { recursive: true });
+    await FolderCreation.createAsync(folder);
     for (const name of (await readdir(path.dirname(declarations))).filter(t => t.endsWith(Resources.declarationExtension)).sort())
       await copyFile(path.join(path.dirname(declarations), name), path.join(folder, name));
   }

@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { chmod, copyFile, mkdir, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises";
+import { chmod, copyFile, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -26,6 +26,7 @@ import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { StoppedInstaller } from "./stopped-installer.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { UserPath } from "./user-path.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class PackageInstaller {
@@ -231,7 +232,7 @@ export class PackageInstaller {
     if (!Object.isNull(menuFolder)) {
       const neighbour = this.locateNeighbourIn(menuFolder);
       const moved = this.locateWindowsDefaultFolder(product);
-      await mkdir(path.dirname(neighbour), { recursive: true });
+      await FolderCreation.createAsync(path.dirname(neighbour));
       await writeFile(neighbour, String.empty);
       await this.runInstallerAsync(installer, [...Resources.silentInstallArguments, `${Resources.installFolderOption}${moved}`], moved, folder, environment, true);
       PackageInstaller.requireFiles([path.join(moved, `${product.name}${Resources.windowsProgramExtension}`)]);

@@ -1983,6 +1983,8 @@ export class Resources {
   public static readonly fileNotFoundCode: string = "ENOENT";
   public static readonly missingFileCodes: ReadonlySet<string> = new Set(["ENOENT", "ENOTDIR"]);
   public static readonly unreachableFileCodes: ReadonlySet<string> = new Set(["ENOENT", "ENOTDIR", "EACCES", "EPERM"]);
+  public static readonly deniedFileCodes: ReadonlySet<string> = new Set(["EPERM"]);
+  public static readonly folderMode: number = 0o777;
   public static readonly reportSignedChecked: string = "signed and checked";
   public static readonly reportSignedUnchecked: string = "signed but not checked";
   public static readonly reportUnsignedChecked: string = "unsigned but marked checked";

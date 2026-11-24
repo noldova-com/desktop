@@ -6,12 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
 
 import type { ModuleDeclaration } from "../../models/modules/module-declaration.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class ModuleArtifacts {
@@ -62,7 +63,7 @@ export class ModuleArtifacts {
   }
 
   private static async writeFileAsync(file: string, text: string): Promise<void> {
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderCreation.createAsync(path.dirname(file));
     await writeFile(file, text);
   }
 }

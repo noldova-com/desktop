@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -14,6 +14,7 @@ import "@noldova/context.core";
 import { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { AboutLogo } from "./about-logo.ts";
 import { TitleBarIcon } from "./title-bar-icon.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class ProductFile {
@@ -29,7 +30,7 @@ export class ProductFile {
 
   public async writeAsync(): Promise<void> {
     const product = await ProductIdentity.readAsync(this.root);
-    await mkdir(path.dirname(this.file), { recursive: true });
+    await FolderCreation.createAsync(path.dirname(this.file));
     await writeFile(this.file, [
       Resources.licenseHeaderBlock,
       Resources.productAboutTypeImport,

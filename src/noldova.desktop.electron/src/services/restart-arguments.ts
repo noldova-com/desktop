@@ -7,13 +7,13 @@
  */
 
 import { readFileSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 import { JsonReader } from "@noldova/context.json";
-import { Installation } from "@noldova/desktop.runtime";
+import { FolderCreation, Installation } from "@noldova/desktop.runtime";
 
 import { RestartArgumentsNotWrittenException } from "../exceptions/restart-arguments-not-written.exception.js";
 import { ErrorCode } from "../models/error-code.js";
@@ -28,7 +28,7 @@ export class RestartArguments {
 
   public async writeAsync(version: string, launchArguments: readonly string[], written: number): Promise<void> {
     try {
-      await mkdir(dirname(this.file), { recursive: true });
+      await FolderCreation.createAsync(dirname(this.file));
       await writeFile(this.file, JSON.stringify({
         [Resources.restartVersionField]: version,
         [Resources.restartArgumentsField]: launchArguments,

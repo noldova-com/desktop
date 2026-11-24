@@ -14,6 +14,7 @@ import timers from "node:timers/promises";
 import type { ProcessResult } from "../../models/processes/process-result.ts";
 import type { ProcessRunner } from "../processes/process-runner.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class AppleSignatureCheck {
@@ -29,7 +30,7 @@ export class AppleSignatureCheck {
 
   public async verifyAsync(packages: readonly string[], productName: string): Promise<string> {
     await rm(this.folder, { recursive: true, force: true });
-    await mkdir(this.folder, { recursive: true });
+    await FolderCreation.createAsync(this.folder);
     const lines: string[] = [];
     try {
       for (const [index, file] of packages.entries()) {

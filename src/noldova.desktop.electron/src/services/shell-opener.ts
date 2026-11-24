@@ -6,10 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir } from "node:fs/promises";
-
 import "@noldova/context.core";
 import { LinkPolicy } from "@noldova/desktop.protocol";
+import { FolderCreation } from "@noldova/desktop.runtime";
 
 import type { IShellHost } from "../interfaces/i-shell-host.js";
 import type { IShownPathFiles } from "../interfaces/i-shown-path-files.js";
@@ -35,7 +34,7 @@ export class ShellOpener {
 
   public async openLogFolderAsync(): Promise<boolean> {
     try {
-      await mkdir(this.logsFolder, { recursive: true });
+      await FolderCreation.createAsync(this.logsFolder);
     }
     catch (error) {
       this.log(Resources.formatLogFolderNotOpened(String(error)));

@@ -7,12 +7,13 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { link, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
 import { ExceptionOptions } from "@noldova/context.exceptions";
 import { JsonReader } from "@noldova/context.json";
+import { FolderCreation } from "@noldova/desktop.runtime";
 
 import { DeviceIdentityException } from "../exceptions/device-identity.exception.js";
 import { Resources } from "../resources.js";
@@ -22,7 +23,7 @@ export class DeviceIdentity {
   public static async readOrCreateAsync(folder: string): Promise<string> {
     const file = path.join(folder, Resources.deviceFileName);
     if (!await FilePresence.existsAsync(file)) {
-      await mkdir(folder, { recursive: true });
+      await FolderCreation.createAsync(folder);
       const draft = Resources.formatDraftFile(file, randomUUID());
       await writeFile(draft, Resources.formatJsonLine(JSON.stringify({ [Resources.deviceIdField]: randomUUID() })), { flag: Resources.createOnlyFlag });
       await link(draft, file).catch(() => undefined);

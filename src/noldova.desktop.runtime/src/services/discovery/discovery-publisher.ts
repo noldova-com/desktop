@@ -7,13 +7,14 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
 
 import type { IFolderProtector } from "../../interfaces/i-folder-protector.js";
 import type { RuntimeDiscovery } from "../../models/runtime-discovery.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import { FilePresence } from "../files/file-presence.js";
 import { FileRenamer } from "../files/file-renamer.js";
@@ -33,7 +34,7 @@ export class DiscoveryPublisher {
   public async publishAsync(discovery: RuntimeDiscovery): Promise<string> {
     this.lock.requireHeld();
     const directory = this.lock.dataDirectory;
-    const created = await mkdir(directory.discoveryFolder, { recursive: true, mode: Resources.privateFolderMode });
+    const created = await FolderCreation.createAsync(directory.discoveryFolder, Resources.privateFolderMode);
     if (!Object.isUndefined(created))
       await this.protector.protectAsync(directory.discoveryFolder);
 

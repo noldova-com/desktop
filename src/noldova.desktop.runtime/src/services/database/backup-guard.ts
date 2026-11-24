@@ -6,12 +6,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import "@noldova/context.core";
 
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 
 export class BackupGuard implements Disposable {
@@ -66,7 +66,7 @@ export class BackupGuard implements Disposable {
   }
 
   private static async openAsync(folder: string, timeout: number): Promise<DatabaseSync> {
-    await mkdir(folder, { recursive: true });
+    await FolderCreation.createAsync(folder);
     return new DatabaseSync(path.join(folder, Resources.backupGuardFileName), { timeout });
   }
 

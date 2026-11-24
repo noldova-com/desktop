@@ -11,6 +11,7 @@ import path from "node:path";
 
 import { DataDirectoryState } from "../../enums/data-directory-state.js";
 import { DataDirectoryInspection } from "../../models/data-directory-inspection.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import { FilePresence } from "../files/file-presence.js";
 import type { OwnershipLock } from "../ownership/ownership-lock.js";
@@ -38,7 +39,7 @@ export class DataDirectoryInspector {
     await mkdir(destination);
     for (const entry of inspection.entries) {
       const target = path.join(destination, entry);
-      await mkdir(path.dirname(target), { recursive: true });
+      await FolderCreation.createAsync(path.dirname(target));
       await rename(path.join(root, entry), target);
     }
     return destination;

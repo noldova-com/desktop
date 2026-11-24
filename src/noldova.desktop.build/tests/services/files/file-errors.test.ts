@@ -23,10 +23,16 @@ export class FileErrorsTests {
   }
 
   @TestMethod
+  public takesOnlyEpermAsDenied(): void {
+    Assert.areEqual("true,false,false,false", ["EPERM", "EACCES", "ENOENT", "EEXIST"].map(t => FileErrors.isDenied(FileErrorsTests.create(t))).join(","));
+  }
+
+  @TestMethod
   public takesNoOtherValueForAFileError(): void {
     for (const error of [new Error("no code"), Object.assign(new Error("number"), { code: 2 }), { code: "ENOENT" }, "ENOENT", null, undefined]) {
       Assert.isFalse(FileErrors.isMissing(error));
       Assert.isFalse(FileErrors.isUnreachable(error));
+      Assert.isFalse(FileErrors.isDenied(error));
     }
   }
 

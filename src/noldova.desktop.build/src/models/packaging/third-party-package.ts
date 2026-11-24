@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
@@ -20,6 +20,7 @@ import type { AcceptedLicenses } from "./accepted-licenses.ts";
 import { LicenseExpression } from "./license-expression.ts";
 import type { LockedPackage } from "./locked-package.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { FolderCreation } from "../../services/files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 import { RetriedDownload } from "../../services/processes/retried-download.ts";
 import { ResponseBody } from "../response-body.ts";
@@ -47,7 +48,7 @@ export class ThirdPartyPackage {
     const file = path.join(folder, locked.fileName);
     const kept = existsSync(file) ? await readFile(file) : null;
     const data = !Object.isNull(kept) && locked.matches(kept) ? kept : await ThirdPartyPackage.downloadAsync(locked, output, limit, pause, download);
-    await mkdir(folder, { recursive: true });
+    await FolderCreation.createAsync(folder);
     await writeFile(file, data);
 
     const archive = TarArchive.fromGzip(data, Resources.formatTarballSource(locked.id, locked.resolved));

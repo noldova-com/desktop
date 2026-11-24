@@ -7,10 +7,11 @@
  */
 
 import { existsSync } from "node:fs";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile } from "node:fs/promises";
 import path from "node:path";
 
 import { ProductIdentity } from "../../models/packages/product-identity.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class AboutLogo {
@@ -35,7 +36,7 @@ export class AboutLogo {
 
   public async copyAsync(windowFolder: string): Promise<void> {
     const folder = path.join(windowFolder, Resources.windowBrowserFolder, Resources.aboutLogoFolder);
-    await mkdir(folder, { recursive: true });
+    await FolderCreation.createAsync(folder);
     for (const file of new Set([this.light, Resources.linuxIconFile]))
       await copyFile(path.join(this.icons, file), path.join(folder, file));
   }

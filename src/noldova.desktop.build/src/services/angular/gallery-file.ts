@@ -6,11 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
-
 
 export class GalleryFile {
   private readonly root: string;
@@ -24,7 +24,7 @@ export class GalleryFile {
   }
 
   public async writeAsync(isPackaged: boolean): Promise<void> {
-    await mkdir(path.dirname(this.file), { recursive: true });
+    await FolderCreation.createAsync(path.dirname(this.file));
     await writeFile(this.file, GalleryFile.contentOf(isPackaged));
   }
 

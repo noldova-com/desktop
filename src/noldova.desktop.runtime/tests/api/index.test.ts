@@ -74,6 +74,7 @@ export class RuntimeApiTests {
       "EventRegistry",
       "FileGrantTable",
       "FileIdentity",
+      "FolderCreation",
       "FolderProtectorFactory",
       "ForegroundProcess",
       "GrantedFile",

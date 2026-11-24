@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
 import "@noldova/context.core";
@@ -15,6 +15,7 @@ import { ExceptionOptions } from "@noldova/context.exceptions";
 import { DataDirectoryOwnedException } from "../../exceptions/data-directory-owned.exception.js";
 import { OwnershipReleasedException } from "../../exceptions/ownership-released.exception.js";
 import { Resources } from "../../resources.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import type { DataDirectory } from "../data-directory/data-directory.js";
 
 export class OwnershipLock implements Disposable {
@@ -28,7 +29,7 @@ export class OwnershipLock implements Disposable {
   }
 
   public static acquire(dataDirectory: DataDirectory): OwnershipLock {
-    mkdirSync(dataDirectory.root, { recursive: true });
+    FolderCreation.create(dataDirectory.root);
     const connection = new DatabaseSync(dataDirectory.ownershipDatabase, { timeout: Resources.ownershipWaitMilliseconds });
     try {
       connection.exec(Resources.acquireOwnershipStatement);

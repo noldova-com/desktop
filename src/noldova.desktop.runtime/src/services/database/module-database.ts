@@ -6,8 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-
-import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
@@ -15,6 +13,7 @@ import "@noldova/context.core";
 
 import type { IModuleDatabase } from "../../interfaces/i-module-database.js";
 import type { Migration } from "../../models/migration.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import type { DataDirectory } from "../data-directory/data-directory.js";
 import { MigratedDatabase } from "./migrated-database.js";
@@ -27,7 +26,7 @@ export class ModuleDatabase extends MigratedDatabase implements IModuleDatabase 
     moment: Date = new Date(),
     diagnostics: Writable = process.stderr): Promise<ModuleDatabase> {
     const file = directory.locateModuleDatabase(moduleId);
-    await mkdir(path.dirname(file), { recursive: true });
+    await FolderCreation.createAsync(path.dirname(file));
     const [connection, applied] = await MigratedDatabase.migrateAsync(
       file,
       Resources.formatModuleDatabaseName(moduleId),

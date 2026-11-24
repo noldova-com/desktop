@@ -10,8 +10,8 @@
 
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { EventEmitter } from "node:events";
-import type { BigIntStats, RmOptions } from "node:fs";
-import type { FileHandle } from "node:fs/promises";
+import type { BigIntStats, mkdirSync, RmOptions } from "node:fs";
+import type { FileHandle, mkdir } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import type { DatabaseSync, SQLInputValue, SQLOutputValue, StatementResultingChanges } from "node:sqlite";
@@ -2503,6 +2503,56 @@ export declare class FileIdentity {
    * ```
    */
   public static of(stats: BigIntStats): string;
+}
+
+/**
+ * Creates a folder and the folders above it, keeping any that already exist.
+ * On Windows, a Dev Drive can answer `EPERM` for a folder that exists and was
+ * just created; such a folder is kept as well, without trying again.
+ */
+export declare class FolderCreation {
+  /**
+   * Creates the folder and every missing folder above it.
+   *
+   * @param folder The folder to create.
+   * @param mode The mode of each folder it creates, `0o777` by default, less
+   * the process's umask; a folder that exists keeps its own.
+   * @param create Creates the folders, Node.js's `mkdir` by default.
+   * @returns A promise of the first folder it created, or `undefined` when the
+   * folder already existed.
+   * @throws Error When the folder can't be created, or `EPERM` is answered and
+   * no folder is there.
+   * @example
+   * ```ts
+   * import { FolderCreation } from "@noldova/desktop.runtime";
+   *
+   * export async function prepareAsync(folder: string): Promise<void> {
+   *   await FolderCreation.createAsync(folder);
+   * }
+   * ```
+   */
+  public static createAsync(folder: string, mode?: number, create?: typeof mkdir): Promise<string | undefined>;
+
+  /**
+   * Creates the folder and every missing folder above it, waiting for each, as
+   * {@link FolderCreation.createAsync} does.
+   *
+   * @param folder The folder to create.
+   * @param create Creates the folders, Node.js's `mkdirSync` by default.
+   * @returns The first folder it created, or `undefined` when the folder
+   * already existed.
+   * @throws Error When the folder can't be created, or `EPERM` is answered and
+   * no folder is there.
+   * @example
+   * ```ts
+   * import { FolderCreation } from "@noldova/desktop.runtime";
+   *
+   * export function prepare(folder: string): void {
+   *   FolderCreation.create(folder);
+   * }
+   * ```
+   */
+  public static create(folder: string, create?: typeof mkdirSync): string | undefined;
 }
 
 /**

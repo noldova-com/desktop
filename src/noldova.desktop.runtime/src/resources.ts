@@ -194,10 +194,12 @@ export class Resources {
   public static readonly readFlag: string = "r";
   public static readonly logRecordShare: number = 4;
   public static readonly missingFileErrorCode: string = "ENOENT";
+  public static readonly deniedFolderCode: string = "EPERM";
   public static readonly existingFileErrorCode: string = "EEXIST";
   public static readonly utf8ContinuationMask: number = 0xC0;
   public static readonly utf8ContinuationBits: number = 0x80;
   public static readonly privateFolderMode: number = 0o700;
+  public static readonly folderMode: number = 0o777;
   public static readonly exclusiveWriteFlag: string = "wx";
   public static readonly temporarySuffix: string = ".tmp";
   public static readonly removalIntentSuffix: string = ".removing";

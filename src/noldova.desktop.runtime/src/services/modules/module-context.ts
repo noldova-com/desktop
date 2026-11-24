@@ -6,7 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir } from "node:fs/promises";
 import type { Writable } from "node:stream";
 import { inspect } from "node:util";
 
@@ -47,6 +46,7 @@ import type { PseudoTerminal } from "../../models/pseudo-terminal.js";
 import type { PseudoTerminalRequest } from "../../models/pseudo-terminal-request.js";
 import type { RuntimeCommand } from "../../models/runtime-command.js";
 import { WorkItem } from "../../models/work-item.js";
+import { FolderCreation } from "../files/folder-creation.js";
 import { Resources } from "../../resources.js";
 import { AppSurface } from "../app-surface/app-surface.js";
 import { ModuleAppShortcuts } from "../app-surface/module-app-shortcuts.js";
@@ -165,7 +165,7 @@ export class ModuleContext implements IRuntimePartContext, Disposable {
   }
 
   public async getWorkFolderAsync(): Promise<string> {
-    await mkdir(this.workFolder, { recursive: true });
+    await FolderCreation.createAsync(this.workFolder);
     return this.workFolder;
   }
 

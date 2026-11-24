@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { copyFile, cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
@@ -37,6 +37,7 @@ import { BuildException } from "../../exceptions/build.exception.ts";
 import { ThirdPartyClosure } from "./third-party-closure.ts";
 import { ThirdPartyPackage } from "../../models/packaging/third-party-package.ts";
 import { TypeOnlyPeers } from "../../models/packaging/type-only-peers.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class PackageStage {
@@ -159,7 +160,7 @@ export class PackageStage {
     const prepared: ThirdPartyPackage[] = [];
     for (const locked of thirdParty)
       prepared.push(await ThirdPartyPackage.prepareAsync(locked, this.layout.thirdParty, this.assets.list(Resources.reviewedLicensesSegments), accepted, typeOnly, output));
-    await mkdir(path.dirname(this.layout.thirdPartyLicenses), { recursive: true });
+    await FolderCreation.createAsync(path.dirname(this.layout.thirdPartyLicenses));
     await writeFile(this.layout.thirdPartyLicenses, prepared.map(t => t.formatNotice()).join(Resources.stageNoticeSeparator));
     return prepared;
   }

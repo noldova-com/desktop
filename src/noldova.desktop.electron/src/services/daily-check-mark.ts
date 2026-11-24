@@ -6,10 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import "@noldova/context.core";
+import { FolderCreation } from "@noldova/desktop.runtime";
 
 import { Resources } from "../resources.js";
 
@@ -62,7 +63,7 @@ export class DailyCheckMark {
     if (Object.isUndefined(date))
       return;
     try {
-      await mkdir(dirname(this.file), { recursive: true });
+      await FolderCreation.createAsync(dirname(this.file));
       await writeFile(this.file, date, Resources.textEncoding);
     }
     catch (error) {

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -16,6 +16,7 @@ import type { ProcessRunner } from "../processes/process-runner.ts";
 import { AppleSignatureCheck } from "./apple-signature-check.ts";
 import type { IPackageSigning } from "../../interfaces/i-package-signing.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class MacSigning implements IPackageSigning {
@@ -59,7 +60,7 @@ export class MacSigning implements IPackageSigning {
 
   public async prepareAsync(): Promise<void> {
     await rm(this.folder, { recursive: true, force: true });
-    await mkdir(this.folder, { recursive: true, mode: Resources.privateFolderMode });
+    await FolderCreation.createAsync(this.folder, Resources.privateFolderMode);
     await writeFile(path.join(this.folder, Resources.macNotarizationKeyFile), this.key, { mode: Resources.privateFileMode });
   }
 

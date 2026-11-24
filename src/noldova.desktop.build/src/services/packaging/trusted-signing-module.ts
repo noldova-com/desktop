@@ -7,7 +7,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -19,6 +19,7 @@ import { BuildException } from "../../exceptions/build.exception.ts";
 import { PinnedPackage } from "../../models/packaging/pinned-package.ts";
 import { ResponseBody } from "../../models/response-body.ts";
 import { WindowsSigningAccount } from "../../models/packaging/windows-signing-account.ts";
+import { FolderCreation } from "../files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
 
 export class TrustedSigningModule {
@@ -71,7 +72,7 @@ export class TrustedSigningModule {
         path.join(this.folder, ...source.folder.split(Resources.pathSegmentSeparator)), bytes]);
     }
     await rm(this.folder, { recursive: true, force: true });
-    await mkdir(this.folder, { recursive: true });
+    await FolderCreation.createAsync(this.folder);
     try {
       for (const [archive, , bytes] of downloads)
         await writeFile(archive, bytes);
