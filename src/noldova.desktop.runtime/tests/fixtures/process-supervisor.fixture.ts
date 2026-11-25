@@ -16,6 +16,7 @@ import {
 } from "@noldova/desktop.runtime";
 
 import { ProcessClockFixture } from "./process-clock.fixture.js";
+import { ProgramExitedEarlyException } from "../exceptions/program-exited-early.exception.js";
 import { ProgramFixture } from "./program.fixture.js";
 import type { PseudoTerminalLibraryFixture } from "./pseudo-terminal-library.fixture.js";
 import { SettingsFixture } from "./settings.fixture.js";
@@ -112,7 +113,7 @@ export class ProcessSupervisorFixture {
       printed.resolve();
     const exited = terminal.exited.then(t => {
       if (!isPrinted())
-        throw new Error(`The program exited with ${t.code} ${t.signal} before it printed ${Object.isString(expected) ? JSON.stringify(expected) : String(expected)}. It printed: ${JSON.stringify(output())}`);
+        throw new ProgramExitedEarlyException(t, Object.isString(expected) ? JSON.stringify(expected) : String(expected), output());
     });
     try {
       await Promise.race([printed.promise, exited]);

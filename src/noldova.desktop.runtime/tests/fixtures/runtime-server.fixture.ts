@@ -15,7 +15,9 @@ import { Assert } from "@noldova/context.testing";
 import { BuildIdentity, type FailureCode, Handshake, QualifiedName, type Response, RuntimeHandover } from "@noldova/desktop.protocol";
 import { CapabilityToken, type Endpoint, type IMethodHandler, MethodRegistry, type RequestContext, RuntimeServer, ServerSettings } from "@noldova/desktop.runtime";
 
+import { HandshakeFailedException } from "../exceptions/handshake-failed.exception.js";
 import { RawConnectionFixture } from "./raw-connection.fixture.js";
+import { ServerNotListeningException } from "../exceptions/server-not-listening.exception.js";
 import { TextOutputFixture } from "./text-output.fixture.js";
 
 export class RuntimeServerFixture implements AsyncDisposable {
@@ -91,7 +93,7 @@ export class RuntimeServerFixture implements AsyncDisposable {
 
   public async connectAsync(allowHalfOpen: boolean = false): Promise<RawConnectionFixture> {
     if (Object.isNull(this.endpoint))
-      throw new Error("The server is not listening.");
+      throw new ServerNotListeningException();
     const connection = await RawConnectionFixture.connectAsync(this.endpoint, allowHalfOpen);
     this.connections.push(connection);
     return connection;
@@ -109,7 +111,7 @@ export class RuntimeServerFixture implements AsyncDisposable {
   public async authenticateAsync(client: string = "tester"): Promise<RawConnectionFixture> {
     const [connection, answer] = await this.handshakeAsync(client);
     if (answer.hasFailed)
-      throw new Error(`The handshake failed: ${answer.toText()}`);
+      throw new HandshakeFailedException(answer.toText());
     return connection;
   }
 

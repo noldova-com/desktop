@@ -9,6 +9,8 @@
 import "@noldova/context.core";
 import type { IWindowsProcessApi, IWindowsSignature } from "@noldova/desktop.runtime";
 
+import { HandleNotOpenException } from "../exceptions/handle-not-open.exception.js";
+
 export class WindowsProcessApiFixture implements IWindowsProcessApi {
   public static readonly QUERY: number = 0x1000;
   public static readonly END: number = 0x1000 | 0x0001 | 0x100000;
@@ -168,7 +170,7 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
   private open(handle: bigint): readonly [number, number] {
     const opened = this.handles.get(handle);
     if (Object.isUndefined(opened))
-      throw new Error(`The handle ${handle} is not open.`);
+      throw new HandleNotOpenException(handle);
     return opened;
   }
 }

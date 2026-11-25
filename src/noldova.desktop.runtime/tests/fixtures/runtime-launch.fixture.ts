@@ -12,7 +12,10 @@ import path from "node:path";
 import "@noldova/context.core";
 import { ClientSettings, DataDirectory, DiscoveryReader, LaunchSettings, OwnershipLock, RuntimeEntry } from "@noldova/desktop.runtime";
 
+import { FixtureFolderOwnedException } from "../exceptions/fixture-folder-owned.exception.js";
 import { RecordingStarterFixture } from "./recording-starter.fixture.js";
+import { RuntimeDiscoveryMissingException } from "../exceptions/runtime-discovery-missing.exception.js";
+import { RuntimeProcessesNotKilledException } from "../exceptions/runtime-processes-not-killed.exception.js";
 import { SocketFolderFixture } from "./socket-folder.fixture.js";
 import { WaitFixture } from "./wait.fixture.js";
 
@@ -63,16 +66,16 @@ export class RuntimeLaunchFixture implements AsyncDisposable {
   public async readProcessIdAsync(): Promise<number> {
     const discovery = await DiscoveryReader.readAsync(this.dataDirectory);
     if (Object.isNull(discovery))
-      throw new Error("No runtime has published discovery metadata.");
+      throw new RuntimeDiscoveryMissingException();
     return discovery.processId;
   }
 
   public async [Symbol.asyncDispose](): Promise<void> {
     const running = await this.starter.stopAsync(RuntimeLaunchFixture.EXIT_TIMEOUT);
     if (running.length > 0)
-      throw new Error(`The runtime processes ${running.join(", ")} were still running ${RuntimeLaunchFixture.EXIT_TIMEOUT} ms after they were killed, so ${this.root} was kept.`);
+      throw new RuntimeProcessesNotKilledException(running, RuntimeLaunchFixture.EXIT_TIMEOUT, this.root);
     if (OwnershipLock.isOwned(this.dataDirectory))
-      throw new Error(`A process the fixture did not start owns ${this.dataDirectory.root}, so ${this.root} was kept.`);
+      throw new FixtureFolderOwnedException(this.dataDirectory.root, this.root);
     await rm(this.root, { recursive: true, force: true, maxRetries: 20, retryDelay: RuntimeLaunchFixture.RETRY_DELAY });
   }
 }

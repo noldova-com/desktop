@@ -12,6 +12,7 @@ import type { ILineProcess } from "../../src/interfaces/i-line-process.js";
 import type { ILineProcessListener } from "../../src/interfaces/i-line-process-listener.js";
 import type { ILineProcessStarter } from "../../src/interfaces/i-line-process-starter.js";
 import { LineProcessFixture } from "./line-process.fixture.js";
+import { NoLineProcessException } from "../exceptions/no-line-process.exception.js";
 
 export class LineProcessStarterFixture implements ILineProcessStarter {
   public readonly started: LineProcessFixture[] = [];
@@ -21,7 +22,7 @@ export class LineProcessStarterFixture implements ILineProcessStarter {
   public get last(): LineProcessFixture {
     const last = this.started.at(-1);
     if (Object.isUndefined(last))
-      throw new Error("No line process has started.");
+      throw new NoLineProcessException();
     return last;
   }
 
