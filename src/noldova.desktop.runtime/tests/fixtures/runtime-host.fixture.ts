@@ -20,6 +20,8 @@ import {
   DataDirectory, DiscoveryReader, Endpoint, ProcessPresence, type RuntimeDiscovery, RuntimeEntry, RuntimeHost, RuntimeOptions, ServerSettings
 } from "@noldova/desktop.runtime";
 
+import { HostDiscoveryMissingException } from "../exceptions/host-discovery-missing.exception.js";
+import { HostNotStartedException } from "../exceptions/host-not-started.exception.js";
 import { HandshakeAnswerFixture } from "./handshake-answer.fixture.js";
 import { ListedAndPostedFixture } from "./listed-and-posted.fixture.js";
 import type { ModuleSourceFixture } from "./module-source.fixture.js";
@@ -60,7 +62,7 @@ export class RuntimeHostFixture implements AsyncDisposable {
 
   public get host(): RuntimeHost {
     if (Object.isNull(this.currentHost))
-      throw new Error("The host has not started.");
+      throw new HostNotStartedException();
     return this.currentHost;
   }
 
@@ -94,7 +96,7 @@ export class RuntimeHostFixture implements AsyncDisposable {
   public async readDiscoveryAsync(): Promise<RuntimeDiscovery> {
     const discovery = await DiscoveryReader.readAsync(this.dataDirectory);
     if (Object.isNull(discovery))
-      throw new Error("The host has published no discovery metadata.");
+      throw new HostDiscoveryMissingException();
     return discovery;
   }
 

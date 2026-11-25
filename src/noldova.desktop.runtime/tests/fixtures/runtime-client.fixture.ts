@@ -10,6 +10,7 @@ import "@noldova/context.core";
 import { Response } from "@noldova/desktop.protocol";
 import { ClientSettings, type Endpoint, RuntimeClient } from "@noldova/desktop.runtime";
 
+import { ServerNotListeningException } from "../exceptions/server-not-listening.exception.js";
 import { ClientListenerFixture } from "./client-listener.fixture.js";
 import { RawServerFixture } from "./raw-server.fixture.js";
 import { RuntimeServerFixture } from "./runtime-server.fixture.js";
@@ -44,7 +45,7 @@ export class RuntimeClientFixture {
 
   public static endpointOf(fixture: RuntimeServerFixture): Endpoint {
     if (Object.isNull(fixture.endpoint))
-      throw new Error("The server is not listening.");
+      throw new ServerNotListeningException();
     return fixture.endpoint;
   }
 }
