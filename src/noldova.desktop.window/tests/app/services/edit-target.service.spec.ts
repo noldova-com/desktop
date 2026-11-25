@@ -8,12 +8,26 @@
 
 import "@noldova/context.core";
 import { EditAction } from "@noldova/desktop.protocol";
+import { Component, signal, untracked } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 
 import type { ISelectionSource } from "../../../src/app/interfaces/i-selection-source";
 import { EditTargetService } from "../../../src/app/services/edit-target.service";
 import { DomFixture } from "../../fixtures/dom.fixture";
 import { EditTargetFixture } from "../../fixtures/edit-target.fixture";
+
+@Component({
+  selector: "nol-test-update-step",
+  template: "{{ run() }}"
+})
+class UpdateStepComponent {
+  public readonly step = signal<(() => void) | null>(null);
+
+  public run(): string {
+    this.step()?.();
+    return "";
+  }
+}
 
 describe("EditTargetService", () => {
   let page: EditTargetFixture;
@@ -276,5 +290,51 @@ describe("EditTargetService", () => {
     expect(removed).toEqual([false, null]);
     expect(replaced).toBe("second");
     expect(offPage).toEqual([false, null]);
+  });
+
+  function errorsDuring(step: () => void): unknown[] {
+    const errors: unknown[] = [];
+    const record = (event: ErrorEvent): void => {
+      errors.push(event.error);
+      event.preventDefault();
+    };
+    const fixture = TestBed.createComponent(UpdateStepComponent);
+    fixture.detectChanges();
+    window.addEventListener("error", record);
+    try {
+      fixture.componentInstance.step.set(step);
+      fixture.detectChanges();
+    }
+    finally {
+      window.removeEventListener("error", record);
+      fixture.destroy();
+    }
+    return errors;
+  }
+
+  it("follows a focus change made inside a template update without writing a signal inside it", () => {
+    const edits = TestBed.inject(EditTargetService);
+    page.find(".field", HTMLInputElement).focus();
+
+    const errors = errorsDuring(() => elsewhere.focus());
+
+    expect(errors).toEqual([]);
+    expect(document.activeElement).toBe(elsewhere);
+    expect([edits.isEditFocused(), actions(edits)]).toEqual([false, []]);
+  });
+
+  it("follows the window's blur and focus fired inside a template update without writing a signal inside it", () => {
+    const edits = TestBed.inject(EditTargetService);
+    const seen: boolean[] = [];
+
+    const errors = errorsDuring(() => {
+      window.dispatchEvent(new Event("blur"));
+      seen.push(untracked(edits.hasFocus));
+      window.dispatchEvent(new Event("focus"));
+      seen.push(untracked(edits.hasFocus));
+    });
+
+    expect(errors).toEqual([]);
+    expect(seen).toEqual([false, true]);
   });
 });
