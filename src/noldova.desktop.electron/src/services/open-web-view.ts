@@ -23,6 +23,7 @@ import {
   type WebViewDeclaration,
   type WebViewInfo
 } from "@noldova/desktop.protocol";
+import { HeldInputKind } from "../enums/held-input-kind.js";
 import type { IFrameNavigation } from "../interfaces/i-frame-navigation.js";
 import type { IPreventableEvent } from "../interfaces/i-preventable-event.js";
 import type { IWebViewContents } from "../interfaces/i-web-view-contents.js";
@@ -36,6 +37,7 @@ import type { IWindowNavigation } from "../interfaces/i-window-navigation.js";
 import type { IWindowOpenDetails } from "../interfaces/i-window-open-details.js";
 import { CaughtFailure } from "../models/caught-failure.js";
 import { EnabledDomain } from "../models/enabled-domain.js";
+import { WebViewHeldInput } from "../models/web-view-held-input.js";
 import type { WebViewHistory } from "../models/web-view-history.js";
 import type { WebViewRefusedPage } from "../models/web-view-refused-page.js";
 import { Resources } from "../resources.js";
@@ -76,7 +78,8 @@ export class OpenWebView {
   private pendingAnswers: number = 0;
   private relayedInputs: number = 0;
   private relayedPresses: readonly symbol[] = [];
-  private heldInputs: readonly (readonly [IWebViewContents, IWebViewInput, boolean])[] = [];
+  private heldInputs: readonly WebViewHeldInput[] = [];
+  private undeliveredInputs: readonly WebViewHeldInput[] = [];
   private relayCopies: number = 0;
   private declinedKey: IKeyStroke | null = null;
   private isAnswerAwaited: boolean = false;
@@ -105,6 +108,8 @@ export class OpenWebView {
   private isReady: boolean = false;
   private lookupCount: number = 0;
   private pageReady: Promise<void> = Promise.resolve();
+  private isPageReady: boolean = true;
+  private documentReady: PromiseWithResolvers<void> | null = null;
   private historyRestored: Promise<void> = Promise.resolve();
   private isFocusHeld: boolean = false;
   private isClosed: boolean = false;
@@ -208,13 +213,29 @@ export class OpenWebView {
     this.guest = guest;
     const ready = Promise.withResolvers<void>();
     this.pageReady = ready.promise;
+    this.isPageReady = false;
+    this.documentReady = null;
     this.historyRestored = Promise.resolve();
     try {
       return await this.startGuestAsync(guest, previous, isPristine);
     }
     finally {
-      void this.historyRestored.then(() => ready.resolve());
+      this.documentReady = ready;
+      void this.historyRestored.then(() => this.markPageReady(ready));
     }
+  }
+
+  private markDocumentReady(guest: IWebViewContents): void {
+    if (this.isBound(guest) && !Object.isNull(this.documentReady))
+      this.markPageReady(this.documentReady);
+  }
+
+  private markPageReady(ready: PromiseWithResolvers<void>): void {
+    ready.resolve();
+    if (this.pageReady !== ready.promise || this.isPageReady)
+      return;
+    this.isPageReady = true;
+    this.deliverHeld();
   }
 
   private async startGuestAsync(guest: IWebViewContents, previous: IWebViewContents | null, isPristine: boolean): Promise<boolean> {
@@ -575,6 +596,7 @@ export class OpenWebView {
       if (this.isBound(guest))
         this.noteInput(input);
     });
+    guest.on(Resources.domReadyEvent, () => this.markDocumentReady(guest));
     guest.on(Resources.willFrameNavigateEvent, navigation => this.judgeFrame(guest, navigation));
     guest.on(Resources.didStartNavigationEvent, navigation => this.noteStart(guest, navigation));
     guest.on(Resources.willAttachWebviewEvent, event => this.prevent(guest, event, Resources.nestedViewRequest));
@@ -1219,11 +1241,15 @@ export class OpenWebView {
       this.replays.splice(replay, 1);
       return;
     }
-    if (this.isAnswerAwaited) {
+    if (this.isAnswerAwaited || this.undeliveredInputs.length > 0) {
       event.preventDefault();
       const heldRelayKey = isDown ? this.relayKeys.find(t => OpenWebView.isSameStroke(t, stroke)) : undefined;
       this.forgetRelayKey(heldRelayKey ?? null);
-      this.heldInputs = [...this.heldInputs, [guest, input, !Object.isUndefined(heldRelayKey)]];
+      const held = new WebViewHeldInput(input, Object.isUndefined(heldRelayKey) ? HeldInputKind.Typed : HeldInputKind.Relayed);
+      if (this.isAnswerAwaited)
+        this.heldInputs = [...this.heldInputs, held];
+      else
+        this.undeliveredInputs = [...this.undeliveredInputs, held];
       return;
     }
     if (!isDown) {
@@ -1242,29 +1268,39 @@ export class OpenWebView {
     if (input.isAutoRepeat)
       return;
     if (Object.isNull(name))
-      this.forward(guest, stroke, input);
+      this.forward(stroke, input);
     else
       this.emit(WebViewEventKind.Key, { [Resources.nameField]: name });
   }
 
-  private forward(guest: IWebViewContents, stroke: IKeyStroke, input: IWebViewInput): void {
+  private forward(stroke: IKeyStroke, input: IWebViewInput): void {
     this.isAnswerAwaited = true;
-    this.pressShortcut(stroke, hasRun => this.takeAnswer(guest, input, hasRun));
+    this.pressShortcut(stroke, hasRun => this.takeAnswer(input, hasRun));
   }
 
-  private takeAnswer(guest: IWebViewContents, input: IWebViewInput, hasRun: boolean): void {
+  private takeAnswer(input: IWebViewInput, hasRun: boolean): void {
     this.isAnswerAwaited = false;
-    if (!hasRun)
-      this.replay(guest, input);
-    const held = this.heldInputs;
+    const declined = hasRun ? [] : [new WebViewHeldInput(input, HeldInputKind.Declined)];
+    this.undeliveredInputs = [...this.undeliveredInputs, ...declined, ...this.heldInputs];
     this.heldInputs = [];
-    for (const [heldBy, heldInput, isRelayed] of held)
-      this.send(heldBy, heldInput, isRelayed);
+    this.deliverHeld();
+  }
+
+  private deliverHeld(): void {
+    const guest = this.guest;
+    if (Object.isNull(guest) || !this.isPageReady)
+      return;
+    const held = this.undeliveredInputs;
+    this.undeliveredInputs = [];
+    for (const heldInput of held) {
+      if (heldInput.kind === HeldInputKind.Declined)
+        this.replay(guest, heldInput.input);
+      else
+        this.send(guest, heldInput.input, heldInput.kind === HeldInputKind.Relayed);
+    }
   }
 
   private replay(guest: IWebViewContents, input: IWebViewInput): void {
-    if (!this.isBound(guest))
-      return;
     const stroke: IKeyStroke = { key: input.key, code: String.empty, ctrlKey: input.control, altKey: input.alt, shiftKey: input.shift, metaKey: input.meta };
     this.declinedKey = stroke;
     this.replays.push(stroke);
@@ -1273,8 +1309,6 @@ export class OpenWebView {
   }
 
   private send(guest: IWebViewContents, input: IWebViewInput, isRelayed: boolean): void {
-    if (!this.isBound(guest))
-      return;
     const events = WebViewKeyInput.fromInput(input, this.platform);
     if (isRelayed) {
       this.replays.push({ key: input.key, code: String.empty, ctrlKey: input.control, altKey: input.alt, shiftKey: input.shift, metaKey: input.meta });

@@ -19,14 +19,14 @@ export class SettingResetMethodTests {
   public resetsASettingToItsDefaultAndPublishesTheChangeButRefusesADeviceSettingWithoutItsDevice(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync(30_000, await fixture.writeModulesAsync([]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const mode = new SettingKey(QualifiedName.parse("desktop.mode"));
 
       connection.sendMessages(
         new Request("main:1", ShellMethods.setSetting, new SettingValue(mode, "Dark").toJson()),
         new Request("main:2", ShellMethods.resetSetting, mode.toJson()),
         new Request("main:3", ShellMethods.resetSetting, new SettingKey(QualifiedName.parse("desktop.doNotDisturb")).toJson()));
-      const [responses, events] = await RuntimeHostFixture.readMessagesAsync(connection, 5);
+      const { responses, events } = await RuntimeHostFixture.readMessagesAsync(connection, 5);
 
       Assert.isTrue(["main:1", "main:2"].every(t => responses.get(t)?.hasFailed === false));
       Assert.areEqual("InvalidParams", responses.get("main:3")?.failure?.code);

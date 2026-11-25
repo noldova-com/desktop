@@ -11,6 +11,7 @@ import { mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import timers from "node:timers/promises";
 
+import { AppleRequirement } from "../../models/packaging/apple-requirement.ts";
 import type { ProcessResult } from "../../models/processes/process-result.ts";
 import type { ProcessRunner } from "../processes/process-runner.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
@@ -92,10 +93,10 @@ export class AppleSignatureCheck {
     const assessed = await this.captureAsync(Resources.spctlCommand, [Resources.spctlAssessOption, ...Resources.spctlInstallerAssessment, Resources.appleVerboseOption, installer]);
     const stapled = await this.validateStapleAsync(installer);
     this.requireMet(subject, [
-      [Resources.appleValidSignatureRequirement, checked.isSuccessful],
-      [Resources.appleDeveloperIdInstallerRequirement, checked.isSuccessful && Resources.appleDeveloperIdInstallerPattern.test(checked.text)],
-      [Resources.appleNotarizationRequirement, assessed.isSuccessful && Resources.appleNotarizedPattern.test(assessed.text)],
-      [!AppleSignatureCheck.isNetworkError(stapled) ? Resources.appleStapledRequirement : Resources.appleStapledOfflineRequirement, stapled.isSuccessful]
+      new AppleRequirement(Resources.appleValidSignatureRequirement, checked.isSuccessful),
+      new AppleRequirement(Resources.appleDeveloperIdInstallerRequirement, checked.isSuccessful && Resources.appleDeveloperIdInstallerPattern.test(checked.text)),
+      new AppleRequirement(Resources.appleNotarizationRequirement, assessed.isSuccessful && Resources.appleNotarizedPattern.test(assessed.text)),
+      new AppleRequirement(!AppleSignatureCheck.isNetworkError(stapled) ? Resources.appleStapledRequirement : Resources.appleStapledOfflineRequirement, stapled.isSuccessful)
     ], [checked, assessed, stapled]);
     const expanded = path.join(work, Resources.installerExpandedFolder);
     await this.runner.requireAsync(Resources.pkgutilCommand, [Resources.pkgutilExpandFullOption, installer, expanded], this.folder, Resources.appleSignatureTimeout,
@@ -120,15 +121,15 @@ export class AppleSignatureCheck {
     const assessed = await this.captureAsync(Resources.spctlCommand, [Resources.spctlAssessOption, ...assessment, Resources.appleVerboseOption, file]);
     const stapled = await this.validateStapleAsync(file);
     this.requireMet(subject, [
-      [Resources.appleValidSignatureRequirement, verified.isSuccessful],
-      [Resources.appleDeveloperIdRequirement, details.isSuccessful && Resources.appleDeveloperIdPattern.test(details.text)],
-      [Resources.appleNotarizationRequirement, assessed.isSuccessful && Resources.appleNotarizedPattern.test(assessed.text)],
-      [!AppleSignatureCheck.isNetworkError(stapled) ? Resources.appleStapledRequirement : Resources.appleStapledOfflineRequirement, stapled.isSuccessful]
+      new AppleRequirement(Resources.appleValidSignatureRequirement, verified.isSuccessful),
+      new AppleRequirement(Resources.appleDeveloperIdRequirement, details.isSuccessful && Resources.appleDeveloperIdPattern.test(details.text)),
+      new AppleRequirement(Resources.appleNotarizationRequirement, assessed.isSuccessful && Resources.appleNotarizedPattern.test(assessed.text)),
+      new AppleRequirement(!AppleSignatureCheck.isNetworkError(stapled) ? Resources.appleStapledRequirement : Resources.appleStapledOfflineRequirement, stapled.isSuccessful)
     ], [verified, details, assessed, stapled]);
   }
 
-  private requireMet(subject: string, requirements: readonly (readonly [string, boolean])[], results: readonly ProcessResult[]): void {
-    const failed = requirements.filter(([, isMet]) => !isMet).map(([requirement]) => requirement);
+  private requireMet(subject: string, requirements: readonly AppleRequirement[], results: readonly ProcessResult[]): void {
+    const failed = requirements.filter(t => !t.isMet).map(t => t.requirement);
     if (failed.length > 0)
       throw new BuildException(Resources.formatAppleSignatureLacks(subject, failed, results.map(t => t.text)));
   }

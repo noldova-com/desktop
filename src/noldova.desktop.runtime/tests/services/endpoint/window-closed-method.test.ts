@@ -12,6 +12,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { BuildIdentity, FailureCode, QualifiedName, Request, type Response, ShellMethods, WindowClosed } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
 @TestClass
@@ -45,9 +46,9 @@ export class WindowClosedMethodTests {
   @TestMethod
   public givesPartsTheWindowAndReportsItsClosureAfterItsRequestsAndNoneOfItsRequestsAfter(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["watch", WindowClosedMethodTests.PART]]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("watch", WindowClosedMethodTests.PART)]));
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       mainProcess.sendMessages(new Request("main:1", WindowClosedMethodTests.ECHO, null, undefined, 3));
       const first = await mainProcess.readResponseAsync();
@@ -76,10 +77,10 @@ export class WindowClosedMethodTests {
   @TestMethod
   public reportsAConnectionOnceWhenItEndsAndNoneOfAnotherBuild(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["watch", WindowClosedMethodTests.PART]]));
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
-      const [quitting] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [otherBuild] = await fixture.handshakeAsync("main", WindowClosedMethodTests.OTHER);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("watch", WindowClosedMethodTests.PART)]));
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: quitting } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: otherBuild } = await fixture.handshakeAsync("main", WindowClosedMethodTests.OTHER);
       const first = await RuntimeHostFixture.callAsync(quitting, "main:1", WindowClosedMethodTests.ECHO, null);
 
       otherBuild[Symbol.dispose]();

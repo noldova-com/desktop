@@ -26,6 +26,7 @@ import { RootManifest } from "../../models/packages/root-manifest.ts";
 import type { NpmCommand } from "../toolchain/npm-command.ts";
 import { AcceptedLicenses } from "../../models/packaging/accepted-licenses.ts";
 import { CompanyPackage } from "../../models/packaging/company-package.ts";
+import { DeclaredPackages } from "../../models/packaging/declared-packages.ts";
 import { ForeignAddons } from "./foreign-addons.ts";
 import type { LockedPackage } from "../../models/packaging/locked-package.ts";
 import { OmittedOptionals } from "../../models/packaging/omitted-optionals.ts";
@@ -34,6 +35,8 @@ import { PackageLayout } from "./package-layout.ts";
 import type { PackageTarget } from "../../models/packaging/package-target.ts";
 import type { PackagedBuild } from "./packaged-build.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { ShippedPackages } from "../../models/packaging/shipped-packages.ts";
+import { StagedDependency } from "../../models/packaging/staged-dependency.ts";
 import { StagedSources } from "./staged-sources.ts";
 import { ThirdPartyClosure } from "./third-party-closure.ts";
 import { ThirdPartyPackage } from "../../models/packaging/third-party-package.ts";
@@ -72,7 +75,7 @@ export class PackageStage {
       throw new BuildException(Resources.stageOverridesInvalid);
     const written = Object.isUndefined(overrides)
       ? {}
-      : { overrides: Object.fromEntries(Object.entries(overrides).map(([name, value]: [string, unknown]) => [name, archives.has(name) ? PackageStage.refer(name, value) : value])) };
+      : { overrides: PackageStage.referArchives(overrides, archives) };
     await writeFile(path.join(folder, Resources.packageManifestFileName), Resources.formatJsonFile({ ...fields, ...written }));
     const result = await npm.runAsync([...Resources.stageInstallArguments, cache, ...target.installArguments, ...archives.values()], folder);
     if (!result.isSuccessful)
@@ -91,7 +94,7 @@ export class PackageStage {
     await rm(this.folder, { recursive: true, force: true });
     await rm(this.layout.npmCache, { recursive: true, force: true });
     const manifest = await RootManifest.readAsync(this.root);
-    const [packages, installed] = await this.listShippedAsync();
+    const { packages, installed } = await this.listShippedAsync();
     const versions = await PackageVersions.readAsync(this.modules, manifest.productVersion, packages);
     const declarations = await this.modules.listBuildAsync(false, []);
     const modulePackages = declarations.map(t => t.packageName).filter(t => !Object.isNull(t));
@@ -99,13 +102,15 @@ export class PackageStage {
     const typeOnly = await TypeOnlyPeers.readAsync(this.root);
     const accepted = await AcceptedLicenses.readAsync(this.root);
     const omitted = await OmittedOptionals.readAsync(this.root);
-    const [closure, leftOut] = (await ThirdPartyClosure.readAsync(this.root, target)).collect(packages, [...installed, ...modulePackages], typeOnly, windowPackages, omitted,
+    const { shipped: closure, leftOut } = (await ThirdPartyClosure.readAsync(this.root, target)).collect(packages, [...installed, ...modulePackages], typeOnly, windowPackages, omitted,
       t => versions.of(t));
-    const roots = [...installed, ...modulePackages].map(t => [t, String(closure.find(u => u.name === t)?.version)] as const);
+    const roots = [...installed, ...modulePackages].map(t => new StagedDependency(t, String(closure.find(u => u.name === t)?.version)));
     const company = await this.packCompanyAsync(closure.filter(t => PackageNaming.isNoldova(t.name)), windowPackages);
     const thirdParty = await this.prepareThirdPartyAsync(closure.filter(t => !PackageNaming.isNoldova(t.name)), accepted, typeOnly, output);
     const shipped = new Set([...closure.map(t => t.id), ...packages.map(t => Resources.formatPackageId(t.name, versions.of(t.name)))]);
-    for (const [section, ids] of [[Resources.acceptedLicensesSection, accepted.ids], [Resources.typeOnlyPeersSection, typeOnly.ids], [Resources.omittedOptionalsSection, omitted.ids]] as const)
+    const declared = [new DeclaredPackages(Resources.acceptedLicensesSection, accepted.ids), new DeclaredPackages(Resources.typeOnlyPeersSection, typeOnly.ids),
+      new DeclaredPackages(Resources.omittedOptionalsSection, omitted.ids)];
+    for (const { section, ids } of declared)
       for (const id of ids.filter(t => !shipped.has(t)))
         output.write(Resources.formatStageUnshippedWarning(section, id));
     for (const item of thirdParty)
@@ -128,12 +133,10 @@ export class PackageStage {
       desktopName: `${product.applicationId}${Resources.desktopFileExtension}`,
       private: true,
       main: path.posix.join(...Resources.electronMainSegments),
-      dependencies: Object.fromEntries([...packages.map(t => [t.name, versions.of(t.name)] as const), ...roots, ...company.filter(t => PackageNaming.isContext(t.locked.name))
-        .map(t => [t.locked.name, t.locked.version] as const)].sort(([left], [right]) => CodePointComparer.compare(left, right))),
-      optionalDependencies: Object.fromEntries([...company, ...thirdParty].map(t => t.locked).filter(t => t.isPlatformBound).map(t => [t.name, t.version] as const)
-        .sort(([left], [right]) => CodePointComparer.compare(left, right)))
-    }, this.layout.npmCache, new Map([...packages.map(t => [t.name, archives.locateArchive(t, versions.of(t.name))] as const), ...company.map(t => [t.locked.name, t.file] as const),
-      ...thirdParty.map(t => [t.locked.name, t.file] as const)]), target);
+      dependencies: PackageStage.listDependencies([...packages.map(t => new StagedDependency(t.name, versions.of(t.name))), ...roots,
+        ...company.filter(t => PackageNaming.isContext(t.locked.name)).map(t => new StagedDependency(t.locked.name, t.locked.version))]),
+      optionalDependencies: PackageStage.listDependencies([...company, ...thirdParty].map(t => t.locked).filter(t => t.isPlatformBound).map(t => new StagedDependency(t.name, t.version)))
+    }, this.layout.npmCache, PackageStage.locateArchives(packages, versions, archives, [...company, ...thirdParty]), target);
     const foreign = await ForeignAddons.removeAsync(this.folder, target);
     output.write(Resources.formatStagePackages(packages.map(t => t.name)));
     output.write(Resources.formatStageForeignAddons(foreign));
@@ -172,7 +175,7 @@ export class PackageStage {
     return prepared;
   }
 
-  private async listShippedAsync(): Promise<readonly [readonly PackageManifest[], readonly string[]]> {
+  private async listShippedAsync(): Promise<ShippedPackages> {
     const declarations = await this.modules.listBuildAsync(false, []);
     const parts = declarations.filter(t => Object.isNull(t.packageName)).flatMap(t => [t.runtimePackage, t.cliPackage]).filter(t => !Object.isNull(t));
     const packages = await new PackageCatalog(this.root).listPackagesAsync(false);
@@ -184,7 +187,7 @@ export class PackageStage {
     for (const manifest of [...packages].reverse())
       if (shipped.has(manifest.name))
         manifest.dependencies.forEach(t => shipped.add(t));
-    return [packages.filter(t => shipped.has(t.name)), installed];
+    return new ShippedPackages(packages.filter(t => shipped.has(t.name)), installed);
   }
 
   private static refer(name: string, value: unknown): unknown {
@@ -192,6 +195,31 @@ export class PackageStage {
     if (Object.isString(value))
       return reference;
     const fields = new Map<string, unknown>(Object.isPlainObject(value) ? Object.entries(value) : []);
-    return Object.isString(fields.get(Resources.stageOverrideSelfKey)) ? Object.fromEntries([...fields, [Resources.stageOverrideSelfKey, reference]]) : value;
+    return Object.isString(fields.get(Resources.stageOverrideSelfKey)) ? Object.fromEntries(fields.set(Resources.stageOverrideSelfKey, reference)) : value;
+  }
+
+  private static referArchives(overrides: object, archives: ReadonlyMap<string, string>): Readonly<Record<string, unknown>> {
+    const fields = new Map<string, unknown>(Object.entries(overrides));
+    for (const name of fields.keys())
+      if (archives.has(name))
+        fields.set(name, PackageStage.refer(name, fields.get(name)));
+    return Object.fromEntries(fields);
+  }
+
+  private static listDependencies(dependencies: readonly StagedDependency[]): Readonly<Record<string, string>> {
+    const fields = new Map<string, string>();
+    for (const dependency of [...dependencies].sort((left, right) => CodePointComparer.compare(left.name, right.name)))
+      fields.set(dependency.name, dependency.version);
+    return Object.fromEntries(fields);
+  }
+
+  private static locateArchives(packages: readonly PackageManifest[], versions: PackageVersions, archives: BuildLayout, packed: readonly (CompanyPackage | ThirdPartyPackage)[]):
+    ReadonlyMap<string, string> {
+    const located = new Map<string, string>();
+    for (const manifest of packages)
+      located.set(manifest.name, archives.locateArchive(manifest, versions.of(manifest.name)));
+    for (const item of packed)
+      located.set(item.locked.name, item.file);
+    return located;
   }
 }
