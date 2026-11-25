@@ -10,13 +10,17 @@ import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
+import "@noldova/context.core";
+
 import { DevelopmentBinary } from "../src/noldova.desktop.build/src/services/desktop/development-binary.ts";
 import { BuildRecord } from "../src/noldova.desktop.build/src/models/packages/build-record.ts";
 import { ContentHash } from "../src/noldova.desktop.build/src/services/packages/content-hash.ts";
+import { ProcessResult } from "../src/noldova.desktop.build/src/models/processes/process-result.ts";
 import { ProcessRunner } from "../src/noldova.desktop.build/src/services/processes/process-runner.ts";
 import { Git } from "../src/noldova.desktop.build/src/services/repository/git.ts";
 import { Resources } from "./resources.ts";
 import { RepositoryFiles } from "./structure/repository-files.ts";
+import { UiWorkflowBuild } from "./ui-workflow-build.ts";
 import { UiWorkflowsResources } from "./ui-workflows.resources.ts";
 
 export class UiWorkflows {
@@ -37,9 +41,15 @@ export class UiWorkflows {
   public async runAsync(commandArguments: readonly string[]): Promise<number> {
     const requiresCurrent = commandArguments.includes(UiWorkflowsResources.requireCurrent);
     const playwrightArguments = commandArguments.filter(t => t !== UiWorkflowsResources.requireCurrent);
-    const inputs = await this.hashInputsAsync();
+    const listing = await this.listAsync(playwrightArguments);
+    if (listing instanceof ProcessResult) {
+      this.output.write(`${listing.text}\n`);
+      return listing.exitCode ?? Resources.failedExitCode;
+    }
+    const builds = UiWorkflowBuild.choose(UiWorkflowsResources.builds, listing, t => existsSync(path.join(this.root, ...t.output)));
+    const inputs = await this.hashInputsAsync(builds);
     const recordFile = path.join(this.root, ...UiWorkflowsResources.recordSegments);
-    if (await this.isCurrentAsync(inputs, recordFile))
+    if (await this.isCurrentAsync(builds, inputs, recordFile))
       this.output.write(UiWorkflowsResources.current);
     else if (requiresCurrent) {
       this.output.write(UiWorkflowsResources.notCurrent);
@@ -47,43 +57,54 @@ export class UiWorkflows {
     }
     else {
       this.output.write(UiWorkflowsResources.building);
-      for (const buildArguments of UiWorkflowsResources.builds) {
-        const exitCode = await this.runner.runAsync(process.execPath, [path.join(this.root, ...Resources.buildCommandLineSegments), Resources.buildCommand, ...buildArguments], this.root);
+      for (const build of builds) {
+        const exitCode = await this.runner.runAsync(process.execPath, [path.join(this.root, ...Resources.buildCommandLineSegments), Resources.buildCommand, ...build.buildArguments], this.root);
         if (exitCode !== Resources.successExitCode)
           return exitCode ?? Resources.failedExitCode;
       }
-      await (await this.hashOutputsAsync(inputs)).writeAsync(recordFile);
+      await (await this.hashOutputsAsync(builds, inputs)).writeAsync(recordFile);
     }
     await this.binary.prepareAsync(this.output);
 
     const typeScript = await this.runner.runAsync(process.execPath, [path.join(this.root, ...UiWorkflowsResources.typeScriptCli), UiWorkflowsResources.projectOption, UiWorkflowsResources.endToEndProject], this.root);
     if (typeScript !== Resources.successExitCode)
       return typeScript ?? Resources.failedExitCode;
-    return await this.runner.runAsync(process.execPath, [path.join(this.root, ...UiWorkflowsResources.playwrightCli), UiWorkflowsResources.testCommand, UiWorkflowsResources.configOption, UiWorkflowsResources.playwrightConfig, ...playwrightArguments], this.root) ?? Resources.failedExitCode;
+    return await this.runner.runAsync(process.execPath, [...this.playwright(), ...playwrightArguments], this.root) ?? Resources.failedExitCode;
   }
 
-  private async isCurrentAsync(inputs: string, recordFile: string): Promise<boolean> {
-    return this.listOutputs().every(t => existsSync(t)) && await (await this.hashOutputsAsync(inputs)).isRecordedAsync(recordFile);
+  private async listAsync(playwrightArguments: readonly string[]): Promise<string | null | ProcessResult> {
+    if (UiWorkflowsResources.builds.every(t => Object.isNull(t.spec) || existsSync(path.join(this.root, ...t.output))))
+      return null;
+    const result = await this.runner.captureAsync(process.execPath, [...this.playwright(), ...UiWorkflowsResources.listArguments, ...playwrightArguments], this.root, UiWorkflowsResources.listTimeout);
+    return result.isSuccessful ? result.output : result;
   }
 
-  private async hashInputsAsync(): Promise<string> {
-    const parts: string[] = [JSON.stringify(UiWorkflowsResources.builds)];
+  private playwright(): readonly string[] {
+    return [path.join(this.root, ...UiWorkflowsResources.playwrightCli), UiWorkflowsResources.testCommand, UiWorkflowsResources.configOption, UiWorkflowsResources.playwrightConfig];
+  }
+
+  private async isCurrentAsync(builds: readonly UiWorkflowBuild[], inputs: string, recordFile: string): Promise<boolean> {
+    return this.listOutputs(builds).every(t => existsSync(t)) && await (await this.hashOutputsAsync(builds, inputs)).isRecordedAsync(recordFile);
+  }
+
+  private async hashInputsAsync(builds: readonly UiWorkflowBuild[]): Promise<string> {
+    const parts: string[] = [JSON.stringify(builds.map(t => t.buildArguments))];
     for (const file of await this.files.listAsync())
       parts.push(file, await ContentHash.ofFileAsync(path.join(this.root, file)));
     return ContentHash.ofParts(parts);
   }
 
-  private async hashOutputsAsync(inputs: string): Promise<BuildRecord> {
+  private async hashOutputsAsync(builds: readonly UiWorkflowBuild[], inputs: string): Promise<BuildRecord> {
     const outputs: string[] = [];
     for (const file of [UiWorkflowsResources.declarationsSegments, UiWorkflowsResources.productSegments])
       outputs.push(await ContentHash.ofFileAsync(path.join(this.root, ...file)));
-    for (const tree of UiWorkflowsResources.treeOutputs)
-      outputs.push(await ContentHash.ofTreeAsync(path.join(this.root, ...tree)));
+    for (const build of builds)
+      outputs.push(await ContentHash.ofTreeAsync(path.join(this.root, ...build.output)));
     return new BuildRecord(inputs, outputs);
   }
 
-  private listOutputs(): readonly string[] {
-    return [path.join(this.root, ...UiWorkflowsResources.declarationsSegments), path.join(this.root, ...UiWorkflowsResources.productSegments), ...UiWorkflowsResources.treeOutputs.map(t => path.join(this.root, ...t))];
+  private listOutputs(builds: readonly UiWorkflowBuild[]): readonly string[] {
+    return [path.join(this.root, ...UiWorkflowsResources.declarationsSegments), path.join(this.root, ...UiWorkflowsResources.productSegments), ...builds.map(t => path.join(this.root, ...t.output))];
   }
 }
 

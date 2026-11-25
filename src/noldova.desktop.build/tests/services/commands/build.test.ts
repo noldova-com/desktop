@@ -53,6 +53,18 @@ export class BuildTests {
   }
 
   @TestMethod
+  public async buildsATestVariantWithTheDocumentTabsInTheTitleBarIntoAnOutputFolderAsync(): Promise<void> {
+    const steps = new BuildStepsFixture();
+    const output = path.resolve("out");
+
+    const result = await BuildTests.runAsync(steps, tmpdir(), ["--test", "--document-tabs", "--output", "out"]);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.areEqual(["prepare", "packages true  false null null", "angular-packages", "modules true ", `product ${output}`, "desktop-version",
+      `artifacts 0 ${output} 1.2.3`, "product-file document-tabs", "gallery false", "install-angular ", "electron", `window ${path.join(output, "window")}`].join("|"), steps.steps.join("|"));
+  }
+
+  @TestMethod
   public async buildsThePackagesAndTheirTestsWithoutTheWindowForTheSecondPartAsync(): Promise<void> {
     const steps = new BuildStepsFixture();
 
@@ -114,7 +126,11 @@ export class BuildTests {
       ["--shard=1/3"],
       ["--shard=1/2", "--test"],
       ["--test", "--shard=1/2"],
-      ["--shard=1/2", "--shard=2/2"]
+      ["--shard=1/2", "--shard=2/2"],
+      ["--test", "--document-tabs"],
+      ["--document-tabs", "--output", "out"],
+      ["--packaged", "--document-tabs", "--output", "out"],
+      ["--test", "--document-tabs", "--document-tabs", "--output", "out"]
     ];
 
     for (const buildArguments of cases) {

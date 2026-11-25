@@ -13,11 +13,13 @@ export class BuildVariant {
   public readonly excluded: readonly string[];
   public readonly isPackaged: boolean;
   public readonly updateFeed: string | null;
+  public readonly isDocumentTabs: boolean;
 
-  public constructor(isTest: boolean, excluded: readonly string[], isPackaged: boolean = false, updateFeed: string | null = null) {
+  public constructor(isTest: boolean, excluded: readonly string[], isPackaged: boolean = false, updateFeed: string | null = null, isDocumentTabs: boolean = false) {
     this.isTest = isTest;
     this.excluded = excluded;
     this.isPackaged = isPackaged;
     this.updateFeed = updateFeed;
+    this.isDocumentTabs = isDocumentTabs;
   }
 }

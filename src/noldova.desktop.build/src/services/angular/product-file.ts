@@ -28,7 +28,7 @@ export class ProductFile {
     return path.join(this.root, ...Resources.productFileSegments);
   }
 
-  public async writeAsync(): Promise<void> {
+  public async writeAsync(isDocumentTabs: boolean): Promise<void> {
     const product = await ProductIdentity.readAsync(this.root);
     await FolderCreation.createAsync(path.dirname(this.file));
     await writeFile(this.file, [
@@ -37,7 +37,7 @@ export class ProductFile {
       String.empty,
       Resources.formatProductNameLine(product.name),
       Resources.formatProductAboutLine({ ...product.about.toJson(), logo: AboutLogo.of(this.root, product)?.toJson() ?? null }),
-      Resources.formatProductTitleBarLine({ name: product.titleBarName, icon: TitleBarIcon.of(this.root, product)?.address ?? null, documentTabs: product.isTitleBarDocumentTabs }),
+      Resources.formatProductTitleBarLine({ name: product.titleBarName, icon: TitleBarIcon.of(this.root, product)?.address ?? null, documentTabs: isDocumentTabs || product.isTitleBarDocumentTabs }),
       String.empty
     ].join(Resources.lineSeparator));
   }

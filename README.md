@@ -56,7 +56,7 @@ npm run build -- --test
 npm start
 ```
 
-`npm run build -- --test` builds the test build: every package, and the fixture modules in `src/noldova.desktop.electron/tests/e2e/fixtures/modules`, so the window has modules to show, with the modules from packages in its `packages` folder; `--without <module id>` leaves a module out.
+`npm run build -- --test` builds the test build: every package, and the fixture modules in `src/noldova.desktop.electron/tests/e2e/fixtures/modules`, so the window has modules to show, with the modules from packages in its `packages` folder; `--without <module id>` leaves a module out, and `--document-tabs`, with `--output`, shows the document tabs in the window row as an app's `titleBarDocumentTabs` does.
 After `npm run build`, `npm start` runs the app from your build.
 It prepares a copy of Electron's program that carries the app's name, version and icon, taken from the root `package.json`, in `_build/development-app`, and starts it on `_build/development-package`, whose `package.json` gives Electron the app's name and version and names the built `@noldova/desktop.electron` main script, passing on the arguments that follow `npm start --`.
 It prepares the copy again when Electron, the version, the product identity or the icons change, and installs Electron's binary first when it is missing, retrying a download that failed on the network.
@@ -207,7 +207,7 @@ Declarations without types runs last: for each of the build, command-line, Elect
 
 ### End-to-end specs
 
-`npm run test:ui -- [<Playwright argument>...]` builds the test build and its variants when they changed, then runs the end-to-end specs in `src/noldova.desktop.electron/tests/e2e` through Playwright; on Linux without a display, run it under `xvfb-run`.
+`npm run test:ui -- [<Playwright argument>...]` builds the test build and its variants when they changed, a variant made for one spec, such as `document-tabs` for `title-bar-document-tabs.spec.ts`, only when the run includes that spec or the variant is already built, so a shard without it doesn't build it, then runs the end-to-end specs in `src/noldova.desktop.electron/tests/e2e` through Playwright; on Linux without a display, run it under `xvfb-run`.
 `npm run test:ui:ci -- [<Playwright argument>...]` runs them as the workflows do: on Linux, under `xvfb-run` on a 2560×1440 screen inside a session bus of their own, a `dbus-daemon --session` in the foreground as the run's child, ended and waited for once the specs end, and killed when it still runs five seconds after it is asked to stop, so no bus outlives the run; a bus that doesn't print its address within 30 seconds, or within the seconds `NOLDOVA_SESSION_BUS_START_SECONDS` gives, is stopped, and a bus that doesn't start fails the run with "The session bus did not start."; that bus has no tray host, so the two tray-quit specs skip themselves there, as the [Electron package's README](src/noldova.desktop.electron/README.md) says.
 `npm test` doesn't run them.
 They run one at a time, with one Playwright worker, since every spec shares the machine's clipboard, focus, pointer and, on Windows, its notification history, which two specs at once would take from each other.

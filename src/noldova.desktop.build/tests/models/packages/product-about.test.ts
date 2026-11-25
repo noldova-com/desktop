@@ -169,7 +169,7 @@ export class ProductAboutTests {
     const root = await ProductAboutTests.createAppAsync(about, icons);
     try {
       const file = new ProductFile(root);
-      await file.writeAsync();
+      await file.writeAsync(false);
       return await readFile(file.file, "utf8");
     }
     finally {

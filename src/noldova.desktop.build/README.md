@@ -37,7 +37,7 @@ The whole app, its build included, uses one TypeScript, the version the package 
 | Command | What it does |
 |---|---|
 | `install` | Installs the app from its root lockfile with `npm ci`, when the lockfile changed since its last install, and the browser for the Angular tests when an `angular.json` has a test target. It is the only command that needs the registry's token. |
-| `build [--test [--without <module id>]... \| --packaged] [--output <folder> [--update-feed <URL>]]` | Builds the app's packages and modules, writes `_build/product.json` and the generated window sources, and builds the window. `--test` adds the fixture modules and `--packaged` builds what a package ships; either may write to its own `--output` folder, with a test update feed. |
+| `build [--test [--without <module id>]... \| --packaged] [--output <folder> [--update-feed <URL>] [--document-tabs]]` | Builds the app's packages and modules, writes `_build/product.json` and the generated window sources, and builds the window. `--test` adds the fixture modules and `--packaged` builds what a package ships; either may write to its own `--output` folder, with a test update feed, and a test build there may show the document tabs in the window row. |
 | `build --list-copies` | Builds nothing and prints each file the build copies unchanged into a package that its `files` keep in the archive, one line for each: its source's path from the app's folder, the package's name and its path inside the package, separated by tabs, then `end of copies`, also when it copies nothing. |
 | `start [<argument>...]` | Starts the development app on the build, passing the arguments to its main process. |
 | `desktop-tools <command> [<option>...]` | Runs the app's command line on the development app. |

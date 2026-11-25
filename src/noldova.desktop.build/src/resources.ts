@@ -1192,11 +1192,12 @@ export class Resources {
   public static readonly failureExitCode: number = 1;
   public static readonly githubErrorPrefix: string = "::error::";
   public static readonly outputOption: string = "--output";
-  public static readonly buildUsage: string = `Usage: ${Resources.commandName} ${Resources.buildCommand} [--test [--without <module id>]... [--output <folder> [--update-feed <URL>]] | --packaged [--output <folder> [--update-feed <URL>]] | --shard=<1 or 2>/2 | --list-copies], where a URL is an https URL, or an http URL of localhost, ending in /\n`;
+  public static readonly buildUsage: string = `Usage: ${Resources.commandName} ${Resources.buildCommand} [--test [--without <module id>]... [--output <folder> [--update-feed <URL>] [--document-tabs]] | --packaged [--output <folder> [--update-feed <URL>]] | --shard=<1 or 2>/2 | --list-copies], where a URL is an https URL, or an http URL of localhost, ending in /\n`;
   public static readonly buildNoPackages: string = "No packages under src/; there is nothing to build.\n";
   public static readonly buildTestOption: string = "--test";
   public static readonly buildPackagedOption: string = "--packaged";
   public static readonly buildWithoutOption: string = "--without";
+  public static readonly buildDocumentTabsOption: string = "--document-tabs";
   public static readonly buildListCopiesOption: string = "--list-copies";
   public static readonly buildEndOfCopies: string = "end of copies\n";
   public static readonly installUsage: string = `Usage: ${Resources.commandName} ${Resources.installCommand} [--shard=<1 or 2>/2]\n`;
