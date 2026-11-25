@@ -7,6 +7,7 @@
  */
 
 import { DockSide } from "../../src/app/enums/dock-side";
+import { NotASplitException } from "../exceptions/not-a-split.exception";
 import type { SplitAxis } from "../../src/app/enums/split-axis";
 import { DocumentTab } from "../../src/app/models/layout/document-tab";
 import type { LayoutNode } from "../../src/app/models/layout/layout.node";
@@ -36,7 +37,7 @@ export class LayoutFixture {
 
   public static splitOf(node: LayoutNode | null | undefined): SplitNode {
     if (!(node instanceof SplitNode))
-      throw new Error("The node is not a split.");
+      throw new NotASplitException();
     return node;
   }
 

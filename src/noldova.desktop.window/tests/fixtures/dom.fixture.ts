@@ -8,11 +8,17 @@
 
 import "@noldova/context.core";
 
+import { ElementMissingException } from "../exceptions/element-missing.exception";
+import { ElementTypeMismatchException } from "../exceptions/element-type-mismatch.exception";
+import { HostNotElementException } from "../exceptions/host-not-element.exception";
+import { NoAncestorMatchesException } from "../exceptions/no-ancestor-matches.exception";
+import { NoElementMatchesException } from "../exceptions/no-element-matches.exception";
+
 export class DomFixture {
   public static host(fixture: { readonly nativeElement: unknown }): HTMLElement {
     const host = fixture.nativeElement;
     if (!(host instanceof HTMLElement))
-      throw new Error("The fixture's host is not an HTML element.");
+      throw new HostNotElementException();
     return host;
   }
 
@@ -23,7 +29,7 @@ export class DomFixture {
   public static oneOf<T extends Element>(root: ParentNode, selector: string, type: abstract new () => T): T {
     const element = root.querySelector(selector);
     if (Object.isNull(element))
-      throw new Error(`Nothing matches ${selector}.`);
+      throw new NoElementMatchesException(selector);
     return DomFixture.checked(element, selector, type);
   }
 
@@ -43,19 +49,19 @@ export class DomFixture {
   public static closest(element: Element, selector: string): HTMLElement {
     const ancestor = element.closest(selector);
     if (Object.isNull(ancestor))
-      throw new Error(`No ancestor matches ${selector}.`);
+      throw new NoAncestorMatchesException(selector);
     return DomFixture.checked(ancestor, selector, HTMLElement);
   }
 
   public static present<T>(value: T | null | undefined): T {
     if (Object.isNullOrUndefined(value))
-      throw new Error("The element is missing.");
+      throw new ElementMissingException();
     return value;
   }
 
   private static checked<T extends Element>(element: Element, selector: string, type: abstract new () => T): T {
     if (!(element instanceof type))
-      throw new Error(`${selector} matches a ${element.localName}, not a ${type.name}.`);
+      throw new ElementTypeMismatchException(selector, element.localName, type.name);
     return element;
   }
 }

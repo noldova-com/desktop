@@ -9,6 +9,7 @@
 import type { Type } from "@angular/core";
 import { type WebViewEvent, WebViewNavigation, WebViewNavigationKind, type WebViewPane } from "@noldova/desktop.protocol";
 
+import { FixtureLayerMissingException } from "../exceptions/fixture-layer-missing.exception";
 import type { IWebViewFindOptions } from "../../src/app/interfaces/i-web-view-find-options";
 import type { IWebViewFound } from "../../src/app/interfaces/i-web-view-found";
 import type { IWebViewHandle } from "../../src/app/interfaces/i-web-view-handle";
@@ -43,7 +44,7 @@ export class WebViewHandleFixture implements IWebViewHandle {
   public async openLayerAsync<T>(load: () => Promise<Type<T>>): Promise<IWebViewLayer<T>> {
     this.calls.push("openLayer");
     await load();
-    throw new Error("The fixture opens no layer.");
+    throw new FixtureLayerMissingException();
   }
 
   public navigateAsync(url: string): Promise<WebViewNavigation> {

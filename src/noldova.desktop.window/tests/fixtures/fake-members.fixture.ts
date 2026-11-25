@@ -9,6 +9,7 @@
 import { Fake, UnansweredCallException } from "@noldova/desktop.protocol/testing";
 
 import type { FakeMember } from "../types/fake-member";
+import { MemberAnsweredException } from "../exceptions/member-answered.exception";
 
 export class FakeMembersFixture {
   private static readonly ASYNC_SUFFIX: string = "Async";
@@ -63,6 +64,6 @@ export class FakeMembersFixture {
         return error.member;
       throw error;
     }
-    throw new Error("The member returned without an answer.");
+    throw new MemberAnsweredException();
   }
 }
