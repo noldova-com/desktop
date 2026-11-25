@@ -598,6 +598,7 @@ export class Resources {
   public static readonly publisherNoneVerified: string = `The installed package has no Windows publisher, and ${Resources.windowsPublisherVariable} is not set.`;
   public static readonly publisherMatchVerified: string = `The installed package's Windows publisher matches ${Resources.windowsPublisherVariable}.`;
   public static readonly errorCodeField: "code" = "code";
+  public static readonly errorCallField: "syscall" = "syscall";
   public static readonly errorOutputField: "stdout" = "stdout";
   public static readonly chromiumNoSandboxOption: string = "--no-sandbox";
   public static readonly chromiumTypePrefix: string = "--type=";
@@ -2022,6 +2023,9 @@ export class Resources {
   public static readonly missingFileCodes: ReadonlySet<string> = new Set(["ENOENT", "ENOTDIR"]);
   public static readonly unreachableFileCodes: ReadonlySet<string> = new Set(["ENOENT", "ENOTDIR", "EACCES", "EPERM"]);
   public static readonly deniedFileCodes: ReadonlySet<string> = new Set(["EPERM"]);
+  public static readonly unsizedFileCodes: ReadonlySet<string> = new Set(["EINVAL"]);
+  public static readonly fileStatusCall: string = "fstat";
+  public static readonly fileReadChunkSize: number = 65536;
   public static readonly folderMode: number = 0o777;
   public static readonly reportSignedChecked: string = "signed and checked";
   public static readonly reportSignedUnchecked: string = "signed but not checked";
