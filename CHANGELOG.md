@@ -28,6 +28,7 @@ Nothing else needs a module or app to act: every other change to the packages' A
 - The settings' mode choice offers Light, Dark, System, in that order, with System still the default.
 - A build or the runtime keeps a folder that exists when Windows answers `EPERM` for creating it, as it can on a Dev Drive.
 - The Windows package smoke names what stays in an install folder after the uninstall, and expects a shared install folder that another app still uses to stay.
+- A launch that no runtime owns is refused as soon as its deadline passes, where a deadline passing between the launcher's two clock reads made it wait for the launch limit, 60 s by default.
 - Test and check changes with no effect on the packages: the test fixtures throw named exceptions and use named classes in place of tuples, the packaging files' tuples are named classes, the title bar's zoom test zooms from an emulated viewport, the foreground group reader's tests give the unreadable leader an id of its own, the Angular tests print memory state on a Windows socket failure, and the serial run's stepping fixtures hold past their step, so a slow runner no longer fails their timing checks.
 - The workflows are pinned to .github v2.50.0, and the ui-components packages to 0.0.32.
 
