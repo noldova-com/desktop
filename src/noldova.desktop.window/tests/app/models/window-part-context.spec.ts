@@ -326,7 +326,7 @@ describe("WindowPartContext", () => {
     expect([context.searchSources, host.calls.at(-1)]).toEqual([[], "refresh"]);
   });
 
-  it("registers its declared commands, refuses others and runs its own and its dependencies' commands", async () => {
+  it("registers its declared commands, refuses others and runs its own and its dependencies' commands, desktop.search and desktop.openSettings", async () => {
     const newNote = new CommandContribution("notes.newNote", "New note", null, "Mod+Alt+N", () => Promise.resolve(null));
 
     context.registerCommand(newNote);
@@ -341,9 +341,11 @@ describe("WindowPartContext", () => {
     expect(await context.runCommandAsync("tasks.add", { title: "Write" })).toEqual({ name: "tasks.add", commandArguments: { title: "Write" } });
     expect(await context.runCommandAsync("notes.newNote")).toEqual({ name: "notes.newNote", commandArguments: null });
     expect(await context.runCommandAsync("desktop.search", { source: "notes.notes" })).toEqual({ name: "desktop.search", commandArguments: { source: "notes.notes" } });
+    expect(await context.runCommandAsync("desktop.openSettings", { page: "notes.hosts" })).toEqual({ name: "desktop.openSettings", commandArguments: { page: "notes.hosts" } });
     expect(() => context.runCommandAsync("clock.tick")).toThrowError(WindowPartAccessException);
     expect(() => context.runCommandAsync("desktop.showCommands")).toThrowError(WindowPartAccessException);
-    expect(host.calls).toEqual(["refresh", "run tasks.add", "run notes.newNote", "run desktop.search"]);
+    expect(() => context.runCommandAsync("desktop.showShortcuts")).toThrowError(WindowPartAccessException);
+    expect(host.calls).toEqual(["refresh", "run tasks.add", "run notes.newNote", "run desktop.search", "run desktop.openSettings"]);
   });
 
   it("registers its declared status bar items in declared order and lets them change within its own and its dependencies' commands", () => {

@@ -32,6 +32,7 @@ import type { IFilePathChoiceOptions } from "../interfaces/i-file-path-choice-op
 import type { IFileGrantOptions } from "../interfaces/i-file-grant-options.js";
 import type { IInAppBrowser } from "../interfaces/i-in-app-browser.js";
 import type { ILinkOpenOptions } from "../interfaces/i-link-open-options.js";
+import type { INamedContribution } from "../interfaces/i-named-contribution.js";
 import type { ISelectionSource } from "../interfaces/i-selection-source.js";
 import type { IUndoProvider } from "../interfaces/i-undo-provider.js";
 import type { IViewDialogOptions } from "../interfaces/i-view-dialog-options.js";
@@ -70,6 +71,7 @@ import { Resources } from "../../resources.js";
 export class WindowPartContext implements IWindowPartContext {
   private static readonly ignore: () => void = () => undefined;
   private static readonly noDock: Signal<DockSide | null> = signal<DockSide | null>(null).asReadonly();
+  private static readonly runnableShellCommands: readonly string[] = [Resources.searchCommand, Resources.openSettingsCommand];
 
   private readonly host: IWindowPartHost;
   private readonly owners: readonly string[];
@@ -343,7 +345,7 @@ export class WindowPartContext implements IWindowPartContext {
   }
 
   public runCommandAsync(name: string, commandArguments: JsonValue = null): Promise<JsonValue> {
-    if (name !== Resources.searchCommand)
+    if (!WindowPartContext.runnableShellCommands.includes(name))
       this.requireAllowed(name);
     return this.host.runCommandAsync(name, commandArguments);
   }
@@ -881,7 +883,7 @@ export class WindowPartContext implements IWindowPartContext {
       throw new ContributionNotDeclaredException(this.moduleId, setting, Resources.dynamicSettingKind);
   }
 
-  private requireDeclared(name: string, declared: readonly string[], registered: readonly { readonly name: string }[], kind: string): void {
+  private requireDeclared(name: string, declared: readonly string[], registered: readonly INamedContribution[], kind: string): void {
     this.requireOwn(name);
     if (!declared.includes(name))
       throw new ContributionNotDeclaredException(this.moduleId, name, kind);
