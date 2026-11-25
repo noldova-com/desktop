@@ -16,7 +16,10 @@ import { JsonReader, type JsonObject, type JsonValue } from "@noldova/context.js
 import { CodePointComparer } from "@noldova/context.text";
 
 import type { PackageManifest } from "../../models/packages/package-manifest.ts";
+import { CollectedClosure } from "../../models/packaging/collected-closure.ts";
+import { FoundPackage } from "../../models/packaging/found-package.ts";
 import { LockedPackage } from "../../models/packaging/locked-package.ts";
+import { LockfileEntry } from "../../models/packaging/lockfile-entry.ts";
 import { OmittedOptionals } from "../../models/packaging/omitted-optionals.ts";
 import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { TypeOnlyPeers } from "../../models/packaging/type-only-peers.ts";
@@ -46,8 +49,8 @@ export class ThirdPartyClosure {
 
   public collect(manifests: readonly PackageManifest[], rootPackages: readonly string[] = [], typeOnly: TypeOnlyPeers = new TypeOnlyPeers(),
     windowPackages: ReadonlySet<string> = new Set<string>(), omitted: OmittedOptionals = new OmittedOptionals(), versionOf: (name: string) => string = () => Resources.packageVersionPlaceholder):
-    readonly [readonly LockedPackage[], ReadonlyMap<string, readonly string[]>] {
-    const found = new Map<string, readonly [LockedPackage, JsonObject]>();
+    CollectedClosure {
+    const found = new Map<string, FoundPackage>();
     for (const manifest of manifests)
       for (const name of [...manifest.externalDependencies.keys(), ...manifest.peerDependencies.filter(t => PackageNaming.isContext(t))]) {
         if (Object.isNull(this.resolve(Resources.lockfileRootLocation, name)))
@@ -62,7 +65,7 @@ export class ThirdPartyClosure {
     const own = new Set(manifests.map(t => t.name));
 
     const shipped = new Map<string, LockedPackage>();
-    for (const [locked] of found.values()) {
+    for (const { locked } of found.values()) {
       const other = shipped.get(locked.name);
       if (Object.isUndefined(other))
         shipped.set(locked.name, locked);
@@ -70,7 +73,7 @@ export class ThirdPartyClosure {
         throw new BuildException(Resources.formatClosureVersionConflict(other.id, other.location, locked.id, locked.location));
     }
     const leftOut = new Map<string, readonly string[]>();
-    for (const [locked, entry] of found.values()) {
+    for (const { locked, entry } of found.values()) {
       const notOptional = omitted.of(locked.id).find(t => !Object.hasOwn(ThirdPartyClosure.readRecord(entry, Resources.lockfileOptionalDependenciesField), t));
       if (!Object.isUndefined(notOptional))
         throw new BuildException(Resources.formatClosureNotOptional(notOptional, locked.id));
@@ -90,7 +93,7 @@ export class ThirdPartyClosure {
       if (!Object.isUndefined(missing))
         throw new BuildException(Resources.formatClosurePeerMissing(id, manifest.directory, missing, typeOnly.listOtherVersions(id)));
     }
-    return [[...shipped.values()].sort((left, right) => CodePointComparer.compare(left.name, right.name)), leftOut];
+    return new CollectedClosure([...shipped.values()].sort((left, right) => CodePointComparer.compare(left.name, right.name)), leftOut);
   }
 
   private static isUnmet(peer: string, shipped: ReadonlyMap<string, LockedPackage>, own: ReadonlySet<string>, typeOnly: TypeOnlyPeers, id: string): boolean {
@@ -136,7 +139,7 @@ export class ThirdPartyClosure {
     return required.length === 0 || required.includes(value);
   }
 
-  private visit(found: Map<string, readonly [LockedPackage, JsonObject]>, from: string, name: string, isOptional: boolean, windowPackages: ReadonlySet<string>,
+  private visit(found: Map<string, FoundPackage>, from: string, name: string, isOptional: boolean, windowPackages: ReadonlySet<string>,
     omitted: OmittedOptionals): void {
     const resolved = this.resolve(from, name);
     if (Object.isNull(resolved)) {
@@ -144,7 +147,7 @@ export class ThirdPartyClosure {
         return;
       throw new BuildException(Resources.formatClosureDependencyUnlocked(from, name));
     }
-    const [location, entry, isInstalled] = resolved;
+    const { location, entry, isInstalled } = resolved;
     if (found.has(location))
       return;
     if (!this.fits(entry)) {
@@ -154,7 +157,7 @@ export class ThirdPartyClosure {
     }
 
     const locked = new LockedPackage(location, entry, isInstalled);
-    found.set(location, [locked, entry]);
+    found.set(location, new FoundPackage(locked, entry));
     const optional = Object.keys(ThirdPartyClosure.readRecord(entry, Resources.lockfileOptionalDependenciesField));
     for (const dependency of Object.keys(ThirdPartyClosure.readRecord(entry, Resources.lockfileDependenciesField)).filter(t => !optional.includes(t) && !windowPackages.has(t)))
       this.visit(found, location, dependency, false, windowPackages, omitted);
@@ -166,28 +169,27 @@ export class ThirdPartyClosure {
       this.visit(found, location, peer, false, windowPackages, omitted);
   }
 
-  private static find(packages: JsonObject, from: string, name: string): readonly [string, JsonObject] | null {
+  private static find(packages: JsonObject, from: string, name: string, isInstalled: boolean): LockfileEntry | null {
     const candidate = path.posix.join(from, Resources.nodeModulesFolder, name);
     const entry = ThirdPartyClosure.toRecord(packages[candidate]);
     if (!Object.isNull(entry))
-      return [candidate, entry];
+      return new LockfileEntry(candidate, entry, isInstalled);
     if (from === Resources.lockfileRootLocation)
       return null;
     const parent = from.lastIndexOf(Resources.lockfileNestedFolder);
-    return ThirdPartyClosure.find(packages, parent < 0 ? Resources.lockfileRootLocation : from.slice(0, parent), name);
+    return ThirdPartyClosure.find(packages, parent < 0 ? Resources.lockfileRootLocation : from.slice(0, parent), name, isInstalled);
   }
 
-  private resolve(from: string, name: string): readonly [string, JsonObject, boolean] | null {
-    const locked = ThirdPartyClosure.find(this.packages, from, name);
+  private resolve(from: string, name: string): LockfileEntry | null {
+    const locked = ThirdPartyClosure.find(this.packages, from, name, false);
     if (!Object.isNull(locked))
-      return [...locked, false];
-    const installed = PackageNaming.isNoldova(name) ? ThirdPartyClosure.find(this.installed, from, name) : null;
-    return Object.isNull(installed) ? null : [...installed, true];
+      return locked;
+    return PackageNaming.isNoldova(name) ? ThirdPartyClosure.find(this.installed, from, name, true) : null;
   }
 
   private wouldShip(from: string, name: string): boolean {
     const resolved = this.resolve(from, name);
-    return !Object.isNull(resolved) && this.fits(resolved[1]);
+    return !Object.isNull(resolved) && this.fits(resolved.entry);
   }
 
   private fits(entry: JsonObject): boolean {

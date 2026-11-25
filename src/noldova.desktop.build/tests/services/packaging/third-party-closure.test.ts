@@ -90,7 +90,7 @@ export class ThirdPartyClosureTests {
   public async listsTheShippedPackagesInCodePointOrderAsync(): Promise<void> {
     const packages = Object.fromEntries(["a", "a-b", "B", "@scope/a"].map(t => [`node_modules/${t}`, ThirdPartyClosureTests.lock("1.0.0")]));
 
-    const [shipped] = await ThirdPartyClosureTests.withClosureAsync(packages, t => t.collect([], ["a", "a-b", "B", "@scope/a"]));
+    const { shipped } = await ThirdPartyClosureTests.withClosureAsync(packages, t => t.collect([], ["a", "a-b", "B", "@scope/a"]));
 
     Assert.areEqual("@scope/a@1.0.0, B@1.0.0, a@1.0.0, a-b@1.0.0", shipped.map(t => t.id).join(", "));
   }
@@ -189,10 +189,10 @@ export class ThirdPartyClosureTests {
       undefined, undefined, undefined, undefined, undefined, ["optional"]);
     const optional = new PackageManifest("src/noldova.desktop.cli", ThirdPartyClosureTests.CLI, [], undefined, ["react"], undefined, undefined, undefined, undefined, undefined, ["react"]);
     const collect = (manifest: PackageManifest, roots: readonly string[], typeOnly: TypeOnlyPeers): Promise<string> => ThirdPartyClosureTests.withClosureAsync(
-      { "node_modules/react": ThirdPartyClosureTests.lock("18.3.1") }, t => t.collect([manifest], roots, typeOnly, new Set(), new OmittedOptionals(), () => "1.2.3")[0].map(u => u.id).join());
+      { "node_modules/react": ThirdPartyClosureTests.lock("18.3.1") }, t => t.collect([manifest], roots, typeOnly, new Set(), new OmittedOptionals(), () => "1.2.3").shipped.map(u => u.id).join());
 
     const error = await Assert.throwsAsync(() => collect(required, [], new TypeOnlyPeers()), BuildException);
-    const passed = [await collect(optional, [], new TypeOnlyPeers()), await collect(required, [], new TypeOnlyPeers(new Map([[id, new Set(["react"])]]))),
+    const passed = [await collect(optional, [], new TypeOnlyPeers()), await collect(required, [], new TypeOnlyPeers(new Map<string, ReadonlySet<string>>().set(id, new Set(["react"])))),
       await collect(required, ["react"], new TypeOnlyPeers())];
 
     Assert.areEqual(`${id} at src/noldova.desktop.cli needs the peer dependency react, which no shipped package brings and Electron does not provide, so it would fail at runtime.`,
@@ -217,9 +217,9 @@ export class ThirdPartyClosureTests {
 
   @TestMethod
   public async leavesOutTheOptionalDependenciesTheAppOmitsAndListsThoseThatWouldShipAsync(): Promise<void> {
-    const omitted = new OmittedOptionals(new Map([["host@1.0.0", new Set(["sdk", "windows-only"])]]));
+    const omitted = new OmittedOptionals(new Map<string, ReadonlySet<string>>().set("host@1.0.0", new Set(["sdk", "windows-only"])));
 
-    const [shipped, leftOut] = await ThirdPartyClosureTests.withClosureAsync({
+    const { shipped, leftOut } = await ThirdPartyClosureTests.withClosureAsync({
       "node_modules/host": { ...ThirdPartyClosureTests.lock("1.0.0"), optionalDependencies: { "sdk": "^1.0.0", "windows-only": "^1.0.0" } },
       "node_modules/sdk": ThirdPartyClosureTests.lock("1.0.0"),
       "node_modules/windows-only": { ...ThirdPartyClosureTests.lock("1.0.0"), os: ["win32"] }
@@ -231,7 +231,7 @@ export class ThirdPartyClosureTests {
 
   @TestMethod
   public async refusesLeavingOutADependencyThatIsNotOptionalAsync(): Promise<void> {
-    const omitted = new OmittedOptionals(new Map([["host@1.0.0", new Set(["sdk"])]]));
+    const omitted = new OmittedOptionals(new Map<string, ReadonlySet<string>>().set("host@1.0.0", new Set(["sdk"])));
 
     const error = await Assert.throwsAsync(() => ThirdPartyClosureTests.withClosureAsync({
       "node_modules/host": { ...ThirdPartyClosureTests.lock("1.0.0"), dependencies: { sdk: "^1.0.0" } },
@@ -244,7 +244,7 @@ export class ThirdPartyClosureTests {
 
   @TestMethod
   public async leavesAModulesWindowPackageToTheWindowBuildAsync(): Promise<void> {
-    const [shipped] = await ThirdPartyClosureTests.withClosureAsync({
+    const { shipped } = await ThirdPartyClosureTests.withClosureAsync({
       "node_modules/@noldova/sample": { ...ThirdPartyClosureTests.lock("0.0.1"), dependencies: { "@noldova/sample.window": "0.0.1" } }
     }, t => t.collect([], ["@noldova/sample"], new TypeOnlyPeers(), new Set(["@noldova/sample.window"])));
 
@@ -257,7 +257,7 @@ export class ThirdPartyClosureTests {
 
   private static async collectAsync(packages: Readonly<Record<string, unknown>>, manifests: readonly PackageManifest[], rootPackages: readonly string[],
     installed: Readonly<Record<string, unknown>> | string | null = null, target: PackageTarget = ThirdPartyClosureTests.LINUX, lockfile: string | null = null): Promise<string> {
-    const [shipped] = await ThirdPartyClosureTests.withClosureAsync(packages, t => t.collect(manifests, rootPackages), installed, target, lockfile);
+    const { shipped } = await ThirdPartyClosureTests.withClosureAsync(packages, t => t.collect(manifests, rootPackages), installed, target, lockfile);
     return shipped.map(t => t.id).sort().join(", ");
   }
 
