@@ -425,7 +425,7 @@ export class ModuleCatalog {
 
   private async readInstalledVersionAsync(packageName: string): Promise<string | null> {
     try {
-      return JsonReader.parse(await readFile(path.join(this.root, Resources.nodeModulesFolder, packageName, Resources.packageManifestFileName), Resources.textEncoding))
+      return JsonReader.parse(await TextFile.readAsync(path.join(this.root, Resources.nodeModulesFolder, packageName, Resources.packageManifestFileName)))
         .readString(Resources.versionField);
     }
     catch (error) {
