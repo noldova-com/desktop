@@ -171,14 +171,14 @@
 
 .nol-window-row-tabs {
   display: flex;
-  flex: 1 1 0;
+  flex: 1 1 auto;
   align-self: stretch;
   min-width: var(--nol-window-row-tabs-minimum);
   margin-inline-end: var(--nol-window-row-drag);
 }
 
 :host(.nol-window-row-with-tabs) .nol-window-row-middle {
-  flex: 0 1 auto;
+  flex: 0 1000 auto;
   padding-inline-start: 0;
 }
 
