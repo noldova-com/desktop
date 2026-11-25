@@ -21,6 +21,8 @@ import {
   AppImageCopyRecord, DataDirectoryOwnedException, DeclarationsUnreadableException, Endpoint, OwnershipLock, ProcessPresence, RuntimeBuild, RuntimeEntry, RuntimeHost, RuntimeOptions, ServerSettings
 } from "@noldova/desktop.runtime";
 
+import { EventAndResponseFixture } from "../../fixtures/event-and-response.fixture.js";
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { ProgramFixture } from "../../fixtures/program.fixture.js";
 import { RenameRetryFixture } from "../../fixtures/rename-retry.fixture.js";
@@ -39,7 +41,7 @@ export class RuntimeHostTests {
       const host = await fixture.startAsync();
       const discovery = await fixture.readDiscoveryAsync();
 
-      const [connection, answer] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection, response: answer } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       Assert.isFalse(host.isIdle);
       connection.sendMessages(new Request("main:1", ShellMethods.stop, new StopRequest(StopPolicy.IfIdle).toJson()));
 
@@ -63,7 +65,7 @@ export class RuntimeHostTests {
       const work = host.work.begin("Indexing the project");
       const identity = JSON.stringify(RuntimeBuild.identity.toJson());
 
-      const [connection, answer] = await fixture.handshakeAsync("other", RuntimeHostTests.OTHER);
+      const { connection, response: answer } = await fixture.handshakeAsync("other", RuntimeHostTests.OTHER);
       connection.send(
         "{\"kind\":\"Request\",\"id\":\"other:1\",\"method\":\"desktop.stop\",\"payload\":{\"policy\":\"IfIdle\"}}\n"
         + "{\"kind\":\"Request\",\"id\":\"other:2\",\"method\":\"desktop.moveAside\",\"payload\":null}\n");
@@ -95,7 +97,7 @@ export class RuntimeHostTests {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync();
       const discovery = await fixture.readDiscoveryAsync();
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const answer = await RuntimeHostFixture.callAsync(mainProcess, "main:1", ShellMethods.readWebViewBlockedPorts, null);
 
@@ -108,7 +110,7 @@ export class RuntimeHostTests {
   public blocksNoPortForItsSocket(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync();
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const answer = await RuntimeHostFixture.callAsync(mainProcess, "main:1", ShellMethods.readWebViewBlockedPorts, null);
 
@@ -124,7 +126,7 @@ export class RuntimeHostTests {
       const host = await fixture.startAsync(30_000, undefined, undefined, environment);
       const discovery = await fixture.readDiscoveryAsync();
 
-      const [connection, answer] = await fixture.handshakeAsync("other", RuntimeHostTests.OTHER);
+      const { connection, response: answer } = await fixture.handshakeAsync("other", RuntimeHostTests.OTHER);
       connection.send("{\"kind\":\"Request\",\"id\":\"other:1\",\"method\":\"desktop.stop\",\"payload\":{\"policy\":\"IfIdle\"}}\n");
 
       Assert.areEqual("/home/person/Noldova Desktop Sample.AppImage", discovery.executablePath);
@@ -152,7 +154,7 @@ export class RuntimeHostTests {
       const host = await fixture.startAsync();
       const programs = host.programs.length;
 
-      const [refused, answer] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: refused, response: answer } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       refused.sendMessages(new Request("main:1", ShellMethods.stop, new StopRequest(StopPolicy.StopWork).toJson()));
       const stopped = await refused.readResponseAsync();
       const reason = await host.waitForStopAsync();
@@ -358,7 +360,7 @@ export class RuntimeHostTests {
         ? [fixture.dataDirectory.discoveryFile]
         : [fixture.dataDirectory.discoveryFile, path.join(fixture.dataDirectory.discoveryFolder, "runtime.sock")];
 
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["notes", RuntimeHostTests.createDiscoveryProbePart(probed)]]));
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("notes", RuntimeHostTests.createDiscoveryProbePart(probed))]));
       const discovery = await fixture.readDiscoveryAsync();
       host.requestStop("test");
       await host.waitForStopAsync();
@@ -373,7 +375,7 @@ export class RuntimeHostTests {
   @TestMethod
   public listsTheProgramsItsModulesRunAndEndsThemWhenItStops(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", RuntimeHostTests.createProgramPart()]]));
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", RuntimeHostTests.createProgramPart())]));
 
       const programs = host.programs.map(t => `${t.moduleId} ${t.program}`);
       const processId = host.programs[0]?.processId ?? 0;
@@ -390,34 +392,37 @@ export class RuntimeHostTests {
   @TestMethod
   public followsDoNotDisturbAndMutedModulesFromTheSettingsAcrossARestart(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const declarations = await fixture.writeModulesAsync([["clock", RuntimeHostFixture.createNotificationPart()]]);
+      const declarations = await fixture.writeModulesAsync([new ModuleSourceFixture("clock", RuntimeHostFixture.createNotificationPart())]);
       const first = await fixture.startAsync(30_000, declarations);
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const doNotDisturb = (device: string): SettingKey => new SettingKey(QualifiedName.parse("desktop.doNotDisturb"), null, device);
 
       connection.sendMessages(new Request("main:1", ShellMethods.setSetting, new SettingValue(doNotDisturb("laptop"), true).toJson()));
-      const quiet = [await connection.readEventAsync(), await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const quietChange = await connection.readEventAsync();
+      const quiet = await EventAndResponseFixture.readAsync(connection);
       connection.sendMessages(new Request("main:2", ShellMethods.setSetting, new SettingValue(new SettingKey(QualifiedName.parse("desktop.mutedModules")), ["clock"]).toJson()));
-      const muted = [await connection.readEventAsync(), await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      await connection.readEventAsync();
+      const muted = await EventAndResponseFixture.readAsync(connection);
       connection.sendMessages(new Request("main:3", ShellMethods.setSetting, new SettingValue(new SettingKey(QualifiedName.parse("desktop.panelSize"), null, "laptop"), 14).toJson()));
-      const unrelated = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const unrelated = await EventAndResponseFixture.readAsync(connection);
       first.requestStop("test");
       await first.waitForStopAsync();
       const second = await fixture.startAsync(30_000, declarations);
-      const [again] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: again } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const laptop = await RuntimeHostFixture.callAsync(again, "main:4", ShellMethods.notifications, new NotificationsQuery("laptop").toJson());
       const desk = await RuntimeHostFixture.callAsync(again, "main:5", ShellMethods.notifications, new NotificationsQuery("desk").toJson());
       again.sendMessages(new Request("main:6", ShellMethods.resetSetting, doNotDisturb("laptop").toJson()));
-      const loud = [await again.readEventAsync(), await again.readEventAsync(), await again.readResponseAsync()] as const;
+      await again.readEventAsync();
+      const loud = await EventAndResponseFixture.readAsync(again);
       second.requestStop("test");
       await second.waitForStopAsync();
 
       const broadcast = (event: Event): NotificationBroadcast => NotificationBroadcast.fromJson(event.payload);
-      Assert.areEqual("desktop.settingsChanged|laptop||null", `${quiet[0].name.text}|${broadcast(quiet[1]).quietDevices.join(",")}|${broadcast(quiet[1]).mutedModules.join(",")}|${JSON.stringify(quiet[2].payload)}`);
-      Assert.areEqual("laptop|clock", `${broadcast(muted[1]).quietDevices.join(",")}|${broadcast(muted[1]).mutedModules.join(",")}`);
-      Assert.areEqual("desktop.settingsChanged|null", `${unrelated[0].name.text}|${JSON.stringify(unrelated[1].payload)}`);
+      Assert.areEqual("desktop.settingsChanged|laptop||null", `${quietChange.name.text}|${broadcast(quiet.event).quietDevices.join(",")}|${broadcast(quiet.event).mutedModules.join(",")}|${JSON.stringify(quiet.response.payload)}`);
+      Assert.areEqual("laptop|clock", `${broadcast(muted.event).quietDevices.join(",")}|${broadcast(muted.event).mutedModules.join(",")}`);
+      Assert.areEqual("desktop.settingsChanged|null", `${unrelated.event.name.text}|${JSON.stringify(unrelated.response.payload)}`);
       Assert.areEqual("true|clock,false|clock", [laptop, desk].map(t => NotificationState.fromJson(t.payload)).map(t => `${String(t.isDoNotDisturb)}|${t.mutedModules.join(",")}`).join(","));
-      Assert.areEqual("|clock", `${broadcast(loud[1]).quietDevices.join(",")}|${broadcast(loud[1]).mutedModules.join(",")}`);
+      Assert.areEqual("|clock", `${broadcast(loud.event).quietDevices.join(",")}|${broadcast(loud.event).mutedModules.join(",")}`);
     });
   }
 
@@ -445,12 +450,12 @@ export class RuntimeHostTests {
         "}",
         String.empty
       ].join("\n");
-      const declarations = await fixture.writeModulesAsync([["notes", part]]);
+      const declarations = await fixture.writeModulesAsync([new ModuleSourceFixture("notes", part)]);
       const activated = path.join(fixture.dataDirectory.locateModuleFolder("notes"), "bindings");
       const first = await fixture.startAsync(30_000, declarations);
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       connection.sendMessages(new Request("main:1", ShellMethods.setSetting, new SettingValue(new SettingKey(QualifiedName.parse("desktop.keyBindings")), { "notes.old": "Mod+K" }).toJson()));
-      const stored = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const stored = await EventAndResponseFixture.readAsync(connection);
       first.requestStop("test");
       await first.waitForStopAsync();
       const before = await readFile(activated, "utf8");
@@ -463,7 +468,7 @@ export class RuntimeHostTests {
       const after = await readFile(activated, "utf8");
 
       Assert.areNotEqual(text, renamed);
-      Assert.areEqual("desktop.settingsChanged|null", `${stored[0].name.text}|${JSON.stringify(stored[1].payload)}`);
+      Assert.areEqual("desktop.settingsChanged|null", `${stored.event.name.text}|${JSON.stringify(stored.response.payload)}`);
       Assert.areEqual(JSON.stringify({}), before);
       Assert.areEqual(JSON.stringify({ "notes.tick": "Mod+K" }), after);
     });
@@ -472,9 +477,9 @@ export class RuntimeHostTests {
   @TestMethod
   public servesAClientThatNeverAsksForModules(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["notes", RuntimeHostFixture.PART]]));
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("notes", RuntimeHostFixture.PART)]));
 
-      const [connection, answer] = await fixture.handshakeAsync("older", RuntimeBuild.identity);
+      const { connection, response: answer } = await fixture.handshakeAsync("older", RuntimeBuild.identity);
       connection.send(
         "{\"kind\":\"Request\",\"id\":\"older:1\",\"method\":\"notes.echo\",\"payload\":1}\n"
         + "{\"kind\":\"Request\",\"id\":\"older:2\",\"method\":\"desktop.stop\",\"payload\":{\"policy\":\"IfIdle\"}}\n");
@@ -491,17 +496,17 @@ export class RuntimeHostTests {
   @TestMethod
   public activatesItsModulesOnceDataFromBeforeTheShellIsMovedAside(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const declarations = await fixture.writeModulesAsync([["notes", RuntimeHostFixture.PART]]);
+      const declarations = await fixture.writeModulesAsync([new ModuleSourceFixture("notes", RuntimeHostFixture.PART)]);
       await mkdir(fixture.dataDirectory.root, { recursive: true });
       await writeFile(path.join(fixture.dataDirectory.root, "noldova-desktop.db"), "old data");
       const host = await fixture.startAsync(30_000, declarations);
       const before = host.modules.report.modules.length;
 
-      const [refused] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: refused } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       refused.sendMessages(new Request("main:1", ShellMethods.moveAside, null));
       await refused.readResponseAsync();
       await refused.waitForCloseAsync();
-      const [admitted] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: admitted } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       admitted.sendMessages(new Request("main:2", new QualifiedName("notes", "echo"), "after"));
       const echoed = await admitted.readResponseAsync();
 

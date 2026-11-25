@@ -19,7 +19,7 @@ export class ShellSettingsTests {
   public declaresTheShellsSettingsInOrderWithTheirDefaultsWhereEachIsKeptAndTheModesInOrder(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync(30_000, await fixture.writeModulesAsync([]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const snapshot = SettingsSnapshot.fromJson((await RuntimeHostFixture.callAsync(connection, "main:1", ShellMethods.settings, new SettingsQuery("d1").toJson())).payload);
 
@@ -42,7 +42,7 @@ export class ShellSettingsTests {
   public keepsATextSizeSetToTheOldDefaultWhileAnUnsetOneTakesTheNewDefault(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync(30_000, await fixture.writeModulesAsync([]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const size = (name: string, device: string = "d1"): SettingKey => new SettingKey(QualifiedName.parse(name), null, device);
 
       connection.sendMessages(
@@ -52,7 +52,7 @@ export class ShellSettingsTests {
         new Request("main:4", ShellMethods.readSetting, size("desktop.panelSize").toJson()),
         new Request("main:5", ShellMethods.setSetting, new SettingValue(size("desktop.codeSize", "d2"), 13).toJson()),
         new Request("main:6", ShellMethods.readSetting, size("desktop.codeSize", "d2").toJson()));
-      const [responses] = await RuntimeHostFixture.readMessagesAsync(connection, 8);
+      const { responses } = await RuntimeHostFixture.readMessagesAsync(connection, 8);
 
       Assert.areEqual(JSON.stringify([
         { name: "desktop.messageSize", value: 14, isSet: true },

@@ -18,7 +18,7 @@ export class UpdateSavedMethodTests {
   public refusesASaveWhenNoUpdateIsBeingPrepared(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync();
-      const [connection] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       const refused = await RuntimeHostFixture.callAsync(connection, "cli:1", ShellMethods.updateSaved, new UpdateSaved(process.pid, []).toJson());
 

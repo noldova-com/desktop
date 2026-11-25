@@ -18,11 +18,13 @@ import {
 import { EventRegistry, RuntimeBuild, WebViewCenter, WebViewFailureException } from "@noldova/desktop.runtime";
 
 import { EventSinkFixture } from "../../fixtures/event-sink.fixture.js";
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import type { RawConnectionFixture } from "../../fixtures/raw-connection.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
 import { UpdateBarrierFixture } from "../../fixtures/update-barrier.fixture.js";
 import { WaitFixture } from "../../fixtures/wait.fixture.js";
+import { WebViewCenterPartsFixture } from "../../fixtures/web-view-center-parts.fixture.js";
 
 @TestClass
 export class WebViewCenterTests {
@@ -30,7 +32,7 @@ export class WebViewCenterTests {
 
   @TestMethod
   public async failsEveryCallAsUnavailableWhileNoMainProcessIsConnectedOrWithoutAChannel(): Promise<void> {
-    const [center] = WebViewCenterTests.create();
+    const { center } = WebViewCenterTests.create();
     const unconnected = new WebViewCenter(new TextOutputFixture());
 
     unconnected.check(7);
@@ -44,7 +46,7 @@ export class WebViewCenterTests {
 
   @TestMethod
   public async sendsEachCallToTheMainProcessAndSettlesItOnlyWithThatConnectionsAnswer(): Promise<void> {
-    const [center, sink] = WebViewCenterTests.create();
+    const { center, sink } = WebViewCenterTests.create();
     center.check(7);
 
     const navigating = center.commandAsync("notes", WebViewAction.Navigate, "1", "https://example.com/");
@@ -68,7 +70,7 @@ export class WebViewCenterTests {
 
   @TestMethod
   public async mirrorsAModulesViewsFromTheMainProcessesListAndEventsAndLogsAListenerThatFails(): Promise<void> {
-    const [center, sink, diagnostics] = WebViewCenterTests.create();
+    const { center, sink, diagnostics } = WebViewCenterTests.create();
     center.check(7);
     const registration = center.attach("notes");
     const heard: string[] = [];
@@ -95,7 +97,7 @@ export class WebViewCenterTests {
 
   @TestMethod
   public async closesTheMirroredViewsAndFailsTheCallsInFlightWhenTheMainProcessGoesThenListsFromTheNextOne(): Promise<void> {
-    const [center, sink] = WebViewCenterTests.create();
+    const { center, sink } = WebViewCenterTests.create();
     center.attach("notes");
     const heard: string[] = [];
     center.listen("notes", t => heard.push(`${t.view} ${t.kind}`));
@@ -123,7 +125,7 @@ export class WebViewCenterTests {
 
   @TestMethod
   public async keepsANewerMirrorOfTheSameModuleAndLogsAListItCannotRead(): Promise<void> {
-    const [center, , diagnostics] = WebViewCenterTests.create();
+    const { center, diagnostics } = WebViewCenterTests.create();
     center.check(7);
     const first = center.attach("notes");
     const second = center.attach("notes");
@@ -175,7 +177,7 @@ export class WebViewCenterTests {
   public async settlesAPortWaitWhenTheMainProcessGoesOrWithoutAPortsChannelAndRejectsOneWhoseSignalAborts(): Promise<void> {
     const events = new EventRegistry(new EventSinkFixture());
     const center = new WebViewCenter(new TextOutputFixture(), events.declare(ShellEvents.webViewCommand), events.declare(ShellEvents.webViewBlockedPorts));
-    const [unchanneled] = WebViewCenterTests.create();
+    const { center: unchanneled } = WebViewCenterTests.create();
     const stopping = new AbortController();
     center.check(7);
     unchanneled.check(7);
@@ -194,10 +196,10 @@ export class WebViewCenterTests {
     Assert.areEqual("[4600,4700]", JSON.stringify(center.readPorts(9)?.ports));
   }
 
-  private static create(): [WebViewCenter, EventSinkFixture, TextOutputFixture] {
+  private static create(): WebViewCenterPartsFixture {
     const sink = new EventSinkFixture();
     const diagnostics = new TextOutputFixture();
-    return [new WebViewCenter(diagnostics, new EventRegistry(sink).declare(ShellEvents.webViewCommand)), sink, diagnostics];
+    return new WebViewCenterPartsFixture(new WebViewCenter(diagnostics, new EventRegistry(sink).declare(ShellEvents.webViewCommand)), sink, diagnostics);
   }
 
   private static opened(view: string): WebViewEvent {
@@ -216,10 +218,10 @@ export class WebViewCenterHostTests {
   @TestMethod
   public relaysAModulesCallsToTheMainProcessTakesOnlyItsAnswersAndEventsAndFailsThemWhileItIsGone(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", WebViewCenterHostTests.createPart()]], ["clock"]));
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", WebViewCenterHostTests.createPart())], ["clock"]));
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
       const before = await WebViewCenterHostTests.callAsync(cli, "cli:1", WebViewCenterHostTests.ECHO, null);
-      const [main] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: main } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const listing = await UpdateBarrierFixture.readEventAsync(main, ShellEvents.webViewCommand);
       const view = { id: "1", module: "clock", pane: { name: "clock.face" }, profileKey: "workspace-1" };

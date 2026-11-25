@@ -19,7 +19,7 @@ export class WindowStateReadMethodTests {
   public readsNothingForAWindowWithoutStateOrForTheSameWindowOnAnotherDevice(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync();
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const main = new WindowStateKey("device-1", "main");
       const other = new WindowStateKey("device-2", "main");
 
