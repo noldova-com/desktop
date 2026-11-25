@@ -21,6 +21,7 @@ import { ProductAbout } from "./product-about.ts";
 import { ProductCategories } from "./product-categories.ts";
 import { ProductDeviceFolders } from "./product-device-folders.ts";
 import { ProductTitleBar } from "./product-title-bar.ts";
+import { ProductTrayItem } from "./product-tray-item.ts";
 import { Resources } from "../../resources.ts";
 
 export class ProductIdentity {
@@ -45,6 +46,7 @@ export class ProductIdentity {
   public readonly installFolder: string | null;
   public readonly titleBarName: string | null;
   public readonly titleBarIcon: string | null;
+  public readonly tray: readonly ProductTrayItem[] | null;
 
   public constructor(
     name: string,
@@ -63,7 +65,8 @@ export class ProductIdentity {
     about: ProductAbout = ProductAbout.NONE,
     namedUpdateFeed: string | null = null,
     installFolder: string | null = null,
-    titleBar: ProductTitleBar = ProductTitleBar.NONE) {
+    titleBar: ProductTitleBar = ProductTitleBar.NONE,
+    tray: readonly ProductTrayItem[] | null = null) {
     const titleBarName = titleBar.name;
     const titleBarIcon = titleBar.icon;
     ProductIdentity.require(name.trim().length > 0 && !Resources.productUnsafeNamePattern.test(name), Resources.productNameField, Resources.productNameExpected);
@@ -92,6 +95,7 @@ export class ProductIdentity {
     ProductIdentity.require(Object.isNull(titleBarName) || (titleBarName.trim().length > 0 && !Resources.productLineBreakPattern.test(titleBarName)),
       Resources.productTitleBarNameField, Resources.productTitleBarNameExpected);
     ProductIdentity.require(Object.isNull(titleBarIcon) || ProductIdentity.isTitleBarIcon(titleBarIcon), Resources.productTitleBarIconField, Resources.productTitleBarIconExpected);
+    tray?.forEach((t, index) => ProductIdentity.requireTrayItem(t, index, tray.slice(0, index)));
 
     this.name = name;
     this.publisher = publisher;
@@ -114,6 +118,7 @@ export class ProductIdentity {
     this.installFolder = installFolder;
     this.titleBarName = titleBarName;
     this.titleBarIcon = titleBarIcon;
+    this.tray = tray;
   }
 
   public static async readAsync(root: string): Promise<ProductIdentity> {
@@ -158,7 +163,8 @@ export class ProductIdentity {
         ProductIdentity.readOptionalText(about, Resources.productReleasesField), ProductIdentity.readOptionalText(about, Resources.productLicensesField)),
       ProductIdentity.readOptionalText(product, Resources.productUpdateFeedField),
       ProductIdentity.readOptionalText(product, Resources.productInstallFolderField),
-      new ProductTitleBar(ProductIdentity.readOptionalText(product, Resources.productTitleBarNameField), ProductIdentity.readOptionalText(product, Resources.productTitleBarIconField)));
+      new ProductTitleBar(ProductIdentity.readOptionalText(product, Resources.productTitleBarNameField), ProductIdentity.readOptionalText(product, Resources.productTitleBarIconField)),
+      ProductIdentity.readTray(product));
   }
 
   public get updateFeed(): string {
@@ -193,6 +199,63 @@ export class ProductIdentity {
 
   private static isTitleBarIcon(icon: string): boolean {
     return Resources.productTitleBarIconDataPattern.test(icon) || (ProductIdentity.isRelativeFolder(icon) && Resources.productTitleBarIconFilePattern.test(icon));
+  }
+
+  private static readTray(product: JsonReader): readonly ProductTrayItem[] | null {
+    if (!product.hasField(Resources.productTrayField))
+      return null;
+    const entries = product.readValue(Resources.productTrayField);
+    if (!Array.isArray(entries))
+      throw new BuildException(Resources.formatProductFieldInvalid(Resources.productTrayField, Resources.productTrayExpected));
+    entries.forEach((t, index) => ProductIdentity.require(Object.isPlainObject(t), Resources.formatTrayFieldPath(index), Resources.productTrayEntryExpected));
+    return product.readObjectArray(Resources.productTrayField).map((t, index) => ProductIdentity.readTrayItem(t, index));
+  }
+
+  private static readTrayItem(entry: JsonReader, index: number): ProductTrayItem {
+    if (entry.hasField(Resources.productTraySeparatorField)) {
+      ProductIdentity.require(entry.readValue(Resources.productTraySeparatorField) === true && Object.keys(entry.toJson()).length === 1,
+        Resources.formatTrayFieldPath(index, Resources.productTraySeparatorField), Resources.productTraySeparatorExpected);
+      return ProductTrayItem.SEPARATOR;
+    }
+    return new ProductTrayItem(ProductIdentity.readOptionalText(entry, Resources.productTrayItemField), false, ProductIdentity.readOptionalText(entry, Resources.productTrayTextField),
+      ProductIdentity.readOptionalText(entry, Resources.productTrayToggledTextField), ProductIdentity.readOptionalText(entry, Resources.productTrayCommandField), ProductIdentity.readOptionalText(entry, Resources.productTrayIconField),
+      ProductIdentity.readOptionalText(entry, Resources.productTrayIconDarkField));
+  }
+
+  private static requireTrayItem(entry: ProductTrayItem, index: number, earlier: readonly ProductTrayItem[]): void {
+    if (entry.isSeparator)
+      return;
+    const item = entry.item;
+    const text = entry.text;
+    const command = entry.command;
+    if (Object.isNull(item)) {
+      ProductIdentity.require(!Object.isNull(command) && Resources.qualifiedNamePattern.test(command), Resources.formatTrayFieldPath(index, Resources.productTrayCommandField),
+        Resources.productTrayCommandExpected);
+      ProductIdentity.require(!Object.isNull(text), Resources.formatTrayFieldPath(index, Resources.productTrayTextField), Resources.productTrayTextExpected);
+    }
+    else {
+      ProductIdentity.require(Resources.productTrayItems.includes(item) && earlier.every(t => t.item !== item), Resources.formatTrayFieldPath(index, Resources.productTrayItemField),
+        Resources.productTrayItemExpected);
+      ProductIdentity.require(Object.isNull(command), Resources.formatTrayFieldPath(index, Resources.productTrayCommandField), Resources.productTrayCommandExpected);
+    }
+    const isNotifications = item === Resources.productTrayNotificationsItem;
+    ProductIdentity.require(!isNotifications || Object.isNull(text), Resources.formatTrayFieldPath(index, Resources.productTrayTextField), Resources.productTrayNotificationsTextExpected);
+    ProductIdentity.require(!isNotifications || Object.isNull(entry.toggledText), Resources.formatTrayFieldPath(index, Resources.productTrayToggledTextField),
+      Resources.productTrayNotificationsTextExpected);
+    ProductIdentity.require(ProductIdentity.isLabel(text), Resources.formatTrayFieldPath(index, Resources.productTrayTextField), Resources.productTrayTextExpected);
+    ProductIdentity.require(Object.isNull(entry.toggledText) || (!Object.isNull(item) && Resources.productTrayToggleItems.includes(item) && ProductIdentity.isLabel(entry.toggledText)),
+      Resources.formatTrayFieldPath(index, Resources.productTrayToggledTextField), Resources.productTrayToggledTextExpected);
+    ProductIdentity.requireTrayIcon(entry.icon, Resources.formatTrayFieldPath(index, Resources.productTrayIconField));
+    ProductIdentity.requireTrayIcon(entry.iconDark, Resources.formatTrayFieldPath(index, Resources.productTrayIconDarkField));
+  }
+
+  private static isLabel(text: string | null): boolean {
+    return Object.isNull(text) || (text.trim().length > 0 && !Resources.productLineBreakPattern.test(text));
+  }
+
+  private static requireTrayIcon(icon: string | null, field: string): void {
+    ProductIdentity.require(Object.isNull(icon) || Resources.productTrayIconDataPattern.test(icon) || (ProductIdentity.isRelativeFolder(icon) && Resources.productTrayIconFilePattern.test(icon)),
+      field, Resources.productTrayIconExpected);
   }
 
   private static isSecureAddress(address: string): boolean {

@@ -150,6 +150,7 @@ export class RuntimeApiTests {
       "ProcessSupervisor",
       "ProductFileException",
       "ProductInfo",
+      "ProductTrayItem",
       "PseudoTerminal",
       "PseudoTerminalExit",
       "PseudoTerminalRequest",

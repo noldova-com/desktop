@@ -394,6 +394,14 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - The icon shows whether work is running and whether notifications are unread, and its menu lists the running work, the newest unread notifications, Stop agents, opening the app, Turn on or Turn off Do not disturb for this device, and quitting.
   Stop agents runs `desktop.stopAgentControl`, and is disabled while the runtime is away; while agent control is stopped, Resume agents takes its place and runs `desktop.resumeAgentControl`.
   The menu has no check or radio items, so Windows leaves no empty column for a check mark.
+- An app lists the menu's items in its build's `desktop.product.tray`, as [BUILD.md](BUILD.md) says, and without a list its menu is the one above.
+  A built-in item keeps its behaviour, and its `text` replaces the label of Open, Quit and the work's row while no work runs.
+  Stop agents and Do not disturb take `text` for the label of their usual state, Stop agents and Turn on Do not disturb, and `toggledText` for the label once switched, Resume agents and Turn off Do not disturb; each replaces only its own label, and a refused stop key's hint still follows the label.
+  The notifications' rows keep the posts' titles.
+  A command item runs its module's command through the runtime, as the command palette does, and a list item the window doesn't know, such as a command that isn't a module's qualified name, is left out.
+  An item's `icon` shows beside its label, and on Windows and Linux its `iconDark` while the app's theme is dark; on macOS a template image follows the menu's colours.
+  A separator at either end of the menu or next to another one is left out, so an item that shows no row, such as the notifications while none is unread, leaves no doubled line.
+  The main process takes the stop key system-wide only when the list holds `agents`; the key works inside the app either way.
 - While a downloaded update is ready, the menu starts with Restart to update, naming the version, which restarts through the same path and checks as the status bar's `desktop.restartToUpdate`, and the tooltip says that an update is ready; the item goes when no update is ready.
   The icon shows one state, in this order: running work, then a ready update, then unread notifications, then idle; so a ready update takes the icon over unread notifications, which the tooltip and the menu still list.
   The tray says so only through its icon and menu, never a system notification.

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { QualifiedName } from "@noldova/desktop.protocol";
+
 export interface ITrayActions {
   open(): void;
   openNotification(id: string): void;
@@ -14,4 +16,5 @@ export interface ITrayActions {
   resumeAgents(): void;
   restartToUpdate(): void;
   quit(): void;
+  runCommand(command: QualifiedName): void;
 }

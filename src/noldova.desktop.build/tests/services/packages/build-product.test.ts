@@ -6,13 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
+import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { BuildVariant } from "../../../src/models/modules/build-variant.js";
 import { BuildProduct } from "../../../src/services/packages/build-product.js";
 
@@ -108,6 +109,68 @@ export class BuildProductTests {
     }
     finally {
       await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  public async writesTheTrayWithEachIconAsADataUrlAndMarksTemplateImagesAsync(): Promise<void> {
+    const root = await BuildProductTests.createRootAsync({
+      tray: [
+        { item: "open", text: "Open Sample", icon: "assets/openTemplate.png", iconDark: "data:image/png;base64,REFSSw==" },
+        { separator: true },
+        { text: "Fetch", command: "git.fetch", icon: "assets/fetch.png" },
+        { item: "agents", text: "Pause agents", toggledText: "Go on" },
+        { item: "quit", icon: "data:image/png;base64,UVVJVA==" }
+      ]
+    });
+    try {
+      await mkdir(path.join(root, "assets"));
+      await writeFile(path.join(root, "assets", "openTemplate.png"), "OPEN");
+      await writeFile(path.join(root, "assets", "fetch.png"), "FETCH");
+      const output = path.join(root, "out");
+
+      await new BuildProduct(root).writeAsync("print", output, BuildVariant.REGULAR);
+
+      Assert.areEqual(JSON.stringify([
+        { item: "open", text: "Open Sample", icon: "data:image/png;base64,T1BFTg==", iconDark: "data:image/png;base64,REFSSw==", isTemplate: true },
+        { separator: true },
+        { text: "Fetch", command: "git.fetch", icon: "data:image/png;base64,RkVUQ0g=" },
+        { item: "agents", text: "Pause agents", toggledText: "Go on" },
+        { item: "quit", icon: "data:image/png;base64,UVVJVA==" }
+      ]), JSON.stringify((await BuildProductTests.readAsync(path.join(output, "product.json"))).readValue("tray")));
+    }
+    finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  public async writesNoTrayWhenTheAppListsNoneAsync(): Promise<void> {
+    const root = await BuildProductTests.createRootAsync({});
+    try {
+      const output = path.join(root, "out");
+
+      await new BuildProduct(root).writeAsync("print", output, BuildVariant.REGULAR);
+
+      Assert.isFalse((await BuildProductTests.readAsync(path.join(output, "product.json"))).hasField("tray"));
+    }
+    finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  @TestMethod
+  public async refusesATrayIconTheAppsTreeDoesNotHoldAndNamesItsFieldAsync(): Promise<void> {
+    for (const entry of [{ item: "open", icon: "assets/missing.png" }, { item: "open", iconDark: "assets/missing.png" }]) {
+      const root = await BuildProductTests.createRootAsync({ tray: [{ separator: true }, entry] });
+      try {
+        const refusal = await Assert.throwsAsync(() => new BuildProduct(root).writeAsync("print", path.join(root, "out"), BuildVariant.REGULAR), BuildException);
+
+        Assert.areEqual(`The root package.json's desktop.product.tray[1].${Object.keys(entry)[1]} names assets/missing.png, which isn't in the app's tree.`, refusal.message);
+      }
+      finally {
+        await rm(root, { recursive: true, force: true });
+      }
     }
   }
 

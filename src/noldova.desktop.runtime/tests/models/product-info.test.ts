@@ -31,6 +31,12 @@ export class ProductInfoTests {
     updateFeed: "https://example.com/feed/",
     permissionsModule: "studio",
     installFolder: "Fixture Works",
+    tray: [
+      { item: "open", text: "Open Studio", icon: "data:image/png;base64,AAAA", iconDark: "data:image/png;base64,BBBB" },
+      { item: "agents", text: "Pause", toggledText: "Go on" },
+      { separator: true },
+      { text: "Fetch", command: "git.fetch", icon: "data:image/png;base64,CCCC", isTemplate: true }
+    ],
     version: "1.2.3",
     build: "abc123"
   };
@@ -49,13 +55,22 @@ export class ProductInfoTests {
           product.macosDeviceFolder, product.linuxDeviceFolder, product.dataDirectoryVariable, product.checkoutVariable, product.icons, product.windowsPublisher, product.updateFeed,
           product.permissionsModule, product.installFolder, product.version, product.build].join("|"));
       Assert.areEqual("first,second", product.linuxUpdateKeys.join());
+      Assert.areEqual(
+        JSON.stringify([
+          { item: "open", isSeparator: false, text: "Open Studio", toggledText: null, command: null, icon: "data:image/png;base64,AAAA", iconDark: "data:image/png;base64,BBBB", isTemplate: false },
+          { item: "agents", isSeparator: false, text: "Pause", toggledText: "Go on", command: null, icon: null, iconDark: null, isTemplate: false },
+          { item: null, isSeparator: true, text: null, toggledText: null, command: null, icon: null, iconDark: null, isTemplate: false },
+          { item: null, isSeparator: false, text: "Fetch", toggledText: null, command: "git.fetch", icon: "data:image/png;base64,CCCC", iconDark: null, isTemplate: true }
+        ]),
+        JSON.stringify(product.tray));
       await writeFile(file, JSON.stringify({ ...ProductInfoTests.PRODUCT, updateFeed: null, windowsPublisher: null }));
       const unsigned = ProductInfo.read(file);
       Assert.isNull(unsigned.updateFeed);
       Assert.isNull(unsigned.windowsPublisher);
       await writeFile(file, JSON.stringify(Object.fromEntries(Object.entries(ProductInfoTests.PRODUCT).filter(([key]) => key !== "linuxUpdateKeys"))));
       Assert.areEqual(0, ProductInfo.read(file).linuxUpdateKeys.length);
-      await writeFile(file, JSON.stringify(Object.fromEntries(Object.entries(ProductInfoTests.PRODUCT).filter(([key]) => key !== "permissionsModule" && key !== "installFolder"))));
+      await writeFile(file, JSON.stringify(Object.fromEntries(Object.entries(ProductInfoTests.PRODUCT).filter(([key]) => key !== "permissionsModule" && key !== "installFolder" && key !== "tray"))));
+      Assert.isNull(ProductInfo.read(file).tray);
       Assert.isNull(ProductInfo.read(file).permissionsModule);
       Assert.isNull(ProductInfo.read(file).installFolder);
     });

@@ -8,6 +8,7 @@
 
 import "@noldova/context.core";
 import type { AgentControlState, Notification, NotificationState, WorkReport } from "@noldova/desktop.protocol";
+import type { ProductTrayItem } from "@noldova/desktop.runtime";
 
 import { TrayIconState } from "../enums/tray-icon-state.js";
 import { UpdateStateKind } from "../enums/update-state-kind.js";
@@ -26,6 +27,7 @@ export class TrayController {
   private readonly icons: AppIcons;
   private readonly isMac: boolean;
   private readonly actions: ITrayActions;
+  private readonly template: TrayMenuTemplate;
   private readonly log: (text: string) => void;
   private readonly changeShown: (isShown: boolean) => void;
   private tray: ITray | undefined;
@@ -48,6 +50,7 @@ export class TrayController {
     icons: AppIcons,
     platform: string,
     actions: ITrayActions,
+    items: readonly ProductTrayItem[],
     log: (text: string) => void,
     changeShown: (isShown: boolean) => void) {
     this.host = host;
@@ -55,11 +58,16 @@ export class TrayController {
     this.icons = icons;
     this.isMac = platform === Resources.macPlatform;
     this.actions = actions;
+    this.template = new TrayMenuTemplate(items, host, actions);
     this.log = log;
     this.changeShown = changeShown;
     this.tray = undefined;
     this.notifications = undefined;
     this.agentControl = undefined;
+  }
+
+  public get claimsStopKey(): boolean {
+    return this.template.claimsStopKey;
   }
 
   public get isShown(): boolean {
@@ -160,9 +168,11 @@ export class TrayController {
     this.toolTip = toolTip;
     const isDoNotDisturb = this.notifications?.isDoNotDisturb ?? false;
     const isStopped = this.agentControl?.isStopped ?? null;
-    const menuKey = JSON.stringify([work, unread.slice(0, Resources.trayNotificationRows).map(t => [t.id, t.post.title]), isDoNotDisturb, isStopped, this.refusedKey, this.readyVersion]);
+    const isDark = this.icons.isMenuDark;
+    const menuKey = JSON.stringify([work, unread.slice(0, Resources.trayNotificationRows).map(t => [t.id, t.post.title]), isDoNotDisturb, isStopped, this.refusedKey, this.readyVersion,
+      isDark]);
     if (menuKey !== this.menuKey)
-      tray.setContextMenu(this.menu.buildFromTemplate(TrayMenuTemplate.build(work, unread, isDoNotDisturb, isStopped, this.refusedKey, this.readyVersion, this.actions)));
+      tray.setContextMenu(this.menu.buildFromTemplate(this.template.build(work, unread, isDoNotDisturb, isStopped, this.refusedKey, this.readyVersion, isDark)));
     this.menuKey = menuKey;
   }
 

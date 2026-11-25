@@ -216,6 +216,7 @@ export { ProcessLaunchCommand } from "../models/process-launch-command.js";
 export { ProcessRequest } from "../models/process-request.js";
 export { ProcessSettings } from "../models/process-settings.js";
 export { ProductInfo } from "../models/product-info.js";
+export { ProductTrayItem } from "../models/product-tray-item.js";
 export { PseudoTerminal } from "../models/pseudo-terminal.js";
 export { PseudoTerminalExit } from "../models/pseudo-terminal-exit.js";
 export { PseudoTerminalRequest } from "../models/pseudo-terminal-request.js";
