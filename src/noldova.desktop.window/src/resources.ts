@@ -131,6 +131,7 @@ export class Resources {
   public static readonly tabCloseSelector: string = ".nol-tab-close";
   public static readonly selectedTabSelector: string = ".nol-tab-selected";
   public static readonly tabActionsWidthProperty: string = "--nol-tab-group-actions-width";
+  public static readonly tabsWidthProperty: string = "--nol-tab-group-tabs-width";
   public static readonly arrowLeftKey: string = "ArrowLeft";
   public static readonly arrowRightKey: string = "ArrowRight";
   public static readonly homeKey: string = "Home";

@@ -116,6 +116,10 @@
   min-width: 0;
 }
 
+.nol-tab-group-in-window-row .nol-tab-group-scroller {
+  contain-intrinsic-inline-size: var(--nol-tab-group-tabs-width, 0px);
+}
+
 .nol-tab-group-in-window-row .nol-tab-group-actions {
   background-color: var(--nol-title-bar);
 }
