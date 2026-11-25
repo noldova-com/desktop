@@ -16,6 +16,7 @@ import {
 } from "@noldova/desktop.runtime";
 
 import { ProgramExitedEarlyException } from "../exceptions/program-exited-early.exception.js";
+import { WaitHungException } from "../exceptions/wait-hung.exception.js";
 import { ProcessClockFixture } from "./process-clock.fixture.js";
 import { ProgramFixture } from "./program.fixture.js";
 import type { PseudoTerminalLibraryFixture } from "./pseudo-terminal-library.fixture.js";
@@ -170,7 +171,7 @@ export class ProcessSupervisorFixture {
   public static async boundAsync<T>(waiting: Promise<T>, failure: () => string): Promise<T> {
     let limit: NodeJS.Timeout | undefined;
     const limited = new Promise<never>((_, reject) => {
-      limit = setTimeout(() => reject(new Error(`Waited ${ProcessSupervisorFixture.HANG_MILLISECONDS / 1_000} seconds. ${failure()}`)), ProcessSupervisorFixture.HANG_MILLISECONDS);
+      limit = setTimeout(() => reject(new WaitHungException(ProcessSupervisorFixture.HANG_MILLISECONDS / 1_000, failure())), ProcessSupervisorFixture.HANG_MILLISECONDS);
     });
     try {
       return await Promise.race([waiting, limited]);

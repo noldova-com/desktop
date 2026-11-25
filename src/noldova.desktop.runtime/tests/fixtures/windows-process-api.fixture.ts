@@ -10,6 +10,7 @@ import "@noldova/context.core";
 import type { IWindowsProcessApi, IWindowsSignature } from "@noldova/desktop.runtime";
 
 import { HandleNotOpenException } from "../exceptions/handle-not-open.exception.js";
+import { SignatureNotReadException } from "../exceptions/signature-not-read.exception.js";
 
 export class WindowsProcessApiFixture implements IWindowsProcessApi {
   public static readonly QUERY: number = 0x1000;
@@ -151,7 +152,7 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
   }
 
   public verifySignatureAsync(): Promise<IWindowsSignature> {
-    return Promise.reject(new Error("The process fixture reads no signatures."));
+    return Promise.reject(new SignatureNotReadException());
   }
 
   private static isRunning(processId: number): boolean {
