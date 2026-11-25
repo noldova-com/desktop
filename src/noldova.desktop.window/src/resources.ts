@@ -707,6 +707,7 @@ export class Resources {
   public static readonly menuBarItemSelector: string = "[nol-menu-bar-item]";
   public static readonly windowRowMinimumDragRem: number = 6;
   public static readonly searchFieldMinimumRem: number = 12;
+  public static readonly windowRowTabsMinimumRem: number = 10;
   public static readonly searchFieldWidthProperty: string = "--nol-window-row-search-width";
   public static readonly titleBarNameMinimumRem: number = 3;
   public static readonly windowControlsLabel: string = "Window controls";

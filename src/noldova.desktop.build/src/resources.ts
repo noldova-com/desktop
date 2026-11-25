@@ -1280,6 +1280,7 @@ export class Resources {
   public static readonly productInstallFolderField: string = "installFolder";
   public static readonly productTitleBarNameField: string = "titleBarName";
   public static readonly productTitleBarIconField: string = "titleBarIcon";
+  public static readonly productTitleBarDocumentTabsField: string = "titleBarDocumentTabs";
   public static readonly releaseAssetsUsage: string = `Usage: ${Resources.commandName} ${Resources.releaseAssetsCommand} [${Resources.updateFeedOption} <https URL, or http URL of localhost, ending in />]\n`;
   public static readonly mainBranch: string = "main";
   public static readonly onMainStatuses: readonly string[] = ["identical", "ahead"];
@@ -1834,6 +1835,7 @@ export class Resources {
     + "and with no space or dot at either end";
   public static readonly productTitleBarNameExpected: string = "one line of text";
   public static readonly productTitleBarIconExpected: string = "a PNG or SVG file's path from the app's root, such as assets/title-bar.svg, or a data: URL of a PNG or SVG image";
+  public static readonly productTitleBarDocumentTabsExpected: string = "true or false";
   public static readonly productMissing: string = `The root ${Resources.packageManifestFileName} must declare ${Resources.formatFieldPath(Resources.manifestDesktopField, Resources.productField)}.`;
   public static readonly productWindowsPublisherRemoved: string = `${Resources.formatFieldPath(Resources.manifestDesktopField, Resources.productField, Resources.productWindowsPublisherField)} no longer goes in ${Resources.packageManifestFileName}; remove it. A signed Windows package takes its publisher from the release's ${Resources.windowsPublisherVariable} secret.`;
   public static readonly manifestPackagingField: string = "packaging";

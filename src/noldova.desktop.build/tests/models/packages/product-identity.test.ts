@@ -120,6 +120,21 @@ export class ProductIdentityTests {
   }
 
   @TestMethod
+  public readsWhetherTheDocumentTabsStandInTheTitleBarAndLeavesThemOutWhenTheAppSaysNothing(): void {
+    const read = [true, false].map(titleBarDocumentTabs => ProductIdentityTests.read({ titleBarDocumentTabs }).isTitleBarDocumentTabs);
+
+    Assert.areEqual(JSON.stringify([true, false, false]), JSON.stringify([...read, ProductIdentityTests.read({}).isTitleBarDocumentTabs]));
+  }
+
+  @TestMethod
+  public refusesATitleBarDocumentTabsValueThatIsNotTrueOrFalse(): void {
+    for (const titleBarDocumentTabs of ["true", 1, 0, null, String.empty, []]) {
+      const refusal = Assert.throws(() => ProductIdentityTests.read({ titleBarDocumentTabs }), BuildException);
+      Assert.areEqual("The root package.json's desktop.product.titleBarDocumentTabs must be true or false.", refusal.message, JSON.stringify(titleBarDocumentTabs));
+    }
+  }
+
+  @TestMethod
   public refusesATitleBarNameThatIsNotOneLineOfText(): void {
     for (const titleBarName of ["Sample\nNotes", "Sample\rNotes", " ", String.empty, 42]) {
       const refusal = Assert.throws(() => ProductIdentityTests.read({ titleBarName }), BuildException);

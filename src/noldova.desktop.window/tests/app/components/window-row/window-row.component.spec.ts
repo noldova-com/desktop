@@ -1419,7 +1419,7 @@ describe("WindowRowComponent", () => {
     const longName = "Sample Notes for the Clinic Portal Team and Everyone Who Plans the Next Release Together";
 
     function giveTitleBar(name: string | null, image: string | null): void {
-      TestBed.configureTestingModule({ providers: [{ provide: BuildTokens.titleBar, useValue: { name, icon: image } }] });
+      TestBed.configureTestingModule({ providers: [{ provide: BuildTokens.titleBar, useValue: { name, icon: image, documentTabs: false } }] });
     }
 
     async function renderAsync(width: number): Promise<HTMLElement> {

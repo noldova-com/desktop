@@ -35,6 +35,7 @@ import { SearchPaletteService } from "../../services/search-palette.service.js";
 import { SearchService } from "../../services/search.service.js";
 import { SettingsService } from "../../services/settings.service.js";
 import { TabLabelService } from "../../services/tab-label.service.js";
+import { WindowRowTabsService } from "../../services/window-row-tabs.service.js";
 import { PlaceMenuComponent } from "../place-menu/place-menu.component.js";
 import { WindowControlsComponent } from "../window-controls/window-controls.component.js";
 
@@ -48,6 +49,7 @@ import { WindowControlsComponent } from "../window-controls/window-controls.comp
     "[class.nol-window-row-mac]": "isMac",
     "[class.nol-window-row-drawn-controls]": "isDrawingControls",
     "[class.nol-window-row-full-screen]": "isFullScreen()",
+    "[class.nol-window-row-with-tabs]": "documentTabs.isEnabled",
     "(document:keydown)": "pressed($event)",
     "(document:keyup)": "released($event)",
     "(document:pointerdown)": "pointed()"
@@ -97,6 +99,7 @@ export class WindowRowComponent {
   protected readonly menuBar: MenuBarService = inject(MenuBarService);
   protected readonly search: SearchService = inject(SearchService);
   protected readonly palette: SearchPaletteService = inject(SearchPaletteService);
+  protected readonly documentTabs: WindowRowTabsService = inject(WindowRowTabsService);
   protected readonly searchKey: Signal<string | null> = computed(() => this.commands.keyLabel(Resources.searchCommand));
   protected readonly fieldShift: Signal<string> = computed(() => Resources.formatPixels(this.shiftValue()));
   protected readonly below: OverlaySide = OverlaySide.below;
@@ -264,14 +267,14 @@ export class WindowRowComponent {
     const controlsWidth = Object.isUndefined(controls) ? 0 : controls.getBoundingClientRect().width;
     const inner = this.host.getBoundingClientRect().width - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth);
     const room = inner - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - start.getBoundingClientRect().width - end.getBoundingClientRect().width
-      - controlsWidth - Resources.windowRowMinimumDragRem * rem;
+      - controlsWidth - Resources.windowRowMinimumDragRem * rem - (this.documentTabs.isEnabled ? Resources.windowRowTabsMinimumRem * rem : 0);
     const bar = this.bar()?.nativeElement;
     const isFolded = !Object.isUndefined(bar) && WindowRowComponent.outerWidth(bar) > room - Resources.searchFieldMinimumRem * rem;
     this.foldedValue.set(isFolded);
     const menuButton = this.menuButton()?.nativeElement;
     const menu = isFolded || Object.isUndefined(bar) ? (Object.isUndefined(menuButton) ? 0 : WindowRowComponent.outerWidth(menuButton)) : WindowRowComponent.outerWidth(bar);
     this.placeIdentity(room - menu - Resources.searchFieldMinimumRem * rem, rem);
-    this.shiftValue.set(this.centringShift());
+    this.shiftValue.set(this.documentTabs.isEnabled ? 0 : this.centringShift());
   }
 
   private placeIdentity(room: number, rem: number): void {
@@ -288,7 +291,7 @@ export class WindowRowComponent {
     const centred = host.width / 2 - parseFloat(getComputedStyle(this.host).getPropertyValue(Resources.searchFieldWidthProperty)) * rem / 2 - lead;
     const isIconShown = !Object.isUndefined(icon) && room >= iconWidth + end;
     this.iconShownValue.set(isIconShown);
-    const nameRoom = Math.floor(Math.min(room, centred) - end - (isIconShown ? iconWidth : 0));
+    const nameRoom = Math.floor((this.documentTabs.isEnabled ? room : Math.min(room, centred)) - end - (isIconShown ? iconWidth : 0));
     this.nameShownValue.set(nameRoom >= Resources.titleBarNameMinimumRem * rem);
     this.nameRoom.set(nameRoom);
   }

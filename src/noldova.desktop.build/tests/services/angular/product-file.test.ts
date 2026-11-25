@@ -66,7 +66,18 @@ export class ProductFileTests {
     const text = await readFile(file.file, "utf8");
 
     Assert.isTrue(text.includes("import type { IProductAbout, IProductTitleBar } from \"@noldova/desktop.window/build\";"), text);
-    Assert.isTrue(text.includes("export const productTitleBar: IProductTitleBar = {\"name\":null,\"icon\":null};"), text);
+    Assert.isTrue(text.includes("export const productTitleBar: IProductTitleBar = {\"name\":null,\"icon\":null,\"documentTabs\":false};"), text);
+  }
+
+  @TestMethod
+  public async writesThatTheDocumentTabsStandInTheTitleBarWhenTheAppAsks(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync();
+    await writeFile(path.join(tree.path, "package.json"), JSON.stringify({ desktop: { product: { ...ProductFileTests.PRODUCT, titleBarDocumentTabs: true } } }));
+    const file = new ProductFile(tree.path);
+
+    await file.writeAsync();
+
+    Assert.isTrue((await readFile(file.file, "utf8")).includes("export const productTitleBar: IProductTitleBar = {\"name\":null,\"icon\":null,\"documentTabs\":true};"));
   }
 
   @TestMethod
@@ -78,6 +89,6 @@ export class ProductFileTests {
 
     await file.writeAsync();
 
-    Assert.isTrue((await readFile(file.file, "utf8")).includes("export const productTitleBar: IProductTitleBar = {\"name\":\"Sample \\\"Notes\\\"\",\"icon\":\"title-bar/Title%20Bar.svg\"};"));
+    Assert.isTrue((await readFile(file.file, "utf8")).includes("export const productTitleBar: IProductTitleBar = {\"name\":\"Sample \\\"Notes\\\"\",\"icon\":\"title-bar/Title%20Bar.svg\",\"documentTabs\":false};"));
   }
 }

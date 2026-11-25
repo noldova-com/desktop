@@ -8,7 +8,7 @@
 
 import { NgTemplateOutlet } from "@angular/common";
 import {
-  Component, DestroyRef, ElementRef, type Signal, computed, effect, inject, input, untracked, viewChild
+  Component, DestroyRef, ElementRef, type Signal, type TemplateRef, computed, effect, inject, input, untracked, viewChild
 } from "@angular/core";
 
 import "@noldova/context.core";
@@ -34,6 +34,7 @@ import { TabLabelService } from "../../services/tab-label.service.js";
 import { TabRenameService } from "../../services/tab-rename.service.js";
 import { TabRowService } from "../../services/tab-row.service.js";
 import { TabStripService } from "../../services/tab-strip.service.js";
+import { WindowRowTabsService } from "../../services/window-row-tabs.service.js";
 import { PlaceMenuComponent } from "../place-menu/place-menu.component.js";
 import { TabRowActionsComponent } from "../tab-row-actions/tab-row-actions.component.js";
 
@@ -61,6 +62,9 @@ export class TabGroupComponent {
   private readonly commands: CommandService = inject(CommandService);
   private readonly scroller: Signal<TabScrollerDirective | undefined> = viewChild(TabScrollerDirective);
   private readonly overflowTrigger: Signal<MenuTriggerDirective | undefined> = viewChild("overflowTrigger", { read: MenuTriggerDirective });
+  private readonly windowRowTabs: WindowRowTabsService = inject(WindowRowTabsService);
+  private readonly barTemplate: Signal<TemplateRef<unknown>> = viewChild.required<TemplateRef<unknown>>("bar");
+  private readonly barElement: Signal<ElementRef<HTMLElement> | undefined> = viewChild("barElement", { read: ElementRef });
 
   protected readonly resources: typeof Resources = Resources;
   protected readonly below: OverlaySide = OverlaySide.below;
@@ -75,6 +79,7 @@ export class TabGroupComponent {
   protected readonly rowActions: Signal<readonly (CommandRow | SubmenuRow)[]> = computed(() => this.tabRows.rowsOf(this.group()));
   protected readonly surface: Signal<PanelSurface> = computed(() => Object.isNull(this.frame().side) ? PanelSurface.Panel : PanelSurface.Shell);
   protected readonly isShell: Signal<boolean> = computed(() => this.surface() === PanelSurface.Shell);
+  protected readonly isInWindowRow: Signal<boolean> = computed(() => this.windowRowTabs.groupId() === this.group().id);
   protected readonly panelId: Signal<string> = computed(() => `${Resources.tabPanelIdPrefix}${this.group().id}`);
   protected readonly isDropAtEnd: Signal<boolean> = computed(() => this.drag.isDropBefore(this.group().id, this.group().tabs.length));
   protected readonly activeTabId: Signal<string | null> = computed(() => {
@@ -107,7 +112,17 @@ export class TabGroupComponent {
         trigger.getMenu()?.focusFirstItem(Resources.keyboardFocusOrigin);
       }
     });
-    inject(DestroyRef).onDestroy(() => strips.setOverflowing(this.group().id, false));
+    effect(() => {
+      const bar = this.barTemplate();
+      if (this.isInWindowRow())
+        this.windowRowTabs.show(bar);
+      else
+        this.windowRowTabs.withdraw(bar);
+    });
+    inject(DestroyRef).onDestroy(() => {
+      strips.setOverflowing(this.group().id, false);
+      this.windowRowTabs.withdraw(this.barTemplate());
+    });
   }
 
   protected tabId(index: number): string {
@@ -130,7 +145,8 @@ export class TabGroupComponent {
   }
 
   protected close(tab: Tab): void {
-    const hadFocus = this.host.contains(this.host.ownerDocument.activeElement);
+    const active = this.host.ownerDocument.activeElement;
+    const hadFocus = this.host.contains(active) || (this.barElement()?.nativeElement.contains(active) ?? false);
     this.layout.close(tab);
     if (hadFocus)
       this.focusAfterClose();

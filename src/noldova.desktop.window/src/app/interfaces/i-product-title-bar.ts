@@ -9,4 +9,5 @@
 export interface IProductTitleBar {
   readonly name: string | null;
   readonly icon: string | null;
+  readonly documentTabs: boolean;
 }

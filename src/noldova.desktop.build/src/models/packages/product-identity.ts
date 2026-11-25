@@ -45,6 +45,7 @@ export class ProductIdentity {
   public readonly installFolder: string | null;
   public readonly titleBarName: string | null;
   public readonly titleBarIcon: string | null;
+  public readonly isTitleBarDocumentTabs: boolean;
 
   public constructor(
     name: string,
@@ -114,6 +115,7 @@ export class ProductIdentity {
     this.installFolder = installFolder;
     this.titleBarName = titleBarName;
     this.titleBarIcon = titleBarIcon;
+    this.isTitleBarDocumentTabs = titleBar.isDocumentTabs;
   }
 
   public static async readAsync(root: string): Promise<ProductIdentity> {
@@ -158,7 +160,8 @@ export class ProductIdentity {
         ProductIdentity.readOptionalText(about, Resources.productReleasesField), ProductIdentity.readOptionalText(about, Resources.productLicensesField)),
       ProductIdentity.readOptionalText(product, Resources.productUpdateFeedField),
       ProductIdentity.readOptionalText(product, Resources.productInstallFolderField),
-      new ProductTitleBar(ProductIdentity.readOptionalText(product, Resources.productTitleBarNameField), ProductIdentity.readOptionalText(product, Resources.productTitleBarIconField)));
+      new ProductTitleBar(ProductIdentity.readOptionalText(product, Resources.productTitleBarNameField), ProductIdentity.readOptionalText(product, Resources.productTitleBarIconField),
+        ProductIdentity.readFlag(product, Resources.productTitleBarDocumentTabsField, Resources.productTitleBarDocumentTabsExpected)));
   }
 
   public get updateFeed(): string {
@@ -215,6 +218,14 @@ export class ProductIdentity {
       return null;
     const value = record.readValue(field);
     return Object.isString(value) ? value : String.empty;
+  }
+
+  private static readFlag(record: JsonReader, field: string, expected: string): boolean {
+    if (!record.hasField(field))
+      return false;
+    const value = record.readValue(field);
+    ProductIdentity.require(Object.isBoolean(value), field, expected);
+    return value === true;
   }
 
   private static require(isValid: boolean, field: string, expected: string): void {

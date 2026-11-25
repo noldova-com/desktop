@@ -37,7 +37,7 @@ export class ProductFile {
       String.empty,
       Resources.formatProductNameLine(product.name),
       Resources.formatProductAboutLine({ ...product.about.toJson(), logo: AboutLogo.of(this.root, product)?.toJson() ?? null }),
-      Resources.formatProductTitleBarLine({ name: product.titleBarName, icon: TitleBarIcon.of(this.root, product)?.address ?? null }),
+      Resources.formatProductTitleBarLine({ name: product.titleBarName, icon: TitleBarIcon.of(this.root, product)?.address ?? null, documentTabs: product.isTitleBarDocumentTabs }),
       String.empty
     ].join(Resources.lineSeparator));
   }
