@@ -9,12 +9,14 @@
 import { Injectable, type Signal, computed, inject } from "@angular/core";
 
 import type { JsonObject, JsonValue } from "@noldova/context.json";
+import { EditAction } from "@noldova/desktop.protocol";
 
 import type { CommandRow } from "../models/command-row.js";
 import type { MenuPlace } from "../models/menu-place.js";
 import { MenuSearchRow } from "../models/menu-search-row.js";
 import { CommandService } from "./command.service.js";
 import { MenuService } from "./menu.service.js";
+import { UndoService } from "./undo.service.js";
 import { Resources } from "../../resources.js";
 
 @Injectable({ providedIn: "root" })
@@ -24,6 +26,7 @@ export class MenuBarService {
 
   private readonly menus: MenuService = inject(MenuService);
   private readonly commands: CommandService = inject(CommandService);
+  private readonly undo: UndoService = inject(UndoService);
 
   public readonly places: Signal<readonly MenuPlace[]> = computed(() => {
     const places = this.menus.active().flatMap(t => t.places).filter(t => t.isMenuBar);
@@ -35,12 +38,17 @@ export class MenuBarService {
   public readonly shownPlaces: Signal<readonly MenuPlace[]> = computed(() => this.places().filter(t => this.menus.resolve(t.name).length > 0));
 
   public readonly tree: Signal<JsonObject> = computed(() => ({
-    [Resources.menusField]: [...this.menus.active().flatMap(t => t.places).filter(t => t.name === Resources.appMenu), ...this.places()].map(t => ({ [Resources.placeField]: t.name, [Resources.titleField]: t.title, [Resources.rowsField]: this.rowsOf([t.name]) }))
+    [Resources.menusField]: [...this.menus.active().flatMap(t => t.places).filter(t => t.name === Resources.appMenu), ...this.places()].map(t => ({ [Resources.placeField]: t.name, [Resources.titleField]: t.title, [Resources.rowsField]: this.rowsOf([t.name]) })),
+    [Resources.undoField]: this.undo.takesUndo() ? { [Resources.idField]: Resources.undoRowId, [Resources.enabledField]: this.undo.canUndo() } : null
   }));
 
   public readonly searchRows: Signal<readonly MenuSearchRow[]> = computed(() => this.places().flatMap(t => this.searchRowsOf([t.name], [t.title])));
 
   public run(id: string): void {
+    if (id === Resources.undoRowId) {
+      this.commands.run(Resources.editCommands[EditAction.Undo]);
+      return;
+    }
     const row = this.find(id.split(Resources.menuRowPathSeparator));
     if (!Object.isNull(row) && row.isEnabled && !this.commands.isHeldByDialog(row.command))
       this.commands.run(row.command, row.commandArguments);

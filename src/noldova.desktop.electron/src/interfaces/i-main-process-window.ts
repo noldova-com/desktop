@@ -50,6 +50,7 @@ export interface IMainProcessWindow {
   on(event: "responsive", listener: () => void): unknown;
   on(event: "show", listener: () => void): unknown;
   on(event: "hide", listener: () => void): unknown;
+  on(event: "focus", listener: () => void): unknown;
   on(event: "page-title-updated", listener: (event: IPreventableEvent, title: string) => void): unknown;
   once(event: "closed", listener: () => void): unknown;
 }

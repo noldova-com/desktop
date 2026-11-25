@@ -137,6 +137,15 @@ export class NotesWindowPart implements IWindowPart {
         () => import("./components/notes-outline/notes-outline.component").then(t => t.NotesOutlineComponent), ContentPadding.None, { preferredWidth: 60 }));
       context.openDocument("notes.wide", "board", "Board");
     }
+    if (options.readBoolean("hasUndo"))
+      context.provideUndo({
+        canUndo: () => NotesState.isUndoable(),
+        undoAsync: async () => {
+          NotesState.undone.update(t => t + 1);
+          NotesState.isUndoable.set(false);
+          counter.update(new StatusBarItemState(`Undone ${NotesState.undone()}`));
+        }
+      });
     this.continueAsync = async () => {
       await NotesWindowPart.readOptionsAsync(context, counter);
       NotesState.continued.update(t => t + 1);

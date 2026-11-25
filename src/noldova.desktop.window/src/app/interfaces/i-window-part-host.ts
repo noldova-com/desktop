@@ -27,6 +27,7 @@ import type { IFileChoiceOptions } from "./i-file-choice-options.js";
 import type { IFilePathChoiceOptions } from "./i-file-path-choice-options.js";
 import type { IFileGrantOptions } from "./i-file-grant-options.js";
 import type { ISelectionSource } from "./i-selection-source.js";
+import type { IUndoProvider } from "./i-undo-provider.js";
 import type { IWebViewHandle } from "./i-web-view-handle.js";
 import type { IWindowPalette } from "./i-window-palette.js";
 import type { IWindowPartContext } from "./i-window-part-context.js";
@@ -156,6 +157,8 @@ export interface IWindowPartHost {
   setTabWaiting(tabKey: string, isWaiting: boolean): void;
 
   registerSelectionSource(element: HTMLElement, source: ISelectionSource): () => void;
+
+  provideUndo(provider: IUndoProvider): () => void;
 
   refresh(): void;
 }

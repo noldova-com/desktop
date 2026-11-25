@@ -10,6 +10,8 @@ import type { BinaryToTextEncoding } from "node:crypto";
 
 import "@noldova/context.core";
 
+import { SettingOption } from "@noldova/desktop.protocol";
+
 import { PermissionDecision } from "./enums/permission-decision.js";
 import { PermissionDetailKind } from "./enums/permission-detail-kind.js";
 import { PermissionOption } from "./enums/permission-option.js";
@@ -450,7 +452,7 @@ export class Resources {
 
   public static readonly modeTitle: string = "Mode";
   public static readonly modeDescription: string = "Follow the operating system, or always light or dark.";
-  public static readonly modeOptions: readonly (readonly [string, string])[] = [["System", "System"], ["Light", "Light"], ["Dark", "Dark"]];
+  public static readonly modeOptions: readonly SettingOption[] = [new SettingOption("Light", "Light"), new SettingOption("Dark", "Dark"), new SettingOption("System", "System")];
   public static readonly defaultMode: string = "System";
   public static readonly leftDockStyleTitle: string = "Left dock";
   public static readonly leftDockStyleDescription: string = "Show the left dock's views as tabs, or as icons along the window's left edge.";
@@ -458,17 +460,17 @@ export class Resources {
   public static readonly rightDockStyleDescription: string = "Show the right dock's views as tabs, or as icons along the window's right edge.";
   public static readonly previewTabsTitle: string = "Preview tabs";
   public static readonly previewTabsDescription: string = "Open a document as a preview tab that the next preview replaces until it is kept. Off opens every document as an ordinary tab.";
-  public static readonly dockStyleOptions: readonly (readonly [string, string])[] = [["Tabs", "Tabs"], ["Icons", "Icons"]];
+  public static readonly dockStyleOptions: readonly SettingOption[] = [new SettingOption("Tabs", "Tabs"), new SettingOption("Icons", "Icons")];
   public static readonly defaultDockStyle: string = "Tabs";
   public static readonly menuBarTitle: string = "Menus";
   public static readonly menuBarDescription: string = "On Windows and Linux, show the menus as a bar in the window row, as a menu button, or not at all. A menu bar that does not fit the window row folds into the menu button. macOS keeps its menu bar.";
-  public static readonly menuBarOptions: readonly (readonly [string, string])[] = [["Inline", "Menu bar"], ["Button", "Menu button"], ["Hidden", "Hidden"]];
+  public static readonly menuBarOptions: readonly SettingOption[] = [new SettingOption("Inline", "Menu bar"), new SettingOption("Button", "Menu button"), new SettingOption("Hidden", "Hidden")];
   public static readonly defaultMenuBar: string = "Inline";
   public static readonly interfaceFontTitle: string = "Interface font";
   public static readonly interfaceFontDescription: string = "The font of menus, panels and prose.";
   public static readonly codeFontTitle: string = "Code font";
   public static readonly codeFontDescription: string = "The font of code and terminals.";
-  public static readonly fontOptions: readonly (readonly [string, string])[] = [["Noldova", "Noldova"], ["System", "System"]];
+  public static readonly fontOptions: readonly SettingOption[] = [new SettingOption("Noldova", "Noldova"), new SettingOption("System", "System")];
   public static readonly defaultFont: string = "Noldova";
   public static readonly panelSizeTitle: string = "Interface text size";
   public static readonly panelSizeDescription: string = "The size of interface text, in pixels; spacing and controls scale with it.";
@@ -494,7 +496,7 @@ export class Resources {
   public static readonly spellCheckLanguagesTitle: string = "Spelling languages";
   public static readonly updateChecksTitle: string = "Check for updates";
   public static readonly updateChecksDescription: string = "When this device looks for a newer version: shortly after starting and then every 10 minutes, only shortly after starting, or only when you choose Check for updates. A newer version downloads by itself; installing it waits for you. Modules that look for newer versions of the tools they use follow the same choice: with Only when I ask, they wait for you to ask too. Until the app has read this device's choice at start, they wait for it before they look.";
-  public static readonly updateChecksOptions: readonly (readonly [string, string])[] = [["Automatic", "Automatically"], ["AtStart", "Only at start"], ["OnRequest", "Only when I ask"]];
+  public static readonly updateChecksOptions: readonly SettingOption[] = [new SettingOption("Automatic", "Automatically"), new SettingOption("AtStart", "Only at start"), new SettingOption("OnRequest", "Only when I ask")];
   public static readonly defaultUpdateChecks: string = "Automatic";
   public static readonly spellCheckLanguagesDescription: string = "The languages words are checked in on this device. With none chosen, the operating system's languages that have a dictionary are used, or else the first language offered. On macOS the system chooses the languages.";
   public static readonly recentCommandCountTitle: string = "Recent commands";

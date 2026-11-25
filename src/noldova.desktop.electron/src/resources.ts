@@ -754,6 +754,7 @@ export class Resources {
   public static readonly clickEvent: "click" = "click";
   public static readonly showEvent: "show" = "show";
   public static readonly hideEvent: "hide" = "hide";
+  public static readonly focusEvent: "focus" = "focus";
   public static readonly failedEvent: "failed" = "failed";
   public static readonly dataEvent: "data" = "data";
   public static readonly errorEvent: "error" = "error";
@@ -868,6 +869,8 @@ export class Resources {
   public static readonly radioMenuType: "radio" = "radio";
   public static readonly normalMenuType: "normal" = "normal";
   public static readonly undoRole: "undo" = "undo";
+  public static readonly undoLabel: string = "Undo";
+  public static readonly undoAccelerator: string = "CmdOrCtrl+Z";
   public static readonly redoRole: "redo" = "redo";
   public static readonly cutRole: "cut" = "cut";
   public static readonly copyRole: "copy" = "copy";
@@ -957,6 +960,7 @@ export class Resources {
   public static readonly titleBarHeightField: string = "titleBarHeight";
   public static readonly invalidAppearance: string = "The window appearance is not valid.";
   public static readonly menusField: string = "menus";
+  public static readonly undoField: string = "undo";
   public static readonly placeField: string = "place";
   public static readonly titleField: string = "title";
   public static readonly rowsField: string = "rows";

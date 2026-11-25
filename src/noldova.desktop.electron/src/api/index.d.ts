@@ -5436,6 +5436,15 @@ export interface IMainProcessWindow {
   on(event: "hide", listener: () => void): unknown;
 
   /**
+   * Listens for the window gaining the focus.
+   *
+   * @param event The event's name.
+   * @param listener Called each time the window gains the focus.
+   * @returns Electron's own return value, which the main process does not use.
+   */
+  on(event: "focus", listener: () => void): unknown;
+
+  /**
    * Listens for the window's page setting its title.
    *
    * @param event The event's name.

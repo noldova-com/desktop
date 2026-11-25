@@ -1381,6 +1381,27 @@ export interface ISelectionSource {
 }
 
 /**
+ * A window part's own undo, such as a Git client's last write, which the part
+ * gives the window with {@link IWindowPartContext.provideUndo} so Edit → Undo
+ * and Mod+Z reach it while nothing editable has the focus.
+ */
+export interface IUndoProvider {
+  /**
+   * Whether there is anything to undo now; the window asks when it shows
+   * Undo, which it greys when the answer is `false`, and again before Undo
+   * runs. The window reads it in a signal's context, so a part that keeps the
+   * answer in a signal has the menu follow it.
+   */
+  canUndo(): boolean;
+
+  /**
+   * Undoes the part's last action. The window runs it as it runs a command,
+   * once for each Undo, and reports a rejection as it reports a command's.
+   */
+  undoAsync(): Promise<void>;
+}
+
+/**
  * A layer a window part opened over one of its web views with
  * {@link IWebViewHandle.openLayerAsync}. It closes when
  * {@link IWebViewLayer.close} is called, when the view opens another layer,
@@ -1914,6 +1935,37 @@ export interface IWindowPartContext {
    * ```
    */
   registerSelectionSource(element: HTMLElement, source: ISelectionSource): () => void;
+
+  /**
+   * Gives the window the part's undo, which Edit → Undo and Mod+Z run while
+   * the focus is on none of a text field, an editable element and an element
+   * inside a registered selection source, and while a web view's page doesn't
+   * have it; otherwise the native undo runs, as without a provider. Edit →
+   * Undo is greyed while the provider takes Undo and
+   * {@link IUndoProvider.canUndo} is `false`. On macOS the menu bar's Undo
+   * takes Cmd+Z; on Windows and Linux the window takes Ctrl+Z, except inside
+   * an element marked with {@link KeepsCtrlKeysDirective}.
+   *
+   * One provider at a time takes Undo in a window, from whichever module.
+   *
+   * @param provider The part's undo.
+   * @returns A function that withdraws the provider, after which Undo is
+   * native again; deactivation withdraws it too.
+   * @throws UndoProviderTakenException when another part already provides
+   * Undo in the window. After the part is withdrawn, it provides nothing and
+   * returns a function that does nothing.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * import type { WriteHistory } from "./write-history.js";
+   *
+   * export function provideWriteUndo(context: IWindowPartContext, writes: WriteHistory): () => void {
+   *   return context.provideUndo({ canUndo: () => writes.canUndo(), undoAsync: () => writes.undoLastAsync() });
+   * }
+   * ```
+   */
+  provideUndo(provider: IUndoProvider): () => void;
 
   /**
    * Supplies the rows of one of the module's dynamic menu groups. The window
