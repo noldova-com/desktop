@@ -492,6 +492,8 @@ describe("WindowPartContext", () => {
     context.registerView(instanceView());
     context.openView("notes.list", "1", "Inbox");
     context.openView("notes.list", "2", "Archive", { icon: "archive", tabGroup: "3", breadcrumb: ["Mail", "2026"], breadcrumbIcon: "inbox" });
+    context.openView("notes.list", "3", "Drafts", { revealDock: false });
+    context.openView("notes.list", "4", "Sent", { revealDock: true });
     context.updateView("notes.list", "1", { title: "Mail" });
     context.updateView("notes.list", "1", { icon: "mail" });
     context.updateView("notes.list", "1", { breadcrumb: ["Accounts", "Work"] });
@@ -501,7 +503,8 @@ describe("WindowPartContext", () => {
     context.returnView("notes.list", "2");
     context.closeView("notes.list", "2");
 
-    expect(host.calls).toEqual(["refresh", "openView notes notes.list 1 Inbox - -", "openView notes notes.list 2 Mail / 2026 / Archive inbox archive 3", "updateView notes notes.list 1 Mail - -",
+    expect(host.calls).toEqual(["refresh", "openView notes notes.list 1 Inbox - -", "openView notes notes.list 2 Mail / 2026 / Archive inbox archive 3",
+      "openView notes notes.list 3 Drafts - - quiet", "openView notes notes.list 4 Sent - -", "updateView notes notes.list 1 Mail - -",
       "updateView notes notes.list 1 - mail -", "updateView notes notes.list 1 - - [Accounts, Work]", "updateView notes notes.list 1 - - []", "updateView notes notes.list 1 - - -",
       "updateView notes notes.list 1 - - [Accounts] person",
       "returnView notes notes.list 2", "closeView notes notes.list 2"]);

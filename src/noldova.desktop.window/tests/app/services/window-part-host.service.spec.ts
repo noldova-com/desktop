@@ -926,7 +926,7 @@ describe("WindowPartHostService", () => {
       t.onViewClosed("terminal.shell", u => heard.push(u));
       t.openView("terminal.shell", "1", "pwsh", { breadcrumb: ["Work"] });
     });
-    const clock = new WindowPartFixture("clock", log, () => TestBed.inject(WindowPartHostService).openView("terminal", "terminal.shell", "2", new DocumentHeading("bash"), null, null));
+    const clock = new WindowPartFixture("clock", log, () => TestBed.inject(WindowPartHostService).openView("terminal", "terminal.shell", "2", new DocumentHeading("bash"), null, null, true));
     const { layout } = start([source("terminal", terminal, [], ["terminal.shell"]), source("clock", clock)], [status("terminal"), status("clock")]);
     vi.spyOn(TestBed.inject(LayoutStoreService), "readAsync").mockResolvedValue(saved.toJson());
 
@@ -951,7 +951,7 @@ describe("WindowPartHostService", () => {
     await vi.waitFor(() => expect(layout.layout().isOpen(shell("1"))).toBe(true));
     const started = [layout.layout().isOpen(shell("2")), labels.headingOf(shell("1")).text];
 
-    host.openView("terminal", "terminal.shell", "3", new DocumentHeading("zsh", ["Home"]), "code", null);
+    host.openView("terminal", "terminal.shell", "3", new DocumentHeading("zsh", ["Home"]), "code", null, true);
     const opened = labels.headingOf(shell("3")).text;
     host.returnView("terminal", "terminal.shell", "3");
     const front = layout.layout().groupOf(shell("3"))?.active;
@@ -961,6 +961,29 @@ describe("WindowPartHostService", () => {
     expect([started, opened, front]).toEqual([[false, "Work / Build"], "Home / zsh", shell("1")]);
     expect([layout.layout().isOpen(shell("1")), layout.layout().isOpen(shell("3")), labels.of(shell("3")), labels.headingOf(shell("3")).text])
       .toEqual([false, true, new TabLabel("fish", "code"), "Projects / fish"]);
+  });
+
+  it("opens a part's instances without expanding a collapsed dock when the part asks not to reveal it, while activating and afterwards", async () => {
+    const shell = (instance: string): ViewTab => new ViewTab("terminal.shell", instance);
+    const registry = new ViewRegistry([new ViewType("terminal.shell", DockSide.Bottom, false, true)], []);
+    const saved = Layout.createDefault(registry).openView(shell("1"), registry).toggleDock(DockSide.Bottom);
+    const terminal = new WindowPartFixture("terminal", log, t => {
+      t.registerView(new ViewContribution("terminal.shell", "Terminal", "terminal", DockSide.Bottom, false, load, undefined, { hasInstances: true }));
+      t.openView("terminal.shell", "1", "pwsh");
+      t.openView("terminal.shell", "2", "zsh", { revealDock: false });
+    });
+    const { host, layout } = start([source("terminal", terminal, [], ["terminal.shell"])], [status("terminal")]);
+    vi.spyOn(TestBed.inject(LayoutStoreService), "readAsync").mockResolvedValue(saved.toJson());
+    await vi.waitFor(() => expect(layout.layout().isOpen(shell("2"))).toBe(true));
+    TestBed.tick();
+    const early = [layout.layout().dock(DockSide.Bottom).isCollapsed, layout.layout().groupOf(shell("2"))?.active];
+
+    host.openView("terminal", "terminal.shell", "3", new DocumentHeading("bash"), null, null, false);
+    const later = [layout.layout().dock(DockSide.Bottom).isCollapsed, layout.layout().groupOf(shell("3"))?.active];
+    host.openView("terminal", "terminal.shell", "3", new DocumentHeading("bash"), null, null, true);
+
+    expect([saved.dock(DockSide.Bottom).isCollapsed, early, later]).toEqual([true, [true, shell("2")], [true, shell("3")]]);
+    expect([layout.layout().dock(DockSide.Bottom).isCollapsed, errors]).toEqual([false, []]);
   });
 
   it("shows a part's view without instances asked for while activating once the layout loads, and shows it or hides the dock of its view tabs at once afterwards", async () => {
@@ -981,7 +1004,7 @@ describe("WindowPartHostService", () => {
     const hidden = layout.layout().dock(DockSide.Bottom).isExpanded;
     host.showView("terminal", "terminal.panel");
     const again = layout.layout().dock(DockSide.Bottom).isExpanded;
-    host.openView("terminal", "terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    host.openView("terminal", "terminal.shell", "1", new DocumentHeading("pwsh"), null, null, true);
     host.hideViewDock("terminal", "terminal.shell", "1");
 
     expect([shown, hidden, again]).toEqual([[panel, true], false, true]);
@@ -1004,7 +1027,7 @@ describe("WindowPartHostService", () => {
     const shellDock = host.viewDockOf("terminal.shell", "1");
     const before = [panelDock(), shellDock()];
 
-    host.openView("terminal", "terminal.shell", "1", new DocumentHeading("pwsh"), null, null);
+    host.openView("terminal", "terminal.shell", "1", new DocumentHeading("pwsh"), null, null, true);
     const opened = shellDock();
     layout.place(panel, new SideDropTarget(DockSide.Right));
     layout.place(shell, new TabDropTarget(layout.layout().documents.id, 0));

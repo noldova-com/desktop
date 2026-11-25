@@ -234,6 +234,22 @@ describe("ViewInstancesService", () => {
     return layout.layout().sideOf(layout.layout().groupOf(tab)?.id ?? -1);
   }
 
+  it("opens an instance, and brings an open one to the front of its group, without expanding its collapsed dock when asked not to reveal it, and expands it by default", () => {
+    measure(120, 60);
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null, false);
+    const opened = [isShown(DockSide.Bottom), layout.layout().groupOf(first)?.active];
+    const dock = layout.layout().groupOf(first)?.id.toString() ?? null;
+    layout.toggleDock(DockSide.Bottom);
+    instances.openInstance("terminal.shell", "2", new DocumentHeading("bash"), null, dock, false);
+    const added = [isShown(DockSide.Bottom), layout.layout().groupOf(second)?.active, layout.layout().groupOf(second)?.id.toString()];
+    instances.openInstance("terminal.shell", "1", new DocumentHeading("pwsh"), null, null, false);
+    const fronted = [isShown(DockSide.Bottom), layout.layout().groupOf(first)?.active];
+    instances.openInstance("terminal.shell", "2", new DocumentHeading("bash"), null, null);
+
+    expect([opened, added, fronted]).toEqual([[true, first], [false, second, dock], [false, first]]);
+    expect([isShown(DockSide.Bottom), layout.layout().groupOf(second)?.active]).toEqual([true, second]);
+  });
+
   it("shows a closed view without instances at the end of its dock's group, showing the hidden dock, and moves the focus to its tab and asks its content to take it", () => {
     const focus = vi.spyOn(TestBed.inject(TabFocusService), "focus");
     measure(120, 60);
