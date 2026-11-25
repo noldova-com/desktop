@@ -8,8 +8,8 @@
 
 import { Fake, UnansweredCallException } from "@noldova/desktop.protocol/testing";
 
-import type { FakeMember } from "../types/fake-member";
 import { MemberAnsweredException } from "../exceptions/member-answered.exception";
+import type { FakeMember } from "../types/fake-member";
 
 export class FakeMembersFixture {
   private static readonly ASYNC_SUFFIX: string = "Async";
