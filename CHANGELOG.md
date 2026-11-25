@@ -4,6 +4,32 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.17
+
+Modules and apps must act on two points:
+- A class of a module's or app's own that implements `IWindowPartContext`, such as a recording test fake, adds `provideUndo`, or it no longer compiles; a module that uses `FakeWindowPartContext` needs nothing.
+- `@noldova/desktop.window` needs `@noldova/ui.components.angular` 0.0.32 or later, below 0.1.0.
+
+A web view declaration that lists one of the five methods newly refused below no longer builds; none of the modules lists them.
+Nothing else needs a module or app to act: every other change to the packages' API is additive, and the main process's own interfaces, such as `ITrayHost`, have no implementer outside Noldova Desktop.
+
+- A window part may run `desktop.openSettings` with its context's `runCommandAsync`, beside `desktop.search`, so a module's link can open Settings on one of its pages; every other Noldova Desktop command is still refused.
+- An app lists its tray menu's items in `desktop.product.tray`: the built-in rows in its order, separators, and rows that run a module's command, each with an optional icon and a dark one, and labels of its own for the built-in rows; the build refuses an invalid entry, naming its field, and an app without a list keeps today's menu.
+- An app can show its name and an icon at the start of the window row, with `desktop.product.titleBarName` and `desktop.product.titleBarIcon`, a PNG or SVG file from the app's tree or a `data:` URL.
+- A window part can give the window its own undo with `context.provideUndo({ canUndo, undoAsync })`, so Edit → Undo and Mod+Z reach it while nothing editable has the focus; one provider at a time takes Undo in a window, and a second is refused with `UndoProviderTakenException`.
+- A document or a view declares a preferred width in rem, `preferredWidth`, and while it is the active tab of the active document group the side docks give way to it, shrinking to their minimum and then closing to their strips, the right one first; a dock the person opened or hid stays as they left it.
+- A package whose licence calls for its complete source to go with the app, such as a GPL program it ships, names that source's pages and files in `noldovaDesktop.sourcePages` and `noldovaDesktop.sources`; the licence notice lists each file's address and SHA-256, and the release notes link the pages.
+- Every web view keeps the same-origin policy on and refuses insecure content in a secure page, whatever its element asks.
+- A web view declaration can no longer list `DOM.setFileInputFiles`, `Input.dispatchDragEvent`, `Input.setInterceptDrags`, `DOM.getFileInfo` or `Input.setIgnoreInputEvents`, which could hand a page the person's files, read their paths, or lock the person out of the page.
+- Keys typed while a forwarded shortcut's answer is pending, and a shortcut the window didn't run, reach the guest the view is bound to once its page is ready, so a move in that wait no longer loses them.
+- A relay event over its 64 KiB limit is cut in one pass, so the work no longer grows with the number of texts times the event's size.
+- A build that isn't packaged checks for updates only from a feed on this machine, so a development build never asks the production feed.
+- The settings' mode choice offers Light, Dark, System, in that order, with System still the default.
+- A build or the runtime keeps a folder that exists when Windows answers `EPERM` for creating it, as it can on a Dev Drive.
+- The Windows package smoke names what stays in an install folder after the uninstall, and expects a shared install folder that another app still uses to stay.
+- Test and check changes with no effect on the packages: the test fixtures throw named exceptions and use named classes in place of tuples, the packaging files' tuples are named classes, the title bar's zoom test zooms from an emulated viewport, the foreground group reader's tests give the unreadable leader an id of its own, and the Angular tests print memory state on a Windows socket failure.
+- The workflows are pinned to .github v2.50.0, and the ui-components packages to 0.0.32.
+
 ## 0.0.16
 
 - A window part's `IWindowPartContext.returnView(name, instance)` gives a group's front back to the tab that was in front before the part's last `openView` of the instance that brought its tab forward, such as a detail view the part showed for a document the person leaves, without moving the focus or the group the tab commands act on.
