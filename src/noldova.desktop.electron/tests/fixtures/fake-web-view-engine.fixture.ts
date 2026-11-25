@@ -9,8 +9,8 @@
 import "@noldova/context.core";
 import type { IWebViewContents, IWebViewEngine } from "@noldova/desktop.electron";
 
-import { FakeClock } from "./fake-clock.fixture.js";
 import { FakeSessionMissingException } from "../exceptions/fake-session-missing.exception.js";
+import { FakeClock } from "./fake-clock.fixture.js";
 import { FakeWebView } from "./fake-web-view.fixture.js";
 import { FakeWebViewSession } from "./fake-web-view-session.fixture.js";
 

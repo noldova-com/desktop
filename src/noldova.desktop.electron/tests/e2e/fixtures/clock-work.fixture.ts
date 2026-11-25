@@ -14,10 +14,10 @@ import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
 import { expect } from "@playwright/test";
 
+import { WorkNotReportedException } from "../exceptions/work-not-reported.exception.ts";
 import { CliFixture } from "./cli.fixture.ts";
 import { CommandSearchFixture } from "./command-search.fixture.ts";
 import type { MainProcessFixture } from "./main-process.fixture.ts";
-import { WorkNotReportedException } from "../exceptions/work-not-reported.exception.ts";
 
 export class ClockWorkFixture {
   public static readonly WORK: string = "Counting the ticks";
