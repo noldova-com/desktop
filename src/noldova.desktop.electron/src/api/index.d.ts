@@ -3760,7 +3760,7 @@ export interface IWebViewContents {
    * @param listener Called on each change, and once when the contents are destroyed.
    * @returns Electron's own return value, which the main process does not use.
    */
-  on(event: "did-start-loading" | "did-stop-loading" | "did-navigate" | "did-navigate-in-page" | "page-title-updated" | "destroyed", listener: () => void): unknown;
+  on(event: "did-start-loading" | "did-stop-loading" | "dom-ready" | "did-navigate" | "did-navigate-in-page" | "page-title-updated" | "destroyed", listener: () => void): unknown;
 
   /**
    * Listens for a load that failed.
@@ -5434,6 +5434,15 @@ export interface IMainProcessWindow {
    * @returns Electron's own return value, which the main process does not use.
    */
   on(event: "hide", listener: () => void): unknown;
+
+  /**
+   * Listens for the window gaining the focus.
+   *
+   * @param event The event's name.
+   * @param listener Called each time the window gains the focus.
+   * @returns Electron's own return value, which the main process does not use.
+   */
+  on(event: "focus", listener: () => void): unknown;
 
   /**
    * Listens for the window's page setting its title.

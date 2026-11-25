@@ -24,19 +24,19 @@ export class UpdateMethodTests {
       await using folder = await TemporaryFolderFixture.createAsync();
       const installation = UpdateBarrierFixture.open(folder.path);
       await fixture.startAsync(30_000, undefined, undefined, process.env, new ServerSettings(undefined, undefined, undefined, undefined, 5_000, 20), installation.folder);
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
       await UpdateBarrierFixture.holdAsync(installation);
 
       mainProcess.sendMessages(new Request("main:1", ShellMethods.update, new UpdateRequest(installation.folder).toJson()));
       const updating = await UpdateBarrierFixture.readEventAsync(cli, ShellEvents.updating);
-      const [, late] = await fixture.handshakeAsync("late", RuntimeBuild.identity);
+      const { response: late } = await fixture.handshakeAsync("late", RuntimeBuild.identity);
       const beforeSaving = await RuntimeHostFixture.callAsync(cli, "cli:1", ShellMethods.modules, null);
       const second = await RuntimeHostFixture.callAsync(cli, "cli:5", ShellMethods.update, new UpdateRequest(installation.folder).toJson());
       const saved = await RuntimeHostFixture.callAsync(cli, "cli:2", ShellMethods.updateSaved, new UpdateSaved(process.pid, ["The draft could not be saved."]).toJson());
       const refused = await RuntimeHostFixture.callAsync(cli, "cli:3", ShellMethods.modules, null);
       const work = await RuntimeHostFixture.callAsync(cli, "cli:4", ShellMethods.work, null);
-      const [responses] = await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
+      const { responses } = await RuntimeHostFixture.readMessagesAsync(mainProcess, 2);
       const ready = UpdateReady.fromJson(responses.get("main:1")?.payload);
       const coordinating = await RuntimeHostFixture.callAsync(mainProcess, "main:2", ShellMethods.modules, null);
       const again = await RuntimeHostFixture.callAsync(mainProcess, "main:3", ShellMethods.update, new UpdateRequest(installation.folder).toJson());
@@ -59,7 +59,7 @@ export class UpdateMethodTests {
   public refusesAnInstallationFolderThatIsNotAnAbsolutePath(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync(30_000);
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const refused = await RuntimeHostFixture.callAsync(mainProcess, "main:1", ShellMethods.update, new UpdateRequest("installations/0123456789abcdef").toJson());
       const withoutOwn = await RuntimeHostFixture.callAsync(mainProcess, "main:2", ShellMethods.update, new UpdateRequest(path.resolve("installations", "0123456789abcdef")).toJson());
@@ -77,10 +77,10 @@ export class UpdateMethodTests {
       await using folder = await TemporaryFolderFixture.createAsync();
       const installation = UpdateBarrierFixture.open(folder.path);
       await fixture.startAsync(30_000, undefined, undefined, process.env, undefined, installation.folder);
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const refused = await RuntimeHostFixture.callAsync(mainProcess, "main:1", ShellMethods.update, new UpdateRequest(path.join(folder.path, "other")).toJson());
-      const [, late] = await fixture.handshakeAsync("late", RuntimeBuild.identity);
+      const { response: late } = await fixture.handshakeAsync("late", RuntimeBuild.identity);
 
       Assert.areEqual(`${FailureCode.InvalidParams}|The update names another installation than the one this runtime belongs to.`, `${refused.failure?.code}|${refused.failure?.message}`);
       Assert.isFalse(late.hasFailed);

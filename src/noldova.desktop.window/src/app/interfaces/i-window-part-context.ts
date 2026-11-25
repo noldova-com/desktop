@@ -37,6 +37,7 @@ import type { IFileGrantOptions } from "./i-file-grant-options.js";
 import type { IInAppBrowser } from "./i-in-app-browser.js";
 import type { ILinkOpenOptions } from "./i-link-open-options.js";
 import type { ISelectionSource } from "./i-selection-source.js";
+import type { IUndoProvider } from "./i-undo-provider.js";
 import type { IViewDialogOptions } from "./i-view-dialog-options.js";
 import type { IViewInstanceOptions } from "./i-view-instance-options.js";
 import type { IViewUpdate } from "./i-view-update.js";
@@ -61,6 +62,7 @@ export interface IWindowPartContext {
   registerTopBarAction(action: TopBarActionContribution): TopBarAction;
   registerSave(save: () => Promise<void>): () => void;
   registerSelectionSource(element: HTMLElement, source: ISelectionSource): () => void;
+  provideUndo(provider: IUndoProvider): () => void;
   provideMenuGroup(group: string, provider: (context: JsonObject) => readonly MenuRowContribution[]): () => void;
   provideSettingOptions(setting: string, provider: (values: JsonObject) => readonly SettingOption[] | null): () => void;
   refreshSettingOptions(setting: string): void;

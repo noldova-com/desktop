@@ -21,7 +21,7 @@ export class WindowStateStoreTests {
   public keepsWindowStateAcrossRuntimes(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       const first = await fixture.startAsync();
-      const [writer] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: writer } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const key = new WindowStateKey("device-1", "main");
       writer.sendMessages(new Request("main:1", ShellMethods.writeWindowBounds, new WindowStateWrite(key, { width: 900, height: 600 }).toJson()));
       await writer.readResponseAsync();
@@ -29,7 +29,7 @@ export class WindowStateStoreTests {
       await first.waitForStopAsync();
 
       await fixture.startAsync();
-      const [reader] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: reader } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       reader.sendMessages(new Request("main:2", ShellMethods.readWindowBounds, key.toJson()));
 
       Assert.areEqual("{\"value\":{\"width\":900,\"height\":600}}", JSON.stringify((await reader.readResponseAsync()).payload));
@@ -40,7 +40,7 @@ export class WindowStateStoreTests {
   public storesEachKindInItsOwnColumn(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       const host = await fixture.startAsync();
-      const [writer] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: writer } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const key = new WindowStateKey("device-1", "main");
       writer.sendMessages(
         new Request("main:1", ShellMethods.writeWindowBounds, new WindowStateWrite(key, { width: 900 }).toJson()),

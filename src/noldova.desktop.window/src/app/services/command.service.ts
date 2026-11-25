@@ -12,7 +12,7 @@ import { DestroyRef, ErrorHandler, Injectable, type Signal, type WritableSignal,
 import "@noldova/context.core";
 import { DialogService } from "@noldova/ui.components.angular";
 import type { JsonValue } from "@noldova/context.json";
-import type { KeyChord } from "@noldova/desktop.protocol";
+import { EditAction, KeyChord } from "@noldova/desktop.protocol";
 
 import { UnconfirmedAction } from "../enums/unconfirmed-action.js";
 import { ActionNotConfirmedException } from "../exceptions/action-not-confirmed.exception.js";
@@ -28,16 +28,20 @@ import { ModuleStatusService } from "./module-status.service.js";
 import { SettingsService } from "./settings.service.js";
 import { ShellCommandsService } from "./shell-commands.service.js";
 import { StartupService } from "./startup.service.js";
+import { UndoService } from "./undo.service.js";
 import { ViewDialogService } from "./view-dialog.service.js";
 
 @Injectable({ providedIn: "root" })
 export class CommandService {
+  private static readonly UNDO_KEY: KeyChord = KeyChord.parse(Resources.undoKey);
+
   private readonly bridge: PreloadBridgeService = inject(PreloadBridgeService);
   private readonly errors: ErrorHandler = inject(ErrorHandler);
   private readonly dialogs: DialogService = inject(DialogService);
   private readonly viewDialogs: ViewDialogService = inject(ViewDialogService);
   private readonly shell: ShellCommandsService = inject(ShellCommandsService);
   private readonly startup: StartupService = inject(StartupService);
+  private readonly undo: UndoService = inject(UndoService);
   private readonly shellCommands: readonly CommandContribution[] = this.shell.commands;
   private readonly moduleCommands: WritableSignal<readonly CommandContribution[]> = signal([]);
   private readonly settingValues: Signal<ReadonlyMap<string, JsonValue>> = inject(SettingsService).values;
@@ -152,9 +156,15 @@ export class CommandService {
   private commandOf(event: KeyboardEvent): CommandContribution | null {
     if (event.isComposing)
       return null;
-    const name = this.nameOf(event);
+    const name = this.nameOf(event) ?? this.undoNameOf(event);
     const command = this.commands().find(t => t.name === name);
     return Object.isUndefined(command) || this.isHeldByDialog(command.name) || !this.canRun(command, null) ? null : command;
+  }
+
+  private undoNameOf(event: KeyboardEvent): string | undefined {
+    if (this.bridge.isMac || !this.undo.takesUndo() || event.composedPath().some(t => t instanceof Element && t.hasAttribute(Resources.keepsCtrlKeysAttribute)))
+      return undefined;
+    return KeyChord.fromStroke(event, this.bridge.platform)?.isSameOn(CommandService.UNDO_KEY, this.bridge.platform) === true ? Resources.editCommands[EditAction.Undo] : undefined;
   }
 
   private nameOf(event: KeyboardEvent): string | undefined {

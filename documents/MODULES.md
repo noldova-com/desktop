@@ -170,6 +170,16 @@ Noldova Desktop's packages take context's packages and the kit as ranges, as mod
 - The module's code gives the other program the file's unpacked copy, with Runtime's `PackagedPath.unpacked(file)`, which turns the path's first `app.asar` segment into `app.asar.unpacked` and leaves a checkout's path as it is.
   Electron's own file access reads either path.
 
+### Source the app must offer
+
+- A package whose licence calls for its complete corresponding source to go with the app, such as a GPL program it ships, names where its upstream publishes that source, in its `package.json`, and holds its licence file; `noldovaDesktop.unpacked` may then be left out.
+  - `noldovaDesktop.sourcePages`, a non-empty list of the HTTPS addresses of the pages that publish it, such as the release, tag or commit it was built from.
+  - `noldovaDesktop.sources`, a non-empty list of `{ "url", "size", "sha256" }`, one for each file of that source: its HTTPS address, its size in bytes and its SHA-256 in lowercase hex.
+  - For example, `"noldovaDesktop": { "sourcePages": ["https://github.com/<owner>/<repo>/tree/<tag>"], "sources": [{ "url": "https://<host>/<name>.tar.xz", "size": 8494608, "sha256": "<64 hex digits>" }] }`.
+  - The app keeps no copy of the source, so the upstream addresses must keep serving it.
+- Packaging adds the package's licence, its pages and each source file's address and SHA-256 to the app's third-party licence notice, and lists the pages in the target's package report, as [BUILD.md](BUILD.md#packaging) says; it refuses, naming the package, lists of another shape and a package without a licence file.
+- Each release's notes link the pages the packages name, once each, and say that the licence notice lists each source file, as [BUILD.md](BUILD.md#publication) says.
+
 ### What fails closed
 
 The build refuses:
@@ -298,6 +308,12 @@ A module keeps its tokens, keys and passwords in this machine's secret store, by
   The list holds the window's keys as the person bound them, the stop key, marked global since it works while agents act in another app, and on macOS the app and window menus' keys, Quit, Hide, Hide Others, Minimize and Close Window, with no command, since they quit, hide or close the app while its window is focused.
   The edit menu's keys, such as copy, paste, undo and select all, are not on it, so agents can use them freely.
 - `appWindows.list()` and `shortcuts.list()` are empty while the app's main process isn't connected; `onChanged` is called when a list changes and each time the main process connects or goes, even with no window open, but not when the same main process reports the same list again, and the runtime withdraws its listeners when the part deactivates.
+
+## Undo
+
+- A window part with an undo of its own gives it to the window with the context's `provideUndo({ canUndo, undoAsync })`, which returns a function that withdraws it; deactivation withdraws it too.
+- A window holds one provider at a time, from whichever module, and refuses a second with `UndoProviderTakenException`, so a module provides Undo only for the part that owns the window's main content.
+- Edit → Undo and Mod+Z reach the provider only while nothing editable has the focus; a text field, an editable element, a registered selection source and a web view's page keep their native undo, as [WINDOW.md](WINDOW.md) describes.
 
 ## Contributions
 

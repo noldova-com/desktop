@@ -17,13 +17,18 @@ import "@noldova/context.core";
 import { ProcessResult } from "../../src/models/processes/process-result.js";
 import { BuildException } from "../../src/exceptions/build.exception.js";
 import { ProcessRunner } from "../../src/services/processes/process-runner.js";
+import { ConfigurationFileFixture } from "./configuration-file.fixture.js";
+import { ListingCommandFixture } from "./listing-command.fixture.js";
+import { ProcessRowFixture } from "./process-row.fixture.js";
 
 export class TemporaryFolderRunnerFixture extends ProcessRunner {
   private static readonly TEST_LIMIT: number = 40_000;
   private static readonly REPORT_TIME: number = 17_000;
   private static readonly TEMPORARY_VARIABLES: readonly string[] = ["TMPDIR", "TEMP", "TMP"];
-  private static readonly CONFIGURATION_FILES: readonly (readonly [string, string])[] = [["npm_config_userconfig", "user.npmrc"], ["npm_config_globalconfig", "global.npmrc"]];
-  private static readonly COMPILE_CACHE_OFF: readonly [string, string] = ["NODE_DISABLE_COMPILE_CACHE", "1"];
+  private static readonly CONFIGURATION_FILES: readonly ConfigurationFileFixture[] = [new ConfigurationFileFixture("npm_config_userconfig", "user.npmrc"),
+    new ConfigurationFileFixture("npm_config_globalconfig", "global.npmrc")];
+  private static readonly COMPILE_CACHE_VARIABLE: string = "NODE_DISABLE_COMPILE_CACHE";
+  private static readonly COMPILE_CACHE_OFF: string = "1";
   private static readonly LOG_LINES: number = 60;
   private static readonly SAMPLE_LINES: number = 120;
   private static readonly TIMING_LENGTH: number = 6000;
@@ -37,10 +42,10 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
 
   private readonly folder: string;
   private readonly end: number | null;
-  private readonly listing: readonly [string, readonly string[]] | null;
+  private readonly listing: ListingCommandFixture | null;
   private readonly wait: number;
 
-  private constructor(folder: string, end: number | null, listing: readonly [string, readonly string[]] | null, wait: number) {
+  private constructor(folder: string, end: number | null, listing: ListingCommandFixture | null, wait: number) {
     super();
     this.folder = folder;
     this.end = end;
@@ -56,20 +61,16 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     return performance.now() + TemporaryFolderRunnerFixture.REPORT_TIME + milliseconds;
   }
 
-  public static async createAsync(folder: string, end: number | null = null, listing: readonly [string, readonly string[]] | null = null,
+  public static async createAsync(folder: string, end: number | null = null, listing: ListingCommandFixture | null = null,
     wait: number = Number.POSITIVE_INFINITY): Promise<TemporaryFolderRunnerFixture> {
     await mkdir(folder, { recursive: true });
-    for (const [, file] of TemporaryFolderRunnerFixture.CONFIGURATION_FILES)
+    for (const { file } of TemporaryFolderRunnerFixture.CONFIGURATION_FILES)
       await writeFile(path.join(folder, file), String.empty);
     return new TemporaryFolderRunnerFixture(folder, end, listing, wait);
   }
 
   public override async captureAsync(command: string, commandArguments: readonly string[], directory: string, timeout: number, environment?: NodeJS.ProcessEnv): Promise<ProcessResult> {
-    const variables = Object.fromEntries([
-      ...TemporaryFolderRunnerFixture.TEMPORARY_VARIABLES.map(t => [t, this.folder]),
-      ...TemporaryFolderRunnerFixture.CONFIGURATION_FILES.map(([variable, file]) => [variable, path.join(this.folder, file)]),
-      TemporaryFolderRunnerFixture.COMPILE_CACHE_OFF
-    ]);
+    const variables = Object.fromEntries(this.listVariables());
     if (Object.isNull(this.end))
       return await super.captureAsync(command, commandArguments, directory, timeout, { ...environment ?? process.env, ...variables });
 
@@ -117,24 +118,33 @@ export class TemporaryFolderRunnerFixture extends ProcessRunner {
     return Object.isNull(this.end) ? 0 : Math.floor(this.end - performance.now() - TemporaryFolderRunnerFixture.STOP_RESERVE);
   }
 
-  private async listProcessesAsync(): Promise<readonly { id: number, parent: number, line: string }[]> {
+  private listVariables(): ReadonlyMap<string, string> {
+    const variables = new Map<string, string>();
+    for (const variable of TemporaryFolderRunnerFixture.TEMPORARY_VARIABLES)
+      variables.set(variable, this.folder);
+    for (const { variable, file } of TemporaryFolderRunnerFixture.CONFIGURATION_FILES)
+      variables.set(variable, path.join(this.folder, file));
+    return variables.set(TemporaryFolderRunnerFixture.COMPILE_CACHE_VARIABLE, TemporaryFolderRunnerFixture.COMPILE_CACHE_OFF);
+  }
+
+  private async listProcessesAsync(): Promise<readonly ProcessRowFixture[]> {
     const limit = !Object.isNull(this.listing) ? Math.min(this.wait, this.left())
       : Math.min(process.platform === "win32" ? TemporaryFolderRunnerFixture.LIST_LIMIT + TemporaryFolderRunnerFixture.SAMPLE_LIMIT : TemporaryFolderRunnerFixture.LIST_LIMIT, this.left());
     if (limit <= 0)
-      return [{ id: Number.NaN, parent: Number.NaN, line: "The listing was skipped: no time was left." }];
+      return [new ProcessRowFixture(Number.NaN, Number.NaN, "The listing was skipped: no time was left.")];
     try {
       const { stdout } = !Object.isNull(this.listing)
-        ? await TemporaryFolderRunnerFixture.execute(this.listing[0], [...this.listing[1]], { timeout: limit })
+        ? await TemporaryFolderRunnerFixture.execute(this.listing.command, [...this.listing.commandArguments], { timeout: limit })
         : process.platform === "win32"
         ? await TemporaryFolderRunnerFixture.execute("pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", TemporaryFolderRunnerFixture.WINDOWS_PROCESSES], { timeout: limit })
         : await TemporaryFolderRunnerFixture.execute("ps", ["-ww", "-A", "-o", "pid=,ppid=,stat=,etime=,command="], { timeout: limit });
       return stdout.split("\n").map(t => t.trim()).filter(t => t.length > 0).map(t => {
         const [row, parent] = t.split(/\s+/);
-        return { id: Number(row), parent: Number(parent), line: t };
+        return new ProcessRowFixture(Number(row), Number(parent), t);
       });
     }
     catch (error) {
-      return [{ id: Number.NaN, parent: Number.NaN, line: `The listing failed: ${String(error)}` }];
+      return [new ProcessRowFixture(Number.NaN, Number.NaN, `The listing failed: ${String(error)}`)];
     }
   }
 

@@ -33,6 +33,7 @@ import type { IFileGrantOptions } from "../interfaces/i-file-grant-options.js";
 import type { IInAppBrowser } from "../interfaces/i-in-app-browser.js";
 import type { ILinkOpenOptions } from "../interfaces/i-link-open-options.js";
 import type { ISelectionSource } from "../interfaces/i-selection-source.js";
+import type { IUndoProvider } from "../interfaces/i-undo-provider.js";
 import type { IWebViewHandle } from "../interfaces/i-web-view-handle.js";
 import type { IWindowPalette } from "../interfaces/i-window-palette.js";
 import type { IWindowPart } from "../interfaces/i-window-part.js";
@@ -90,6 +91,7 @@ import { SettingOptionsService } from "./setting-options.service.js";
 import { SettingsService } from "./settings.service.js";
 import { TabLabelService } from "./tab-label.service.js";
 import { TabRenameService } from "./tab-rename.service.js";
+import { UndoService } from "./undo.service.js";
 import { ViewDialogService } from "./view-dialog.service.js";
 import { ViewInstancesService } from "./view-instances.service.js";
 import { WebViewService } from "./web-view.service.js";
@@ -105,6 +107,7 @@ export class WindowPartHostService implements IWindowPartHost {
   private readonly documentInstances: DocumentInstancesService = inject(DocumentInstancesService);
   private readonly history: DocumentHistoryService = inject(DocumentHistoryService);
   private readonly edits: EditTargetService = inject(EditTargetService);
+  private readonly undo: UndoService = inject(UndoService);
   private readonly labels: TabLabelService = inject(TabLabelService);
   private readonly renames: TabRenameService = inject(TabRenameService);
   private readonly commands: CommandService = inject(CommandService);
@@ -485,6 +488,10 @@ export class WindowPartHostService implements IWindowPartHost {
 
   public registerSelectionSource(element: HTMLElement, source: ISelectionSource): () => void {
     return this.edits.registerSource(element, source);
+  }
+
+  public provideUndo(provider: IUndoProvider): () => void {
+    return this.undo.provide(provider);
   }
 
   public refresh(): void {

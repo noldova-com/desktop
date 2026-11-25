@@ -19,7 +19,7 @@ export class WindowStateWriteMethodTests {
   public keepsTheLatestBoundsApartFromTheLayoutAndRefusesAWriteWithoutAValue(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync();
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const main = new WindowStateKey("device-1", "main");
 
       connection.sendMessages(

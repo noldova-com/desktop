@@ -19,7 +19,7 @@ export class SettingReadMethodTests {
   public answersTheEntryForAKeyAndRefusesAnUndeclaredSettingAnUnlistedScopeOrADeviceSettingWithoutADevice(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync(30_000, await fixture.writeModulesAsync([]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const mode = new SettingKey(QualifiedName.parse("desktop.mode"));
       const quiet = (device: string | null): SettingKey => new SettingKey(QualifiedName.parse("desktop.doNotDisturb"), null, device);
 
@@ -30,7 +30,7 @@ export class SettingReadMethodTests {
         new Request("main:4", ShellMethods.readSetting, new SettingKey(QualifiedName.parse("desktop.speed")).toJson()),
         new Request("main:5", ShellMethods.readSetting, new SettingKey(mode.name, new SettingScope(QualifiedName.parse("notes.folder"), "f1")).toJson()),
         new Request("main:6", ShellMethods.readSetting, quiet(null).toJson()));
-      const [responses] = await RuntimeHostFixture.readMessagesAsync(connection, 7);
+      const { responses } = await RuntimeHostFixture.readMessagesAsync(connection, 7);
 
       Assert.areEqual(JSON.stringify([
         { name: "desktop.mode", value: "Dark", isSet: true },

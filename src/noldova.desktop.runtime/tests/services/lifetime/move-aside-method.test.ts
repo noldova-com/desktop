@@ -30,14 +30,14 @@ export class MoveAsideMethodTests {
       await fixture.startAsync();
       const expected = `{"code":"PreShellData","message":"This data directory holds data from a Noldova Desktop Sample release that predates the shell; move it aside to continue.","details":{"location":${JSON.stringify(root)}}}`;
 
-      const [refused, answer] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: refused, response: answer } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       refused.sendMessages(
         new Request("main:1", new QualifiedName("notes", "open"), null),
         new Request("main:2", ShellMethods.moveAside, null),
         new Request("main:3", ShellMethods.moveAside, null));
       const responses = [await refused.readResponseAsync(), await refused.readResponseAsync(), await refused.readResponseAsync()];
       await refused.waitForCloseAsync();
-      const [admitted, admission] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: admitted, response: admission } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       admitted.sendMessages(new Request("main:4", ShellMethods.moveAside, null));
       const again = await admitted.readResponseAsync();
       const settledAtAnswer = held.settled;
@@ -76,11 +76,11 @@ export class MoveAsideMethodTests {
       await Promise.all(taken.map(t => writeFile(t, String.empty)));
       await fixture.startAsync();
 
-      const [first] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: first } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       first.sendMessages(new Request("main:1", ShellMethods.moveAside, null));
       const failed = await first.readResponseAsync();
       await Promise.all(taken.map(t => rm(t)));
-      const [second] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: second } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       second.sendMessages(new Request("main:2", ShellMethods.moveAside, null));
       const retried = await second.readResponseAsync();
 

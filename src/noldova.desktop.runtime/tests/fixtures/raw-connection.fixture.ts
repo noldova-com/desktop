@@ -13,6 +13,9 @@ import "@noldova/context.core";
 import { Event, Request, Response, SecretAction, SecretAnswered, SecretCommand, ShellEvents, ShellMethods, type WireMessage, WireDecoder } from "@noldova/desktop.protocol";
 import type { Endpoint } from "@noldova/desktop.runtime";
 
+import { NoFrameException } from "../exceptions/no-frame.exception.js";
+import { UnexpectedMessageException } from "../exceptions/unexpected-message.exception.js";
+
 export class RawConnectionFixture implements Disposable {
   private static readonly ANSWER_TIMEOUT: number = 10_000;
   private static readonly DEVICE_CALL: string = "device:";
@@ -75,21 +78,21 @@ export class RawConnectionFixture implements Disposable {
     }
     const frame = this.frames.shift();
     if (Object.isUndefined(frame))
-      throw new Error("No frame arrived.");
+      throw new NoFrameException();
     return frame;
   }
 
   public async readResponseAsync(): Promise<Response> {
     const message = new WireDecoder().decode(await this.readTextAsync());
     if (!(message instanceof Response))
-      throw new Error(`Expected a response, not ${message.toText()}.`);
+      throw new UnexpectedMessageException("a response", message.toText());
     return message;
   }
 
   public async readEventAsync(): Promise<Event> {
     const message = new WireDecoder().decode(await this.readTextAsync());
     if (!(message instanceof Event))
-      throw new Error(`Expected an event, not ${message.toText()}.`);
+      throw new UnexpectedMessageException("an event", message.toText());
     return message;
   }
 

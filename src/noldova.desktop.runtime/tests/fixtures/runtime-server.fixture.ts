@@ -15,6 +15,9 @@ import { Assert } from "@noldova/context.testing";
 import { BuildIdentity, type FailureCode, Handshake, QualifiedName, type Response, RuntimeHandover } from "@noldova/desktop.protocol";
 import { CapabilityToken, type Endpoint, type IMethodHandler, MethodRegistry, type RequestContext, RuntimeServer, ServerSettings } from "@noldova/desktop.runtime";
 
+import { HandshakeFailedException } from "../exceptions/handshake-failed.exception.js";
+import { ServerNotListeningException } from "../exceptions/server-not-listening.exception.js";
+import { HandshakeAnswerFixture } from "./handshake-answer.fixture.js";
 import { RawConnectionFixture } from "./raw-connection.fixture.js";
 import { TextOutputFixture } from "./text-output.fixture.js";
 
@@ -91,7 +94,7 @@ export class RuntimeServerFixture implements AsyncDisposable {
 
   public async connectAsync(allowHalfOpen: boolean = false): Promise<RawConnectionFixture> {
     if (Object.isNull(this.endpoint))
-      throw new Error("The server is not listening.");
+      throw new ServerNotListeningException();
     const connection = await RawConnectionFixture.connectAsync(this.endpoint, allowHalfOpen);
     this.connections.push(connection);
     return connection;
@@ -100,17 +103,17 @@ export class RuntimeServerFixture implements AsyncDisposable {
   public async handshakeAsync(
     client: string = "tester",
     identity: BuildIdentity = RuntimeServerFixture.IDENTITY,
-    token: string = RuntimeServerFixture.TOKEN): Promise<[RawConnectionFixture, Response]> {
+    token: string = RuntimeServerFixture.TOKEN): Promise<HandshakeAnswerFixture> {
     const connection = await this.connectAsync();
     connection.sendMessages(new Handshake(`${client}:0`, identity, token, client));
-    return [connection, await connection.readResponseAsync()];
+    return new HandshakeAnswerFixture(connection, await connection.readResponseAsync());
   }
 
   public async authenticateAsync(client: string = "tester"): Promise<RawConnectionFixture> {
-    const [connection, answer] = await this.handshakeAsync(client);
-    if (answer.hasFailed)
-      throw new Error(`The handshake failed: ${answer.toText()}`);
-    return connection;
+    const answer = await this.handshakeAsync(client);
+    if (answer.response.hasFailed)
+      throw new HandshakeFailedException(answer.response.toText());
+    return answer.connection;
   }
 
   public async [Symbol.asyncDispose](): Promise<void> {

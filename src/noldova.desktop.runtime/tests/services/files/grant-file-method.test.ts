@@ -21,6 +21,7 @@ import { ClientClosures } from "../../../src/services/endpoint/client-closures.j
 import { FileGrantTable } from "../../../src/services/files/file-grant-table.js";
 import { FileIdentity } from "../../../src/services/files/file-identity.js";
 import { GrantFileMethod } from "../../../src/services/files/grant-file-method.js";
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import type { RawConnectionFixture } from "../../fixtures/raw-connection.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.js";
@@ -58,8 +59,8 @@ export class GrantFileMethodTests {
       const left = path.join(fixture.dataDirectory.stagedFolder, "left");
       await mkdir(fixture.dataDirectory.stagedFolder, { recursive: true });
       await writeFile(left, "pasted before a crash");
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["notes", GrantFileMethodTests.PART], ["terminal", GrantFileMethodTests.PART]]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("notes", GrantFileMethodTests.PART), new ModuleSourceFixture("terminal", GrantFileMethodTests.PART)]));
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const file = path.join(fixture.root, "notes.txt");
       await writeFile(file, "kept notes");
       const grant = await GrantFileMethodTests.grantAsync(file, "1");
@@ -81,8 +82,8 @@ export class GrantFileMethodTests {
   @TestMethod
   public endsTheGrantsAPageDiscardsAndThoseMainEndsForAPage(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["notes", GrantFileMethodTests.PART]]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("notes", GrantFileMethodTests.PART)]));
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const file = path.join(fixture.root, "notes.txt");
       await writeFile(file, "kept notes");
       const discarded = await GrantFileMethodTests.grantAsync(file, "1");
@@ -105,9 +106,9 @@ export class GrantFileMethodTests {
   @TestMethod
   public refusesGrantsFromAnyoneButMainDiscardsFromOutsideAPageAndAnInvalidGrant(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["notes", GrantFileMethodTests.PART]]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("notes", GrantFileMethodTests.PART)]));
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
       const file = path.join(fixture.root, "notes.txt");
       await writeFile(file, "kept notes");
       const grant = await GrantFileMethodTests.grantAsync(file, "1");

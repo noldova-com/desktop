@@ -1381,6 +1381,27 @@ export interface ISelectionSource {
 }
 
 /**
+ * A window part's own undo, such as a Git client's last write, which the part
+ * gives the window with {@link IWindowPartContext.provideUndo} so Edit → Undo
+ * and Mod+Z reach it while nothing editable has the focus.
+ */
+export interface IUndoProvider {
+  /**
+   * Whether there is anything to undo now; the window asks when it shows
+   * Undo, which it greys when the answer is `false`, and again before Undo
+   * runs. The window reads it in a signal's context, so a part that keeps the
+   * answer in a signal has the menu follow it.
+   */
+  canUndo(): boolean;
+
+  /**
+   * Undoes the part's last action. The window runs it as it runs a command,
+   * once for each Undo, and reports a rejection as it reports a command's.
+   */
+  undoAsync(): Promise<void>;
+}
+
+/**
  * A layer a window part opened over one of its web views with
  * {@link IWebViewHandle.openLayerAsync}. It closes when
  * {@link IWebViewLayer.close} is called, when the view opens another layer,
@@ -1916,6 +1937,37 @@ export interface IWindowPartContext {
   registerSelectionSource(element: HTMLElement, source: ISelectionSource): () => void;
 
   /**
+   * Gives the window the part's undo, which Edit → Undo and Mod+Z run while
+   * the focus is on none of a text field, an editable element and an element
+   * inside a registered selection source, and while a web view's page doesn't
+   * have it; otherwise the native undo runs, as without a provider. Edit →
+   * Undo is greyed while the provider takes Undo and
+   * {@link IUndoProvider.canUndo} is `false`. On macOS the menu bar's Undo
+   * takes Cmd+Z; on Windows and Linux the window takes Ctrl+Z, except inside
+   * an element marked with {@link KeepsCtrlKeysDirective}.
+   *
+   * One provider at a time takes Undo in a window, from whichever module.
+   *
+   * @param provider The part's undo.
+   * @returns A function that withdraws the provider, after which Undo is
+   * native again; deactivation withdraws it too.
+   * @throws UndoProviderTakenException when another part already provides
+   * Undo in the window. After the part is withdrawn, it provides nothing and
+   * returns a function that does nothing.
+   * @example
+   * ```ts
+   * import type { IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * import type { WriteHistory } from "./write-history.js";
+   *
+   * export function provideWriteUndo(context: IWindowPartContext, writes: WriteHistory): () => void {
+   *   return context.provideUndo({ canUndo: () => writes.canUndo(), undoAsync: () => writes.undoLastAsync() });
+   * }
+   * ```
+   */
+  provideUndo(provider: IUndoProvider): () => void;
+
+  /**
    * Supplies the rows of one of the module's dynamic menu groups. The window
    * asks again whenever it builds the menu or toolbar, and leaves out a row
    * whose command belongs to neither the module nor a dependency, and a group
@@ -2133,14 +2185,16 @@ export interface IWindowPartContext {
   /**
    * Runs a command of the module or a dependency, in the window or in the
    * runtime, or Noldova Desktop's `desktop.search`, which opens search under the
-   * filter of the source its `source` argument names.
+   * filter of the source its `source` argument names, or `desktop.openSettings`,
+   * which opens Settings on the page its `page` argument names.
    *
    * @param name The command's name.
    * @param commandArguments The arguments; null when left out.
    * @returns A promise of the command's result; it rejects when the command
    * is not registered, not enabled or fails.
    * @throws Error synchronously when the command belongs to neither the
-   * module nor a dependency, and is not `desktop.search`.
+   * module nor a dependency, and is neither `desktop.search` nor
+   * `desktop.openSettings`.
    * @example
    * ```ts
    * import type { JsonValue } from "@noldova/context.json";

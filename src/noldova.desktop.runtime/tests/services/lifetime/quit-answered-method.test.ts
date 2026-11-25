@@ -20,8 +20,8 @@ export class QuitAnsweredMethodTests {
   public failsWithAConflictWhenTheMainProcessesSaveFailedAndIgnoresAnAnswerNoQuitAwaits(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync();
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       const early = await RuntimeHostFixture.callAsync(mainProcess, "main:1", ShellMethods.quitAnswered, new QuitAnswered(QuitAnswer.Stayed).toJson());
       const stranger = await RuntimeHostFixture.callAsync(cli, "cli:1", ShellMethods.quitAnswered, new QuitAnswered(QuitAnswer.Stayed).toJson());

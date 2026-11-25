@@ -76,6 +76,7 @@ import { SettingCheckService } from "../../../src/app/services/setting-check.ser
 import { SettingOptionsService } from "../../../src/app/services/setting-options.service";
 import { TabLabelService } from "../../../src/app/services/tab-label.service";
 import { TabRenameService } from "../../../src/app/services/tab-rename.service";
+import { UndoService } from "../../../src/app/services/undo.service";
 import { ViewDialogService } from "../../../src/app/services/view-dialog.service";
 import { SettingsService } from "../../../src/app/services/settings.service";
 import { WebViewService } from "../../../src/app/services/web-view.service";
@@ -2529,6 +2530,27 @@ describe("WindowPartHostService", () => {
     terminal.remove();
 
     expect(followed).toBe("total 8");
+  });
+
+  it("gives the window the undo a window part provides, and native Undo back once the part deactivates", async () => {
+    const button = document.createElement("button");
+    document.body.append(button);
+    button.focus();
+    window.dispatchEvent(new FocusEvent("focus"));
+    const notes = new WindowPartFixture("notes", log, t => t.provideUndo({ canUndo: () => true, undoAsync: () => Promise.resolve() }));
+    const { host } = start([source("notes", notes)], [status("notes")]);
+    const undo = TestBed.inject(UndoService);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+    const provided = undo.takesUndo();
+
+    bridge.responses.set("desktop.modules", { payload: { modules: [status("notes", ModuleState.Failed, "It broke.")] } });
+    bridge.publishStartup({ kind: "Connecting", details: [] });
+    bridge.publishStartup({ kind: "Ready", details: [] });
+    await vi.waitFor(() => expect(host.generation()).toBe(2));
+    button.remove();
+
+    expect(provided).toBe(true);
+    expect(undo.takesUndo()).toBe(false);
   });
 
   it("passes requests to the runtime, and the runtime's events of the name listened for, until the listener stops", async () => {

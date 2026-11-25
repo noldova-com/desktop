@@ -18,6 +18,7 @@ import { BuildLayout } from "../../services/packages/build-layout.ts";
 import type { NpmCommand } from "../../services/toolchain/npm-command.ts";
 import type { LockedPackage } from "./locked-package.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { FetchedArchive } from "./fetched-archive.ts";
 import { TarArchive } from "./tar-archive.ts";
 import { FolderCreation } from "../../services/files/folder-creation.ts";
 import { Resources } from "../../resources.ts";
@@ -37,12 +38,12 @@ export class CompanyPackage {
     const fetched = locked.isArchive || Object.isNull(archives) || existsSync(installed) ? null : await CompanyPackage.readFetchedAsync(locked, archives);
     const manifest = Object.isNull(fetched) ? await CompanyPackage.readInstalledAsync(locked, installed, archives) : CompanyPackage.readArchivedManifest(locked, fetched);
     if (manifest[Resources.manifestNameField] !== locked.name || manifest[Resources.manifestVersionField] !== locked.version)
-      throw new BuildException(Resources.formatCompanyPackageMismatch(Object.isNull(fetched) ? locked.location : fetched[0], locked.id));
+      throw new BuildException(Resources.formatCompanyPackageMismatch(Object.isNull(fetched) ? locked.location : fetched.file, locked.id));
     const dependencies = manifest[Resources.manifestDependenciesField];
     const bundled = Object.keys(Object.isPlainObject(dependencies) ? dependencies : {}).filter(t => windowPackages.has(t));
     const archive = locked.isArchive ? await CompanyPackage.verifyArchiveAsync(locked, root) : fetched;
     if (!Object.isNull(archive) && bundled.length === 0)
-      return new CompanyPackage(locked, archive[0]);
+      return new CompanyPackage(locked, archive.file);
 
     await FolderCreation.createAsync(folder);
     const source = bundled.length === 0 ? installed : path.join(folder, Resources.companyPackageSourcesFolder, ...locked.name.split(Resources.pathSegmentSeparator));
@@ -51,7 +52,7 @@ export class CompanyPackage {
         await cp(installed, source, { recursive: true, filter: t => path.basename(t) !== Resources.nodeModulesFolder });
       else
         await CompanyPackage.extractAsync(locked, archive, source);
-      const packed = await CompanyPackage.readManifestAsync(locked, source, archive?.[0] ?? locked.location);
+      const packed = await CompanyPackage.readManifestAsync(locked, source, archive?.file ?? locked.location);
       const listed = packed[Resources.manifestDependenciesField];
       const shipped = Object.fromEntries(Object.entries(Object.isPlainObject(listed) ? listed : {}).filter(([name]) => !windowPackages.has(name)));
       await writeFile(path.join(source, Resources.packageManifestFileName), Resources.formatJsonFile({ ...packed, [Resources.manifestDependenciesField]: shipped }));
@@ -79,27 +80,27 @@ export class CompanyPackage {
     }
   }
 
-  private static async readFetchedAsync(locked: LockedPackage, archives: string): Promise<readonly [string, Buffer] | null> {
+  private static async readFetchedAsync(locked: LockedPackage, archives: string): Promise<FetchedArchive | null> {
     const file = path.join(archives, BuildLayout.nameArchive(locked.name, locked.version));
     if (!existsSync(file))
       return null;
     const data = await readFile(file);
     if (!locked.matches(data))
       throw new BuildException(Resources.formatFetchedCompanyArchiveMismatch(file, locked.id));
-    return [file, data];
+    return new FetchedArchive(file, data);
   }
 
-  private static readArchivedManifest(locked: LockedPackage, [archive, data]: readonly [string, Buffer]): JsonObject {
-    const text = TarArchive.fromGzip(data, archive).topLevelFiles.get(Resources.packageManifestFileName)?.toString(Resources.textEncoding);
+  private static readArchivedManifest(locked: LockedPackage, fetched: FetchedArchive): JsonObject {
+    const text = TarArchive.fromGzip(fetched.data, fetched.file).topLevelFiles.get(Resources.packageManifestFileName)?.toString(Resources.textEncoding);
     try {
       return JsonReader.parse(text ?? String.empty).toJson();
     }
     catch (error) {
-      throw new BuildException(Resources.formatCompanyManifestMissing(archive, locked.id), new ExceptionOptions(error));
+      throw new BuildException(Resources.formatCompanyManifestMissing(fetched.file, locked.id), new ExceptionOptions(error));
     }
   }
 
-  private static async verifyArchiveAsync(locked: LockedPackage, root: string): Promise<readonly [string, Buffer]> {
+  private static async verifyArchiveAsync(locked: LockedPackage, root: string): Promise<FetchedArchive> {
     const archive = locked.locateArchive(root);
     const repository = CompanyPackage.findRepository(path.resolve(root));
     const relative = path.relative(repository, archive);
@@ -116,7 +117,7 @@ export class CompanyPackage {
     const data = await readFile(archive).catch(unreadable);
     if (!Object.isNull(locked.sha512) && !locked.matches(data))
       throw new BuildException(Resources.formatCompanyArchiveMismatch(archive, locked.id));
-    return [archive, data];
+    return new FetchedArchive(archive, data);
   }
 
   private static findRepository(root: string): string {
@@ -130,9 +131,10 @@ export class CompanyPackage {
     return folder;
   }
 
-  private static async extractAsync(locked: LockedPackage, [archive, data]: readonly [string, Buffer], source: string): Promise<void> {
+  private static async extractAsync(locked: LockedPackage, fetched: FetchedArchive, source: string): Promise<void> {
+    const archive = fetched.file;
     const written = new Map<string, string>();
-    for (const entry of TarArchive.fromGzip(data, archive).entries) {
+    for (const entry of TarArchive.fromGzip(fetched.data, archive).entries) {
       const isFolder = entry.type === Resources.tarFolderType;
       const entryName = isFolder ? entry.name.replace(Resources.trailingSlashesPattern, String.empty) : entry.name;
       if (isFolder && !entryName.includes(Resources.pathSegmentSeparator))

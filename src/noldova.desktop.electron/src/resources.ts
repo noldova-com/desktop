@@ -281,6 +281,7 @@ export class Resources {
   public static readonly nullOrigin: string = "null";
   public static readonly willFrameNavigateEvent: "will-frame-navigate" = "will-frame-navigate";
   public static readonly didStopLoadingEvent: "did-stop-loading" = "did-stop-loading";
+  public static readonly domReadyEvent: "dom-ready" = "dom-ready";
   public static readonly didNavigateEvent: "did-navigate" = "did-navigate";
   public static readonly didNavigateInPageEvent: "did-navigate-in-page" = "did-navigate-in-page";
   public static readonly pageTitleUpdatedEvent: "page-title-updated" = "page-title-updated";
@@ -754,6 +755,7 @@ export class Resources {
   public static readonly clickEvent: "click" = "click";
   public static readonly showEvent: "show" = "show";
   public static readonly hideEvent: "hide" = "hide";
+  public static readonly focusEvent: "focus" = "focus";
   public static readonly failedEvent: "failed" = "failed";
   public static readonly dataEvent: "data" = "data";
   public static readonly errorEvent: "error" = "error";
@@ -868,6 +870,8 @@ export class Resources {
   public static readonly radioMenuType: "radio" = "radio";
   public static readonly normalMenuType: "normal" = "normal";
   public static readonly undoRole: "undo" = "undo";
+  public static readonly undoLabel: string = "Undo";
+  public static readonly undoAccelerator: string = "CmdOrCtrl+Z";
   public static readonly redoRole: "redo" = "redo";
   public static readonly cutRole: "cut" = "cut";
   public static readonly copyRole: "copy" = "copy";
@@ -957,6 +961,7 @@ export class Resources {
   public static readonly titleBarHeightField: string = "titleBarHeight";
   public static readonly invalidAppearance: string = "The window appearance is not valid.";
   public static readonly menusField: string = "menus";
+  public static readonly undoField: string = "undo";
   public static readonly placeField: string = "place";
   public static readonly titleField: string = "title";
   public static readonly rowsField: string = "rows";

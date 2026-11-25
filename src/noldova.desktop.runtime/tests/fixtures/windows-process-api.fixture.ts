@@ -9,6 +9,10 @@
 import "@noldova/context.core";
 import type { IWindowsProcessApi, IWindowsSignature } from "@noldova/desktop.runtime";
 
+import { HandleNotOpenException } from "../exceptions/handle-not-open.exception.js";
+import { SignatureNotReadException } from "../exceptions/signature-not-read.exception.js";
+import { OpenedHandleFixture } from "./opened-handle.fixture.js";
+
 export class WindowsProcessApiFixture implements IWindowsProcessApi {
   public static readonly QUERY: number = 0x1000;
   public static readonly END: number = 0x1000 | 0x0001 | 0x100000;
@@ -20,7 +24,7 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
   private readonly tables: (string | Error | (() => string))[];
   private readonly starts: Map<number, number> = new Map();
   private readonly paths: Map<number, string | null> = new Map();
-  private readonly handles: Map<bigint, readonly [number, number]> = new Map();
+  private readonly handles: Map<bigint, OpenedHandleFixture> = new Map();
   private readonly jobs: Map<bigint, number[]> = new Map();
   private nextHandle: bigint = 1n;
 
@@ -71,16 +75,16 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
     if (access === WindowsProcessApiFixture.QUERY ? !this.starts.has(processId) : access !== WindowsProcessApiFixture.JOB && !WindowsProcessApiFixture.isRunning(processId))
       return WindowsProcessApiFixture.GONE;
     const handle = this.nextHandle++;
-    this.handles.set(handle, [processId, access]);
+    this.handles.set(handle, new OpenedHandleFixture(processId, access));
     return handle;
   }
 
   public readCreationTime(handle: bigint): bigint | null {
-    const [processId, access] = this.open(handle);
-    const started = this.starts.get(processId);
-    if (this.unreadable.get(processId) === access || Object.isUndefined(started))
+    const opened = this.open(handle);
+    const started = this.starts.get(opened.processId);
+    if (this.unreadable.get(opened.processId) === opened.access || Object.isUndefined(started))
       return null;
-    return WindowsProcessApiFixture.toFileTime(this.replaced.get(processId) === access ? started + 3_600_000 : started);
+    return WindowsProcessApiFixture.toFileTime(this.replaced.get(opened.processId) === opened.access ? started + 3_600_000 : started);
   }
 
   public readImagePath(handle: bigint): string | null {
@@ -114,7 +118,7 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
   public openFileForReading(file: string): bigint | number {
     this.opened.push(file);
     const handle = this.nextHandle++;
-    this.handles.set(handle, [0, 0]);
+    this.handles.set(handle, new OpenedHandleFixture(0, 0));
     return handle;
   }
 
@@ -127,7 +131,7 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
   public createJob(holdsDescendants: boolean): bigint {
     this.createdJobs.push(holdsDescendants);
     const handle = this.nextHandle++;
-    this.handles.set(handle, [0, 0]);
+    this.handles.set(handle, new OpenedHandleFixture(0, 0));
     this.jobs.set(handle, []);
     return handle;
   }
@@ -149,7 +153,7 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
   }
 
   public verifySignatureAsync(): Promise<IWindowsSignature> {
-    return Promise.reject(new Error("The process fixture reads no signatures."));
+    return Promise.reject(new SignatureNotReadException());
   }
 
   private static isRunning(processId: number): boolean {
@@ -162,13 +166,13 @@ export class WindowsProcessApiFixture implements IWindowsProcessApi {
   }
 
   private find(handle: bigint): number {
-    return this.open(handle)[0];
+    return this.open(handle).processId;
   }
 
-  private open(handle: bigint): readonly [number, number] {
+  private open(handle: bigint): OpenedHandleFixture {
     const opened = this.handles.get(handle);
     if (Object.isUndefined(opened))
-      throw new Error(`The handle ${handle} is not open.`);
+      throw new HandleNotOpenException(handle);
     return opened;
   }
 }

@@ -25,6 +25,7 @@ import { FileGrantTable } from "../../../src/services/files/file-grant-table.js"
 import { FileIdentity } from "../../../src/services/files/file-identity.js";
 import { ModuleFiles } from "../../../src/services/files/module-files.js";
 import { FailedStatFixture } from "../../fixtures/failed-stat.fixture.js";
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import type { RawConnectionFixture } from "../../fixtures/raw-connection.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
@@ -53,7 +54,7 @@ export class ModuleFilesTests {
     return ModuleFilesTests.runAsync(async (fixture, mainProcess) => {
       const photo = await ModuleFilesTests.writeAsync(fixture.dataDirectory.locateModuleFolder("notes"), "photo.png", "png");
       const report = await ModuleFilesTests.writeAsync(fixture.dataDirectory.locateWorkFolder("notes"), "report.pdf", "a report");
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       const shared = await ModuleFilesTests.shareAsync(mainProcess, photo, { mediaType: "image/png", lifetime: 60_000 });
       const other = await ModuleFilesTests.shareAsync(mainProcess, report);
@@ -88,7 +89,7 @@ export class ModuleFilesTests {
       await symlink(path.dirname(outside), path.join(folder, "linked"), "junction");
       await mkdir(path.join(folder, "pictures"));
       const inside = await ModuleFilesTests.writeAsync(folder, "photo.png", "png");
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       const answers = [
         await ModuleFilesTests.sendAsync(mainProcess, ModuleFilesTests.SHARE, { path: outside }, 3, 2),
@@ -265,8 +266,8 @@ export class ModuleFilesTests {
 
   private static async runAsync(test: (fixture: RuntimeHostFixture, mainProcess: RawConnectionFixture) => Promise<void>): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["notes", ModuleFilesTests.PART], ["terminal", ModuleFilesTests.PART]]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("notes", ModuleFilesTests.PART), new ModuleSourceFixture("terminal", ModuleFilesTests.PART)]));
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       await test(fixture, mainProcess);
     });
   }

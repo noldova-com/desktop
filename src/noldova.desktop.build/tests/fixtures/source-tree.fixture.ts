@@ -34,6 +34,6 @@ export class SourceTreeFixture implements AsyncDisposable {
   }
 
   public async [Symbol.asyncDispose](): Promise<void> {
-    await rm(this.path, { recursive: true, force: true });
+    await rm(this.path, { recursive: true, force: true, maxRetries: 20, retryDelay: 25 });
   }
 }
