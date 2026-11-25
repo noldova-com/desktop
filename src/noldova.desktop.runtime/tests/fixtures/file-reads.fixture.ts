@@ -19,9 +19,9 @@ export class FileReadsFixture implements Disposable {
     const readFile = fs.readFile;
     const reading = mock.method(fs, "readFile", (...values: Parameters<typeof fs.readFile>): Promise<string | Buffer> => {
       const [target] = values;
-      if (String(target) === file)
-        this.count();
-      return readFile(...values);
+      if (String(target) !== file)
+        return readFile(...values);
+      return readFile(...values).finally(() => this.count());
     });
     this.restore = () => reading.mock.restore();
     syncBuiltinESMExports();
