@@ -11,6 +11,7 @@ import { cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { BuildVariantMissingException } from "../exceptions/build-variant-missing.exception.ts";
+import { BuildSwap } from "./build-swap.ts";
 
 export class BuildVariantFixture {
   public static readonly noModules: string = "no-modules";
@@ -29,9 +30,9 @@ export class BuildVariantFixture {
     if (!existsSync(variant))
       throw new BuildVariantMissingException(name, variant);
     await mkdir(BuildVariantFixture.SWAPPED_FOLDER, { recursive: true });
-    for (const [built, kept, source] of BuildVariantFixture.swaps(variant)) {
-      await rename(built, kept);
-      await cp(source, built, { recursive: true });
+    for (const swap of BuildVariantFixture.swaps(variant)) {
+      await rename(swap.built, swap.kept);
+      await cp(swap.source, swap.built, { recursive: true });
     }
   }
 
@@ -47,31 +48,28 @@ export class BuildVariantFixture {
   public static async restoreAsync(): Promise<void> {
     if (!existsSync(BuildVariantFixture.SWAPPED_FOLDER))
       return;
-    for (const [built, kept] of BuildVariantFixture.swaps(BuildVariantFixture.SWAPPED_FOLDER))
-      if (existsSync(kept)) {
-        await rm(built, { recursive: true, force: true, maxRetries: 10 });
-        await rename(kept, built);
+    for (const swap of BuildVariantFixture.swaps(BuildVariantFixture.SWAPPED_FOLDER))
+      if (existsSync(swap.kept)) {
+        await rm(swap.built, { recursive: true, force: true, maxRetries: 10 });
+        await rename(swap.kept, swap.built);
       }
     await rm(BuildVariantFixture.SWAPPED_FOLDER, { recursive: true, force: true, maxRetries: 10 });
   }
 
-  private static swaps(variant: string): readonly (readonly [string, string, string])[] {
+  private static swaps(variant: string): readonly BuildSwap[] {
     return [
-      [
+      new BuildSwap(
         path.join(BuildVariantFixture.BUILD_FOLDER, BuildVariantFixture.WINDOW_FOLDER),
         path.join(BuildVariantFixture.SWAPPED_FOLDER, BuildVariantFixture.WINDOW_FOLDER),
-        path.join(variant, BuildVariantFixture.WINDOW_FOLDER)
-      ],
-      [
+        path.join(variant, BuildVariantFixture.WINDOW_FOLDER)),
+      new BuildSwap(
         path.join(BuildVariantFixture.BUILD_FOLDER, ...BuildVariantFixture.DECLARATIONS_SEGMENTS),
         path.join(BuildVariantFixture.SWAPPED_FOLDER, BuildVariantFixture.DECLARATIONS_FILE),
-        path.join(variant, ...BuildVariantFixture.DECLARATIONS_SEGMENTS)
-      ],
-      [
+        path.join(variant, ...BuildVariantFixture.DECLARATIONS_SEGMENTS)),
+      new BuildSwap(
         path.join(BuildVariantFixture.BUILD_FOLDER, BuildVariantFixture.PRODUCT_FILE),
         path.join(BuildVariantFixture.SWAPPED_FOLDER, BuildVariantFixture.PRODUCT_FILE),
-        path.join(variant, BuildVariantFixture.PRODUCT_FILE)
-      ]
+        path.join(variant, BuildVariantFixture.PRODUCT_FILE))
     ];
   }
 }

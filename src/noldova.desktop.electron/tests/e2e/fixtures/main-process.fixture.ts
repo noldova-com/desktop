@@ -35,6 +35,7 @@ import { RuntimeOwnerUnknownException } from "../exceptions/runtime-owner-unknow
 import { CleanupSteps } from "./cleanup-steps.ts";
 import { ErrorCodeFixture } from "./error-code.fixture.ts";
 import { ErrorOutputClassifier, type IClassifiedLine } from "./error-output.classifier.ts";
+import { HeldLock } from "./held-lock.ts";
 import { MainProcessAnswer, type IMainProcessAnswerRecord } from "./main-process-answer.ts";
 import { MainProcessLogFixture } from "./main-process-log.fixture.ts";
 import { OffCursorPlacement } from "./off-cursor-placement.ts";
@@ -717,7 +718,7 @@ export class MainProcessFixture {
     const directory = new DataDirectory(this.dataDirectory);
     const load = new ProcessorLoadFixture();
     const started = Date.now();
-    let held: [number, number] | null = null;
+    let held: HeldLock | null = null;
     let isExtended = false;
     const isStarted = await WaitFixture.holdsWithinAsync(async () => {
       if ((await DiscoveryReader.readAsync(directory))?.productVersion === RuntimeBuild.identity.productVersion)
@@ -725,7 +726,7 @@ export class MainProcessFixture {
       const elapsed = Date.now() - started;
       const isHeld = MainProcessFixture.isOwned(directory);
       if (isHeld)
-        held = [held?.[0] ?? elapsed, elapsed];
+        held = new HeldLock(held?.from ?? elapsed, elapsed);
       const failure = await this.readStartupFailureAsync();
       if (!Object.isNull(failure))
         throw await this.describeLaunchFailureAsync(`the window reports that Noldova Desktop Sample could not start (${failure})`, held, load);
@@ -754,8 +755,8 @@ export class MainProcessFixture {
       throw new FontFacesNotLoadedException(failed);
   }
 
-  private async describeLaunchFailureAsync(reason: string, held: readonly [number, number] | null, load: ProcessorLoadFixture): Promise<RuntimeNotStartedException> {
-    const lock = Object.isNull(held) ? "never held" : `held from ${held[0] / 1000} s to ${held[1] / 1000} s`;
+  private async describeLaunchFailureAsync(reason: string, held: HeldLock | null, load: ProcessorLoadFixture): Promise<RuntimeNotStartedException> {
+    const lock = Object.isNull(held) ? "never held" : `held from ${held.from / 1000} s to ${held.to / 1000} s`;
     const naming = await ProcessListFixture.describeNamingAsync(this.dataDirectory).catch((error: unknown) => `unknown (${String(error)})`);
     return new RuntimeNotStartedException(reason, lock, naming, load.describe());
   }

@@ -8,10 +8,11 @@
 import { type Locator, expect } from "@playwright/test";
 
 import { RowTextMissingException } from "../exceptions/row-text-missing.exception.ts";
+import { ThemeColors } from "./theme-colors.ts";
 
 export class ContrastFixture {
   public static readonly MINIMUM_TEXT_CONTRAST: number = 4.5;
-  public static readonly SELECTED_ROW_BACKGROUND: { readonly light: string; readonly dark: string } = { light: "rgb(230, 230, 230)", dark: "rgb(56, 56, 56)" };
+  public static readonly SELECTED_ROW_BACKGROUND: ThemeColors = new ThemeColors("rgb(230, 230, 230)", "rgb(56, 56, 56)");
 
   public static measureContrast(foreground: string, background: string): number {
     const luminance = (color: string): number => {

@@ -9,6 +9,7 @@ import "@noldova/context.core";
 import type { Locator, Page } from "@playwright/test";
 
 import { ElementNotVisibleException } from "../exceptions/element-not-visible.exception.ts";
+import type { IPoint } from "./off-cursor-placement.ts";
 
 export class TabDragFixture {
   public static tab(window: Page, key: string): Locator {
@@ -23,7 +24,7 @@ export class TabDragFixture {
     return group.locator("nol-tab").evaluateAll(tabs => tabs.map(t => t.getAttribute("data-tab-key")));
   }
 
-  public static async centerOfAsync(locator: Locator): Promise<{ readonly x: number; readonly y: number }> {
+  public static async centerOfAsync(locator: Locator): Promise<IPoint> {
     const box = await locator.boundingBox();
     if (Object.isNull(box))
       throw new ElementNotVisibleException();
