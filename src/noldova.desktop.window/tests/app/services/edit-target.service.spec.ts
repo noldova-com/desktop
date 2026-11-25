@@ -337,4 +337,16 @@ describe("EditTargetService", () => {
     expect(errors).toEqual([]);
     expect(seen).toEqual([false, true]);
   });
+
+  it("stops following the focus and the window's focus once it is destroyed", () => {
+    const edits = TestBed.inject(EditTargetService);
+    page.find(".field", HTMLInputElement).focus();
+    const hasFocus = edits.hasFocus();
+
+    TestBed.resetTestingModule();
+    elsewhere.focus();
+    window.dispatchEvent(new Event(hasFocus ? "blur" : "focus"));
+
+    expect([edits.isEditFocused(), edits.hasFocus()]).toEqual([true, hasFocus]);
+  });
 });

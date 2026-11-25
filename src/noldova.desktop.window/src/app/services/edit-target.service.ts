@@ -7,7 +7,7 @@
  */
 
 import { DOCUMENT } from "@angular/common";
-import { Injectable, type Signal, type WritableSignal, inject, signal, untracked } from "@angular/core";
+import { DestroyRef, Injectable, type Signal, type WritableSignal, inject, signal, untracked } from "@angular/core";
 
 import { EditAction } from "@noldova/desktop.protocol";
 
@@ -28,10 +28,13 @@ export class EditTargetService {
   public readonly hasFocus: Signal<boolean> = this.hasFocusValue.asReadonly();
 
   public constructor() {
-    this.document.addEventListener(Resources.focusInEvent, event => untracked(() => this.follow(event.target)), true);
-    this.document.addEventListener(Resources.focusOutEvent, event => untracked(() => this.keep(event.target, event.relatedTarget)), true);
-    this.document.defaultView?.addEventListener(Resources.windowFocusEvent, () => untracked(() => this.hasFocusValue.set(true)));
-    this.document.defaultView?.addEventListener(Resources.windowBlurEvent, () => untracked(() => this.hasFocusValue.set(false)));
+    const listening = new AbortController();
+    const options: AddEventListenerOptions = { capture: true, signal: listening.signal };
+    this.document.addEventListener(Resources.focusInEvent, event => untracked(() => this.follow(event.target)), options);
+    this.document.addEventListener(Resources.focusOutEvent, event => untracked(() => this.keep(event.target, event.relatedTarget)), options);
+    this.document.defaultView?.addEventListener(Resources.windowFocusEvent, () => untracked(() => this.hasFocusValue.set(true)), { signal: listening.signal });
+    this.document.defaultView?.addEventListener(Resources.windowBlurEvent, () => untracked(() => this.hasFocusValue.set(false)), { signal: listening.signal });
+    inject(DestroyRef).onDestroy(() => listening.abort());
   }
 
   public isEditFocused(): boolean {
