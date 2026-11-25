@@ -177,13 +177,39 @@ const contextOf = (page: FakePage, logged: string[], closes: (() => void)[] = []
 
 const watch = (): WatchedPage => new WatchedPage();
 
-const SOCKET_STATE = process.platform === "win32"
-  ? /^\d+ TCP sockets, .+; to or from port 63315: .+; most held outside TIME_WAIT by process .+; dynamic ports from \d+, \d+ of them$/u
-  : /^unread, Socket state is read on Windows only\.$/u;
+const CONNECTIONS = [
+  "",
+  "Active Connections",
+  "",
+  "  Proto  Local Address          Foreign Address        State           PID",
+  "  TCP    127.0.0.1:63315        0.0.0.0:0              LISTENING       5120",
+  "  TCP    127.0.0.1:63315        127.0.0.1:50123        ESTABLISHED     5120",
+  "  TCP    127.0.0.1:50123        127.0.0.1:63315        ESTABLISHED     7300",
+  "  TCP    10.1.0.4:52000         20.60.1.2:443          ESTABLISHED     7300",
+  "  TCP    127.0.0.1:63315        127.0.0.1:50124        TIME_WAIT       0",
+  "  TCP    127.0.0.1:51000        127.0.0.1:443          TIME_WAIT       0",
+  ""
+].join("\r\n");
 
-const MEMORY_STATE = process.platform === "win32"
-  ? /^non-paged pool \d+\.\d MB; .+$/u
-  : /^unread, Socket state is read on Windows only\.$/u;
+const PORT_RANGE = "\r\nProtocol tcp Dynamic Port Range\r\n---------------------------------\r\nStart Port      : 49152\r\nNumber of Ports : 16384\r\n";
+
+const MEMORY = [
+  "",
+  "\"(PDH-CSV 4.0)\",\"\\\\HOST\\Memory\\Pool Nonpaged Bytes\",\"\\\\HOST\\Process(node)\\Handle Count\",\"\\\\HOST\\Process(node)\\Working Set\"",
+  "\"11/16/2026 05:40:44.119\",\"157286400.000000\",\"640.000000\",\"209715200.000000\"",
+  "Exiting, please wait...",
+  "The command completed successfully.",
+  ""
+].join("\r\n");
+
+const LISTINGS: ReadonlyMap<string, string> = new Map([["netstat", CONNECTIONS], ["netsh", PORT_RANGE], ["typeperf", MEMORY]]);
+
+const SOCKET_STATE = "6 TCP sockets, ESTABLISHED 3, TIME_WAIT 2, LISTENING 1; to or from port 63315: ESTABLISHED 2, LISTENING 1, TIME_WAIT 1; "
+  + "most held outside TIME_WAIT by process 5120 (2), 7300 (2); dynamic ports from 49152, 16384 of them";
+
+const MEMORY_STATE = "non-paged pool 150.0 MB; node 1 process, 640 handles, 200.0 MB working set";
+
+const listed = (command: string): string => LISTINGS.get(command) ?? String.empty;
 
 const STYLES = "http://localhost:63315/styles.css";
 const CHUNK = "http://localhost:63315/chunk-GKUIELHC.js";
@@ -205,7 +231,9 @@ describe("FailedModuleRequests", () => {
     assert.deepEqual(recorder.watch(contextOf(page, [])), [line]);
   });
 
-  it("prints the socket and memory state after a module request that fails for want of buffer space or ports, with how long after the request started: their summaries on Windows, why they are unread elsewhere", () => {
+  it("prints the socket and memory state after a module request that fails for want of buffer space or ports, with how long after the request started, summed up from what Windows lists", t => {
+    t.mock.property(process, "platform", "win32");
+    t.mock.method(childProcess, "execFileSync", listed);
     const { recorder, page, logged } = watch();
     const failed = page.open("script", CHUNK, "net::ERR_NO_BUFFER_SPACE");
     mock.timers.tick(2_500);
@@ -213,15 +241,36 @@ describe("FailedModuleRequests", () => {
     page.failOpen(failed);
 
     const line = `Failed module request at ${at(2_500)}: net::ERR_NO_BUFFER_SPACE ${CHUNK}`;
-    const prefix = `Socket state at ${at(2_500)}, 2.5 s after it started at ${AT}: `;
-    const memoryPrefix = `Memory state at ${at(2_500)}: `;
-    assert.deepEqual(logged.map(t => t.startsWith(prefix) ? prefix : t.startsWith(memoryPrefix) ? memoryPrefix : t), [line, prefix, memoryPrefix]);
-    assert.match(logged.at(-2)?.slice(prefix.length) ?? String.empty, SOCKET_STATE);
-    assert.match(logged.at(-1)?.slice(memoryPrefix.length) ?? String.empty, MEMORY_STATE);
+    assert.deepEqual(logged, [line, `Socket state at ${at(2_500)}, 2.5 s after it started at ${AT}: ${SOCKET_STATE}`, `Memory state at ${at(2_500)}: ${MEMORY_STATE}`]);
     assert.deepEqual(recorder.watch(contextOf(page, [])), [line]);
   });
 
-  it("reads the socket and memory state for the first such failure alone, saying when its request's start went unseen, and counts the later ones when the run closes", () => {
+  it("prints a socket state whose listing ran out of time as unread, with why, and still the memory state", t => {
+    t.mock.property(process, "platform", "win32");
+    t.mock.method(childProcess, "execFileSync", (command: string) => {
+      if (command === "netsh")
+        throw new Error("spawnSync netsh ETIMEDOUT");
+      return listed(command);
+    });
+    const { page, logged } = watch();
+
+    page.fail("script", "net::ERR_NO_BUFFER_SPACE", CHUNK);
+
+    assert.deepEqual(logged.slice(1), [`Socket state at ${AT}, its start unseen: unread, Reading netsh failed: spawnSync netsh ETIMEDOUT`, `Memory state at ${AT}: ${MEMORY_STATE}`]);
+  });
+
+  it("prints the socket and memory state as unread off Windows, with why", t => {
+    t.mock.property(process, "platform", "linux");
+    const { page, logged } = watch();
+
+    page.fail("script", "net::ERR_NO_BUFFER_SPACE", CHUNK);
+
+    assert.deepEqual(logged.slice(1), [`Socket state at ${AT}, its start unseen: unread, Socket state is read on Windows only.`, `Memory state at ${AT}: unread, Socket state is read on Windows only.`]);
+  });
+
+  it("reads the socket and memory state for the first such failure alone, saying when its request's start went unseen, and counts the later ones when the run closes", t => {
+    t.mock.property(process, "platform", "win32");
+    const read = t.mock.method(childProcess, "execFileSync", listed);
     const { page, logged, closes } = watch();
 
     page.fail("script", "net::ERR_INSUFFICIENT_RESOURCES", CHUNK);
@@ -231,8 +280,9 @@ describe("FailedModuleRequests", () => {
       close();
 
     const prefix = `Socket state at ${AT}, its start unseen: `;
-    assert.deepEqual(logged.filter(t => t.startsWith("Socket")).map(t => t.startsWith(prefix) ? prefix : t), [prefix, "Socket errors after the first, their state unread: 2"]);
-    assert.equal(logged.filter(t => t.startsWith("Memory state at")).length, 1);
+    assert.deepEqual(logged.filter(u => u.startsWith("Socket")), [`${prefix}${SOCKET_STATE}`, "Socket errors after the first, their state unread: 2"]);
+    assert.equal(logged.filter(u => u.startsWith("Memory state at")).length, 1);
+    assert.deepEqual(read.mock.calls.map(u => u.arguments[0]), ["netstat", "netsh", "typeperf"]);
   });
 
   it("lets a failure other than an unread socket state out of the listener rather than print it as unread", t => {
