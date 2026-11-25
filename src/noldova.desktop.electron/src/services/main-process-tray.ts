@@ -39,7 +39,8 @@ export class MainProcessTray {
     this.notices = new TrayNotices(electron.notifications, options.settings.platform, icons, () => parts.open(), t => log.write(t));
     this.tray = new TrayController(electron.tray, electron.menu, icons, process.platform,
       { open: () => parts.open(), openNotification: t => parts.openNotification(t), setDoNotDisturb: t => void this.refresher.setDoNotDisturbAsync(t), stopAgents: () => parts.stopAgents(),
-        resumeAgents: () => parts.resumeAgents(), restartToUpdate: () => parts.restartToUpdate(), quit: () => parts.quit() }, t => log.write(t),
+        resumeAgents: () => parts.resumeAgents(), restartToUpdate: () => parts.restartToUpdate(), quit: () => parts.quit(), runCommand: t => parts.runCommand(t) },
+      options.tray ?? Resources.defaultTrayItems, t => log.write(t),
       t => parts.followTrayIcon(t));
     if (process.platform !== Resources.macPlatform)
       electron.theme.on(Resources.themeUpdatedEvent, () => this.tray.followTheme());
@@ -48,7 +49,7 @@ export class MainProcessTray {
       t => this.refresher.followTrayIconSetting(t), t => log.write(t));
     this.refresher = new TrayRefresher(this.tray, this.icon, parts.deviceState, parts.windows, parts.runtime, parts.device, parts.notifier, t => log.write(t));
     this.stopKey = new StopKeyController(electron.shortcuts, process.platform, () => parts.stopAgents(), t => this.notices.showStopKeyNotice(t),
-      () => this.tray.setRefusedKey(this.stopKey.refused?.label(process.platform) ?? null), t => log.write(t));
+      () => this.tray.setRefusedKey(this.stopKey.refused?.label(process.platform) ?? null), t => log.write(t), this.tray.claimsStopKey);
   }
 
   public start(state: JsonObject): void {

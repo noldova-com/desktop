@@ -14,6 +14,7 @@ import type { MenuItemConstructorOptions } from "electron";
 import type { JsonObject } from "@noldova/context.json";
 import { Assert } from "@noldova/context.testing";
 import { Event, ShellEvents } from "@noldova/desktop.protocol";
+import type { ProductTrayItem } from "@noldova/desktop.runtime";
 
 import { Condition } from "./condition.fixture.js";
 import { MainProcessStartFixture } from "./main-process-start.fixture.js";
@@ -57,8 +58,8 @@ export class TrayFixture {
     return { id: String(id), sequence: id, post: { kind: `${owner}.alarm`, title, severity: "Info", actions: [] }, postedAt: "2026-10-03T08:00:00.000Z", isRead };
   }
 
-  public async startAsync(moduleUrl: string = MainProcessStartFixture.MODULE_URL): Promise<void> {
-    await MainProcessStartFixture.startReadyAsync(this.process.platform, this.launcher, this.electron, new FakeDeviceIdentity(), this.process, this.files, moduleUrl);
+  public async startAsync(moduleUrl: string = MainProcessStartFixture.MODULE_URL, tray: readonly ProductTrayItem[] | null = null): Promise<void> {
+    await MainProcessStartFixture.startReadyAsync(this.process.platform, this.launcher, this.electron, new FakeDeviceIdentity(), this.process, this.files, moduleUrl, tray);
     await Condition.waitAsync(() => this.connection.calls.includes("desktop.readSetting") && this.connection.calls.includes("desktop.agentControl"));
     await setImmediate();
   }

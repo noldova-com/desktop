@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { DataDirectory, Installation, ProcessPresence } from "@noldova/desktop.runtime";
+import type { DataDirectory, Installation, ProcessPresence, ProductTrayItem } from "@noldova/desktop.runtime";
 
 import type { MainProcessSettings } from "../models/main-process-settings.js";
 import type { TaskbarIdentity } from "../models/taskbar-identity.js";
@@ -42,6 +42,7 @@ export interface IMainProcessOptions {
   readonly connector: UpdateTargetConnector;
   readonly updater: ICreatedUpdater;
   readonly updateLock: IUpdateCheckLock;
+  readonly tray: readonly ProductTrayItem[] | null;
 
   readDeviceAsync(folder: string): Promise<string>;
   createDeviceFile(folder: string, fileName: string): IDeviceFileStore;

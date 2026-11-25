@@ -21,6 +21,7 @@ export class StopKeyController {
   private readonly refuse: (key: KeyChord) => void;
   private readonly change: () => void;
   private readonly log: (text: string) => void;
+  private readonly isClaimed: boolean;
   private readonly told: Set<string> = new Set();
   private key: KeyChord | null = KeyChord.parse(ShellCommands.stopAgentControlKey);
   private isActing: boolean = false;
@@ -28,13 +29,15 @@ export class StopKeyController {
   private taken: string | null = null;
   private refusedKey: KeyChord | null = null;
 
-  public constructor(host: IShortcutHost, platform: string, stop: () => void, refuse: (key: KeyChord) => void, change: () => void, log: (text: string) => void) {
+  public constructor(host: IShortcutHost, platform: string, stop: () => void, refuse: (key: KeyChord) => void, change: () => void, log: (text: string) => void,
+    isClaimed: boolean = true) {
     this.host = host;
     this.isMac = platform === Resources.macPlatform;
     this.stop = stop;
     this.refuse = refuse;
     this.change = change;
     this.log = log;
+    this.isClaimed = isClaimed;
   }
 
   public get boundKey(): KeyChord | null {
@@ -61,7 +64,7 @@ export class StopKeyController {
   }
 
   private update(): void {
-    const wanted = this.isActing && !this.isDisposed ? this.key : null;
+    const wanted = this.isClaimed && this.isActing && !this.isDisposed ? this.key : null;
     const accelerator = Object.isNull(wanted) ? null : this.acceleratorOf(wanted);
     if (accelerator === this.taken)
       return;

@@ -1282,6 +1282,21 @@ export class Resources {
   public static readonly productInstallFolderField: string = "installFolder";
   public static readonly productTitleBarNameField: string = "titleBarName";
   public static readonly productTitleBarIconField: string = "titleBarIcon";
+  public static readonly productTrayField: string = "tray";
+  public static readonly productTrayItemField: string = "item";
+  public static readonly productTraySeparatorField: string = "separator";
+  public static readonly productTrayTextField: string = "text";
+  public static readonly productTrayToggledTextField: string = "toggledText";
+  public static readonly productTrayCommandField: string = "command";
+  public static readonly productTrayIconField: string = "icon";
+  public static readonly productTrayIconDarkField: string = "iconDark";
+  public static readonly productTrayIsTemplateField: string = "isTemplate";
+  public static readonly productTrayItems: readonly string[] = ["work", "notifications", "agents", "open", "doNotDisturb", "quit"];
+  public static readonly productTrayToggleItems: readonly string[] = ["agents", "doNotDisturb"];
+  public static readonly productTrayNotificationsItem: string = "notifications";
+  public static readonly productTrayTemplateSuffix: string = "Template";
+  public static readonly productTrayIconMediaType: string = "image/png";
+  public static readonly productTrayIconEncoding: BufferEncoding = "base64";
   public static readonly releaseAssetsUsage: string = `Usage: ${Resources.commandName} ${Resources.releaseAssetsCommand} [${Resources.updateFeedOption} <https URL, or http URL of localhost, ending in />]\n`;
   public static readonly mainBranch: string = "main";
   public static readonly onMainStatuses: readonly string[] = ["identical", "ahead"];
@@ -1813,6 +1828,8 @@ export class Resources {
   public static readonly productUnsafeSegmentPattern: RegExp = /[\\:*?"<>|]/;
   public static readonly productTitleBarIconFilePattern: RegExp = /\.(?:png|svg)$/i;
   public static readonly productTitleBarIconDataPattern: RegExp = /^data:image\/(?:png|svg\+xml)(?:;base64)?,\S+$/;
+  public static readonly productTrayIconFilePattern: RegExp = /\.png$/i;
+  public static readonly productTrayIconDataPattern: RegExp = /^data:image\/png;base64,\S+$/;
   public static readonly checkoutHashLength: number = 8;
   public static readonly checkoutVariableSuffix: string = "_CHECKOUT";
   public static readonly productNameExpected: string = "a name without quotes, backslashes, % ! $ ` # / ? < > : * | [ ] { } or control characters, with no dot or space at its end, "
@@ -1836,6 +1853,16 @@ export class Resources {
     + "and with no space or dot at either end";
   public static readonly productTitleBarNameExpected: string = "one line of text";
   public static readonly productTitleBarIconExpected: string = "a PNG or SVG file's path from the app's root, such as assets/title-bar.svg, or a data: URL of a PNG or SVG image";
+  public static readonly productTrayExpected: string = "a list of the tray menu's items";
+  public static readonly productTrayEntryExpected: string = "a built-in item such as { \"item\": \"open\" }, a separator, { \"separator\": true }, "
+    + "or a command such as { \"text\": \"Fetch\", \"command\": \"git.fetch\" }";
+  public static readonly productTrayItemExpected: string = "one of work, notifications, agents, open, doNotDisturb or quit, listed once";
+  public static readonly productTraySeparatorExpected: string = "true, alone in its entry";
+  public static readonly productTrayTextExpected: string = "one line of text";
+  public static readonly productTrayToggledTextExpected: string = "one line of text, and only on agents or doNotDisturb";
+  public static readonly productTrayNotificationsTextExpected: string = "left out of notifications, whose rows show the posts' titles";
+  public static readonly productTrayCommandExpected: string = "a module's command, such as git.fetch, and only in an entry without item";
+  public static readonly productTrayIconExpected: string = "a PNG file's path from the app's root, such as assets/fetch.png, or a data: URL of a base64 PNG image";
   public static readonly productMissing: string = `The root ${Resources.packageManifestFileName} must declare ${Resources.formatFieldPath(Resources.manifestDesktopField, Resources.productField)}.`;
   public static readonly productWindowsPublisherRemoved: string = `${Resources.formatFieldPath(Resources.manifestDesktopField, Resources.productField, Resources.productWindowsPublisherField)} no longer goes in ${Resources.packageManifestFileName}; remove it. A signed Windows package takes its publisher from the release's ${Resources.windowsPublisherVariable} secret.`;
   public static readonly manifestPackagingField: string = "packaging";
@@ -3583,6 +3610,20 @@ export class Resources {
 
   public static formatProductAboutLine(about: Readonly<Record<string, unknown>>): string {
     return `export const productAbout: IProductAbout = ${JSON.stringify(about)};`;
+  }
+
+  public static formatTrayFieldPath(index: number, field: string | null = null): string {
+    const entry = `${Resources.productTrayField}[${index}]`;
+    return Object.isNull(field) ? entry : Resources.formatFieldPath(entry, field);
+  }
+
+  public static formatTrayIconMissing(field: string, icon: string): string {
+    return `The root ${Resources.packageManifestFileName}'s ${Resources.formatFieldPath(Resources.manifestDesktopField, Resources.productField, field)} names ${icon}, `
+      + "which isn't in the app's tree.";
+  }
+
+  public static formatIconDataUrl(content: Buffer): string {
+    return `data:${Resources.productTrayIconMediaType};base64,${content.toString(Resources.productTrayIconEncoding)}`;
   }
 
   public static formatTitleBarIconMissing(icon: string): string {

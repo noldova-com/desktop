@@ -17,7 +17,7 @@ import "@noldova/context.core";
 import type { MenuItemConstructorOptions } from "electron";
 
 import { Assert } from "@noldova/context.testing";
-import { Installation, type LaunchSettings } from "@noldova/desktop.runtime";
+import { Installation, type LaunchSettings, type ProductTrayItem } from "@noldova/desktop.runtime";
 import { MainProcess, MainProcessSettings, type IIpcEvent, type IUpdateCheckLock, type IUpdater } from "@noldova/desktop.electron";
 
 import { Condition } from "./condition.fixture.js";
@@ -54,7 +54,8 @@ export class MainProcessStartFixture {
     createUpdateLock: (log: (text: string) => void) => IUpdateCheckLock = () => new FakeUpdateCheckLock(),
     handoff: FakeUpdateHandoff = new FakeUpdateHandoff(),
     moduleUrl: string = MainProcessStartFixture.MODULE_URL,
-    updateFeed: string | null = MainProcessStartFixture.LOCAL_FEED): Promise<LaunchSettings[]> {
+    updateFeed: string | null = MainProcessStartFixture.LOCAL_FEED,
+    tray: readonly ProductTrayItem[] | null = null): Promise<LaunchSettings[]> {
     const settings: LaunchSettings[] = [];
     await MainProcess.startAsync(electron, process, moduleUrl, (t, installation, log) => {
       settings.push(t);
@@ -64,7 +65,7 @@ export class MainProcessStartFixture {
     }, t => device.readAsync(t), (folder, fileName) => files.create(folder, fileName), t => pathCommand.create(t), recordMainProcessAsync, () => updateFeed, (_, feed, _logs, log) => {
       const updater = createUpdater(log, feed);
       return Object.isNull(updater) ? null : { updater, handoff };
-    }, (_, log) => createUpdateLock(log));
+    }, (_, log) => createUpdateLock(log), tray);
     return settings;
   }
 
@@ -75,8 +76,9 @@ export class MainProcessStartFixture {
     device: FakeDeviceIdentity = new FakeDeviceIdentity(),
     process: FakeMainProcessEnvironment = new FakeMainProcessEnvironment(platform),
     files: FakeDeviceFiles = new FakeDeviceFiles(),
-    moduleUrl: string = MainProcessStartFixture.MODULE_URL): Promise<FakeElectron> {
-    await MainProcessStartFixture.startAsync(electron, process, launcher, device, files, undefined, undefined, undefined, undefined, undefined, undefined, moduleUrl);
+    moduleUrl: string = MainProcessStartFixture.MODULE_URL,
+    tray: readonly ProductTrayItem[] | null = null): Promise<FakeElectron> {
+    await MainProcessStartFixture.startAsync(electron, process, launcher, device, files, undefined, undefined, undefined, undefined, undefined, undefined, moduleUrl, undefined, tray);
     await MainProcessStartFixture.openAsync(electron);
     await setImmediate();
     return electron;

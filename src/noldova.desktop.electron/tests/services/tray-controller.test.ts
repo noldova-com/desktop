@@ -16,6 +16,7 @@ import type { MenuItemConstructorOptions } from "electron";
 
 import { UpdateStateKind } from "../../src/enums/update-state-kind.js";
 import { UpdateStatus } from "../../src/models/update-status.js";
+import { Resources } from "../../src/resources.js";
 import { AppIcons } from "../../src/services/app-icons.js";
 import { TrayController } from "../../src/services/tray-controller.js";
 import { Condition } from "../fixtures/condition.fixture.js";
@@ -489,7 +490,7 @@ export class TrayControllerTests {
   private static async createAsync(electron: FakeElectron, icons: string, platform: string, restart: () => void): Promise<TrayController> {
     const tray = new TrayController(electron.tray, electron.menu, await AppIcons.locateAsync(icons, platform, electron.theme), platform,
       { open: () => undefined, openNotification: () => undefined, setDoNotDisturb: () => undefined, stopAgents: () => undefined, resumeAgents: () => undefined, restartToUpdate: restart,
-        quit: () => undefined }, () => undefined, () => undefined);
+        quit: () => undefined, runCommand: () => undefined }, Resources.defaultTrayItems, () => undefined, () => undefined);
     tray.setEnabled(true);
     tray.setHostAvailable(true);
     return tray;

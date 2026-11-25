@@ -122,7 +122,14 @@ else
       },
       notifications: { isSupported: () => Notification.isSupported(), create: t => new Notification(t) },
       theme: nativeTheme,
-      tray: { create: t => new Tray(t) },
+      tray: {
+        create: t => new Tray(t),
+        createMenuIcon: (dataUrl, isTemplate) => {
+          const image = nativeImage.createFromDataURL(dataUrl);
+          image.setTemplateImage(isTemplate);
+          return image;
+        }
+      },
       shortcuts: globalShortcut,
       nativeUpdater: autoUpdater,
       webViews: new ElectronWebViewEngine(),
@@ -193,4 +200,5 @@ else
         updater instanceof NsisUpdater ? t => check.checkAsync(t) : updater instanceof MacUpdater ? null : (t, u) => signature.checkAsync(t, u), log);
       return { updater: feed, handoff: createHandoff(installation, feed, t => check.checkAsync(t), t => signature.checkReadyAsync(t), logsFolder, log) };
     },
-    (installation, log) => new UpdateCheckLock(installation.folder, async () => (await presence.stampAsync([[process.pid, Resources.clientName]]))[0] ?? null, t => presence.isRunningAsync(t), log));
+    (installation, log) => new UpdateCheckLock(installation.folder, async () => (await presence.stampAsync([[process.pid, Resources.clientName]]))[0] ?? null, t => presence.isRunningAsync(t), log),
+    ProductInfo.current.tray);

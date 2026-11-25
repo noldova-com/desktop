@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import { ShellClients, ShellMethods } from "@noldova/desktop.protocol";
-import { ProductInfo } from "@noldova/desktop.runtime";
+import { ProductInfo, ProductTrayItem } from "@noldova/desktop.runtime";
 import type { KeyboardInputEvent } from "electron";
 
 import { MainProcessFailureKind } from "./enums/main-process-failure-kind.js";
@@ -651,6 +651,16 @@ export class Resources {
   public static readonly trayLinuxExtension: string = ".png";
   public static readonly trayWorkRows: number = 5;
   public static readonly trayNotificationRows: number = 3;
+  public static readonly trayWorkItem: string = "work";
+  public static readonly trayNotificationsItem: string = "notifications";
+  public static readonly trayAgentsItem: string = "agents";
+  public static readonly trayOpenItem: string = "open";
+  public static readonly trayDoNotDisturbItem: string = "doNotDisturb";
+  public static readonly trayQuitItem: string = "quit";
+  public static readonly defaultTrayItems: readonly ProductTrayItem[] = [
+    { item: Resources.trayWorkItem }, { item: Resources.trayNotificationsItem }, { separator: true }, { item: Resources.trayAgentsItem }, { item: Resources.trayOpenItem },
+    { item: Resources.trayDoNotDisturbItem }, { separator: true }, { item: Resources.trayQuitItem }
+  ].map(t => ProductTrayItem.fromJson(t));
   public static readonly trayLabelLimit: number = 60;
   public static readonly trayEllipsis: string = "…";
   public static readonly noWorkLabel: string = "No work running";
@@ -1603,8 +1613,8 @@ export class Resources {
     return `The tray icon could not read the runtime's work and notifications: ${reason}`;
   }
 
-  public static formatStopAgentsLabel(refusedKey: string | null): string {
-    return Object.isNull(refusedKey) ? Resources.stopAgentsLabel : `${Resources.stopAgentsLabel} (${refusedKey} works only in the app)`;
+  public static formatStopAgentsLabel(label: string, refusedKey: string | null): string {
+    return Object.isNull(refusedKey) ? label : `${label} (${refusedKey} works only in the app)`;
   }
 
   public static formatStopKeyRefusedBody(key: string, platform: string): string {
