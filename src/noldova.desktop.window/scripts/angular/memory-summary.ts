@@ -8,13 +8,13 @@
 
 import "@noldova/context.core";
 
+import { ProcessTotals } from "./process-totals.ts";
+
 export class MemorySummary {
   private static readonly HEADER: string = "\"(PDH-CSV";
   private static readonly SEPARATOR: string = "\",\"";
   private static readonly POOL: RegExp = /\\Memory\\Pool Nonpaged Bytes$/u;
   private static readonly PROCESS: RegExp = /\\Process\(((?:chrome[^)#]*)|node)(?:#\d+)?\)\\(Handle Count|Working Set)$/u;
-  private static readonly HANDLES: string = "Handle Count";
-  private static readonly BYTES_PER_MEGABYTE: number = 1024 * 1024;
   private static readonly NO_PROCESSES: string = "no chrome or node process";
 
   public static format(text: string): string {
@@ -24,7 +24,7 @@ export class MemorySummary {
     const paths = Object.isUndefined(head) ? [] : MemorySummary.cells(head);
     const values = Object.isUndefined(row) ? [] : MemorySummary.cells(row).map(t => Number.parseFloat(t));
     let pool: number | null = null;
-    const processes = new Map<string, { count: number; handles: number; workingSet: number }>();
+    const processes = new Map<string, ProcessTotals>();
     for (const [index, path] of paths.entries()) {
       const value = values[index];
       if (Object.isUndefined(value) || Number.isNaN(value))
@@ -37,21 +37,15 @@ export class MemorySummary {
       if (Object.isNull(match))
         continue;
       const name = match[1] ?? String.empty;
-      const total = processes.get(name) ?? { count: 0, handles: 0, workingSet: 0 };
-      processes.set(name, match[2] === MemorySummary.HANDLES
-        ? { ...total, count: total.count + 1, handles: total.handles + value }
-        : { ...total, workingSet: total.workingSet + value });
+      const totals = processes.get(name) ?? new ProcessTotals();
+      totals.add(match[2] ?? String.empty, value);
+      processes.set(name, totals);
     }
-    const named = [...processes.entries()].sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, t]) => `${name} ${t.count} ${t.count === 1 ? "process" : "processes"}, ${t.handles} handles, ${MemorySummary.megabytes(t.workingSet)} working set`);
-    return `non-paged pool ${Object.isNull(pool) ? "unread" : MemorySummary.megabytes(pool)}; ${named.length === 0 ? MemorySummary.NO_PROCESSES : named.join("; ")}`;
+    const named = [...processes.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, t]) => t.describe(name));
+    return `non-paged pool ${Object.isNull(pool) ? "unread" : ProcessTotals.megabytes(pool)}; ${named.length === 0 ? MemorySummary.NO_PROCESSES : named.join("; ")}`;
   }
 
   private static cells(line: string): string[] {
     return line.replace(/^"|"$/gu, String.empty).split(MemorySummary.SEPARATOR);
-  }
-
-  private static megabytes(bytes: number): string {
-    return `${(bytes / MemorySummary.BYTES_PER_MEGABYTE).toFixed(1)} MB`;
   }
 }

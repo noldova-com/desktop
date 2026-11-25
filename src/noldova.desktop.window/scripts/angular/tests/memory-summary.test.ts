@@ -43,17 +43,18 @@ describe("MemorySummary", () => {
 });
 
 describe("WindowsSocketReader's memory", () => {
-  it("reads the non-paged pool and the chrome and node processes on Windows, and refuses elsewhere", () => {
+  it("reads the non-paged pool and the chrome and node processes on Windows, the test's own node among them, and refuses elsewhere", () => {
     const read = (): string => {
       try {
-        return MemorySummary.format(new WindowsSocketReader().readMemory()).startsWith("non-paged pool unread") ? "unread" : "read";
+        const summary = MemorySummary.format(new WindowsSocketReader().readMemory());
+        return [summary.startsWith("non-paged pool unread") ? "pool unread" : "pool read", /; node \d+ process/u.test(summary) ? "node read" : "node unread"].join(", ");
       }
       catch (error) {
         return error instanceof SocketStateException ? error.message : "not a SocketStateException";
       }
     };
 
-    assert.equal(read(), process.platform === "win32" ? "read" : "Socket state is read on Windows only.");
+    assert.equal(read(), process.platform === "win32" ? "pool read, node read" : "Socket state is read on Windows only.");
   });
 
   it("wraps a typeperf that fails in a SocketStateException naming it, with the failure as its cause", t => {
