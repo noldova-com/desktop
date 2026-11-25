@@ -8,9 +8,8 @@
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -27,8 +26,10 @@ import { PackageStage } from "../../../src/services/packaging/package-stage.js";
 import { ThirdPartyClosure } from "../../../src/services/packaging/third-party-closure.js";
 import { ProcessRunner } from "../../../src/services/processes/process-runner.js";
 import { NpmCommand } from "../../../src/services/toolchain/npm-command.js";
+import { ArchiveLinkFixture } from "../../fixtures/archive-link.fixture.js";
 import { FolderFixture } from "../../fixtures/folder.fixture.js";
 import { ModuleAppFixture } from "../../fixtures/module-app.fixture.js";
+import { SourceTreeFixture } from "../../fixtures/source-tree.fixture.js";
 import { type ITarballEntry, TarballFixture } from "../../fixtures/tarball.fixture.js";
 import { TemporaryFolderRunnerFixture } from "../../fixtures/temporary-folder-runner.fixture.js";
 
@@ -413,11 +414,11 @@ export class CompanyPackageTests {
     const archive = TarballFixture.create({ "package.json": JSON.stringify({ name: "@noldova/sample", version: "1.0.0" }) });
     const messages: string[] = [];
     const expected: string[] = [];
-    const cases: readonly (readonly [string, string])[] = [
-      [path.join(root.path, "first"), path.join(root.path, "outside")],
-      [path.join(root.path, "second"), path.join(root.path, "second", "stored")]
+    const cases: readonly ArchiveLinkFixture[] = [
+      new ArchiveLinkFixture(path.join(root.path, "first"), path.join(root.path, "outside")),
+      new ArchiveLinkFixture(path.join(root.path, "second"), path.join(root.path, "second", "stored"))
     ];
-    for (const [repository, target] of cases) {
+    for (const { repository, target } of cases) {
       const file = path.join(repository, "_packages", "noldova-sample-1.0.0.tgz");
       await mkdir(path.join(repository, ".git"), { recursive: true });
       await CompanyPackageTests.installSampleAsync(repository);
@@ -529,8 +530,9 @@ export class CompanyPackageTests {
     const file = path.join(app, "package-lock.json");
     const lock = JsonReader.parse(await readFile(file, "utf8")).toJson();
     const packages = lock["packages"];
-    const stripped = Object.entries(Object.isPlainObject(packages) ? packages : {}).map(([location, entry]) =>
-      [location, Object.isPlainObject(entry) ? Object.fromEntries(Object.entries(entry).filter(([field]) => field !== "integrity")) : entry] as const);
+    const stripped = new Map<string, unknown>();
+    for (const [location, entry] of Object.entries(Object.isPlainObject(packages) ? packages : {}))
+      stripped.set(location, Object.isPlainObject(entry) ? Object.fromEntries(Object.entries(entry).filter(([field]) => field !== "integrity")) : entry);
     await writeFile(file, JSON.stringify({ ...lock, packages: Object.fromEntries(stripped) }));
   }
 
@@ -576,14 +578,8 @@ export class CompanyPackageTests {
       integrity: `sha512-${createHash("sha512").update(archive).digest("base64")}` }, true);
   }
 
-  private static async createRootAsync(manifest: object | null, name: string = "sample"): Promise<{ path: string } & AsyncDisposable> {
-    const root = await mkdtemp(path.join(tmpdir(), "company-package-"));
-    const installed = path.join(root, "node_modules", ...name.split("/"));
-    if (!Object.isNull(manifest)) {
-      await mkdir(installed, { recursive: true });
-      await writeFile(path.join(installed, "package.json"), JSON.stringify(manifest));
-    }
-    return { path: root, [Symbol.asyncDispose]: () => rm(root, { recursive: true, force: true }) };
+  private static createRootAsync(manifest: object | null, name: string = "sample"): Promise<SourceTreeFixture> {
+    return SourceTreeFixture.createAsync(Object.isNull(manifest) ? {} : { [`node_modules/${name}/package.json`]: JSON.stringify(manifest) });
   }
 
   private static async packageModuleAsync(entries: readonly ITarballEntry[], manifest: string | null = CompanyPackageTests.MODULE_MANIFEST): Promise<string> {
