@@ -30,6 +30,7 @@ export class UiWorkflowsResources {
   ];
   public static readonly listArguments: readonly string[] = ["--list", "--reporter=list"];
   public static readonly listTimeout: number = 300000;
+  public static readonly notListed: string = "Playwright couldn't list the specs this run takes, as before the packages are first built, so every variant made for one spec builds too.\n";
   public static readonly current: string = "The builds of the UI workflows are current.\n";
   public static readonly requireCurrent: string = "--require-current";
   public static readonly notCurrent: string = "The builds of the UI workflows are not current, and --require-current forbids building them here, so nothing ran.\n";

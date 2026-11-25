@@ -33,7 +33,15 @@ describe("the UI workflows' builds", () => {
   });
 
   it("keeps a spec's variant that is already built, so a run of other specs doesn't make the record stale", () => {
-    assert.deepEqual(choose(null, [SPEC_VARIANT]), BUILDS);
+    assert.deepEqual(choose(String.empty, [SPEC_VARIANT]), BUILDS);
+  });
+
+  it("finds a listed spec in a folder, on Windows paths too", () => {
+    assert.deepEqual([choose("  nested/b.spec.ts:3:1 › b\n"), choose("  nested\\b.spec.ts:3:1 › b\n")], [BUILDS, BUILDS]);
+  });
+
+  it("builds every spec's variant when Playwright couldn't list the run's specs, as before the first build", () => {
+    assert.deepEqual(choose(null), BUILDS);
   });
 
   it("builds every variant without a spec of its own in every run", () => {

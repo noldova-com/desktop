@@ -19,7 +19,10 @@ export class UiWorkflowBuild {
     this.spec = spec;
   }
 
+  private static readonly LISTING_SEPARATORS: RegExp = /[\s/\\]+/;
+
   public static choose(builds: readonly UiWorkflowBuild[], listing: string | null, isBuilt: (build: UiWorkflowBuild) => boolean): readonly UiWorkflowBuild[] {
-    return builds.filter(t => Object.isNull(t.spec) || isBuilt(t) || (!Object.isNull(listing) && listing.includes(`${t.spec}:`)));
+    const listed = Object.isNull(listing) ? null : listing.split(UiWorkflowBuild.LISTING_SEPARATORS);
+    return builds.filter(t => Object.isNull(t.spec) || isBuilt(t) || Object.isNull(listed) || listed.some(part => part.startsWith(`${String(t.spec)}:`)));
   }
 }

@@ -15,7 +15,6 @@ import "@noldova/context.core";
 import { DevelopmentBinary } from "../src/noldova.desktop.build/src/services/desktop/development-binary.ts";
 import { BuildRecord } from "../src/noldova.desktop.build/src/models/packages/build-record.ts";
 import { ContentHash } from "../src/noldova.desktop.build/src/services/packages/content-hash.ts";
-import { ProcessResult } from "../src/noldova.desktop.build/src/models/processes/process-result.ts";
 import { ProcessRunner } from "../src/noldova.desktop.build/src/services/processes/process-runner.ts";
 import { Git } from "../src/noldova.desktop.build/src/services/repository/git.ts";
 import { Resources } from "./resources.ts";
@@ -42,10 +41,6 @@ export class UiWorkflows {
     const requiresCurrent = commandArguments.includes(UiWorkflowsResources.requireCurrent);
     const playwrightArguments = commandArguments.filter(t => t !== UiWorkflowsResources.requireCurrent);
     const listing = await this.listAsync(playwrightArguments);
-    if (listing instanceof ProcessResult) {
-      this.output.write(`${listing.text}\n`);
-      return listing.exitCode ?? Resources.failedExitCode;
-    }
     const builds = UiWorkflowBuild.choose(UiWorkflowsResources.builds, listing, t => existsSync(path.join(this.root, ...t.output)));
     const inputs = await this.hashInputsAsync(builds);
     const recordFile = path.join(this.root, ...UiWorkflowsResources.recordSegments);
@@ -72,11 +67,14 @@ export class UiWorkflows {
     return await this.runner.runAsync(process.execPath, [...this.playwright(), ...playwrightArguments], this.root) ?? Resources.failedExitCode;
   }
 
-  private async listAsync(playwrightArguments: readonly string[]): Promise<string | null | ProcessResult> {
+  private async listAsync(playwrightArguments: readonly string[]): Promise<string | null> {
     if (UiWorkflowsResources.builds.every(t => Object.isNull(t.spec) || existsSync(path.join(this.root, ...t.output))))
-      return null;
+      return String.empty;
     const result = await this.runner.captureAsync(process.execPath, [...this.playwright(), ...UiWorkflowsResources.listArguments, ...playwrightArguments], this.root, UiWorkflowsResources.listTimeout);
-    return result.isSuccessful ? result.output : result;
+    if (result.isSuccessful)
+      return result.output;
+    this.output.write(UiWorkflowsResources.notListed);
+    return null;
   }
 
   private playwright(): readonly string[] {
