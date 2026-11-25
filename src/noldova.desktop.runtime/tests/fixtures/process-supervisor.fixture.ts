@@ -15,8 +15,8 @@ import {
   type IPosixProcessTableApi, type IWindowsProcessApi, type OwnedProcess, PosixProcessApi, ProcessClock, ProcessSettings, ProcessSupervisor, type PseudoTerminal, type PseudoTerminalExit, WindowsProcessApi
 } from "@noldova/desktop.runtime";
 
-import { ProcessClockFixture } from "./process-clock.fixture.js";
 import { ProgramExitedEarlyException } from "../exceptions/program-exited-early.exception.js";
+import { ProcessClockFixture } from "./process-clock.fixture.js";
 import { ProgramFixture } from "./program.fixture.js";
 import type { PseudoTerminalLibraryFixture } from "./pseudo-terminal-library.fixture.js";
 import { SettingsFixture } from "./settings.fixture.js";

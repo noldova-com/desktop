@@ -10,10 +10,10 @@ import "@noldova/context.core";
 import { Response } from "@noldova/desktop.protocol";
 import { ClientSettings, type Endpoint, RuntimeClient } from "@noldova/desktop.runtime";
 
+import { ServerNotListeningException } from "../exceptions/server-not-listening.exception.js";
 import { ClientListenerFixture } from "./client-listener.fixture.js";
 import { RawServerFixture } from "./raw-server.fixture.js";
 import { RuntimeServerFixture } from "./runtime-server.fixture.js";
-import { ServerNotListeningException } from "../exceptions/server-not-listening.exception.js";
 
 export class RuntimeClientFixture {
   public static readonly SETTINGS: ClientSettings = new ClientSettings();

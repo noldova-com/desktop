@@ -11,8 +11,8 @@ import "@noldova/context.core";
 import type { ILineProcess } from "../../src/interfaces/i-line-process.js";
 import type { ILineProcessListener } from "../../src/interfaces/i-line-process-listener.js";
 import type { ILineProcessStarter } from "../../src/interfaces/i-line-process-starter.js";
-import { LineProcessFixture } from "./line-process.fixture.js";
 import { NoLineProcessException } from "../exceptions/no-line-process.exception.js";
+import { LineProcessFixture } from "./line-process.fixture.js";
 
 export class LineProcessStarterFixture implements ILineProcessStarter {
   public readonly started: LineProcessFixture[] = [];

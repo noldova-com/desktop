@@ -16,8 +16,8 @@ import { BuildIdentity, type FailureCode, Handshake, QualifiedName, type Respons
 import { CapabilityToken, type Endpoint, type IMethodHandler, MethodRegistry, type RequestContext, RuntimeServer, ServerSettings } from "@noldova/desktop.runtime";
 
 import { HandshakeFailedException } from "../exceptions/handshake-failed.exception.js";
-import { RawConnectionFixture } from "./raw-connection.fixture.js";
 import { ServerNotListeningException } from "../exceptions/server-not-listening.exception.js";
+import { RawConnectionFixture } from "./raw-connection.fixture.js";
 import { TextOutputFixture } from "./text-output.fixture.js";
 
 export class RuntimeServerFixture implements AsyncDisposable {

@@ -13,9 +13,9 @@ import "@noldova/context.core";
 import { ClientSettings, DataDirectory, DiscoveryReader, LaunchSettings, OwnershipLock, RuntimeEntry } from "@noldova/desktop.runtime";
 
 import { FixtureFolderOwnedException } from "../exceptions/fixture-folder-owned.exception.js";
-import { RecordingStarterFixture } from "./recording-starter.fixture.js";
 import { RuntimeDiscoveryMissingException } from "../exceptions/runtime-discovery-missing.exception.js";
 import { RuntimeProcessesNotKilledException } from "../exceptions/runtime-processes-not-killed.exception.js";
+import { RecordingStarterFixture } from "./recording-starter.fixture.js";
 import { SocketFolderFixture } from "./socket-folder.fixture.js";
 import { WaitFixture } from "./wait.fixture.js";
 
