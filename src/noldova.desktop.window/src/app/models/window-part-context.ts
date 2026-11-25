@@ -70,6 +70,7 @@ import { Resources } from "../../resources.js";
 export class WindowPartContext implements IWindowPartContext {
   private static readonly ignore: () => void = () => undefined;
   private static readonly noDock: Signal<DockSide | null> = signal<DockSide | null>(null).asReadonly();
+  private static readonly runnableShellCommands: readonly string[] = [Resources.searchCommand, Resources.openSettingsCommand];
 
   private readonly host: IWindowPartHost;
   private readonly owners: readonly string[];
@@ -343,7 +344,7 @@ export class WindowPartContext implements IWindowPartContext {
   }
 
   public runCommandAsync(name: string, commandArguments: JsonValue = null): Promise<JsonValue> {
-    if (name !== Resources.searchCommand)
+    if (!WindowPartContext.runnableShellCommands.includes(name))
       this.requireAllowed(name);
     return this.host.runCommandAsync(name, commandArguments);
   }

@@ -2185,14 +2185,16 @@ export interface IWindowPartContext {
   /**
    * Runs a command of the module or a dependency, in the window or in the
    * runtime, or Noldova Desktop's `desktop.search`, which opens search under the
-   * filter of the source its `source` argument names.
+   * filter of the source its `source` argument names, or `desktop.openSettings`,
+   * which opens Settings on the page its `page` argument names.
    *
    * @param name The command's name.
    * @param commandArguments The arguments; null when left out.
    * @returns A promise of the command's result; it rejects when the command
    * is not registered, not enabled or fails.
    * @throws Error synchronously when the command belongs to neither the
-   * module nor a dependency, and is not `desktop.search`.
+   * module nor a dependency, and is neither `desktop.search` nor
+   * `desktop.openSettings`.
    * @example
    * ```ts
    * import type { JsonValue } from "@noldova/context.json";
