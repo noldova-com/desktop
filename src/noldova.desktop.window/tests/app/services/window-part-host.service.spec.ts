@@ -965,21 +965,25 @@ describe("WindowPartHostService", () => {
 
   it("opens a part's instances without expanding a collapsed dock when the part asks not to reveal it, while activating and afterwards", async () => {
     const shell = (instance: string): ViewTab => new ViewTab("terminal.shell", instance);
+    const registry = new ViewRegistry([new ViewType("terminal.shell", DockSide.Bottom, false, true)], []);
+    const saved = Layout.createDefault(registry).openView(shell("1"), registry).toggleDock(DockSide.Bottom);
     const terminal = new WindowPartFixture("terminal", log, t => {
       t.registerView(new ViewContribution("terminal.shell", "Terminal", "terminal", DockSide.Bottom, false, load, undefined, { hasInstances: true }));
-      t.openView("terminal.shell", "1", "pwsh", { revealDock: false });
+      t.openView("terminal.shell", "1", "pwsh");
+      t.openView("terminal.shell", "2", "zsh", { revealDock: false });
     });
     const { host, layout } = start([source("terminal", terminal, [], ["terminal.shell"])], [status("terminal")]);
-    layout.setMetrics(LayoutMetricsFixture.standard);
-    layout.setViewport(120, 60);
-    await vi.waitFor(() => expect(layout.layout().isOpen(shell("1"))).toBe(true));
-    layout.toggleDock(DockSide.Bottom);
+    vi.spyOn(TestBed.inject(LayoutStoreService), "readAsync").mockResolvedValue(saved.toJson());
+    await vi.waitFor(() => expect(layout.layout().isOpen(shell("2"))).toBe(true));
+    TestBed.tick();
+    const early = [layout.layout().dock(DockSide.Bottom).isCollapsed, layout.layout().groupOf(shell("2"))?.active];
 
-    host.openView("terminal", "terminal.shell", "2", new DocumentHeading("bash"), null, null, false);
-    const quiet = [layout.layout().dock(DockSide.Bottom).isExpanded, layout.layout().groupOf(shell("2"))?.active];
-    host.openView("terminal", "terminal.shell", "2", new DocumentHeading("bash"), null, null, true);
+    host.openView("terminal", "terminal.shell", "3", new DocumentHeading("bash"), null, null, false);
+    const later = [layout.layout().dock(DockSide.Bottom).isCollapsed, layout.layout().groupOf(shell("3"))?.active];
+    host.openView("terminal", "terminal.shell", "3", new DocumentHeading("bash"), null, null, true);
 
-    expect([quiet, layout.layout().dock(DockSide.Bottom).isExpanded, errors]).toEqual([[false, shell("2")], true, []]);
+    expect([saved.dock(DockSide.Bottom).isCollapsed, early, later]).toEqual([true, [true, shell("2")], [true, shell("3")]]);
+    expect([layout.layout().dock(DockSide.Bottom).isCollapsed, errors]).toEqual([false, []]);
   });
 
   it("shows a part's view without instances asked for while activating once the layout loads, and shows it or hides the dock of its view tabs at once afterwards", async () => {
