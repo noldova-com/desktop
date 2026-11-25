@@ -8,6 +8,7 @@
 
 import "@noldova/context.core";
 
+import { OwnStartTimeMissingException } from "../exceptions/own-start-time-missing.exception.ts";
 import { ProcessListFixture } from "./process-list.fixture.ts";
 
 export class ProcessStartTimes {
@@ -19,7 +20,7 @@ export class ProcessStartTimes {
   public constructor(queried: readonly number[], listing: ReadonlyMap<number, number>) {
     const own = listing.get(process.pid);
     if (Object.isUndefined(own))
-      throw new Error(`The process list gave no start time for this process, ${process.pid}, so the list failed, and no run can be told to have ended.`);
+      throw new OwnStartTimeMissingException(process.pid);
     this.queried = queried;
     this.listing = listing;
     this.own = own;

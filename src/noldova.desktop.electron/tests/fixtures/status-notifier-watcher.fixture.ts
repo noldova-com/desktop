@@ -11,6 +11,9 @@ import { createConnection, type Socket } from "node:net";
 
 import "@noldova/context.core";
 
+import { WatcherConnectionFailedException } from "../exceptions/watcher-connection-failed.exception.js";
+import { WatcherRefusedException } from "../exceptions/watcher-refused.exception.js";
+
 interface IBusField {
   readonly code: number;
   readonly signature: string;
@@ -199,7 +202,7 @@ export class StatusNotifierWatcherFixture {
     this.socket.destroy();
     await closed;
     if (!Object.isNull(this.failure))
-      throw new Error(`The fixture watcher's connection to the private session bus failed: ${this.failure.message}`, { cause: this.failure });
+      throw new WatcherConnectionFailedException(this.failure);
   }
 
   private async authenticateAsync(): Promise<void> {
@@ -208,7 +211,7 @@ export class StatusNotifierWatcherFixture {
     const [data]: unknown[] = await once(this.socket, "data");
     const answer = String(data);
     if (!answer.startsWith("OK "))
-      throw new Error(`The private bus refused the watcher: ${answer}`);
+      throw new WatcherRefusedException(answer);
     this.socket.write("BEGIN\r\n");
   }
 

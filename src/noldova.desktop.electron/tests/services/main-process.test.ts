@@ -1077,7 +1077,7 @@ export class MainProcessTests {
     const data = join(process.workingDirectory, "data");
     Assert.areEqual(data, settings?.dataDirectory.root);
     Assert.areEqual(`setPath userData ${new DataDirectory(data).profileFolder}`, electron.app.calls.find(t => t.startsWith("setPath")));
-    Assert.isTrue(files.created.length > 0 && files.created.every(([folder]) => folder.startsWith(join(process.workingDirectory, "device"))), JSON.stringify(files.created));
+    Assert.isTrue(files.created.length > 0 && files.created.every(t => t.folder.startsWith(join(process.workingDirectory, "device"))), JSON.stringify(files.created));
   }
 
   @TestMethod
@@ -1095,7 +1095,7 @@ export class MainProcessTests {
 
     const folder = expected ?? process.workingDirectory;
     Assert.areEqual(resolve(folder, "data"), settings?.dataDirectory.root);
-    Assert.isTrue(files.created.length > 0 && files.created.every(([t]) => t.startsWith(resolve(folder, "device"))), JSON.stringify(files.created));
+    Assert.isTrue(files.created.length > 0 && files.created.every(t => t.folder.startsWith(resolve(folder, "device"))), JSON.stringify(files.created));
   }
 
   @TestMethod

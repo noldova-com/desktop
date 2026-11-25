@@ -17,6 +17,9 @@ import "@noldova/context.core";
 import type { FeedSource } from "@noldova/desktop.electron";
 import { ProductInfo } from "@noldova/desktop.runtime";
 
+import { FeedHostMissingException } from "../exceptions/feed-host-missing.exception.ts";
+import { FeedNotWrittenException } from "../exceptions/feed-not-written.exception.ts";
+import { UpdatePackageUndefinedException } from "../exceptions/update-package-undefined.exception.ts";
 import { installedElectron } from "./installed-electron.fixture.ts";
 
 export class UpdateFeedFixture {
@@ -44,7 +47,7 @@ export class UpdateFeedFixture {
   public static get source(): FeedSource {
     const source = installedElectron.FeedSource.create(`http://${UpdateFeedFixture.HOST}/`, ProductInfo.current.name, process.platform, process.arch, () => Promise.reject(new Error("The fixture never fetches.")));
     if (Object.isNull(source))
-      throw new Error(`No update package is defined for ${process.platform} ${process.arch}.`);
+      throw new UpdatePackageUndefinedException(process.platform, process.arch);
     return source;
   }
 
@@ -55,7 +58,7 @@ export class UpdateFeedFixture {
   public static async startAsync(folder: string): Promise<UpdateFeedFixture> {
     const feed = ProductInfo.read(ProductInfo.file).updateFeed;
     if (Object.isNull(feed) || new URL(feed).hostname !== UpdateFeedFixture.HOST)
-      throw new Error(`The build's product file names no feed on ${UpdateFeedFixture.HOST}; swap in the ${UpdateFeedFixture.VARIANT} variant first.`);
+      throw new FeedHostMissingException(UpdateFeedFixture.HOST, UpdateFeedFixture.VARIANT);
     await mkdir(folder, { recursive: true });
     const requests: string[] = [];
     const headers: IncomingHttpHeaders[] = [];
@@ -82,7 +85,7 @@ export class UpdateFeedFixture {
       const product = await readFile(ProductInfo.file, "utf8");
       const named = product.replace(JSON.stringify(feed), JSON.stringify(feedFixture.url));
       if (named === product)
-        throw new Error(`The build's product file doesn't hold its feed ${feed} as written.`);
+        throw new FeedNotWrittenException(feed);
       await writeFile(ProductInfo.file, named);
       return feedFixture;
     }

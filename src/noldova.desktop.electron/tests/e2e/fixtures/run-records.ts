@@ -10,8 +10,11 @@ import { readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import "@noldova/context.core";
 import type { FullConfig } from "@playwright/test";
 
+import { EarlierRunProcessesKilledException } from "../exceptions/earlier-run-processes-killed.exception.ts";
+import { RunProcessesKilledException } from "../exceptions/run-processes-killed.exception.ts";
 import { CleanupSteps } from "./cleanup-steps.ts";
 import { ErrorCodeFixture } from "./error-code.fixture.ts";
 import { ProcessRecord } from "./process-record.ts";
@@ -51,7 +54,7 @@ export class RunRecords {
     if (unremovedRunFolders.length > 0)
       console.warn(`Ended runs' temporary folders are still there:\n${unremovedRunFolders.join("\n")}`);
     if (stopped.own.length > 0)
-      throw new Error(`Processes that earlier UI runs started still ran after their runners had ended, so they were killed:\n${stopped.own.join("\n")}`);
+      throw new EarlierRunProcessesKilledException(stopped.own);
     for (const records of all)
       await records.recordOf(run).createAsync();
     await TestRoots.useRunFolderAsync(run);
@@ -74,11 +77,11 @@ export class RunRecords {
       }
     ]);
     await TestRoots.removeOwnRunFolderAsync().catch((error: unknown) => console.warn(error instanceof Error ? error.message : String(error)));
-    const messages = stopped.length === 0 ? [] : [`Processes that the UI workflows started still ran after their tests, so they were killed:\n${stopped.join("\n")}`];
+    const killed = stopped.length === 0 ? null : new RunProcessesKilledException(stopped);
     if (failures.length > 0)
-      throw new AggregateError(failures, [...failures.map(t => t instanceof Error ? t.message : String(t)), ...messages].join("\n"));
-    if (messages.length > 0)
-      throw new Error(messages.join("\n"));
+      throw new AggregateError(failures, [...failures.map(t => t instanceof Error ? t.message : String(t)), ...Object.isNull(killed) ? [] : [killed.message]].join("\n"));
+    if (!Object.isNull(killed))
+      throw killed;
   }
 
   public static async stopEndedRunsAsync(all: readonly RunRecords[], base: string = os.tmpdir()): Promise<IStoppedLeftovers> {

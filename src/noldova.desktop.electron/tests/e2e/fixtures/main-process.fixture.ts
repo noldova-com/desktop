@@ -18,9 +18,24 @@ import { type ElectronApplication, type Page, type TestInfo, _electron, expect }
 import { SettingsSnapshot, StopPolicy } from "@noldova/desktop.protocol";
 import { DataDirectory, DiscoveryReader, Endpoint, OwnershipLock, RuntimeBuild, RuntimeClient, type RuntimeDiscovery } from "@noldova/desktop.runtime";
 
+import { AnswerMissingException } from "../exceptions/answer-missing.exception.ts";
+import { AppNotRunningException } from "../exceptions/app-not-running.exception.ts";
+import { AppNotStartedException } from "../exceptions/app-not-started.exception.ts";
+import { AppProcessesNotExitedException } from "../exceptions/app-processes-not-exited.exception.ts";
+import { DiscoveryFileMissingException } from "../exceptions/discovery-file-missing.exception.ts";
+import { FontFacesMissingException } from "../exceptions/font-faces-missing.exception.ts";
+import { FontFacesNotLoadedException } from "../exceptions/font-faces-not-loaded.exception.ts";
+import { MainProcessNotAnsweredException } from "../exceptions/main-process-not-answered.exception.ts";
+import { MainProcessSilentException } from "../exceptions/main-process-silent.exception.ts";
+import { PageUnreachableException } from "../exceptions/page-unreachable.exception.ts";
+import { RuntimeConnectionsMiscountedException } from "../exceptions/runtime-connections-miscounted.exception.ts";
+import { RuntimeNotStartedException } from "../exceptions/runtime-not-started.exception.ts";
+import { RuntimeNotStoppedException } from "../exceptions/runtime-not-stopped.exception.ts";
+import { RuntimeOwnerUnknownException } from "../exceptions/runtime-owner-unknown.exception.ts";
 import { CleanupSteps } from "./cleanup-steps.ts";
 import { ErrorCodeFixture } from "./error-code.fixture.ts";
 import { ErrorOutputClassifier, type IClassifiedLine } from "./error-output.classifier.ts";
+import { HeldLock } from "./held-lock.ts";
 import { MainProcessAnswer, type IMainProcessAnswerRecord } from "./main-process-answer.ts";
 import { MainProcessLogFixture } from "./main-process-log.fixture.ts";
 import { OffCursorPlacement } from "./off-cursor-placement.ts";
@@ -78,7 +93,6 @@ export class MainProcessFixture {
   private static readonly THREADS_FILE: string = "main-process-threads.txt";
   private static readonly SIGNAL_EXIT_FILE: string = "main-process-signal.txt";
   private static readonly THREADS_TIMEOUT: number = 20_000;
-  private static readonly PAGE_UNREACHABLE: string = "The page did not answer the silence report's request, which reaches it through the main process, so the test did not wait for it.";
   private static readonly MAIN_WINDOW: string = "main-window";
   private static readonly CHECKPOINT_ANNOTATION: string = "checkpoint";
   private static readonly PROCESS_SNAPSHOT_ANNOTATION: string = "process-snapshot";
@@ -171,13 +185,13 @@ export class MainProcessFixture {
     const isReleased = (): boolean => !MainProcessFixture.isOwned(directory);
     if (Object.isNull(asked)) {
       if (!await WaitFixture.holdsWithinAsync(isReleased, MainProcessFixture.RUNTIME_STOP_TIMEOUT, MainProcessFixture.OWNERSHIP_INTERVAL))
-        throw new Error(`A runtime still owned ${dataDirectory} ${seconds} s after the test found it stopping, and no discovery file named a running process.`);
+        throw new RuntimeOwnerUnknownException(dataDirectory, seconds);
       return;
     }
     const hasEnded = await WaitFixture.holdsWithinAsync(
       () => isReleased() || !MainProcessFixture.isAlive(asked.processId), MainProcessFixture.RUNTIME_STOP_TIMEOUT, MainProcessFixture.OWNERSHIP_INTERVAL);
     if (!hasEnded && MainProcessFixture.killIfRunning(asked.processId))
-      throw new Error(`The runtime ${asked.processId} still ran ${seconds} s after it was asked to stop (${answer}), so the test killed it.`);
+      throw new RuntimeNotStoppedException(asked.processId, seconds, answer);
     const isTakenOver = async (): Promise<boolean> => {
       const current = await DiscoveryReader.readAsync(directory);
       return !Object.isNull(current) && current.processId !== asked.processId;
@@ -206,13 +220,13 @@ export class MainProcessFixture {
 
   public get application(): ElectronApplication {
     if (Object.isNull(this.electronApplication))
-      throw new Error("Noldova Desktop Sample is not running.");
+      throw new AppNotRunningException();
     return this.electronApplication;
   }
 
   public get window(): Page {
     if (Object.isNull(this.page))
-      throw new Error("Noldova Desktop Sample is not running.");
+      throw new AppNotRunningException();
     return this.page;
   }
 
@@ -388,7 +402,7 @@ export class MainProcessFixture {
   private async reachRuntimeConnectionAsync(action: string, frame: string | null): Promise<void> {
     const discovery = await DiscoveryReader.readAsync(new DataDirectory(this.dataDirectory));
     if (Object.isNull(discovery))
-      throw new Error(`No runtime discovery file was found in ${this.dataDirectory}, so the test could not tell which connection to reach.`);
+      throw new DiscoveryFileMissingException(this.dataDirectory);
     const found = await this.answerAsync(action, this.application.evaluate((_, { port, frame }) => {
       const listing: unknown = "_getActiveHandles" in process ? process._getActiveHandles : undefined;
       const listed: unknown = typeof listing === "function" ? listing.call(process) : [];
@@ -416,7 +430,7 @@ export class MainProcessFixture {
       return { matched: matches.length, descriptions: sockets.map(t => t.description) };
     }, { port: Endpoint.parse(discovery.endpoint).port, frame }));
     if (found.matched !== 1)
-      throw new Error(`The main process should hold one connection to the runtime at ${discovery.endpoint} but holds ${found.matched}. It found these sockets through process._getActiveHandles(), which Node does not document: ${found.descriptions.join("; ") || "none"}.`);
+      throw new RuntimeConnectionsMiscountedException(discovery.endpoint, found.matched, found.descriptions);
   }
 
   private async killSilentAsync(silence: IMainProcessSilence): Promise<string> {
@@ -484,7 +498,7 @@ export class MainProcessFixture {
     if (running.length === 0)
       return;
     const described = await ProcessListFixture.describeAsync(running);
-    throw new Error(`Noldova Desktop Sample's processes ${described} still run ${MainProcessFixture.PROCESS_EXIT_TIMEOUT / 1000} s after it closed, so its folder ${this.root} is kept.`);
+    throw new AppProcessesNotExitedException(described, MainProcessFixture.PROCESS_EXIT_TIMEOUT / 1000, this.root);
   }
 
   private async keepDiagnosticsAsync(isRunning: boolean): Promise<void> {
@@ -504,8 +518,8 @@ export class MainProcessFixture {
         MainProcessFixture.MAIN_PROCESS_TIMEOUT + MainProcessFixture.DIAGNOSTIC_TIMEOUT);
     }
     for (const [index, page] of this.application.windows().entries()) {
-      await this.keepAsync(`page-${index}.png`, "image/png", () => this.isPageUnreachable ? Promise.reject(new Error(MainProcessFixture.PAGE_UNREACHABLE)) : page.screenshot());
-      await this.keepAsync(`page-${index}.html`, "text/html", () => this.isPageUnreachable ? Promise.reject(new Error(MainProcessFixture.PAGE_UNREACHABLE)) : page.content());
+      await this.keepAsync(`page-${index}.png`, "image/png", () => this.isPageUnreachable ? Promise.reject(new PageUnreachableException()) : page.screenshot());
+      await this.keepAsync(`page-${index}.html`, "text/html", () => this.isPageUnreachable ? Promise.reject(new PageUnreachableException()) : page.content());
     }
     await this.keepAsync(MainProcessFixture.WINDOWS_FILE, "application/json", async () => JSON.stringify(await this.answerAsync("describe its windows", this.application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().map(t => ({
@@ -529,7 +543,7 @@ export class MainProcessFixture {
     try {
       const body = await MainProcessFixture.withinAsync(capture(), limit);
       if (body === MainProcessFixture.NO_ANSWER)
-        throw new Error(`No answer within ${limit} ms.`);
+        throw new AnswerMissingException(limit);
       await this.testInfo.attach(name, { body, contentType });
     }
     catch (error) {
@@ -600,7 +614,7 @@ export class MainProcessFixture {
   private async answerAsync<T>(action: string, evaluation: Promise<T>, limit: number = MainProcessFixture.MAIN_PROCESS_TIMEOUT): Promise<T> {
     if (!Object.isNull(this.silence)) {
       evaluation.catch(() => undefined);
-      throw new Error(`The main process has not answered since it was asked to ${this.silence.action}, so the test did not wait for it to ${action}.`);
+      throw new MainProcessSilentException(this.silence.action, action);
     }
     const asked = Date.now();
     const answer = await MainProcessFixture.withinAsync(evaluation.finally(() => {
@@ -611,12 +625,9 @@ export class MainProcessFixture {
     const lastAnswerLine = MainProcessAnswer.describeLast(this.lastAnswer, asked);
     const processorMilliseconds = await this.readProcessorMillisecondsAsync();
     this.silence = { action, since: asked, processorMilliseconds };
-    throw new Error([
-      `The main process did not answer within ${limit / 1000} s when asked to ${action}.`,
-      lastAnswerLine,
-      await MainProcessLogFixture.describeMainProcessFailuresAsync(new DataDirectory(this.dataDirectory).mainProcessLog, this.mainProcessOutput),
-      this.placement
-    ].join("\n"));
+    throw new MainProcessNotAnsweredException(
+      limit / 1000, action, lastAnswerLine,
+      await MainProcessLogFixture.describeMainProcessFailuresAsync(new DataDirectory(this.dataDirectory).mainProcessLog, this.mainProcessOutput), this.placement);
   }
 
   private async readProcessorMillisecondsAsync(): Promise<number | null> {
@@ -707,7 +718,7 @@ export class MainProcessFixture {
     const directory = new DataDirectory(this.dataDirectory);
     const load = new ProcessorLoadFixture();
     const started = Date.now();
-    let held: [number, number] | null = null;
+    let held: HeldLock | null = null;
     let isExtended = false;
     const isStarted = await WaitFixture.holdsWithinAsync(async () => {
       if ((await DiscoveryReader.readAsync(directory))?.productVersion === RuntimeBuild.identity.productVersion)
@@ -715,7 +726,7 @@ export class MainProcessFixture {
       const elapsed = Date.now() - started;
       const isHeld = MainProcessFixture.isOwned(directory);
       if (isHeld)
-        held = [held?.[0] ?? elapsed, elapsed];
+        held = new HeldLock(held?.from ?? elapsed, elapsed);
       const failure = await this.readStartupFailureAsync();
       if (!Object.isNull(failure))
         throw await this.describeLaunchFailureAsync(`the window reports that Noldova Desktop Sample could not start (${failure})`, held, load);
@@ -739,15 +750,15 @@ export class MainProcessFixture {
       return [faces.length, faces.filter(t => t.status !== "loaded").map(t => `${t.family} ${t.weight} ${t.style}`)] as const;
     });
     if (count === 0)
-      throw new Error("The window declares no font face, so its text would be measured in fallback fonts.");
+      throw new FontFacesMissingException();
     if (failed.length > 0)
-      throw new Error(`The window's font faces did not load: ${failed.join(", ")}.`);
+      throw new FontFacesNotLoadedException(failed);
   }
 
-  private async describeLaunchFailureAsync(reason: string, held: readonly [number, number] | null, load: ProcessorLoadFixture): Promise<Error> {
-    const lock = Object.isNull(held) ? "never held" : `held from ${held[0] / 1000} s to ${held[1] / 1000} s`;
+  private async describeLaunchFailureAsync(reason: string, held: HeldLock | null, load: ProcessorLoadFixture): Promise<RuntimeNotStartedException> {
+    const lock = Object.isNull(held) ? "never held" : `held from ${held.from / 1000} s to ${held.to / 1000} s`;
     const naming = await ProcessListFixture.describeNamingAsync(this.dataDirectory).catch((error: unknown) => `unknown (${String(error)})`);
-    return new Error(`Noldova Desktop Sample's runtime did not start: ${reason}. The data directory's lock was ${lock}. Processes naming the data directory: ${naming}. Processor load: ${load.describe()}.`);
+    return new RuntimeNotStartedException(reason, lock, naming, load.describe());
   }
 
   private async readStartupFailureAsync(): Promise<string | null> {
@@ -806,7 +817,7 @@ export class MainProcessFixture {
 
   private requireProcess(): ChildProcess {
     if (Object.isNull(this.childProcess))
-      throw new Error("Noldova Desktop Sample was not started.");
+      throw new AppNotStartedException();
     return this.childProcess;
   }
 

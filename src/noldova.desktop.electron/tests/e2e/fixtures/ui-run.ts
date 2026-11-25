@@ -8,6 +8,8 @@
 
 import "@noldova/context.core";
 
+import { UiRunIdInvalidException } from "../exceptions/ui-run-id-invalid.exception.ts";
+import { UiRunNotSetException } from "../exceptions/ui-run-not-set.exception.ts";
 import { ProcessStartTimes } from "./process-start-times.ts";
 
 export class UiRun {
@@ -29,7 +31,7 @@ export class UiRun {
   public static parse(id: string): UiRun {
     const match = UiRun.ID.exec(id);
     if (Object.isNull(match))
-      throw new Error(`${id} is not a UI run's id, which is its runner's process id and start time.`);
+      throw new UiRunIdInvalidException(id);
     return new UiRun(Number(match[1]), Number(match[2]));
   }
 
@@ -42,7 +44,7 @@ export class UiRun {
   public static readCurrent(): UiRun {
     const id = process.env[UiRun.ENVIRONMENT_VARIABLE];
     if (Object.isUndefined(id))
-      throw new Error(`${UiRun.ENVIRONMENT_VARIABLE} is not set, so this run's global setup, fixtures/run-setup.ts, did not run.`);
+      throw new UiRunNotSetException(UiRun.ENVIRONMENT_VARIABLE);
     return UiRun.parse(id);
   }
 

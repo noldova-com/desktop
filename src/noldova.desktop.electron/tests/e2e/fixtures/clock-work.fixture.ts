@@ -14,6 +14,7 @@ import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
 import { expect } from "@playwright/test";
 
+import { WorkNotReportedException } from "../exceptions/work-not-reported.exception.ts";
 import { CliFixture } from "./cli.fixture.ts";
 import { CommandSearchFixture } from "./command-search.fixture.ts";
 import type { MainProcessFixture } from "./main-process.fixture.ts";
@@ -50,14 +51,8 @@ export class ClockWorkFixture {
     catch (error) {
       const runtimeLog = await ClockWorkFixture.readLogAsync(dataDirectory, "runtime.log");
       const mainProcessLog = await ClockWorkFixture.readLogAsync(dataDirectory, "main.log");
-      throw new Error([
-        "The shell did not report the work before the window was closed.",
-        `The shell's work report, the one the quit question reads: ${reported}.`,
-        `The work command ran (the clock's work folder exists): ${existsSync(path.join(dataDirectory, "work", "clock"))}.`,
-        `The runtime logged that the clock began counting: ${runtimeLog?.includes("clock: The clock began counting.") ?? false}.`,
-        `Runtime log: ${Object.isNull(runtimeLog) ? "missing" : JSON.stringify(runtimeLog.split("\n").slice(-8))}.`,
-        `Main process log: ${Object.isNull(mainProcessLog) ? "missing" : JSON.stringify(mainProcessLog.split("\n").slice(-8))}.`
-      ].join("\n"), { cause: error });
+      throw new WorkNotReportedException(
+        reported, existsSync(path.join(dataDirectory, "work", "clock")), runtimeLog?.includes("clock: The clock began counting.") ?? false, runtimeLog, mainProcessLog, error);
     }
   }
 

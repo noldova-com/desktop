@@ -8,13 +8,15 @@
 
 import { setTimeout as delay } from "node:timers/promises";
 
+import { WaitTimedOutException } from "../exceptions/wait-timed-out.exception.ts";
+
 export class WaitFixture {
   private static readonly INTERVAL: number = 25;
 
   public static async untilAsync(condition: () => boolean | Promise<boolean>, description: string, limitMilliseconds: number, intervalMilliseconds: number = WaitFixture.INTERVAL): Promise<void> {
     const holds = await WaitFixture.holdsWithinAsync(condition, limitMilliseconds, intervalMilliseconds);
     if (!holds)
-      throw new Error(`Waited ${limitMilliseconds} ms for ${description}, but it did not happen.`);
+      throw new WaitTimedOutException(description, limitMilliseconds);
   }
 
   public static async holdsWithinAsync(condition: () => boolean | Promise<boolean>, limitMilliseconds: number, intervalMilliseconds: number = WaitFixture.INTERVAL): Promise<boolean> {
