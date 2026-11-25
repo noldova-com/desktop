@@ -9,6 +9,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { mock } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
 import "@noldova/context.core";
@@ -711,6 +712,32 @@ export class RuntimeLauncherTests {
     Assert.areEqual("The runtime did not start in time.", exception.message);
     Assert.areEqual(String.empty, (await readdir(fake.dataDirectory.logsFolder)).join(","));
     Assert.isTrue(await RuntimeLaunchFixture.waitForExitAsync(processId));
+  }
+
+  @TestMethod
+  public async refusesOnTheNextPassWhenItsClockPassesTheLaunchTimeoutWithinAPass(): Promise<void> {
+    await using fake = await FakeRuntimeFixture.ownAsync();
+    fake.release();
+    const starter = new ScriptedStarterFixture("setInterval(() => {}, 1000);");
+    const launcher = UpdateBarrierFixture.createLauncher(fake.createSettings(30, 60_000), RuntimeServerFixture.IDENTITY, starter);
+    const guard = new AbortController();
+    let time = Date.now();
+    const clock = mock.method(Date, "now", () => time++);
+
+    try {
+      const exception = await Assert.throwsAsync(
+        () => Promise.race([launcher.attachAsync("main", new ClientListenerFixture()), delay(5_000, null, { signal: guard.signal })]),
+        LaunchTimedOutException);
+
+      Assert.areEqual("The runtime did not start in time.", exception.message);
+    }
+    finally {
+      clock.mock.restore();
+      guard.abort();
+      for (const processId of starter.processIds)
+        process.kill(processId);
+    }
+    Assert.isTrue(await RuntimeLaunchFixture.waitForExitAsync(Number(starter.processIds[0])));
   }
 
   @TestMethod

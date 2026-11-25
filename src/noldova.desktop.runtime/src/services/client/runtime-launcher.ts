@@ -146,12 +146,13 @@ export class RuntimeLauncher {
         }
         else if (!started.isRunning && !OwnershipLock.isOwned(this.settings.dataDirectory))
           throw await this.describeExitAsync(started);
-        const timeout = this.readTimeout(deadline, limit);
+        const now = Date.now();
+        const timeout = this.readTimeout(now, deadline, limit);
         if (!Object.isNull(timeout)) {
           await RuntimeLauncher.forgetAsync(started);
           throw timeout;
         }
-        await watch.waitAsync((Date.now() < deadline ? deadline : limit) - Date.now(), () => this.isLost(started));
+        await watch.waitAsync((now < deadline ? deadline : limit) - Date.now(), () => this.isLost(started));
       }
     }
     finally {
@@ -163,11 +164,11 @@ export class RuntimeLauncher {
     return (Object.isNull(started) || !started.isRunning) && !OwnershipLock.isOwned(this.settings.dataDirectory);
   }
 
-  private readTimeout(deadline: number, limit: number): LaunchException | null {
-    if (Date.now() < deadline)
+  private readTimeout(now: number, deadline: number, limit: number): LaunchException | null {
+    if (now < deadline)
       return null;
     const isOwned = OwnershipLock.isOwned(this.settings.dataDirectory);
-    if (isOwned && Date.now() < limit)
+    if (isOwned && now < limit)
       return null;
     return isOwned ? new LaunchLimitReachedException(this.settings.launchLimit) : new LaunchTimedOutException();
   }
