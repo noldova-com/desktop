@@ -1418,8 +1418,8 @@ describe("WindowRowComponent", () => {
     const icon = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Crect%20width%3D%2216%22%20height%3D%2216%22%2F%3E%3C%2Fsvg%3E";
     const longName = "Sample Notes for the Clinic Portal Team and Everyone Who Plans the Next Release Together";
 
-    function giveTitleBar(name: string | null, image: string | null): void {
-      TestBed.configureTestingModule({ providers: [{ provide: BuildTokens.titleBar, useValue: { name, icon: image, documentTabs: false } }] });
+    function giveTitleBar(name: string | null, image: string | null, documentTabs: boolean = false): void {
+      TestBed.configureTestingModule({ providers: [{ provide: BuildTokens.titleBar, useValue: { name, icon: image, documentTabs } }] });
     }
 
     async function renderAsync(width: number): Promise<HTMLElement> {
@@ -1538,6 +1538,18 @@ describe("WindowRowComponent", () => {
       expect([isShown(row, ".nol-window-row-identity"), isShown(row, ".nol-window-row-identity-icon"), isShown(row, ".nol-window-row-identity-name")]).toEqual([true, true, false]);
       expect(DomFixture.one(row, ".nol-window-row-search").getBoundingClientRect().width).toBeGreaterThan(AppearanceFixture.toPixels(12));
       expect(DomFixture.one(row, "nol-menu-bar").classList.contains("nol-window-row-menu-bar-folded")).toBe(false);
+    });
+
+    it("keeps the name where the field couldn't stay centred while the document tabs stand in the row, whose field doesn't centre", async () => {
+      PreloadBridgeFixture.install("win32");
+      giveTitleBar(longName, icon, true);
+      useNotesMenus([]);
+      apply();
+
+      const row = await renderAsync(1000);
+
+      expect([isShown(row, ".nol-window-row-identity-icon"), isShown(row, ".nol-window-row-identity-name")]).toEqual([true, true]);
+      expect(DomFixture.one(row, ".nol-window-row-identity-name").getBoundingClientRect().width).toBeGreaterThanOrEqual(AppearanceFixture.toPixels(3) - 0.5);
     });
 
     it("hides a name without an icon once the field can't stay centred", async () => {

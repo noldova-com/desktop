@@ -33,6 +33,7 @@ export class Layout {
 
   public readonly middle: LayoutNode;
   public readonly documentGroups: readonly TabGroup[];
+  public readonly firstDocuments: TabGroup;
   public readonly documents: TabGroup;
   public readonly bottomSpan: BottomDockSpan;
   public readonly toolbars: ToolbarLayout;
@@ -66,6 +67,7 @@ export class Layout {
     };
     this.middle = middle;
     this.documentGroups = documents;
+    this.firstDocuments = first;
     this.documents = documents.find(t => t.id === activeDocumentsId) ?? first;
     this.bottomSpan = bottomSpan;
     this.toolbars = toolbars;

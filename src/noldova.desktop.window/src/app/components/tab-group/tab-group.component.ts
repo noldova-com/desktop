@@ -64,7 +64,7 @@ export class TabGroupComponent {
   private readonly overflowTrigger: Signal<MenuTriggerDirective | undefined> = viewChild("overflowTrigger", { read: MenuTriggerDirective });
   private readonly windowRowTabs: WindowRowTabsService = inject(WindowRowTabsService);
   private readonly barTemplate: Signal<TemplateRef<unknown>> = viewChild.required<TemplateRef<unknown>>("bar");
-  private readonly barElement: Signal<ElementRef<HTMLElement> | undefined> = viewChild("barElement", { read: ElementRef });
+  private readonly barElement: Signal<ElementRef<HTMLElement>> = viewChild.required("barElement", { read: ElementRef });
 
   protected readonly resources: typeof Resources = Resources;
   protected readonly below: OverlaySide = OverlaySide.below;
@@ -146,7 +146,7 @@ export class TabGroupComponent {
 
   protected close(tab: Tab): void {
     const active = this.host.ownerDocument.activeElement;
-    const hadFocus = this.host.contains(active) || (this.barElement()?.nativeElement.contains(active) ?? false);
+    const hadFocus = this.host.contains(active) || this.barElement().nativeElement.contains(active);
     this.layout.close(tab);
     if (hadFocus)
       this.focusAfterClose();

@@ -19,7 +19,7 @@ export class WindowRowTabsService {
   private readonly barValue: WritableSignal<TemplateRef<unknown> | null> = signal(null);
 
   public readonly isEnabled: boolean = inject(BuildTokens.titleBar).documentTabs;
-  public readonly groupId: Signal<number | null> = computed(() => this.isEnabled ? this.layout.layout().documentGroups.at(0)?.id ?? null : null);
+  public readonly groupId: Signal<number | null> = computed(() => this.isEnabled ? this.layout.layout().firstDocuments.id : null);
   public readonly bar: Signal<TemplateRef<unknown> | null> = this.barValue.asReadonly();
 
   public show(bar: TemplateRef<unknown>): void {
