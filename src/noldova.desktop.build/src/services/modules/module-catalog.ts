@@ -25,6 +25,7 @@ import { VersionRange } from "../../models/modules/version-range.ts";
 import { ModuleInventory } from "../../models/modules/module-inventory.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { FileErrors } from "../files/file-errors.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class ModuleCatalog {
@@ -386,7 +387,7 @@ export class ModuleCatalog {
   }
 
   private static async readManifestFieldAsync(folder: string, field: string): Promise<JsonReader> {
-    const manifest = JsonReader.parse(await readFile(path.join(folder, Resources.packageManifestFileName), Resources.textEncoding));
+    const manifest = JsonReader.parse(await TextFile.readAsync(path.join(folder, Resources.packageManifestFileName)));
     return manifest.hasField(field) ? manifest.readObject(field) : JsonReader.fromValue({});
   }
 
