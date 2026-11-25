@@ -86,6 +86,25 @@ describe("Layout", () => {
     expect(initial.toggleDock(DockSide.Bottom).openView(terminal, registry).dock(DockSide.Bottom).isCollapsed).toBe(false);
   });
 
+  it("brings a view to the front of its group and leaves its collapsed dock collapsed when asked not to reveal it, whether the view was open or new", () => {
+    const collapsed = initial.openView(search, registry).toggleDock(DockSide.Left);
+    const fronted = collapsed.openView(files, registry, false);
+    const added = initial.toggleDock(DockSide.Left).openView(search, registry, false);
+    const docked = initial.toggleDock(DockSide.Bottom).openView(terminal, registry, false);
+
+    expect([fronted.dock(DockSide.Left).isCollapsed, fronted.groupOf(files)?.active]).toEqual([true, files]);
+    expect([added.dock(DockSide.Left).isCollapsed, added.groupOf(search)?.active]).toEqual([true, search]);
+    expect([docked.dock(DockSide.Bottom).isCollapsed, docked.dock(DockSide.Bottom).root]).toEqual([true, group(3, terminal)]);
+    expect([fronted.middle, fronted.documents]).toEqual([collapsed.middle, collapsed.documents]);
+  });
+
+  it("moves a tab into a collapsed dock's group without revealing the dock when asked, and reveals it by default", () => {
+    const collapsed = initial.toggleDock(DockSide.Right);
+    const quiet = collapsed.moveTab(search, 2, 1, false);
+
+    expect([quiet.dock(DockSide.Right).isCollapsed, quiet.group(2)?.active, collapsed.moveTab(search, 2, 1).dock(DockSide.Right).isCollapsed]).toEqual([true, search, false]);
+  });
+
   it("opens documents at the end of the documents group and activates them", () => {
     const opened = initial.openDocument(plan).openDocument(todo);
 

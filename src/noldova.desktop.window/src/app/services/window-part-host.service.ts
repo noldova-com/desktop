@@ -347,11 +347,11 @@ export class WindowPartHostService implements IWindowPartHost {
       this.pendingUpdates.push([moduleId, name, instance, title, breadcrumb, breadcrumbIcon]);
   }
 
-  public openView(moduleId: string, name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null): void {
+  public openView(moduleId: string, name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null, revealDock: boolean): void {
     const isEarly = this.activatingModules.has(moduleId);
     this.changeView(new PendingViewChange(moduleId, isEarly, new ViewTab(name, instance).key, () => isEarly
-      ? this.instances.restore(name, instance, heading, icon, tabGroup)
-      : this.instances.openInstance(name, instance, heading, icon, tabGroup)));
+      ? this.instances.restore(name, instance, heading, icon, tabGroup, revealDock)
+      : this.instances.openInstance(name, instance, heading, icon, tabGroup, revealDock)));
   }
 
   public updateView(moduleId: string, name: string, instance: string, title: string | null, icon: string | null, breadcrumb: readonly string[] | null, breadcrumbIcon: string | null = null): void {

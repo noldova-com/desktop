@@ -15,7 +15,6 @@ import type { DocumentHeading } from "../models/document-heading.js";
 import { ClosedTabs } from "../models/layout/closed-tabs.js";
 import type { Layout } from "../models/layout/layout.js";
 import type { TabGroup } from "../models/layout/tab-group.js";
-import { TabDropTarget } from "../models/layout/tab-drop-target.js";
 import { ViewFront } from "../models/layout/view-front.js";
 import { ViewTab } from "../models/layout/view-tab.js";
 import { LayoutService } from "./layout.service.js";
@@ -40,18 +39,21 @@ export class ViewInstancesService {
     });
   }
 
-  public openInstance(name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null): void {
+  public openInstance(name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null, revealDock: boolean = true): void {
     const tab = this.label(name, instance, heading, icon);
     this.closed.reopen(tab);
     const before = this.layout.layout();
     if (!before.isOpen(tab)) {
       const group = this.groupFor(tab, tabGroup);
       if (Object.isNull(group))
-        this.layout.openView(tab);
+        this.layout.openView(tab, revealDock);
       else
-        this.layout.place(tab, new TabDropTarget(group.id, group.tabs.length));
+        this.layout.moveTab(tab, group.id, group.tabs.length, revealDock);
     }
-    this.layout.activate(tab);
+    if (revealDock)
+      this.layout.activate(tab);
+    else
+      this.layout.showInGroup(tab);
     this.noteFront(tab, before);
   }
 
@@ -61,12 +63,12 @@ export class ViewInstancesService {
       this.layout.showInGroup(front.earlier);
   }
 
-  public restore(name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null): void {
+  public restore(name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null, revealDock: boolean = true): void {
     const tab = new ViewTab(name, instance);
     if (this.layout.layout().isOpen(tab))
       this.label(name, instance, heading, icon);
     else if (!this.closed.isUnheard(tab))
-      this.openInstance(name, instance, heading, icon, tabGroup);
+      this.openInstance(name, instance, heading, icon, tabGroup, revealDock);
   }
 
   public update(name: string, instance: string, title: string | null, icon: string | null, breadcrumb: readonly string[] | null, breadcrumbIcon: string | null = null): void {

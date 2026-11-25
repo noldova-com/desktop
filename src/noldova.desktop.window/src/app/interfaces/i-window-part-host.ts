@@ -58,7 +58,7 @@ export interface IWindowPartHost {
   openDocumentLook(moduleId: string, name: string, instance: string, change: IDocumentUpdate): void;
   updateDocumentLook(name: string, instance: string, change: IDocumentUpdate): void;
 
-  openView(moduleId: string, name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null): void;
+  openView(moduleId: string, name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null, revealDock: boolean): void;
 
   updateView(moduleId: string, name: string, instance: string, title: string | null, icon: string | null, breadcrumb: readonly string[] | null, breadcrumbIcon: string | null): void;
 

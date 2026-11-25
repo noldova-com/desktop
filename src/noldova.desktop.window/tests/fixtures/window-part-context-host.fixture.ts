@@ -124,8 +124,8 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
     this.looks.push([`update ${name} ${instance}`, change]);
   }
 
-  public openView(moduleId: string, name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null): void {
-    this.calls.push(`openView ${moduleId} ${name} ${instance} ${heading.text}${Object.isNull(heading.icon) ? String.empty : ` ${heading.icon}`} ${icon ?? "-"} ${tabGroup ?? "-"}`);
+  public openView(moduleId: string, name: string, instance: string, heading: DocumentHeading, icon: string | null, tabGroup: string | null, revealDock: boolean): void {
+    this.calls.push(`openView ${moduleId} ${name} ${instance} ${heading.text}${Object.isNull(heading.icon) ? String.empty : ` ${heading.icon}`} ${icon ?? "-"} ${tabGroup ?? "-"}${revealDock ? String.empty : " quiet"}`);
   }
 
   public updateView(moduleId: string, name: string, instance: string, title: string | null, icon: string | null, breadcrumb: readonly string[] | null, breadcrumbIcon: string | null = null): void {

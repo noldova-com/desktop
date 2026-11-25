@@ -176,8 +176,12 @@ export class LayoutService {
       this.reveal(tab);
   }
 
-  public openView(tab: ViewTab): void {
-    this.update(this.layoutState().openView(tab, this.registryState()));
+  public openView(tab: ViewTab, isRevealing: boolean = true): void {
+    this.update(this.layoutState().openView(tab, this.registryState(), isRevealing));
+  }
+
+  public moveTab(tab: Tab, groupId: number, index: number, isRevealing: boolean): void {
+    this.update(this.layoutState().moveTab(tab, groupId, index, isRevealing));
   }
 
   public reopenEarlyDocuments(): void {
