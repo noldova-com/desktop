@@ -15,6 +15,8 @@ import "@noldova/context.core";
 import { SocketStateException } from "../socket-state.exception.ts";
 import { SocketSummary } from "../socket-summary.ts";
 import { WindowsSocketReader } from "../windows-socket.reader.ts";
+import { ExecCall } from "./fixtures/exec-call.ts";
+import { ExecPassThroughFixture } from "./fixtures/exec-pass-through.fixture.ts";
 
 const CONNECTIONS = [
   "",
@@ -47,7 +49,8 @@ describe("SocketSummary", () => {
 });
 
 describe("WindowsSocketReader", () => {
-  it("reads the TCP connections and the dynamic port range on Windows, and refuses elsewhere", () => {
+  it("reads the TCP connections and the dynamic port range on Windows, asking for a 10 s limit on each command, and refuses elsewhere", { timeout: ExecPassThroughFixture.TEST_LIMIT }, t => {
+    const exec = new ExecPassThroughFixture(t);
     const reader = new WindowsSocketReader();
     const read = (): string => {
       try {
@@ -59,6 +62,7 @@ describe("WindowsSocketReader", () => {
     };
 
     assert.equal(read(), process.platform === "win32" ? "read" : "Socket state is read on Windows only.");
+    assert.deepEqual(exec.calls, process.platform === "win32" ? [new ExecCall("netstat", ["-ano", "-p", "tcp"], 10_000), new ExecCall("netsh", ["int", "ipv4", "show", "dynamicport", "tcp"], 10_000)] : []);
   });
 
   it("wraps a command that fails in a SocketStateException naming the command, with the failure as its cause", t => {

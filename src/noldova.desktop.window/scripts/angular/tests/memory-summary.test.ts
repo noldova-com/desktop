@@ -15,6 +15,8 @@ import "@noldova/context.core";
 import { MemorySummary } from "../memory-summary.ts";
 import { SocketStateException } from "../socket-state.exception.ts";
 import { WindowsSocketReader } from "../windows-socket.reader.ts";
+import { ExecCall } from "./fixtures/exec-call.ts";
+import { ExecPassThroughFixture } from "./fixtures/exec-pass-through.fixture.ts";
 
 const MEMORY = [
   "",
@@ -43,7 +45,8 @@ describe("MemorySummary", () => {
 });
 
 describe("WindowsSocketReader's memory", () => {
-  it("reads the non-paged pool and the chrome and node processes on Windows, the test's own node among them, and refuses elsewhere", () => {
+  it("reads the non-paged pool and the chrome and node processes on Windows, the test's own node among them, asking typeperf for a 10 s limit, and refuses elsewhere", { timeout: ExecPassThroughFixture.TEST_LIMIT }, t => {
+    const exec = new ExecPassThroughFixture(t);
     const read = (): string => {
       try {
         const summary = MemorySummary.format(new WindowsSocketReader().readMemory());
@@ -55,6 +58,8 @@ describe("WindowsSocketReader's memory", () => {
     };
 
     assert.equal(read(), process.platform === "win32" ? "pool read, node read" : "Socket state is read on Windows only.");
+    const counters = ["\\Memory\\Pool Nonpaged Bytes", "\\Process(*)\\Handle Count", "\\Process(*)\\Working Set", "-sc", "1"];
+    assert.deepEqual(exec.calls, process.platform === "win32" ? [new ExecCall("typeperf", counters, 10_000)] : []);
   });
 
   it("wraps a typeperf that fails in a SocketStateException naming it, with the failure as its cause", t => {
