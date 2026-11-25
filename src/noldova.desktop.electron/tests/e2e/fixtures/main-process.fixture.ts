@@ -27,7 +27,9 @@ import { FontFacesMissingException } from "../exceptions/font-faces-missing.exce
 import { FontFacesNotLoadedException } from "../exceptions/font-faces-not-loaded.exception.ts";
 import { MainProcessNotAnsweredException } from "../exceptions/main-process-not-answered.exception.ts";
 import { MainProcessSilentException } from "../exceptions/main-process-silent.exception.ts";
+import { PageUnreachableException } from "../exceptions/page-unreachable.exception.ts";
 import { RuntimeConnectionsMiscountedException } from "../exceptions/runtime-connections-miscounted.exception.ts";
+import { RuntimeNotStartedException } from "../exceptions/runtime-not-started.exception.ts";
 import { RuntimeNotStoppedException } from "../exceptions/runtime-not-stopped.exception.ts";
 import { RuntimeOwnerUnknownException } from "../exceptions/runtime-owner-unknown.exception.ts";
 import { CleanupSteps } from "./cleanup-steps.ts";
@@ -90,7 +92,6 @@ export class MainProcessFixture {
   private static readonly THREADS_FILE: string = "main-process-threads.txt";
   private static readonly SIGNAL_EXIT_FILE: string = "main-process-signal.txt";
   private static readonly THREADS_TIMEOUT: number = 20_000;
-  private static readonly PAGE_UNREACHABLE: string = "The page did not answer the silence report's request, which reaches it through the main process, so the test did not wait for it.";
   private static readonly MAIN_WINDOW: string = "main-window";
   private static readonly CHECKPOINT_ANNOTATION: string = "checkpoint";
   private static readonly PROCESS_SNAPSHOT_ANNOTATION: string = "process-snapshot";
@@ -516,8 +517,8 @@ export class MainProcessFixture {
         MainProcessFixture.MAIN_PROCESS_TIMEOUT + MainProcessFixture.DIAGNOSTIC_TIMEOUT);
     }
     for (const [index, page] of this.application.windows().entries()) {
-      await this.keepAsync(`page-${index}.png`, "image/png", () => this.isPageUnreachable ? Promise.reject(new Error(MainProcessFixture.PAGE_UNREACHABLE)) : page.screenshot());
-      await this.keepAsync(`page-${index}.html`, "text/html", () => this.isPageUnreachable ? Promise.reject(new Error(MainProcessFixture.PAGE_UNREACHABLE)) : page.content());
+      await this.keepAsync(`page-${index}.png`, "image/png", () => this.isPageUnreachable ? Promise.reject(new PageUnreachableException()) : page.screenshot());
+      await this.keepAsync(`page-${index}.html`, "text/html", () => this.isPageUnreachable ? Promise.reject(new PageUnreachableException()) : page.content());
     }
     await this.keepAsync(MainProcessFixture.WINDOWS_FILE, "application/json", async () => JSON.stringify(await this.answerAsync("describe its windows", this.application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().map(t => ({
@@ -753,10 +754,10 @@ export class MainProcessFixture {
       throw new FontFacesNotLoadedException(failed);
   }
 
-  private async describeLaunchFailureAsync(reason: string, held: readonly [number, number] | null, load: ProcessorLoadFixture): Promise<Error> {
+  private async describeLaunchFailureAsync(reason: string, held: readonly [number, number] | null, load: ProcessorLoadFixture): Promise<RuntimeNotStartedException> {
     const lock = Object.isNull(held) ? "never held" : `held from ${held[0] / 1000} s to ${held[1] / 1000} s`;
     const naming = await ProcessListFixture.describeNamingAsync(this.dataDirectory).catch((error: unknown) => `unknown (${String(error)})`);
-    return new Error(`Noldova Desktop Sample's runtime did not start: ${reason}. The data directory's lock was ${lock}. Processes naming the data directory: ${naming}. Processor load: ${load.describe()}.`);
+    return new RuntimeNotStartedException(reason, lock, naming, load.describe());
   }
 
   private async readStartupFailureAsync(): Promise<string | null> {

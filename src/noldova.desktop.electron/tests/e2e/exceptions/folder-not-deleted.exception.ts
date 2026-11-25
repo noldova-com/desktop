@@ -13,8 +13,8 @@ import { installedElectron } from "../fixtures/installed-electron.fixture.ts";
 export class FolderNotDeletedException extends installedElectron.ElectronException {
   public readonly folder: string;
 
-  public constructor(folder: string, cause: unknown) {
-    super(`Deleting ${folder} failed, so the next UI run's set-up tries again: ${cause instanceof Error ? cause.message : String(cause)}`, new ExceptionOptions(cause));
+  public constructor(folder: string, description: string, cause: unknown) {
+    super(`Deleting ${description} failed, so the next UI run's set-up tries again: ${cause instanceof Error ? cause.message : String(cause)}`, new ExceptionOptions(cause));
 
     this.folder = folder;
   }

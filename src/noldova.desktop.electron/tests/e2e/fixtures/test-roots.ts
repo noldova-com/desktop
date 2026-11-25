@@ -122,7 +122,7 @@ export class TestRoots {
     if (Object.isNull(names) || names.some(t => TestRoots.ROOT_NAME.test(t) || TestRoots.STAGING_NAME.test(t)))
       return;
     await rm(folder, { recursive: true, force: true, maxRetries: TestRoots.RUN_FOLDER_RETRIES }).catch((error: unknown) => {
-      throw new FolderNotDeletedException(folder, error);
+      throw new FolderNotDeletedException(folder, `the run's temporary folder ${folder}`, error);
     });
   }
 
@@ -197,7 +197,7 @@ export class TestRoots {
 
   private static async deleteAsync(removed: string, maxRetries: number): Promise<void> {
     await rm(removed, { recursive: true, force: true, maxRetries }).catch((error: unknown) => {
-      throw new FolderNotDeletedException(removed, error);
+      throw new FolderNotDeletedException(removed, removed, error);
     });
   }
 }

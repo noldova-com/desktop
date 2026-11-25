@@ -15,6 +15,8 @@ import type { Readable } from "node:stream";
 
 import "@noldova/context.core";
 
+import { BusAddressMissingException } from "../exceptions/bus-address-missing.exception.js";
+
 export class PrivateSessionBus {
   private static readonly DAEMON: string = "/usr/bin/dbus-daemon";
 
@@ -51,7 +53,7 @@ export class PrivateSessionBus {
           resolve(printed.trim());
       });
       daemon.once("error", reject);
-      daemon.once("exit", () => reject(new Error(`${PrivateSessionBus.DAEMON} ended before it printed its address.`)));
+      daemon.once("exit", () => reject(new BusAddressMissingException(PrivateSessionBus.DAEMON)));
     });
     return new PrivateSessionBus(folder, daemon, address);
   }
