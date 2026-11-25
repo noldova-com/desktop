@@ -11,6 +11,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { FailureCode, NotificationBroadcast, ShellMethods } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
 @TestClass
@@ -18,10 +19,10 @@ export class PostNotificationMethodTests {
   @TestMethod
   public postsADeclaredNotificationAndPublishesItButRefusesAnUndeclaredAbsentOrMalformedOne(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", RuntimeHostFixture.createNotificationPart()]]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", RuntimeHostFixture.createNotificationPart())]));
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
-      const [synced, postedId, posted] = await RuntimeHostFixture.listAndPostAsync(connection);
+      const { synced, posted: postedId, event: posted } = await RuntimeHostFixture.listAndPostAsync(connection);
       const undeclared = await RuntimeHostFixture.callAsync(connection, "main:3", ShellMethods.postNotification, RuntimeHostFixture.createAlarm("Other", "clock.other").toJson());
       const absent = await RuntimeHostFixture.callAsync(connection, "main:4", ShellMethods.postNotification, RuntimeHostFixture.createAlarm("Due", "calendar.due").toJson());
       const invalid = await RuntimeHostFixture.callAsync(connection, "main:5", ShellMethods.postNotification, { kind: "clock.alarm" });

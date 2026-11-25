@@ -8,7 +8,7 @@
 
 import "@noldova/context.core";
 import type { JsonObject } from "@noldova/context.json";
-import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 import { WebViewAction, type WebViewAnswered, WebViewDeclaration, type WebViewEvent, WebViewInfo, WebViewPane } from "@noldova/desktop.protocol";
 
 import { WebViewRefusedPage } from "../../src/models/web-view-refused-page.js";
@@ -60,10 +60,12 @@ class OpenWebViewHarness {
   public readonly shortcuts: string[] = [];
   public readonly inputs: string[] = [];
   public readonly logs: string[] = [];
+  public readonly answers: ((hasRun: boolean) => void)[] = [];
   public readonly lost: Promise<void>;
   public readonly open: OpenWebView;
   public time: number = 0;
   public isLost: boolean = false;
+  public isAnswerHeld: boolean = false;
   public appearance: WindowAppearance | null = new WindowAppearance("#202020", "#303030", "#F0F0F0", 32);
   public onInput: () => void = () => undefined;
 
@@ -104,7 +106,10 @@ class OpenWebViewHarness {
 
   private press(key: string, answer: (hasRun: boolean) => void): void {
     this.presses.push(key);
-    answer(true);
+    if (this.isAnswerHeld)
+      this.answers.push(answer);
+    else
+      answer(true);
   }
 }
 
@@ -800,6 +805,176 @@ export class OpenWebViewTests {
     Assert.areEqual("true,true,false,true,false", prevented.join(","));
     Assert.areEqual("Key {\"name\":\"reload\"}", harness.describe());
     Assert.areEqual("k", harness.presses.join(","));
+  }
+
+  @TestMethod
+  @TestData(true, "keyDown a,char a,keyUp a")
+  @TestData(false, "keyDown k,keyDown a,char a,keyUp a")
+  public async sendsTheKeysHeldForAShortcutsAnswerAndAShortcutTheWindowDidntRunToTheGuestAMoveBoundInTheWait(hasRun: boolean, sent: string): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    const held = [
+      harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false)),
+      harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false, "keyUp"))
+    ];
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    await harness.open.keepAsync();
+    await harness.open.bindAsync(fresh, true);
+    OpenWebViewTests.destroy(harness);
+
+    harness.answers.forEach(t => t(hasRun));
+    await Condition.waitAsync(() => fresh.inputs.length > 0);
+
+    Assert.areEqual("true,true", held.join(","));
+    Assert.areEqual(String.empty, harness.contents.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+    Assert.areEqual(sent, fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
+  public async holdsTheKeysHeldForAShortcutsAnswerThatComesWhileTheViewHasNoGuestUntilTheNextBindGivesItOne(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    OpenWebViewTests.destroy(harness);
+
+    harness.answers.forEach(t => t(false));
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    await harness.open.bindAsync(fresh, true);
+    await Condition.waitAsync(() => fresh.inputs.length > 0);
+
+    Assert.areEqual(String.empty, harness.contents.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+    Assert.areEqual("keyDown k,keyDown a,char a", fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
+  public async dropsTheKeysHeldForAShortcutsAnswerWhenTheViewClosesBeforeANewGuestComes(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    OpenWebViewTests.destroy(harness);
+
+    harness.answers.forEach(t => t(false));
+    harness.open.close();
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const isBound = await harness.open.bindAsync(fresh, true);
+
+    Assert.isFalse(isBound);
+    Assert.areEqual(String.empty, fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
+  public async sendsTheKeysHeldForAShortcutsAnswerThatLandsMidBindOnlyOnceTheLastBoundGuestsPageIsReady(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    const first = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const second = new FakeWebView(9, 3, OpenWebViewHarness.PARTITION).contents;
+    const firstEnabled = Promise.withResolvers<unknown>();
+    const secondEnabled = Promise.withResolvers<unknown>();
+    first.debugger.replies.set("Page.enable", () => firstEnabled.promise);
+    second.debugger.replies.set("Page.enable", () => secondEnabled.promise);
+
+    const firstBinding = harness.open.bindAsync(first, true);
+    harness.answers.forEach(t => t(false));
+    const whileFirstBinds = first.inputs.length;
+    const secondBinding = harness.open.bindAsync(second, true);
+    firstEnabled.resolve({});
+    await firstBinding;
+    const whileSecondBinds = first.inputs.length + second.inputs.length;
+    secondEnabled.resolve({});
+    await secondBinding;
+    await Condition.waitAsync(() => second.inputs.length > 0);
+
+    Assert.areEqual(0, whileFirstBinds);
+    Assert.areEqual(0, whileSecondBinds);
+    Assert.areEqual(String.empty, first.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+    Assert.areEqual("keyDown k,keyDown a,char a", second.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
+  public async holdsKeysTypedIntoANewGuestBehindTheKeysStillWaitingForItsPageSoTheyArriveInOrder(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const enabled = Promise.withResolvers<unknown>();
+    fresh.debugger.replies.set("Page.enable", () => enabled.promise);
+
+    const binding = harness.open.bindAsync(fresh, true);
+    harness.answers.forEach(t => t(false));
+    const isHeld = fresh.prevent("before-input-event", OpenWebViewTests.input("b", "KeyB", false));
+    const whileBinding = fresh.inputs.length;
+    enabled.resolve({});
+    await binding;
+    await Condition.waitAsync(() => fresh.inputs.length > 0);
+    const isPassed = fresh.prevent("before-input-event", OpenWebViewTests.input("c", "KeyC", false));
+
+    Assert.isTrue(isHeld);
+    Assert.areEqual(0, whileBinding);
+    Assert.areEqual("keyDown k,keyDown a,char a,keyDown b,char b", fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+    Assert.isFalse(isPassed);
+  }
+
+  @TestMethod
+  public async sendsNothingHeldForAShortcutsAnswerWhenTheViewClosesMidBindAndTheNewPageThenBecomesReady(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    const fresh = new FakeWebView(8, 3, OpenWebViewHarness.PARTITION).contents;
+    const enabled = Promise.withResolvers<unknown>();
+    fresh.debugger.replies.set("Page.enable", () => enabled.promise);
+
+    const binding = harness.open.bindAsync(fresh, true);
+    harness.answers.forEach(t => t(false));
+    harness.open.close();
+    enabled.resolve({});
+    const isBound = await binding;
+
+    Assert.isFalse(isBound);
+    Assert.areEqual(String.empty, harness.contents.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+    Assert.areEqual(String.empty, fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
+  }
+
+  @TestMethod
+  public async sendsTheHeldKeysOnceTheRestoredPagesDocumentIsReadyThoughItsHistoryRestoreNeverSettles(): Promise<void> {
+    const harness = await new OpenWebViewHarness(OpenWebViewTests.KEYS).startAsync();
+    harness.open.setAllowedOrigins(["https://example.com"]);
+    harness.session.addresses.set("example.com", ["93.184.216.34"]);
+    harness.contents.show("https://example.com/a");
+    harness.shortcuts.push("k");
+    harness.isAnswerHeld = true;
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("k", "KeyK", true));
+    harness.contents.prevent("before-input-event", OpenWebViewTests.input("a", "KeyA", false));
+    await harness.open.keepAsync();
+    OpenWebViewTests.destroy(harness);
+    const fresh = OpenWebViewTests.rendererless();
+    fresh.restoreAnswer = () => new Promise(() => undefined);
+
+    await harness.open.bindAsync(fresh, true);
+    harness.answers.forEach(t => t(false));
+    await OpenWebViewTests.drainAsync();
+    const beforeDocument = fresh.inputs.length;
+    harness.contents.emit("dom-ready");
+    fresh.emit("dom-ready");
+    await Condition.waitAsync(() => fresh.inputs.length > 0);
+    fresh.emit("dom-ready");
+    await OpenWebViewTests.drainAsync();
+
+    Assert.isTrue(fresh.calls.some(t => t.startsWith("restore ")));
+    Assert.areEqual(0, beforeDocument);
+    Assert.areEqual("keyDown k,keyDown a,char a", fresh.inputs.map(t => `${t.type} ${t.keyCode}`).join(","));
   }
 
   @TestMethod

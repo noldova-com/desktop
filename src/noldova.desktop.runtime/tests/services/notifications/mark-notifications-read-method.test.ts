@@ -11,6 +11,8 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { NotificationBroadcast, Request, ShellMethods } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { EventAndResponseFixture } from "../../fixtures/event-and-response.fixture.js";
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
 @TestClass
@@ -18,16 +20,16 @@ export class MarkNotificationsReadMethodTests {
   @TestMethod
   public marksEveryNotificationReadAndPublishesIt(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", RuntimeHostFixture.createNotificationPart()]]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", RuntimeHostFixture.createNotificationPart())]));
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       connection.sendMessages(new Request("main:1", ShellMethods.markNotificationsRead, null));
-      const read = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const read = await EventAndResponseFixture.readAsync(connection);
       host.requestStop("test");
       await host.waitForStopAsync();
 
-      Assert.areEqual("true", NotificationBroadcast.fromJson(read[0].payload).notifications.map(t => String(t.isRead)).join(","));
-      Assert.isFalse(read[1].hasFailed);
+      Assert.areEqual("true", NotificationBroadcast.fromJson(read.event.payload).notifications.map(t => String(t.isRead)).join(","));
+      Assert.isFalse(read.response.hasFailed);
     });
   }
 }

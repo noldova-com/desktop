@@ -14,6 +14,8 @@ import { promisify } from "node:util";
 
 import "@noldova/context.core";
 
+import { StartTimeInvalidException } from "../exceptions/start-time-invalid.exception.ts";
+import { StatusStartMissingException } from "../exceptions/status-start-missing.exception.ts";
 import { ErrorCodeFixture } from "./error-code.fixture.ts";
 import { type IProcessTreeRow, ProcessTree } from "./process-tree.ts";
 import { WaitFixture } from "./wait.fixture.ts";
@@ -133,7 +135,7 @@ export class ProcessListFixture {
     for (const row of output.split(/\r?\n/).map(t => ProcessListFixture.DESCRIBED_ROW.exec(t)).filter(t => !Object.isNull(t))) {
       const started = Date.parse(`${row[2] ?? String.empty}${ProcessListFixture.START_TIME_ZONE}`);
       if (Number.isNaN(started))
-        throw new Error(`ps gave process ${row[1] ?? String.empty} the start time "${row[2] ?? String.empty}", which is not a date.`);
+        throw new StartTimeInvalidException(row[1] ?? String.empty, row[2] ?? String.empty);
       startTimes.set(Number(row[1]), started);
     }
     return startTimes;
@@ -144,7 +146,7 @@ export class ProcessListFixture {
     const fields = status.slice(nameEnd + ProcessListFixture.STATUS_NAME_END.length).split(ProcessListFixture.STATUS_SEPARATOR);
     const ticks = Number(fields[ProcessListFixture.STATUS_START_FIELD - ProcessListFixture.STATUS_FIRST_FIELD_AFTER_NAME]);
     if (nameEnd < 0 || !Number.isSafeInteger(ticks))
-      throw new Error(`The process status "${status.trim()}" has no start time in field ${ProcessListFixture.STATUS_START_FIELD}.`);
+      throw new StatusStartMissingException(status.trim(), ProcessListFixture.STATUS_START_FIELD);
     return ticks;
   }
 

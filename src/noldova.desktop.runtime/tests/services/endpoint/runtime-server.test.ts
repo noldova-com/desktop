@@ -55,7 +55,7 @@ export class RuntimeServerTests {
     return RuntimeServerFixture.runAsync(new ServerSettings(64 * 1024, 100, 1_000, 2_000), async fixture => {
       fixture.methods.register(RuntimeServerFixture.ECHO, RuntimeServerFixture.ECHO_HANDLER);
 
-      const [connection, answer] = await fixture.handshakeAsync("main");
+      const { connection, response: answer } = await fixture.handshakeAsync("main");
       const silent = await fixture.connectAsync();
       await silent.waitForCloseAsync();
       connection.sendMessages(new Request("main:1", RuntimeServerFixture.ECHO, { path: "notes.md" }));
@@ -76,7 +76,7 @@ export class RuntimeServerTests {
       const mainProcess = await fixture.authenticateAsync("main");
       await fixture.authenticateAsync("main");
       await fixture.authenticateAsync("cli");
-      const [, other] = await fixture.handshakeAsync("tool", RuntimeServerFixture.OTHER_IDENTITY);
+      const { response: other } = await fixture.handshakeAsync("tool", RuntimeServerFixture.OTHER_IDENTITY);
       await fixture.connectAsync();
       await fixture.waitUntilAsync(() => fixture.server.sessionCount === 5);
 
@@ -92,7 +92,7 @@ export class RuntimeServerTests {
   @TestMethod
   public refusesAWrongToken(): Promise<void> {
     return RuntimeServerFixture.runAsync(undefined, async fixture => {
-      const [connection, answer] = await fixture.handshakeAsync("main", RuntimeServerFixture.IDENTITY, "guess");
+      const { connection, response: answer } = await fixture.handshakeAsync("main", RuntimeServerFixture.IDENTITY, "guess");
 
       RuntimeServerFixture.assertFailure(answer, FailureCode.Unauthorized, "The capability token is not valid for this runtime.", "main:0");
       await connection.waitForCloseAsync();
@@ -407,7 +407,7 @@ export class RuntimeServerTests {
       });
       const ended = await fixture.authenticateAsync("main");
       const reset = await fixture.authenticateAsync("main");
-      const [otherBuild] = await fixture.handshakeAsync("tool", RuntimeServerFixture.OTHER_IDENTITY);
+      const { connection: otherBuild } = await fixture.handshakeAsync("tool", RuntimeServerFixture.OTHER_IDENTITY);
       const silent = await fixture.connectAsync();
 
       otherBuild[Symbol.dispose]();
@@ -508,7 +508,7 @@ export class RuntimeServerTests {
       fixture.methods.register(RuntimeServerFixture.ECHO, RuntimeServerFixture.ECHO_HANDLER);
       fixture.methods.register(ShellMethods.stop, RuntimeServerFixture.ECHO_HANDLER);
 
-      const [connection, answer] = await fixture.handshakeAsync("older", RuntimeServerFixture.OTHER_IDENTITY);
+      const { connection, response: answer } = await fixture.handshakeAsync("older", RuntimeServerFixture.OTHER_IDENTITY);
       connection.sendMessages(new Request("older:1", RuntimeServerFixture.ECHO, null), new Request("older:2", ShellMethods.stop, { policy: "IfIdle" }));
       fixture.server.broadcast(new Event(RuntimeServerFixture.ECHO, "not for other builds"));
 
@@ -533,7 +533,7 @@ export class RuntimeServerTests {
     return RuntimeServerFixture.runAsync(undefined, async fixture => {
       const later = new BuildIdentity("2.0.0", BuildIdentity.supportedProtocolVersion + 1, "later-build");
 
-      const [connection, answer] = await fixture.handshakeAsync("later", later);
+      const { connection, response: answer } = await fixture.handshakeAsync("later", later);
 
       Assert.areEqual(FailureCode.BuildMismatch, answer.failure?.code);
       Assert.areEqual(JSON.stringify(new RuntimeHandover(RuntimeServerFixture.IDENTITY, RuntimeServerFixture.EXECUTABLE).toJson()), JSON.stringify(answer.failure?.details));
@@ -549,7 +549,7 @@ export class RuntimeServerTests {
       fixture.methods.register(RuntimeServerTests.MOVE, RuntimeServerFixture.ECHO_HANDLER);
       fixture.server.refuse(new Refusal(failure, RuntimeServerTests.MOVE));
 
-      const [refused, answer] = await fixture.handshakeAsync("main");
+      const { connection: refused, response: answer } = await fixture.handshakeAsync("main");
       refused.sendMessages(new Request("main:1", RuntimeServerFixture.ECHO, null), new Request("main:2", RuntimeServerTests.MOVE, null));
       fixture.server.broadcast(new Event(RuntimeServerFixture.ECHO, "not for refused connections"));
 
@@ -574,7 +574,7 @@ export class RuntimeServerTests {
       fixture.methods.register(RuntimeServerFixture.ECHO, RuntimeServerFixture.ECHO_HANDLER);
       fixture.server.refuse(new Refusal(failure, RuntimeServerTests.MOVE));
 
-      const [refused] = await fixture.handshakeAsync("main");
+      const { connection: refused } = await fixture.handshakeAsync("main");
       refused.sendMessages(
         new Request("main:1", ShellMethods.settings, null),
         new Request("main:2", RuntimeServerFixture.ECHO, null),
@@ -662,10 +662,10 @@ export class RuntimeServerTests {
   @TestMethod
   public checksOnlyAClientOfItsOwnBuildNamedTheMainProcess(): Promise<void> {
     return RuntimeServerFixture.runAsync(undefined, async fixture => {
-      const [, answer] = await fixture.handshakeAsync(ShellClients.mainProcess);
+      const { response: answer } = await fixture.handshakeAsync(ShellClients.mainProcess);
       await fixture.authenticateAsync("cli");
-      const [, other] = await fixture.handshakeAsync(ShellClients.mainProcess, RuntimeServerFixture.OTHER_IDENTITY);
-      const [, guessed] = await fixture.handshakeAsync(ShellClients.mainProcess, RuntimeServerFixture.IDENTITY, "guess");
+      const { response: other } = await fixture.handshakeAsync(ShellClients.mainProcess, RuntimeServerFixture.OTHER_IDENTITY);
+      const { response: guessed } = await fixture.handshakeAsync(ShellClients.mainProcess, RuntimeServerFixture.IDENTITY, "guess");
 
       Assert.areEqual(JSON.stringify(RuntimeServerFixture.IDENTITY.toJson()), JSON.stringify(answer.payload));
       Assert.areEqual(FailureCode.BuildMismatch, other.failure?.code);
@@ -683,7 +683,7 @@ export class RuntimeServerTests {
       fixture.methods.register(ShellMethods.stop, RuntimeServerFixture.ECHO_HANDLER);
       fixture.checkMainProcessAsync = () => Promise.resolve(false);
 
-      const [connection, answer] = await fixture.handshakeAsync(ShellClients.mainProcess);
+      const { connection, response: answer } = await fixture.handshakeAsync(ShellClients.mainProcess);
       connection.sendMessages(new Request("main:1", RuntimeServerFixture.ECHO, null), new Request("main:2", ShellMethods.stop, { policy: "IfIdle" }));
       fixture.server.broadcast(new Event(RuntimeServerFixture.ECHO, "not for refused main processes"));
 
@@ -705,7 +705,7 @@ export class RuntimeServerTests {
     return RuntimeServerFixture.runAsync(undefined, async fixture => {
       fixture.checkMainProcessAsync = () => Promise.reject(new Error("The peer is gone."));
 
-      const [connection, answer] = await fixture.handshakeAsync(ShellClients.mainProcess);
+      const { connection, response: answer } = await fixture.handshakeAsync(ShellClients.mainProcess);
 
       RuntimeServerFixture.assertFailure(answer, FailureCode.Unauthorized, "Only the app's main process may connect as the main process.", "main:0");
       Assert.areEqual(JSON.stringify(new RuntimeHandover(RuntimeServerFixture.IDENTITY, RuntimeServerFixture.EXECUTABLE).toJson()), JSON.stringify(answer.failure?.details));
@@ -792,7 +792,7 @@ export class RuntimeServerTests {
       await using fixture = new RuntimeServerFixture(undefined, true);
       fixture.endpoint = process.platform === "win32" ? await fixture.server.listenTcpAsync() : await fixture.server.listenSocketAsync(path.join(folder, "runtime.sock"));
 
-      const [, answer] = await fixture.handshakeAsync(ShellClients.mainProcess);
+      const { response: answer } = await fixture.handshakeAsync(ShellClients.mainProcess);
 
       Assert.isFalse(answer.hasFailed, answer.toText());
       Assert.areEqual(0, fixture.checkedSockets.length);
@@ -805,7 +805,7 @@ export class RuntimeServerTests {
       const failure = new Failure(FailureCode.PreShellData, "Move the old data aside.", { location: "/data" });
       fixture.server.refuse(new Refusal(failure, RuntimeServerTests.MOVE));
 
-      const [, answer] = await fixture.handshakeAsync(ShellClients.mainProcess);
+      const { response: answer } = await fixture.handshakeAsync(ShellClients.mainProcess);
 
       Assert.areEqual(JSON.stringify(Response.failure("main:0", failure).toJson()), JSON.stringify(answer.toJson()));
       Assert.areEqual(1, fixture.checkedSockets.length);

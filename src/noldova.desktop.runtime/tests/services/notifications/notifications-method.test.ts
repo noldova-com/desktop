@@ -11,6 +11,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { NotificationState, NotificationsQuery, ShellMethods } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
 @TestClass
@@ -18,8 +19,8 @@ export class NotificationsMethodTests {
   @TestMethod
   public listsTheNotificationsADeviceShowsWithItsQuietStateAndSequence(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", RuntimeHostFixture.createNotificationPart()]]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", RuntimeHostFixture.createNotificationPart())]));
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const listed = await RuntimeHostFixture.callAsync(connection, "main:1", ShellMethods.notifications, new NotificationsQuery("laptop").toJson());
       host.requestStop("test");

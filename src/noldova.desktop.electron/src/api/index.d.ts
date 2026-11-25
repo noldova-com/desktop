@@ -13,8 +13,8 @@ import type { Stats } from "node:fs";
 import type { Writable } from "node:stream";
 
 import type {
-  AppDetailsOptions, BrowserWindowConstructorOptions, CustomScheme, KeyboardInputEvent, MenuItemConstructorOptions, MessageBoxOptions, MessageBoxReturnValue, NavigationEntry, NotificationConstructorOptions, OpenDialogOptions,
-  OpenDialogReturnValue, Rectangle, RenderProcessGoneDetails, SaveDialogOptions, SaveDialogReturnValue, TitleBarOverlayOptions, WindowOpenHandlerResponse
+  AppDetailsOptions, BrowserWindowConstructorOptions, CustomScheme, KeyboardInputEvent, MenuItemConstructorOptions, MessageBoxOptions, MessageBoxReturnValue, NativeImage, NavigationEntry, NotificationConstructorOptions,
+  OpenDialogOptions, OpenDialogReturnValue, Rectangle, RenderProcessGoneDetails, SaveDialogOptions, SaveDialogReturnValue, TitleBarOverlayOptions, WindowOpenHandlerResponse
 } from "electron";
 import { type CancellationToken, type Logger, type ProgressInfo, Provider, type ResolvedUpdateFileInfo, type UpdateInfo } from "electron-updater";
 
@@ -23,7 +23,7 @@ import type { JsonException, JsonObject, JsonValue } from "@noldova/context.json
 import type { Event, Failure, FileGrant, NotificationBroadcast, QualifiedName, QuitAnswer, Response, RuntimeHandover, StopPolicy, UpdateProcess, WebViewDeclaration, WindowStateKey, WorkReport } from "@noldova/desktop.protocol";
 import {
   type AttachOptions, type ConnectionException, type DataDirectory, type DiagnosticRedactor, type Installation, type IProcessStarter, type IRuntimeClientListener, type IWindowsProcessApi,
-  LaunchException, type LaunchSettings, type ProcessPresence, type SystemCommand, type UpdateBarrier, type UpdateBarrierStatus
+  LaunchException, type LaunchSettings, type ProcessPresence, type ProductTrayItem, type SystemCommand, type UpdateBarrier, type UpdateBarrierStatus
 } from "@noldova/desktop.runtime";
 
 export { LinkPolicy } from "@noldova/desktop.protocol";
@@ -3760,7 +3760,7 @@ export interface IWebViewContents {
    * @param listener Called on each change, and once when the contents are destroyed.
    * @returns Electron's own return value, which the main process does not use.
    */
-  on(event: "did-start-loading" | "did-stop-loading" | "did-navigate" | "did-navigate-in-page" | "page-title-updated" | "destroyed", listener: () => void): unknown;
+  on(event: "did-start-loading" | "did-stop-loading" | "dom-ready" | "did-navigate" | "did-navigate-in-page" | "page-title-updated" | "destroyed", listener: () => void): unknown;
 
   /**
    * Listens for a load that failed.
@@ -4773,6 +4773,23 @@ export interface ITrayHost {
    * ```
    */
   create(image: string): ITray;
+
+  /**
+   * Makes the image of one of the tray menu's rows, as Electron's `nativeImage.createFromDataURL` does.
+   *
+   * @param dataUrl The image, a data: URL of a PNG image.
+   * @param isTemplate True for a macOS template image, which macOS colours to match the menu.
+   * @returns The image, or what the menu's `icon` takes in its place.
+   * @example
+   * ```ts
+   * import type { ITrayHost } from "@noldova/desktop.electron";
+   *
+   * export function iconOf(host: ITrayHost, dataUrl: string): unknown {
+   *   return host.createMenuIcon(dataUrl, false);
+   * }
+   * ```
+   */
+  createMenuIcon(dataUrl: string, isTemplate: boolean): NativeImage | string;
 }
 
 /**
@@ -5434,6 +5451,15 @@ export interface IMainProcessWindow {
    * @returns Electron's own return value, which the main process does not use.
    */
   on(event: "hide", listener: () => void): unknown;
+
+  /**
+   * Listens for the window gaining the focus.
+   *
+   * @param event The event's name.
+   * @param listener Called each time the window gains the focus.
+   * @returns Electron's own return value, which the main process does not use.
+   */
+  on(event: "focus", listener: () => void): unknown;
 
   /**
    * Listens for the window's page setting its title.
@@ -7210,6 +7236,10 @@ export declare class MainProcess {
    * that macOS installs the update but Noldova Desktop Sample can't open again by itself, and exits.
    * @param createUpdateLock Creates the lock that lets one main process of the installation check at a time; the lock's log
    * is the main process's.
+   * @param tray The tray menu's items in their order, as the build's `desktop.product.tray` lists them and `ProductInfo.tray`
+   * reads them, or `null` for the menu every app gets without a list: the work, the unread notifications, Stop agents, Open, Do not
+   * disturb and Quit. The main process takes the stop key system-wide only when the list holds the `agents` item. Restart to update
+   * stays first while an update is ready, and a separator at either end of the menu or next to another one is left out.
    * @returns Settles once the main process has started, before Electron is ready; it rejects when the data folder can't be used.
    * @example
    * ```ts
@@ -7243,7 +7273,8 @@ export declare class MainProcess {
     recordMainProcessAsync: (installation: Installation) => Promise<boolean>,
     readUpdateFeed: () => string | null,
     createUpdater: (installation: Installation, feed: string, logsFolder: string, log: (text: string) => void) => IUpdateSetup | null,
-    createUpdateLock: (installation: Installation, log: (text: string) => void) => IUpdateCheckLock): Promise<void>;
+    createUpdateLock: (installation: Installation, log: (text: string) => void) => IUpdateCheckLock,
+    tray?: readonly ProductTrayItem[] | null): Promise<void>;
 }
 
 /**

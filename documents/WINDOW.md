@@ -78,6 +78,10 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A right-click inside a registered element that isn't on a field opens the text field menu at the pointer for whatever has the focus inside that element, such as a terminal's helper text area, so its Copy follows the source and its Paste goes there; while the focus is outside the element, the right-click opens no menu.
   A copy the main process refuses leaves the clipboard as it was; the main process logs the refusal and the window logs that the selection wasn't copied, neither with the text.
   The other Edit commands, and Copy anywhere else, act on the field as before; deactivation removes a part's sources, and a part removes the source of an element it discards.
+- A window part with an undo of its own, such as a Git client's last write, gives it to the window with the context's `provideUndo`, one provider for each window, from whichever module; a second is refused with `UndoProviderTakenException`.
+  While the window's page has the focus and it is on none of a text field, an editable element and an element inside a registered selection source, Edit → Undo and Mod+Z run the provider's `undoAsync`, and Undo is greyed while its `canUndo` is `false`; otherwise they run the native undo, as without a provider, so a web view's page and a field keep theirs.
+  On macOS the menu bar's own Undo row takes Cmd+Z while the provider takes Undo, and the native row comes back when it doesn't; on Windows and Linux the window takes Ctrl+Z, except inside an element that keeps Ctrl keys, such as a terminal.
+  Withdrawing the provider, or deactivating its part, brings back the native undo.
 
 ## Workspace
 
@@ -182,6 +186,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   On macOS nothing changes, since Cmd is the window's.
 - While a modal dialog is open, only the Edit commands run from keys, and a view's dialog adds its own module's commands.
 - On macOS the main process builds the native menu bar from the rows the window gives it, keeping the system's own items; choosing a row runs it in the window, and the window's key handling stays the only one.
+  It shows the rows only of the window that has the focus: rows a window sends while it doesn't are kept and shown once it has the focus again.
   Once the window whose rows it shows closes, the main process puts back the standard menu bar it starts with, the app, Edit and Window menus with the system's items, so no row is left that runs nowhere.
 - An app that gives the window `titleBar`, as [BUILD.md](BUILD.md#an-apps-inputs) says, shows its icon and name, each only when given, at the very start of the window row, after the traffic lights on macOS: the icon 1rem square, the name 0.25rem after it in the row's own text, both level with the row's buttons and 0.5rem before the menus or the buttons that follow.
   They stay in the row's drag region and never fold the menus: the name takes only the room that leaves the search field its full width in the window's centre, cut with an ellipsis and hidden below 3rem, and the icon stays until the field is down to its 12rem.
@@ -222,7 +227,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   It is as tall as the row's buttons and level with them, drawn as an input edged in the menu border color, or with forced colours in the button text colour, its text and key cap too, and gives way to the window row's drag region on both sides; when the buttons before it are wider than those after it, it moves off the window's centre only as far as the row's middle needs.
 - Clicking the field or pressing its key opens the search palette in the field's place, 40rem wide, its top at the field's top, with its field focused; the key of `desktop.showCommands`, Ctrl+Shift+P by default, opens it with `>` typed.
   The field keeps its place, hidden, while the palette covers it.
-  `desktop.search` with `{ "source": name }`, the name of a source, opens the palette under that source's filter, and is the one Noldova Desktop command a window part may run with its context's `runCommandAsync`; the View menu runs `desktop.search` and `desktop.showCommands` as Search and Show all commands.
+  `desktop.search` with `{ "source": name }`, the name of a source, opens the palette under that source's filter; it and `desktop.openSettings` are the two Noldova Desktop commands a window part may run with its context's `runCommandAsync`; the View menu runs `desktop.search` and `desktop.showCommands` as Search and Show all commands.
 - Escape, a pointer outside the palette and opening a result close it, and focus goes back where it was when that is still there.
 - Under the field, a filter for All and one for each source, each source's with its match count while there is a query, with a `+` right after a count the source capped; Tab moves to the next filter, Shift+Tab to the one before, and a filter shows only its source.
 - Before the person types, the palette shows each source's recent items in a group of its own under the source's recent heading, such as Recent chats and Recent commands, with the first row selected.
@@ -393,6 +398,14 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
 - The icon shows whether work is running and whether notifications are unread, and its menu lists the running work, the newest unread notifications, Stop agents, opening the app, Turn on or Turn off Do not disturb for this device, and quitting.
   Stop agents runs `desktop.stopAgentControl`, and is disabled while the runtime is away; while agent control is stopped, Resume agents takes its place and runs `desktop.resumeAgentControl`.
   The menu has no check or radio items, so Windows leaves no empty column for a check mark.
+- An app lists the menu's items in its build's `desktop.product.tray`, as [BUILD.md](BUILD.md) says, and without a list its menu is the one above.
+  A built-in item keeps its behaviour, and its `text` replaces the label of Open, Quit and the work's row while no work runs.
+  Stop agents and Do not disturb take `text` for the label of their usual state, Stop agents and Turn on Do not disturb, and `toggledText` for the label once switched, Resume agents and Turn off Do not disturb; each replaces only its own label, and a refused stop key's hint still follows the label.
+  The notifications' rows keep the posts' titles.
+  A command item runs its module's command through the runtime, as the command palette does, and a list item the window doesn't know, such as a command that isn't a module's qualified name, is left out.
+  An item's `icon` shows beside its label, and on Windows and Linux its `iconDark` while the app's theme is dark; on macOS a template image follows the menu's colours.
+  A separator at either end of the menu or next to another one is left out, so an item that shows no row, such as the notifications while none is unread, leaves no doubled line.
+  The main process takes the stop key system-wide only when the list holds `agents`; the key works inside the app either way.
 - While a downloaded update is ready, the menu starts with Restart to update, naming the version, which restarts through the same path and checks as the status bar's `desktop.restartToUpdate`, and the tooltip says that an update is ready; the item goes when no update is ready.
   The icon shows one state, in this order: running work, then a ready update, then unread notifications, then idle; so a ready update takes the icon over unread notifications, which the tooltip and the menu still list.
   The tray says so only through its icon and menu, never a system notification.

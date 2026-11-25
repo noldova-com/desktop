@@ -22,7 +22,7 @@ export class AgentControlTests {
   public stopsAndResumesThroughItsCommandsAndReportsEachChange(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       const host = await fixture.startAsync();
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const idle = await RuntimeHostFixture.callAsync(connection, "main:1", ShellMethods.agentControl, null);
       const listed = await RuntimeHostFixture.callAsync(connection, "main:2", ShellMethods.commands, null);
@@ -60,7 +60,7 @@ export class AgentControlTests {
     return RuntimeHostFixture.runAsync(async fixture => {
       const host = await fixture.startAsync();
       await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       cli.sendMessages(new Request("cli:1", ShellMethods.runCommand, new CommandRun(QualifiedName.parse("desktop.stopAgentControl"), null).toJson()));
       const stopping = [await cli.readEventAsync(), await cli.readEventAsync(), await cli.readEventAsync()];

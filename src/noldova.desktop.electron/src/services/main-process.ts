@@ -21,6 +21,7 @@ import {
   DiagnosticRedactor,
   Installation,
   LaunchSettings,
+  type ProductTrayItem,
   RuntimeBuild,
   RuntimeEntry,
   ShellCommands,
@@ -168,6 +169,7 @@ export class MainProcess {
       resumeAgents: () => void this.agents.runCommandAsync(ShellCommands.resumeAgentControl),
       restartToUpdate: () => void this.updates.bridge.act(Resources.updateRestartAction),
       quit: () => electron.app.quit(),
+      runCommand: t => void this.agents.runCommandAsync(t),
       followTrayIcon: t => this.followTrayIcon(t)
     });
     this.surface = new AppSurfaceFeed(process.platform, process.processId, (method, payload) => this.runtime.callAsync(method, payload), t => log.write(t));
@@ -237,7 +239,8 @@ export class MainProcess {
     recordMainProcessAsync: (installation: Installation) => Promise<boolean>,
     readUpdateFeed: () => string | null,
     createUpdater: (installation: Installation, feed: string, logsFolder: string, log: (text: string) => void) => IUpdateSetup | null,
-    createUpdateLock: (installation: Installation, log: (text: string) => void) => IUpdateCheckLock): Promise<void> {
+    createUpdateLock: (installation: Installation, log: (text: string) => void) => IUpdateCheckLock,
+    tray: readonly ProductTrayItem[] | null = null): Promise<void> {
     const recovery = new MainProcessRecovery(electron.app, electron.dialog, process.errorOutput, new DiagnosticRedactor(process.homeFolder));
     TerminalRelaunch.forgetConsole(process);
     process.onUncaughtException(t => recovery.receive(t, MainProcessFailureKind.UncaughtException));
@@ -315,6 +318,7 @@ export class MainProcess {
       connector,
       updater,
       updateLock: createUpdateLock(installation, t => log.write(t)),
+      tray,
       readDeviceAsync,
       createDeviceFile,
       createPathCommand,
@@ -482,6 +486,7 @@ export class MainProcess {
     });
     window.on(Resources.showEvent, () => describe(window.getTitle()));
     window.on(Resources.hideEvent, () => describe(window.getTitle()));
+    window.on(Resources.focusEvent, () => this.controls.focusWindow(contentsId));
     window.on(Resources.pageTitleUpdatedEvent, (_event, title) => describe(title));
     window.once(Resources.closedEvent, () => {
       this.updates.restart.dismiss(open);

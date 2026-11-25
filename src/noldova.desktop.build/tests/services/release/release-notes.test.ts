@@ -126,9 +126,22 @@ export class ReleaseNotesTests {
     }
   }
 
+  @TestMethod
+  public linksEachUpstreamSourcePageThePackagesNameLast(): void {
+    const git = "https://example.com/git/tree/v1.0.0";
+    const native = "https://example.com/native/tree/0123456";
+
+    const notes = ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], [], [], ReleaseNotesTests.REPOSITORY, ReleaseNotesTests.RUN, ReleaseNotesTests.REPOSITORY,
+      "example/sample-app", ReleaseNotesTests.REPOSITORY, [], [git, native]);
+
+    Assert.isTrue(notes.endsWith(`${ReleaseNotesTests.RUN}\n\nSource code: the packages ship components whose licences call for their complete corresponding source, which their upstream `
+      + `publishes at ${git}, ${native}; the app's licence notice lists each source file with its address and SHA-256.`), notes);
+    Assert.isFalse(ReleaseNotesTests.compose([ReleaseNotesTests.LINUX], []).includes("corresponding source"));
+  }
+
   private static compose(targets: readonly PackageTarget[], supported: readonly PackageTarget[], signed: readonly string[] = [], repository: string = ReleaseNotesTests.REPOSITORY,
     run: string = ReleaseNotesTests.RUN, source: string = repository, releaseRepository: string = "example/sample-app", build: string = source,
-    unstarted: readonly PackageTarget[] = []): string {
+    unstarted: readonly PackageTarget[] = [], sourcePages: readonly string[] = []): string {
     const product = ProductIdentity.fromManifest(JsonReader.fromValue({
       desktop: {
         product: {
@@ -146,6 +159,6 @@ export class ReleaseNotesTests {
       }
     }));
     const request = ReleaseRequest.read({ RELEASE_REPOSITORY: repository, RELEASE_SOURCE_REPOSITORY: source, RELEASE_BUILD_REPOSITORY: build, RELEASE_TAG_PREFIX: repository === source ? String.empty : "sample-app-", RELEASE_VERSION: "0.0.2", RELEASE_REVISION: "0123456789abcdef0123456789abcdef01234567" });
-    return ReleaseNotes.compose(product, targets, supported, signed, request, run, unstarted);
+    return ReleaseNotes.compose(product, targets, supported, signed, request, run, unstarted, sourcePages);
   }
 }

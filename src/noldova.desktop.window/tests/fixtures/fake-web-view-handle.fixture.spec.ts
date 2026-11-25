@@ -11,36 +11,36 @@ import type { Type } from "@angular/core";
 import { WebViewEvent, WebViewEventKind } from "@noldova/desktop.protocol";
 import type { IWebViewHandle } from "@noldova/desktop.window";
 
-import type { FakeMember } from "../types/fake-member";
+import { FakeMember } from "../models/fake-member";
 import { FakeMembersFixture } from "./fake-members.fixture";
 import { FakeWebViewHandle } from "./fake-web-view-handle.fixture";
 
 const LOAD_LAYER = (): Promise<Type<unknown>> => Promise.reject(new Error("Not loaded."));
 
 const MEMBERS: Readonly<Record<keyof IWebViewHandle, FakeMember<IWebViewHandle>>> = {
-  mount: ["told", t => t.mount(document.createElement("div"))],
-  show: ["told", t => t.show()],
-  hide: ["told", t => t.hide()],
-  navigateAsync: ["answered", t => t.navigateAsync("https://example.com")],
-  goBackAsync: ["answered", t => t.goBackAsync()],
-  goForwardAsync: ["answered", t => t.goForwardAsync()],
-  reloadAsync: ["answered", t => t.reloadAsync()],
-  stopAsync: ["answered", t => t.stopAsync()],
-  getZoomAsync: ["answered", t => t.getZoomAsync()],
-  setZoomAsync: ["answered", t => t.setZoomAsync(1.5)],
-  zoomInAsync: ["answered", t => t.zoomInAsync()],
-  zoomOutAsync: ["answered", t => t.zoomOutAsync()],
-  findAsync: ["answered", t => t.findAsync("plan")],
-  findNextAsync: ["answered", t => t.findNextAsync()],
-  findPreviousAsync: ["answered", t => t.findPreviousAsync()],
-  endFind: ["told", t => t.endFind()],
-  subscribe: ["listened", t => t.subscribe(() => undefined)],
-  close: ["told", t => t.close()],
-  id: ["property", t => t.id],
-  pane: ["property", t => t.pane],
-  profileKey: ["property", t => t.profileKey],
-  isClosed: ["property", t => t.isClosed],
-  openLayerAsync: ["answered", t => t.openLayerAsync(LOAD_LAYER)]
+  mount: FakeMember.told(t => t.mount(document.createElement("div"))),
+  show: FakeMember.told(t => t.show()),
+  hide: FakeMember.told(t => t.hide()),
+  navigateAsync: FakeMember.answered(t => t.navigateAsync("https://example.com")),
+  goBackAsync: FakeMember.answered(t => t.goBackAsync()),
+  goForwardAsync: FakeMember.answered(t => t.goForwardAsync()),
+  reloadAsync: FakeMember.answered(t => t.reloadAsync()),
+  stopAsync: FakeMember.answered(t => t.stopAsync()),
+  getZoomAsync: FakeMember.answered(t => t.getZoomAsync()),
+  setZoomAsync: FakeMember.answered(t => t.setZoomAsync(1.5)),
+  zoomInAsync: FakeMember.answered(t => t.zoomInAsync()),
+  zoomOutAsync: FakeMember.answered(t => t.zoomOutAsync()),
+  findAsync: FakeMember.answered(t => t.findAsync("plan")),
+  findNextAsync: FakeMember.answered(t => t.findNextAsync()),
+  findPreviousAsync: FakeMember.answered(t => t.findPreviousAsync()),
+  endFind: FakeMember.told(t => t.endFind()),
+  subscribe: FakeMember.listened(t => t.subscribe(() => undefined)),
+  close: FakeMember.told(t => t.close()),
+  id: FakeMember.property(t => t.id),
+  pane: FakeMember.property(t => t.pane),
+  profileKey: FakeMember.property(t => t.profileKey),
+  isClosed: FakeMember.property(t => t.isClosed),
+  openLayerAsync: FakeMember.answered(t => t.openLayerAsync(LOAD_LAYER))
 };
 
 describe("FakeWebViewHandle", () => {

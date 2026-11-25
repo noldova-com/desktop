@@ -19,7 +19,7 @@ export class SettingsReadMethodTests {
   public answersTheValuesADeviceSees(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync(30_000, await fixture.writeModulesAsync([]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       const mode = new SettingKey(QualifiedName.parse("desktop.mode"));
       const quiet = new SettingKey(QualifiedName.parse("desktop.doNotDisturb"), null, "d1");
 
@@ -27,7 +27,7 @@ export class SettingsReadMethodTests {
         new Request("main:1", ShellMethods.setSetting, new SettingValue(mode, "Dark").toJson()),
         new Request("main:2", ShellMethods.setSetting, new SettingValue(quiet, true).toJson()),
         new Request("main:3", ShellMethods.settings, new SettingsQuery("d1").toJson()));
-      const [responses] = await RuntimeHostFixture.readMessagesAsync(connection, 6);
+      const { responses } = await RuntimeHostFixture.readMessagesAsync(connection, 6);
       const snapshot = SettingsSnapshot.fromJson(responses.get("main:3")?.payload);
       const entry = (name: string): string => JSON.stringify(snapshot.entries.find(t => t.name.text === name)?.toJson());
 

@@ -160,6 +160,10 @@ export class FakeMainProcessWindow implements IMainProcessWindow {
     this.calls.push("focus");
   }
 
+  public gainFocus(): void {
+    this.isFocusedNow = true;
+    this.listeners.emit("focus");
+  }
   public close(): void {
     this.calls.push("close");
     const event = new FakePreventableEvent();

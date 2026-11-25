@@ -36,6 +36,7 @@ export type { ILinkOpenOptions } from "../app/interfaces/i-link-open-options.js"
 export type { ISelectionSource } from "../app/interfaces/i-selection-source.js";
 export type { IStatusBarItemOptions } from "../app/interfaces/i-status-bar-item-options.js";
 export type { ITopBarActionOptions } from "../app/interfaces/i-top-bar-action-options.js";
+export type { IUndoProvider } from "../app/interfaces/i-undo-provider.js";
 export type { IViewDialogOptions } from "../app/interfaces/i-view-dialog-options.js";
 export type { IViewInstanceOptions } from "../app/interfaces/i-view-instance-options.js";
 export type { IViewOptions } from "../app/interfaces/i-view-options.js";

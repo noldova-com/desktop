@@ -11,10 +11,10 @@ import type { IWindowWebViews } from "@noldova/desktop.window";
 import { FakeWindowWebViews } from "@noldova/desktop.window/testing";
 
 import { FakeMembersFixture } from "../../fixtures/fake-members.fixture";
-import type { FakeMember } from "../../types/fake-member";
+import { FakeMember } from "../../models/fake-member";
 
 const MEMBERS: Readonly<Record<keyof IWindowWebViews, FakeMember<IWindowWebViews>>> = {
-  openAsync: ["answered", t => t.openAsync(new WebViewPane(QualifiedName.parse("notes.list")), "workspace-1")]
+  openAsync: FakeMember.answered(t => t.openAsync(new WebViewPane(QualifiedName.parse("notes.list")), "workspace-1"))
 };
 
 describe("FakeWindowWebViews", () => {

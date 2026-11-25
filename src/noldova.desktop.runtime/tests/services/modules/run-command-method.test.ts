@@ -11,6 +11,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { CommandRun, FailureCode, QualifiedName, Request, ShellMethods } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
 @TestClass
@@ -18,8 +19,8 @@ export class RunCommandMethodTests {
   @TestMethod
   public runsAModulesCommandForItsWindowAndRefusesOneThatIsMissingMalformedOrDisabled(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", RuntimeHostFixture.createCommandPart()]]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", RuntimeHostFixture.createCommandPart())]));
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const ran = await RuntimeHostFixture.callAsync(connection, "main:1", ShellMethods.runCommand, new CommandRun(QualifiedName.parse("clock.tick"), { by: 2 }).toJson());
       connection.sendMessages(new Request("main:6", ShellMethods.runCommand, new CommandRun(QualifiedName.parse("clock.tick"), null).toJson(), undefined, 7));

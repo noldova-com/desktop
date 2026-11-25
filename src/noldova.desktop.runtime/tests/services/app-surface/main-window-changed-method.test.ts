@@ -53,8 +53,8 @@ export class MainWindowChangedMethodTests {
   public refusesAMainWindowFromAnyoneButTheMainProcessItselfAndAnInvalidOneOverTheProtocol(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync(30_000, await fixture.writeModulesAsync([]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
       const window = new MainWindow("Notes", true, true).toJson();
 
       const fromCli = await RuntimeHostFixture.callAsync(cli, "cli:1", ShellMethods.mainWindowChanged, window);

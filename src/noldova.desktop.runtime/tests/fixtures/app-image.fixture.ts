@@ -13,6 +13,7 @@ import path from "node:path";
 
 import "@noldova/context.core";
 
+import { AppImageProgramNotStartedException } from "../exceptions/app-image-program-not-started.exception.js";
 import { WaitFixture } from "./wait.fixture.js";
 
 export class AppImageFixture implements AsyncDisposable {
@@ -113,7 +114,7 @@ export class AppImageFixture implements AsyncDisposable {
 
   public async waitForProgramAsync(): Promise<void> {
     if (!await WaitFixture.untilAsync(() => existsSync(`${this.record}.started`), AppImageFixture.WAIT_LIMIT))
-      throw new Error(`The program in the fixture AppImage did not start within ${AppImageFixture.WAIT_LIMIT} ms.`);
+      throw new AppImageProgramNotStartedException(AppImageFixture.WAIT_LIMIT);
   }
 
   public async [Symbol.asyncDispose](): Promise<void> {

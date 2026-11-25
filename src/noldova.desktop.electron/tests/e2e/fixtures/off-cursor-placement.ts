@@ -8,6 +8,8 @@
 
 import "@noldova/context.core";
 
+import { WindowNotMovableException } from "../exceptions/window-not-movable.exception.ts";
+
 export interface IPoint {
   readonly x: number;
   readonly y: number;
@@ -58,10 +60,7 @@ export class OffCursorPlacement {
     }
     if (attempts.length > 0)
       await moveAsync(bounds);
-    throw new Error(
-      `The window ${OffCursorPlacement.describe(bounds)} cannot be moved off the cursor at ${cursor.x},${cursor.y}. ` +
-      (attempts.length > 0 ? `Each move left the cursor inside: ${attempts.join("; ")}. ` : "No shift past one of its edges keeps it whole on a display, and only such a shift is tried while a window manager runs. ") +
-      `Displays: ${displays.map(t => OffCursorPlacement.describe(t)).join("; ")}.`);
+    throw new WindowNotMovableException(OffCursorPlacement.describe(bounds), `${cursor.x},${cursor.y}`, attempts, displays.map(t => OffCursorPlacement.describe(t)));
   }
 
   public static describe(bounds: IRectangle): string {

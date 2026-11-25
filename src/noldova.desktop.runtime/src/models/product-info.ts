@@ -15,6 +15,7 @@ import { JsonReader } from "@noldova/context.json";
 
 import { ProductFileException } from "../exceptions/product-file.exception.js";
 import { Resources } from "../resources.js";
+import { ProductTrayItem } from "./product-tray-item.js";
 
 export class ProductInfo {
   private static loaded: ProductInfo | null = null;
@@ -35,6 +36,7 @@ export class ProductInfo {
   public readonly updateFeed: string | null;
   public readonly permissionsModule: string | null;
   public readonly installFolder: string | null;
+  public readonly tray: readonly ProductTrayItem[] | null;
   public readonly version: string;
   public readonly build: string;
 
@@ -56,6 +58,7 @@ export class ProductInfo {
     this.updateFeed = reader.readNullableString(Resources.updateFeedField);
     this.permissionsModule = reader.readOptionalString(Resources.permissionsModuleField) ?? null;
     this.installFolder = reader.readOptionalString(Resources.installFolderField) ?? null;
+    this.tray = reader.hasField(Resources.trayField) ? reader.readObjectArray(Resources.trayField).map(t => ProductTrayItem.fromJson(t.toJson(), t.path)) : null;
     this.version = reader.readNonBlankString(Resources.versionField);
     this.build = reader.readNonBlankString(Resources.buildField);
   }

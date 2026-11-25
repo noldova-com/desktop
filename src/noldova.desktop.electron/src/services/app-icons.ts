@@ -26,6 +26,10 @@ export class AppIcons {
     this.files = files;
   }
 
+  public get isMenuDark(): boolean {
+    return this.platform !== Resources.macPlatform && this.theme.shouldUseDarkColors;
+  }
+
   public get window(): string {
     return join(this.folder, this.platform === Resources.windowsPlatform ? Resources.windowsIcon : Resources.windowIcon);
   }

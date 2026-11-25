@@ -19,7 +19,7 @@ export class WorkMethodTests {
   public listsTheWorkInProgressWithoutStopping(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       const host = await fixture.startAsync();
-      const [connection] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       connection.sendMessages(new Request("cli:1", ShellMethods.work, null));
       const idle = await connection.readTextAsync();

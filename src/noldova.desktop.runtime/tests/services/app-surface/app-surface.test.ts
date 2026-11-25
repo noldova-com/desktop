@@ -11,6 +11,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { AppShortcut, AppShortcutList, AppWindow, AppWindowList, KeyChord, QualifiedName, Request, type Response, ShellMethods } from "@noldova/desktop.protocol";
 import { AppSurface, ClientClosure, ClientClosures, type Registration, RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
 import { WaitFixture } from "../../fixtures/wait.fixture.js";
@@ -217,9 +218,9 @@ export class AppSurfaceTests {
   @TestMethod
   public givesPartsTheListsTheMainProcessReportsAndEmptiesThemWhenItsConnectionCloses(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      await fixture.startAsync(30_000, await fixture.writeModulesAsync([["watch", AppSurfaceTests.PART]]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("watch", AppSurfaceTests.PART)]));
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       mainProcess.sendMessages(
         new Request("main:1", ShellMethods.appWindowsChanged, AppSurfaceTests.WINDOWS.toJson()),

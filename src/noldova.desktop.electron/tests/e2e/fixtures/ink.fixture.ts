@@ -9,6 +9,8 @@
 import "@noldova/context.core";
 import type { Locator, Page } from "@playwright/test";
 
+import { InkMissingException } from "../exceptions/ink-missing.exception.ts";
+
 export class InkFixture {
   public static async startsAsync(window: Page, elements: Locator, later: string): Promise<readonly number[]> {
     const starts: number[] = [];
@@ -54,7 +56,7 @@ export class InkFixture {
       bottom: part.bottom
     });
     if (Object.isNull(found))
-      throw new Error("The element holds no ink before its later part.");
+      throw new InkMissingException();
     return found;
   }
 

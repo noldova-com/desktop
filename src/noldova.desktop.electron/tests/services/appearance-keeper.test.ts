@@ -87,7 +87,7 @@ export class AppearanceKeeperTests {
     MainProcessStartFixture.firstWindow(electron).destroy();
     electron.app.emit("activate");
 
-    Assert.areEqual(JSON.stringify(["/devices/this", "appearance.json"]), JSON.stringify(files.created.find(t => t[1] === "appearance.json")));
+    Assert.areEqual("/devices/this", files.created.find(t => t.fileName === "appearance.json")?.folder);
     Assert.areEqual("{\"desktop.mode\":\"Dark\"}", PreloadArgumentFixture.readAppearance(electron.windows[0]?.options.webPreferences?.additionalArguments));
     Assert.areEqual(JSON.stringify([{ "desktop.mode": "Light" }]), JSON.stringify(files.appearance.writes));
     Assert.areEqual("{\"desktop.mode\":\"Light\"}", PreloadArgumentFixture.readAppearance(electron.windows[1]?.options.webPreferences?.additionalArguments));

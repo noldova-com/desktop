@@ -8,6 +8,8 @@
 
 import "@noldova/context.core";
 
+import { ProcessRowMissingException } from "../exceptions/process-row-missing.exception.ts";
+
 export interface IProcessTreeRow {
   readonly processId: number;
   readonly parentId: number;
@@ -23,7 +25,7 @@ export class ProcessTree {
 
   public listDescendants(processId: number): number[] {
     if (!this.rows.has(processId))
-      throw new Error(`The process list has no row for process ${processId}, so it failed or the process has ended, and the processes it started are unknown.`);
+      throw new ProcessRowMissingException(processId);
     const descendants: number[] = [];
     for (let generation = [processId]; generation.length > 0;) {
       const parents = generation;

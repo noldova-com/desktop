@@ -12,6 +12,8 @@ import "@noldova/context.core";
 import { JsonReader } from "@noldova/context.json";
 import { Endpoint } from "@noldova/desktop.runtime";
 
+import { RawServerPortMissingException } from "../exceptions/raw-server-port-missing.exception.js";
+
 export class RawServerFixture implements AsyncDisposable {
   private readonly server: Server;
   private readonly sockets: Set<Socket> = new Set();
@@ -52,7 +54,7 @@ export class RawServerFixture implements AsyncDisposable {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
     if (Object.isNull(address) || Object.isString(address))
-      throw new Error("The raw server has no port.");
+      throw new RawServerPortMissingException();
     fixture = new RawServerFixture(server, Endpoint.tcp(address.port));
     return fixture;
   }

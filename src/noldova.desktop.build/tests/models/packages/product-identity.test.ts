@@ -153,6 +153,48 @@ export class ProductIdentityTests {
   }
 
   @TestMethod
+  public readsTheTraysEntriesInOrderAndNoneWhenTheAppListsNone(): void {
+    const tray = ProductIdentityTests.read({
+      tray: [
+        { item: "open", text: "Open Sample", icon: "assets/openTemplate.png", iconDark: "data:image/png;base64,REFSSw==" },
+        { separator: true },
+        { text: "Fetch", command: "git.fetch", icon: "assets/Fetch.PNG" },
+        { item: "agents", text: "Pause agents", toggledText: "Go on" },
+        { item: "doNotDisturb", toggledText: "Ring again" }
+      ]
+    }).tray;
+
+    Assert.areEqual(JSON.stringify([
+      { item: "open", isSeparator: false, text: "Open Sample", toggledText: null, command: null, icon: "assets/openTemplate.png", iconDark: "data:image/png;base64,REFSSw==" },
+      { item: null, isSeparator: true, text: null, toggledText: null, command: null, icon: null, iconDark: null },
+      { item: null, isSeparator: false, text: "Fetch", toggledText: null, command: "git.fetch", icon: "assets/Fetch.PNG", iconDark: null },
+      { item: "agents", isSeparator: false, text: "Pause agents", toggledText: "Go on", command: null, icon: null, iconDark: null },
+      { item: "doNotDisturb", isSeparator: false, text: null, toggledText: "Ring again", command: null, icon: null, iconDark: null }
+    ]), JSON.stringify(tray));
+    Assert.isNull(ProductIdentityTests.read({}).tray);
+  }
+
+  @TestMethod
+  public refusesATrayEntryThatIsNoBuiltInItemSeparatorOrCommandAndNamesItsField(): void {
+    const item = "one of work, notifications, agents, open, doNotDisturb or quit, listed once";
+    const command = "a module's command, such as git.fetch, and only in an entry without item";
+    ProductIdentityTests.refusesTrays([{ item: "open" }], "tray", "a list of the tray menu's items");
+    ProductIdentityTests.refusesTrays([["open"], [null]], "tray[0]", Resources.productTrayEntryExpected);
+    ProductIdentityTests.refusesTrays([[{ separator: false }], [{ separator: true, text: "Line" }]], "tray[0].separator", "true, alone in its entry");
+    ProductIdentityTests.refusesTrays([[{ item: "settings" }], [{ item: 42 }]], "tray[0].item", item);
+    ProductIdentityTests.refusesTrays([[{ item: "quit" }, { item: "quit" }]], "tray[1].item", item);
+    ProductIdentityTests.refusesTrays([[{ item: "open", command: "git.fetch" }], [{}], [{ text: "Fetch", command: "fetch" }]], "tray[0].command", command);
+    ProductIdentityTests.refusesTrays([[{ command: "git.fetch" }], [{ text: " ", command: "git.fetch" }], [{ item: "open", text: "Open\nSample" }]], "tray[0].text", "one line of text");
+    ProductIdentityTests.refusesTrays([[{ item: "notifications", text: "News" }]], "tray[0].text", "left out of notifications, whose rows show the posts' titles");
+    ProductIdentityTests.refusesTrays([[{ item: "notifications", toggledText: "News" }]], "tray[0].toggledText", "left out of notifications, whose rows show the posts' titles");
+    ProductIdentityTests.refusesTrays([[{ item: "open", toggledText: "Hide" }], [{ text: "Fetch", command: "git.fetch", toggledText: "Stop" }], [{ item: "agents", toggledText: " " }],
+      [{ item: "doNotDisturb", toggledText: "Turn\roff" }], [{ item: "quit", toggledText: 42 }]], "tray[0].toggledText", "one line of text, and only on agents or doNotDisturb");
+    ProductIdentityTests.refusesTrays([[{ item: "open", icon: "assets/open.svg" }], [{ item: "open", icon: "../open.png" }], [{ item: "open", icon: "data:image/svg+xml,%3Csvg%2F%3E" }]],
+      "tray[0].icon", Resources.productTrayIconExpected);
+    ProductIdentityTests.refusesTrays([[{ item: "open", iconDark: "https://example.test/open.png" }]], "tray[0].iconDark", Resources.productTrayIconExpected);
+  }
+
+  @TestMethod
   public async readsTheProductFromTheRootsManifestOrRefusesWithoutOneAsync(): Promise<void> {
     const root = await mkdtemp(path.join(tmpdir(), "product-identity-"));
     try {
@@ -166,6 +208,13 @@ export class ProductIdentityTests {
     }
     finally {
       await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  private static refusesTrays(trays: readonly unknown[], field: string, expected: string): void {
+    for (const tray of trays) {
+      const refusal = Assert.throws(() => ProductIdentityTests.read({ tray }), BuildException);
+      Assert.areEqual(`The root package.json's desktop.product.${field} must be ${expected}.`, refusal.message, JSON.stringify(tray));
     }
   }
 

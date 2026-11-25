@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 
 import { DialogService } from "@noldova/ui.components.angular";
@@ -17,6 +18,7 @@ import { MenuDeclarations } from "../../../src/app/models/menu-declarations";
 import { CommandService } from "../../../src/app/services/command.service";
 import { MenuBarService } from "../../../src/app/services/menu-bar.service";
 import { MenuService } from "../../../src/app/services/menu.service";
+import { UndoService } from "../../../src/app/services/undo.service";
 import { PreloadBridgeFixture } from "../../fixtures/preload-bridge.fixture";
 import { ViewDialogFixture } from "../../fixtures/view-dialog.fixture";
 
@@ -90,6 +92,34 @@ describe("MenuBarService", () => {
       place: "desktop.edit", title: "Edit", rows: ["Undo", "Redo", "Cut", "Copy", "Paste", "Select all"]
         .map((t, i) => ({ type: "Command", id: `desktop.edit/desktop.editing/${i}`, label: t, key: null, enabled: false, check: "None", checked: false }))
     });
+  });
+
+  it("names the Undo row that replaces the native one while the window's undo provider takes Undo, greyed with nothing to undo, and runs it", async () => {
+    const bar = start();
+    const undoable = signal(true);
+    let reach: () => void = () => undefined;
+    const reached = new Promise<void>(resolve => {
+      reach = resolve;
+    });
+    const button = document.createElement("button");
+    document.body.append(button);
+    button.focus();
+    window.dispatchEvent(new FocusEvent("focus"));
+    const undoOf = (): JsonValue => bar.tree()["undo"] ?? null;
+
+    const withoutProvider = undoOf();
+    const withdraw = TestBed.inject(UndoService).provide({ canUndo: () => undoable(), undoAsync: () => Promise.resolve(reach()) });
+    const provided = undoOf();
+    bar.run("desktop.undo");
+    await reached;
+    undoable.set(false);
+    const nothingToUndo = undoOf();
+    withdraw();
+    button.remove();
+
+    expect(withoutProvider).toBeNull();
+    expect([provided, nothingToUndo]).toEqual([{ id: "desktop.undo", enabled: true }, { id: "desktop.undo", enabled: false }]);
+    expect(undoOf()).toBeNull();
   });
 
   it("runs the row an id names with its arguments, including one in a submenu", async () => {

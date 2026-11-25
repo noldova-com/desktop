@@ -7,7 +7,7 @@
  */
 
 import "@noldova/context.core";
-import type { IPosixProcessTableApi } from "@noldova/desktop.runtime";
+import { type IPosixProcessTableApi, ProcessTableRowUnreadableException } from "@noldova/desktop.runtime";
 
 import { ProcessSupervisorFixture } from "./process-supervisor.fixture.js";
 
@@ -36,7 +36,7 @@ export class ProcessTableFixture implements IPosixProcessTableApi {
   private parse(row: string): readonly [number, number, number, number, number, number?] {
     const match = ProcessTableFixture.ROW.exec(row);
     if (Object.isNull(match))
-      throw new Error(`The process table has a row that could not be read: ${row}`);
+      throw new ProcessTableRowUnreadableException(row);
     const [, processId, parentId, groupId, days, hours, minutes, seconds, terminal, zombie] = match;
     const elapsed = (((Number(days ?? 0) * 24 + Number(hours ?? 0)) * 60 + Number(minutes)) * 60 + Number(seconds)) * 1000;
     const values = [Number(processId), Number(parentId), Number(groupId), Number(terminal ?? 0), this.now() - elapsed] as const;

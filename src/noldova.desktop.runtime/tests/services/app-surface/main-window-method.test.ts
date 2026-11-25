@@ -39,8 +39,8 @@ export class MainWindowMethodTests {
   public answersTheMainWindowTheMainProcessReportsAndForgetsItWhenItsConnectionCloses(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       await fixture.startAsync(30_000, await fixture.writeModulesAsync([]));
-      const [mainProcess] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
-      const [cli] = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
+      const { connection: mainProcess } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const { connection: cli } = await fixture.handshakeAsync("cli", RuntimeBuild.identity);
 
       const before = await RuntimeHostFixture.callAsync(cli, "cli:1", ShellMethods.mainWindow, null);
       mainProcess.sendMessages(

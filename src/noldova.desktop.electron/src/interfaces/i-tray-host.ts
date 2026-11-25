@@ -6,8 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { NativeImage } from "electron";
+
 import type { ITray } from "./i-tray.js";
 
 export interface ITrayHost {
   create(image: string): ITray;
+  createMenuIcon(dataUrl: string, isTemplate: boolean): NativeImage | string;
 }

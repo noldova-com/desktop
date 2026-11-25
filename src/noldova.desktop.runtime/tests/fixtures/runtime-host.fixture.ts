@@ -20,7 +20,13 @@ import {
   DataDirectory, DiscoveryReader, Endpoint, ProcessPresence, type RuntimeDiscovery, RuntimeEntry, RuntimeHost, RuntimeOptions, ServerSettings
 } from "@noldova/desktop.runtime";
 
+import { HostDiscoveryMissingException } from "../exceptions/host-discovery-missing.exception.js";
+import { HostNotStartedException } from "../exceptions/host-not-started.exception.js";
+import { HandshakeAnswerFixture } from "./handshake-answer.fixture.js";
+import { ListedAndPostedFixture } from "./listed-and-posted.fixture.js";
+import type { ModuleSourceFixture } from "./module-source.fixture.js";
 import { RawConnectionFixture } from "./raw-connection.fixture.js";
+import { ReadMessagesFixture } from "./read-messages.fixture.js";
 import { SocketFolderFixture } from "./socket-folder.fixture.js";
 
 export class RuntimeHostFixture implements AsyncDisposable {
@@ -56,7 +62,7 @@ export class RuntimeHostFixture implements AsyncDisposable {
 
   public get host(): RuntimeHost {
     if (Object.isNull(this.currentHost))
-      throw new Error("The host has not started.");
+      throw new HostNotStartedException();
     return this.currentHost;
   }
 
@@ -72,11 +78,11 @@ export class RuntimeHostFixture implements AsyncDisposable {
     return this.currentHost;
   }
 
-  public async writeModulesAsync(modules: readonly (readonly [string, string | null])[], webViewModules: readonly string[] = []): Promise<string> {
+  public async writeModulesAsync(modules: readonly ModuleSourceFixture[], webViewModules: readonly string[] = []): Promise<string> {
     const folder = path.join(this.root, "build");
     await mkdir(folder, { recursive: true });
     const declarations = [];
-    for (const [id, source] of modules) {
+    for (const { id, source } of modules) {
       const file = path.join(folder, `${id}.mjs`);
       if (!Object.isNull(source))
         await writeFile(file, source);
@@ -90,25 +96,25 @@ export class RuntimeHostFixture implements AsyncDisposable {
   public async readDiscoveryAsync(): Promise<RuntimeDiscovery> {
     const discovery = await DiscoveryReader.readAsync(this.dataDirectory);
     if (Object.isNull(discovery))
-      throw new Error("The host has published no discovery metadata.");
+      throw new HostDiscoveryMissingException();
     return discovery;
   }
 
-  public async handshakeAsync(client: string, identity: BuildIdentity, answersDevice: boolean = client === ShellClients.mainProcess): Promise<[RawConnectionFixture, Response]> {
+  public async handshakeAsync(client: string, identity: BuildIdentity, answersDevice: boolean = client === ShellClients.mainProcess): Promise<HandshakeAnswerFixture> {
     const discovery = await this.readDiscoveryAsync();
     const connection = await RawConnectionFixture.connectAsync(Endpoint.parse(discovery.endpoint));
     this.connections.push(connection);
     if (answersDevice)
       connection.answerDevice(RuntimeHostFixture.DEVICE);
     connection.sendMessages(new Handshake(`${client}:0`, identity, discovery.token, client));
-    return [connection, await connection.readResponseAsync()];
+    return new HandshakeAnswerFixture(connection, await connection.readResponseAsync());
   }
 
   public static createAlarm(title: string, kind: string = "clock.alarm"): NotificationPost {
     return new NotificationPost(QualifiedName.parse(kind), "window", title, null, NotificationSeverity.Warning, null, [], null);
   }
 
-  public static async readMessagesAsync(connection: RawConnectionFixture, count: number): Promise<[Map<string, Response>, Event[]]> {
+  public static async readMessagesAsync(connection: RawConnectionFixture, count: number): Promise<ReadMessagesFixture> {
     const responses = new Map<string, Response>();
     const events: Event[] = [];
     for (let index = 0; index < count; index++) {
@@ -118,7 +124,7 @@ export class RuntimeHostFixture implements AsyncDisposable {
       else if (message instanceof Event)
         events.push(message);
     }
-    return [responses, events];
+    return new ReadMessagesFixture(responses, events);
   }
 
   public static async readAnswerAsync(connection: RawConnectionFixture): Promise<Response> {
@@ -143,13 +149,13 @@ export class RuntimeHostFixture implements AsyncDisposable {
     return await connection.readResponseAsync();
   }
 
-  public static async listAndPostAsync(connection: RawConnectionFixture): Promise<[string, string, Event]> {
+  public static async listAndPostAsync(connection: RawConnectionFixture): Promise<ListedAndPostedFixture> {
     const listed = await RuntimeHostFixture.callAsync(connection, "main:1", ShellMethods.notifications, new NotificationsQuery("laptop").toJson());
     const synced = NotificationState.fromJson(listed.payload).notifications[0]?.id ?? String.empty;
     connection.sendMessages(new Request("main:2", ShellMethods.postNotification, RuntimeHostFixture.createAlarm("Posted").toJson()));
     const event = await connection.readEventAsync();
     const posted = NotificationReference.fromJson((await connection.readResponseAsync()).payload).id;
-    return [synced, posted, event];
+    return new ListedAndPostedFixture(synced, posted, event);
   }
 
   public static formatTitles(payload: JsonValue, synced: string, posted: string): string {

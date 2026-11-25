@@ -48,7 +48,7 @@ export class UpdateBridgeTests {
     Assert.areEqual(JSON.stringify({ kind: "Off", version: null, progress: null, checkedAt: null, reason: null, mustMove: false }), JSON.stringify(state));
     Assert.isNull(refused);
     Assert.areEqual(false, acted);
-    Assert.areEqual(0, fixture.files.created.filter(t => t[1] === "update-ready.json").length);
+    Assert.areEqual(0, fixture.files.created.filter(t => t.fileName === "update-ready.json").length);
   }
 
   @TestMethod
@@ -75,7 +75,7 @@ export class UpdateBridgeTests {
     Assert.areEqual(true, acted);
     Assert.areEqual(JSON.stringify(["Checking", "UpToDate"]), JSON.stringify(UpdateBridgeTests.updateStates(window)));
     Assert.areEqual("UpToDate", JsonReader.fromValue(state).readString("kind"));
-    Assert.areEqual(1, files.created.filter(t => t[1] === "update-ready.json").length);
+    Assert.areEqual(1, files.created.filter(t => t.fileName === "update-ready.json").length);
     Assert.areEqual(3, files.updateReady.reads);
     Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The updater reported: started").length);
     Assert.areEqual(1, MainProcessStartFixture.readErrors(process, "The update lock reported: started").length);

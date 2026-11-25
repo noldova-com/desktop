@@ -233,6 +233,15 @@ export class Resources {
   public static readonly updateFeedField: string = "updateFeed";
   public static readonly permissionsModuleField: string = "permissionsModule";
   public static readonly installFolderField: string = "installFolder";
+  public static readonly trayField: string = "tray";
+  public static readonly trayItemField: string = "item";
+  public static readonly traySeparatorField: string = "separator";
+  public static readonly trayTextField: string = "text";
+  public static readonly trayToggledTextField: string = "toggledText";
+  public static readonly trayCommandField: string = "command";
+  public static readonly trayIconField: string = "icon";
+  public static readonly trayIconDarkField: string = "iconDark";
+  public static readonly trayIsTemplateField: string = "isTemplate";
   public static readonly versionField: string = "version";
   public static readonly holderField: string = "holder";
   public static readonly stateField: string = "state";

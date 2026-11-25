@@ -17,6 +17,7 @@ export class WindowsSocketReader {
   private static readonly TIMEOUT: number = 10_000;
   private static readonly ENCODING: BufferEncoding = "utf8";
   private static readonly OTHER_PLATFORM: string = "Socket state is read on Windows only.";
+  private static readonly MEMORY_COUNTERS: readonly string[] = ["\\Memory\\Pool Nonpaged Bytes", "\\Process(*)\\Handle Count", "\\Process(*)\\Working Set", "-sc", "1"];
 
   public readConnections(): string {
     return WindowsSocketReader.run("netstat", ["-ano", "-p", "tcp"]);
@@ -24,6 +25,10 @@ export class WindowsSocketReader {
 
   public readPortRange(): string {
     return WindowsSocketReader.run("netsh", ["int", "ipv4", "show", "dynamicport", "tcp"]);
+  }
+
+  public readMemory(): string {
+    return WindowsSocketReader.run("typeperf", WindowsSocketReader.MEMORY_COUNTERS);
   }
 
   private static run(command: string, arguments_: readonly string[]): string {

@@ -8,6 +8,8 @@
 
 import { type Locator, type Page, expect } from "@playwright/test";
 
+import { ScrollAreaNotMeasuredException } from "../exceptions/scroll-area-not-measured.exception.ts";
+
 export class ScrollAreaFixture {
   private static readonly HIDDEN: string = "rgba(0, 0, 0, 0)";
   private static readonly HOVER_POSITION: Readonly<Record<"x" | "y", number>> = { x: 20, y: 10 };
@@ -135,7 +137,7 @@ export class ScrollAreaFixture {
     await expect.poll(async () => (measured = await measureAllAsync()).length, { message: `the scroll areas that match, to measure their ${what}` }).toBe(1);
     const [first] = measured;
     if (first === undefined)
-      throw new Error(`No scroll area was measured for its ${what}.`);
+      throw new ScrollAreaNotMeasuredException(what);
     return first;
   }
 

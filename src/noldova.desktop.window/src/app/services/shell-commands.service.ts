@@ -48,6 +48,7 @@ import { TabFocusService } from "./tab-focus.service.js";
 import { TabRenameService } from "./tab-rename.service.js";
 import { ToolbarService } from "./toolbar.service.js";
 import { TabStripService } from "./tab-strip.service.js";
+import { UndoService } from "./undo.service.js";
 import { UpdateService } from "./update.service.js";
 import { ViewDialogService } from "./view-dialog.service.js";
 import { ViewInstancesService } from "./view-instances.service.js";
@@ -59,6 +60,7 @@ export class ShellCommandsService {
   private readonly search: SearchPaletteService = inject(SearchPaletteService);
   private readonly history: DocumentHistoryService = inject(DocumentHistoryService);
   private readonly edits: EditTargetService = inject(EditTargetService);
+  private readonly undo: UndoService = inject(UndoService);
   private readonly bridge: PreloadBridgeService = inject(PreloadBridgeService);
   private readonly links: LinkService = inject(LinkService);
   private readonly viewDialogs: ViewDialogService = inject(ViewDialogService);
@@ -114,7 +116,7 @@ export class ShellCommandsService {
     ...Object.values(DockSide).map(side => new CommandContribution(Resources.toggleDockCommands[side], Resources.toggleDockTitles[side], Resources.hideDockGlyphs[side], null,
       () => this.done(() => this.layout.toggleDock(side)), () => true, () => this.layout.layout().dock(side).isExpanded && !this.layout.geometry().closedSides.has(side))),
     ...Object.values(EditAction).map(action => new CommandContribution(Resources.editCommands[action], Resources.editTitles[action], Resources.editGlyphs[action], null,
-      () => this.editAsync(action), () => this.edits.canRun(action))),
+      () => this.editAsync(action), () => this.canEdit(action))),
     new CommandContribution(Resources.replaceMisspellingCommand, Resources.replaceMisspellingTitle, null, null,
       commandArguments => this.replaceMisspellingAsync(commandArguments), commandArguments => !Object.isNull(ShellCommandsService.textOf(commandArguments, Resources.textArgument))),
     new CommandContribution(Resources.addToDictionaryCommand, Resources.addToDictionaryTitle, Resources.addToDictionaryGlyph, null,
@@ -421,7 +423,15 @@ export class ShellCommandsService {
     return null;
   }
 
+  private canEdit(action: EditAction): boolean {
+    return action === EditAction.Undo && this.undo.takesUndo() ? this.undo.canUndo() : this.edits.canRun(action);
+  }
+
   private async editAsync(action: EditAction): Promise<JsonValue> {
+    if (action === EditAction.Undo && this.undo.takesUndo()) {
+      await this.undo.undoAsync();
+      return null;
+    }
     const selection = action === EditAction.Copy ? this.edits.readSelection() : null;
     if (!Object.isNull(selection))
       await this.copySelectionAsync(selection);

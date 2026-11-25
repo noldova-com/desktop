@@ -16,7 +16,11 @@ export class MenuBarTests {
   @TestData("{}", "$.menus: ")
   @TestData("{\"menus\":\"File\"}", "$.menus: ")
   @TestData("[]", "$: ")
-  public refusesAMenuBarWithoutItsMenus(menuBar: string, reason: string): Promise<void> {
+  @TestData("{\"menus\":[]}", "$.undo: ")
+  @TestData("{\"menus\":[],\"undo\":\"Undo\"}", "$.undo: ")
+  @TestData("{\"menus\":[],\"undo\":{\"enabled\":true}}", "$.undo.id: ")
+  @TestData("{\"menus\":[],\"undo\":{\"id\":\"desktop.undo\"}}", "$.undo.enabled: ")
+  public refusesAMenuBarWithoutItsMenusOrItsUndo(menuBar: string, reason: string): Promise<void> {
     return MainProcessStartFixture.verifyMenuBarRefusedAsync(menuBar, reason);
   }
 }

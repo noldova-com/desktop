@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { PageElementMissingException } from "../exceptions/page-element-missing.exception";
+
 export class EditTargetFixture {
   public readonly host: HTMLElement;
 
@@ -27,7 +29,8 @@ export class EditTargetFixture {
       <svg class="drawing" tabindex="0"></svg>
       <div class="panel"><div class="terminal" tabindex="0"><textarea class="helper"></textarea></div></div>
       <button type="button" class="elsewhere">Elsewhere</button>
-      <div class="cdk-overlay-container"><button type="button" class="row">Copy</button></div>`;
+      <webview class="guest" tabindex="0"></webview>
+      <div class="cdk-overlay-container"><button type="button" class="row">Copy</button><input class="dialog-field" type="text" value="Branch name"></div>`;
     document.body.append(host);
     return new EditTargetFixture(host);
   }
@@ -35,7 +38,7 @@ export class EditTargetFixture {
   public find<T extends Element>(selector: string, type: abstract new () => T): T {
     const element = this.host.querySelector(selector);
     if (!(element instanceof type))
-      throw new Error(`The page has no ${type.name} matching ${selector}.`);
+      throw new PageElementMissingException(type.name, selector);
     return element;
   }
 

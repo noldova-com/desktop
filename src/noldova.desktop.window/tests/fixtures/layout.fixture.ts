@@ -15,6 +15,7 @@ import { SplitNode } from "../../src/app/models/layout/split.node";
 import { ViewRegistry } from "../../src/app/models/layout/view-registry";
 import { ViewTab } from "../../src/app/models/layout/view-tab";
 import { ViewType } from "../../src/app/models/layout/view-type";
+import { NotASplitException } from "../exceptions/not-a-split.exception";
 
 export class LayoutFixture {
   public static readonly files: ViewTab = new ViewTab("files.tree");
@@ -36,7 +37,7 @@ export class LayoutFixture {
 
   public static splitOf(node: LayoutNode | null | undefined): SplitNode {
     if (!(node instanceof SplitNode))
-      throw new Error("The node is not a split.");
+      throw new NotASplitException();
     return node;
   }
 

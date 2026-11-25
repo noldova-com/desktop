@@ -14,6 +14,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { CommandList, CommandRun, ProgramStatusList, QualifiedName, Request, ShellMethods } from "@noldova/desktop.protocol";
 import { RuntimeBuild, RuntimeEntry } from "@noldova/desktop.runtime";
 
+import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { ProgramFixture } from "../../fixtures/program.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
@@ -22,15 +23,15 @@ export class ProgramsMethodTests {
   @TestMethod
   public listsTheProgramsAndPublishesEachChangeInTheOrderItHappensWithTheCommandChanges(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([["clock", ProgramsMethodTests.createPart()]]));
-      const [connection] = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      const host = await fixture.startAsync(30_000, await fixture.writeModulesAsync([new ModuleSourceFixture("clock", ProgramsMethodTests.createPart())]));
+      const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       const before = await RuntimeHostFixture.callAsync(connection, "main:1", ShellMethods.programs, null);
       connection.sendMessages(new Request("main:2", ShellMethods.runCommand, new CommandRun(QualifiedName.parse("clock.tick"), null).toJson()));
-      const [started, startEvents] = await RuntimeHostFixture.readMessagesAsync(connection, 3);
+      const { responses: started, events: startEvents } = await RuntimeHostFixture.readMessagesAsync(connection, 3);
       const listed = await RuntimeHostFixture.callAsync(connection, "main:3", ShellMethods.programs, null);
       connection.sendMessages(new Request("main:4", ShellMethods.runCommand, new CommandRun(QualifiedName.parse("clock.pause"), null).toJson()));
-      const [stopped, stopEvents] = await RuntimeHostFixture.readMessagesAsync(connection, 2);
+      const { responses: stopped, events: stopEvents } = await RuntimeHostFixture.readMessagesAsync(connection, 2);
       host.requestStop("test");
       await host.waitForStopAsync();
       const processId = Number(started.get("main:2")?.payload);

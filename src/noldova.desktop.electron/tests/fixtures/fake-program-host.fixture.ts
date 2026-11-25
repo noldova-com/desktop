@@ -9,6 +9,9 @@
 import "@noldova/context.core";
 import { type IProgramHost, StartedProgram } from "@noldova/desktop.electron";
 
+import { NoProgramStartedException } from "../exceptions/no-program-started.exception.js";
+import { NoProgramWaitingException } from "../exceptions/no-program-waiting.exception.js";
+
 interface IFakeStart {
   readonly file: string;
   readonly programArguments: readonly string[];
@@ -72,14 +75,14 @@ export class FakeProgramHost implements IProgramHost {
   private take(): IFakeRun {
     const run = this.pending.shift();
     if (Object.isUndefined(run))
-      throw new Error("No program is waiting for an answer.");
+      throw new NoProgramWaitingException();
     return run;
   }
 
   private lastStart(): IFakeStart {
     const start = this.starts.at(-1);
     if (Object.isUndefined(start))
-      throw new Error("No program was started.");
+      throw new NoProgramStartedException();
     return start;
   }
 }

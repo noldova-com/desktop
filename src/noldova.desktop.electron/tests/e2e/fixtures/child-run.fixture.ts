@@ -12,6 +12,9 @@ import path from "node:path";
 
 import "@noldova/context.core";
 
+import { ChildRunNotKilledException } from "../exceptions/child-run-not-killed.exception.ts";
+import { ChildRunNotStartedException } from "../exceptions/child-run-not-started.exception.ts";
+import { ProcessesNotKilledException } from "../exceptions/processes-not-killed.exception.ts";
 import { CleanupSteps } from "./cleanup-steps.ts";
 import { ProcessListFixture } from "./process-list.fixture.ts";
 import { ProcessRecord } from "./process-record.ts";
@@ -66,7 +69,7 @@ export class ChildRunFixture {
 
   public get processId(): number {
     if (Object.isUndefined(this.child.pid))
-      throw new Error(`The child run ${this.name} has no process id, so it did not start.`);
+      throw new ChildRunNotStartedException(this.name);
     return this.child.pid;
   }
 
@@ -94,12 +97,12 @@ export class ChildRunFixture {
       async () => CleanupSteps.throwFailures(await CleanupSteps.collectFailuresAsync(started.map(t => async () => ProcessRecord.killIfRunning(t)))),
       async () => {
         if (!await WaitFixture.holdsWithinAsync(() => this.hasEnded, ChildRunFixture.KILL_TIMEOUT, ChildRunFixture.END_INTERVAL))
-          throw new Error(`The child run still ran ${ChildRunFixture.KILL_TIMEOUT / 1000} s after it was killed.`);
+          throw new ChildRunNotKilledException(ChildRunFixture.KILL_TIMEOUT / 1000);
       },
       async () => {
         const left = await ProcessListFixture.waitForExitAsync(started, ChildRunFixture.KILL_TIMEOUT);
         if (left.length > 0)
-          throw new Error(`Processes ${left.join(", ")} still ran ${ChildRunFixture.KILL_TIMEOUT / 1000} s after they were killed.`);
+          throw new ProcessesNotKilledException(left, ChildRunFixture.KILL_TIMEOUT / 1000, null);
       },
       async () => {
         const leftovers = await RunRecords.stopEndedRunsAsync([new RunRecords(this.resultsFolder)]);

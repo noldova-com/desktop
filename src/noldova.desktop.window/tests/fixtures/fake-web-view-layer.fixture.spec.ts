@@ -8,14 +8,14 @@
 
 import type { IWebViewLayer } from "@noldova/desktop.window";
 
-import type { FakeMember } from "../types/fake-member";
+import { FakeMember } from "../models/fake-member";
 import { FakeMembersFixture } from "./fake-members.fixture";
 import { FakeWebViewLayer } from "./fake-web-view-layer.fixture";
 
 const MEMBERS: Readonly<Record<keyof IWebViewLayer<unknown>, FakeMember<IWebViewLayer<unknown>>>> = {
-  close: ["told", t => t.close()],
-  componentRef: ["property", t => t.componentRef],
-  closed: ["property", t => t.closed]
+  close: FakeMember.told(t => t.close()),
+  componentRef: FakeMember.property(t => t.componentRef),
+  closed: FakeMember.property(t => t.closed)
 };
 
 describe("FakeWebViewLayer", () => {

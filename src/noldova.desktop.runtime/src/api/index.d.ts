@@ -9928,6 +9928,12 @@ export declare class ProductInfo {
   public readonly installFolder: string | null;
 
   /**
+   * The tray menu's items, in order, from `desktop.product.tray`, or `null`
+   * when the app lists none and the tray shows its default menu.
+   */
+  public readonly tray: readonly ProductTrayItem[] | null;
+
+  /**
    * The product version.
    */
   public readonly version: string;
@@ -9982,6 +9988,85 @@ export declare class ProductInfo {
    * ```
    */
   public static read(file: string): ProductInfo;
+}
+
+/**
+ * One item of the tray menu that the app lists in `desktop.product.tray`:
+ * a built-in row, a separator or a row that runs a command.
+ *
+ * @example
+ * ```ts
+ * import { ProductInfo, type ProductTrayItem } from "@noldova/desktop.runtime";
+ *
+ * export function listsStopAgents(): boolean {
+ *   const tray: readonly ProductTrayItem[] | null = ProductInfo.current.tray;
+ *   return tray === null || tray.some(t => t.item === "agents");
+ * }
+ * ```
+ */
+export declare class ProductTrayItem {
+  /**
+   * The built-in row's name, `work`, `notifications`, `agents`, `open`,
+   * `doNotDisturb` or `quit`, or `null` for a separator or a command's row.
+   */
+  public readonly item: string | null;
+
+  /**
+   * Whether the item is a separator.
+   */
+  public readonly isSeparator: boolean;
+
+  /**
+   * The row's text, which replaces a built-in row's own, or `null` to keep it: a command's label; for Open, Quit and the work, their label;
+   * for Stop agents and Do not disturb, the label of their usual state, "Stop agents" and "Turn on Do not disturb".
+   */
+  public readonly text: string | null;
+
+  /**
+   * The label Stop agents or Do not disturb shows once switched, which replaces "Resume agents" or "Turn off Do not disturb", or `null` to keep it.
+   */
+  public readonly toggledText: string | null;
+
+  /**
+   * The qualified name of the command a command's row runs, or `null` for a
+   * built-in row or a separator.
+   */
+  public readonly command: string | null;
+
+  /**
+   * The row's icon as a PNG `data:` URL, or `null` for none.
+   */
+  public readonly icon: string | null;
+
+  /**
+   * The row's icon for a dark menu on Windows and Linux, as a PNG `data:` URL,
+   * or `null` to use {@link ProductTrayItem.icon} there too.
+   */
+  public readonly iconDark: string | null;
+
+  /**
+   * Whether macOS draws {@link ProductTrayItem.icon} as a template image,
+   * which it does when the icon's file name ends in `Template`.
+   */
+  public readonly isTemplate: boolean;
+
+  private constructor();
+
+  /**
+   * Reads one item of the product file's `tray`.
+   *
+   * @param value The item's object.
+   * @param path The item's path, which a failure names.
+   * @returns The item.
+   * @throws JsonException When the item is not an object or a field has the wrong type.
+   * @example
+   * ```ts
+   * import { ProductTrayItem } from "@noldova/desktop.runtime";
+   *
+   * export const quit: ProductTrayItem = ProductTrayItem.fromJson({ item: "quit" });
+   * ```
+   */
+  public static fromJson(value: unknown, path?: string): ProductTrayItem;
 }
 
 /**

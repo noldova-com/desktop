@@ -11,17 +11,19 @@ import "@noldova/context.core";
 import type { ILineProcess } from "../../src/interfaces/i-line-process.js";
 import type { ILineProcessListener } from "../../src/interfaces/i-line-process-listener.js";
 import type { ILineProcessStarter } from "../../src/interfaces/i-line-process-starter.js";
+import { NoLineProcessException } from "../exceptions/no-line-process.exception.js";
 import { LineProcessFixture } from "./line-process.fixture.js";
+import { LineProcessWaitFixture } from "./line-process-wait.fixture.js";
 
 export class LineProcessStarterFixture implements ILineProcessStarter {
   public readonly started: LineProcessFixture[] = [];
 
-  private readonly waits: (readonly [number, PromiseWithResolvers<LineProcessFixture>])[] = [];
+  private readonly waits: LineProcessWaitFixture[] = [];
 
   public get last(): LineProcessFixture {
     const last = this.started.at(-1);
     if (Object.isUndefined(last))
-      throw new Error("No line process has started.");
+      throw new NoLineProcessException();
     return last;
   }
 
@@ -30,7 +32,7 @@ export class LineProcessStarterFixture implements ILineProcessStarter {
     if (count > 0 && !Object.isUndefined(started))
       return Promise.resolve(started);
     const wait = Promise.withResolvers<LineProcessFixture>();
-    this.waits.push([count, wait]);
+    this.waits.push(new LineProcessWaitFixture(count, wait));
     return wait.promise;
   }
 
@@ -44,9 +46,9 @@ export class LineProcessStarterFixture implements ILineProcessStarter {
 
   private add(started: LineProcessFixture): LineProcessFixture {
     this.started.push(started);
-    for (const [count, wait] of this.waits)
-      if (count === this.started.length)
-        wait.resolve(started);
+    for (const wait of this.waits)
+      if (wait.count === this.started.length)
+        wait.started.resolve(started);
     return started;
   }
 }

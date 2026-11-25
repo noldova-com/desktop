@@ -16,12 +16,14 @@ import { MenuCheck } from "../enums/menu-check.js";
 import type { MenuBar } from "../models/menu-bar.js";
 import type { MenuBarMenu } from "../models/menu-bar-menu.js";
 import type { MenuBarRow } from "../models/menu-bar-row.js";
+import type { MenuBarUndo } from "../models/menu-bar-undo.js";
 import { Resources } from "../resources.js";
 
 export class MenuBarTemplate {
   private static readonly SEPARATOR: MenuItemConstructorOptions = { type: Resources.separatorMenuType };
+  private static readonly NATIVE_UNDO: MenuItemConstructorOptions = { role: Resources.undoRole };
   private static readonly EDIT_ITEMS: readonly MenuItemConstructorOptions[] = [
-    { role: Resources.undoRole }, { role: Resources.redoRole }, MenuBarTemplate.SEPARATOR, { role: Resources.cutRole }, { role: Resources.copyRole }, { role: Resources.pasteRole }, { role: Resources.pasteAndMatchStyleRole },
+    { role: Resources.redoRole }, MenuBarTemplate.SEPARATOR, { role: Resources.cutRole }, { role: Resources.copyRole }, { role: Resources.pasteRole }, { role: Resources.pasteAndMatchStyleRole },
     { role: Resources.deleteRole }, { role: Resources.selectAllRole }, MenuBarTemplate.SEPARATOR, { label: Resources.speechLabel, submenu: [{ role: Resources.startSpeakingRole }, { role: Resources.stopSpeakingRole }] }
   ];
   private static readonly APP_ITEMS: readonly MenuItemConstructorOptions[] = [
@@ -34,29 +36,34 @@ export class MenuBarTemplate {
 
   public static build(bar: MenuBar, run: (id: string) => void): MenuItemConstructorOptions[] {
     const app = bar.menus.find(t => t.place === Resources.appMenu)?.rows.map(t => MenuBarTemplate.itemOf(t, run)) ?? [];
-    return [MenuBarTemplate.appMenu(app), ...bar.menus.filter(t => t.place !== Resources.appMenu).flatMap(t => MenuBarTemplate.menuOf(t, run))];
+    const undo = Object.isNull(bar.undo) ? MenuBarTemplate.NATIVE_UNDO : MenuBarTemplate.undoOf(bar.undo, run);
+    return [MenuBarTemplate.appMenu(app), ...bar.menus.filter(t => t.place !== Resources.appMenu).flatMap(t => MenuBarTemplate.menuOf(t, run, undo))];
   }
 
   public static standard(): MenuItemConstructorOptions[] {
-    return [MenuBarTemplate.appMenu([]), MenuBarTemplate.editMenu(Resources.editTitle, []), MenuBarTemplate.windowMenu(Resources.windowTitle, [])];
+    return [MenuBarTemplate.appMenu([]), MenuBarTemplate.editMenu(Resources.editTitle, [], MenuBarTemplate.NATIVE_UNDO), MenuBarTemplate.windowMenu(Resources.windowTitle, [])];
   }
 
   private static appMenu(rows: readonly MenuItemConstructorOptions[]): MenuItemConstructorOptions {
     return { label: Resources.applicationName, submenu: [{ role: Resources.aboutRole }, MenuBarTemplate.SEPARATOR, ...MenuBarTemplate.before(rows, MenuBarTemplate.APP_ITEMS)] };
   }
 
-  private static editMenu(title: string, rows: readonly MenuItemConstructorOptions[]): MenuItemConstructorOptions {
-    return { label: title, submenu: MenuBarTemplate.after(MenuBarTemplate.EDIT_ITEMS, rows) };
+  private static editMenu(title: string, rows: readonly MenuItemConstructorOptions[], undo: MenuItemConstructorOptions): MenuItemConstructorOptions {
+    return { label: title, submenu: MenuBarTemplate.after([undo, ...MenuBarTemplate.EDIT_ITEMS], rows) };
+  }
+
+  private static undoOf(undo: MenuBarUndo, run: (id: string) => void): MenuItemConstructorOptions {
+    return { id: undo.id, label: Resources.undoLabel, enabled: undo.isEnabled, accelerator: Resources.undoAccelerator, click: () => run(undo.id) };
   }
 
   private static windowMenu(title: string, rows: readonly MenuItemConstructorOptions[]): MenuItemConstructorOptions {
     return { label: title, role: Resources.windowRole, submenu: MenuBarTemplate.after(MenuBarTemplate.WINDOW_ITEMS, rows) };
   }
 
-  private static menuOf(menu: MenuBarMenu, run: (id: string) => void): MenuItemConstructorOptions[] {
+  private static menuOf(menu: MenuBarMenu, run: (id: string) => void, undo: MenuItemConstructorOptions): MenuItemConstructorOptions[] {
     const rows = menu.rows.map(t => MenuBarTemplate.itemOf(t, run));
     if (menu.place === Resources.editMenu)
-      return [MenuBarTemplate.editMenu(menu.title, rows)];
+      return [MenuBarTemplate.editMenu(menu.title, rows, undo)];
     if (menu.place === Resources.windowMenu)
       return [MenuBarTemplate.windowMenu(menu.title, rows)];
     if (rows.length === 0)
