@@ -7,7 +7,8 @@
  */
 
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import fs, { mkdir, readdir, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { mock } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
@@ -791,6 +792,39 @@ export class RuntimeLauncherTests {
 
     Assert.isTrue(isConnected, "the publication wakes the launcher while the runtime it started still runs and the directory stays owned");
     Assert.isTrue(await RuntimeLaunchFixture.waitForExitAsync(processId));
+  }
+
+  @TestMethod
+  public async startsTheRuntimeWhenItsDiscoveryIsPublishedWhileItsFirstReadIsStillReadingIt(): Promise<void> {
+    await using fake = await FakeRuntimeFixture.ownAsync();
+    const readFile = fs.readFile;
+    const slowRead = mock.method(fs, "readFile", async (...values: Parameters<typeof fs.readFile>): Promise<string | Buffer> => {
+      if (String(values[0]) === fake.dataDirectory.discoveryFile)
+        await delay(200);
+      return readFile(...values);
+    });
+    syncBuiltinESMExports();
+    try {
+      using reads = new FileReadsFixture(fake.dataDirectory.discoveryFile);
+      const read = reads.waitForMoreAsync(1);
+      const starter = new ScriptedStarterFixture("setInterval(() => {}, 1000);");
+      const attaching = UpdateBarrierFixture.createLauncher(fake.createSettings(30_000), RuntimeServerFixture.IDENTITY, starter, () => {})
+        .attachAsync("main", new ClientListenerFixture());
+
+      await read;
+      await fake.publishAsync();
+      const client = await attaching;
+      client.close();
+
+      Assert.areEqual(1, starter.processIds.length, "the launcher read no runtime, so it started one");
+      const processId = Number(starter.processIds[0]);
+      process.kill(processId);
+      Assert.isTrue(await RuntimeLaunchFixture.waitForExitAsync(processId));
+    }
+    finally {
+      slowRead.mock.restore();
+      syncBuiltinESMExports();
+    }
   }
 
   @TestMethod
