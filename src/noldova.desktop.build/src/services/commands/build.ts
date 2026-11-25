@@ -51,7 +51,9 @@ export class Build {
     const isListing = buildArguments.includes(Resources.buildListCopiesOption);
     const isTest = buildArguments[0] === Resources.buildTestOption;
     const isPackaged = buildArguments[0] === Resources.buildPackagedOption;
-    const options = buildArguments.slice(isTest || isPackaged ? 1 : 0);
+    const flags = buildArguments.slice(isTest || isPackaged ? 1 : 0);
+    const documentTabsCount = flags.filter(t => t === Resources.buildDocumentTabsOption).length;
+    const options = flags.filter(t => t !== Resources.buildDocumentTabsOption);
     const names = options.filter((_, i) => i % 2 === 0);
     const values = options.filter((_, i) => i % 2 === 1);
     const isWellFormed = options.length % 2 === 0
@@ -59,7 +61,8 @@ export class Build {
       && names.filter(t => t === Resources.outputOption).length < 2
       && names.filter(t => t === Resources.updateFeedOption).length < 2
       && values.every((t, i) => names[i] !== Resources.updateFeedOption || UpdateFeed.isValid(t))
-      && (!names.includes(Resources.updateFeedOption) || names.includes(Resources.outputOption));
+      && (!names.includes(Resources.updateFeedOption) || names.includes(Resources.outputOption))
+      && (documentTabsCount === 0 || (isTest && documentTabsCount === 1 && names.includes(Resources.outputOption)));
     if (isListing ? buildArguments.length > 1 : !isWellFormed || (!isTest && !isPackaged && options.length > 0)) {
       this.output.write(Resources.buildUsage);
       return Resources.usageExitCode;
@@ -71,7 +74,7 @@ export class Build {
         return 0;
       }
       const feedIndex = names.indexOf(Resources.updateFeedOption);
-      const variant = new BuildVariant(isTest, values.filter((_, i) => names[i] === Resources.buildWithoutOption), isPackaged, feedIndex < 0 ? null : String(values[feedIndex]));
+      const variant = new BuildVariant(isTest, values.filter((_, i) => names[i] === Resources.buildWithoutOption), isPackaged, feedIndex < 0 ? null : String(values[feedIndex]), documentTabsCount === 1);
       const outputIndex = names.indexOf(Resources.outputOption);
       const outputFolder = outputIndex < 0 ? null : path.resolve(String(values[outputIndex]));
       if (!Object.isNull(part.part))
@@ -92,7 +95,7 @@ export class Build {
         if (absent.length > 0)
           this.output.write(Resources.formatOptionalDependenciesAbsent(declaration.id, absent));
       }
-      await this.product.writeAsync();
+      await this.product.writeAsync(variant.isDocumentTabs);
       await this.gallery.writeAsync(variant.isPackaged);
       if (part.hasWindowChecks)
         await this.build.installAngularAsync(this.output, declarations, variant);

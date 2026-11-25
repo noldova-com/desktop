@@ -13,16 +13,16 @@ import { BuildVariant } from "../../../src/models/modules/build-variant.js";
 @TestClass
 export class BuildVariantTests {
   @TestMethod
-  public buildsTheRegularVariantWithoutTestsFixturesPackagingOrAFeed(): void {
+  public buildsTheRegularVariantWithoutTestsFixturesPackagingAFeedOrTheDocumentTabs(): void {
     const variant = BuildVariant.REGULAR;
 
-    Assert.areEqual("false||false|null", [variant.isTest, variant.excluded.join(","), variant.isPackaged, String(variant.updateFeed)].join("|"));
+    Assert.areEqual("false||false|null|false", [variant.isTest, variant.excluded.join(","), variant.isPackaged, String(variant.updateFeed), variant.isDocumentTabs].join("|"));
   }
 
   @TestMethod
   public keepsWhatItIsGiven(): void {
-    const variant = new BuildVariant(true, ["notes"], true, "https://example.com/feed/");
+    const variant = new BuildVariant(true, ["notes"], true, "https://example.com/feed/", true);
 
-    Assert.areEqual("true|notes|true|https://example.com/feed/", [variant.isTest, variant.excluded.join(","), variant.isPackaged, variant.updateFeed].join("|"));
+    Assert.areEqual("true|notes|true|https://example.com/feed/|true", [variant.isTest, variant.excluded.join(","), variant.isPackaged, variant.updateFeed, variant.isDocumentTabs].join("|"));
   }
 }

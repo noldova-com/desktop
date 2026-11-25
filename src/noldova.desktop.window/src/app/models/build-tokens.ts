@@ -16,7 +16,7 @@ import { Resources } from "../../resources.js";
 
 export class BuildTokens {
   public static readonly noAbout: IProductAbout = { description: null, website: null, releases: null, licenses: null, logo: null };
-  public static readonly noTitleBar: IProductTitleBar = { name: null, icon: null };
+  public static readonly noTitleBar: IProductTitleBar = { name: null, icon: null, documentTabs: false };
   public static readonly sources: InjectionToken<readonly WindowPartSource[]> = new InjectionToken<readonly WindowPartSource[]>(
     Resources.windowPartSourcesToken,
     { providedIn: "root", factory: () => [] });

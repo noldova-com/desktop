@@ -64,9 +64,9 @@ export interface IProductLogo {
 }
 
 /**
- * What an app shows at the start of the title bar, from its
- * `desktop.product.titleBarName` and `titleBarIcon`, each null when the app
- * gives none.
+ * What an app shows in the title bar, from its `desktop.product.titleBarName`,
+ * `titleBarIcon` and `titleBarDocumentTabs`: the name and icon at its start,
+ * each null when the app gives none, and whether the document tabs stand in it.
  */
 export interface IProductTitleBar {
   /**
@@ -81,6 +81,14 @@ export interface IProductTitleBar {
    * data: URL as it is; null for none.
    */
   readonly icon: string | null;
+
+  /**
+   * Whether the tab row of the first document group in reading order, the
+   * top-start one, stands in the title bar after the shell's buttons, with the
+   * search field after it; false, the default, keeps that row in its group and
+   * the search field in the title bar's centre.
+   */
+  readonly documentTabs: boolean;
 }
 
 /**

@@ -15,6 +15,7 @@ import { BuildSwap } from "./build-swap.ts";
 
 export class BuildVariantFixture {
   public static readonly noModules: string = "no-modules";
+  public static readonly documentTabs: string = "document-tabs";
 
   private static readonly BUILD_FOLDER: string = path.resolve("_build");
   private static readonly VARIANTS_FOLDER: string = path.join(BuildVariantFixture.BUILD_FOLDER, "variants");

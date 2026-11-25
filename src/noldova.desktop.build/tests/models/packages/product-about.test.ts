@@ -169,7 +169,7 @@ export class ProductAboutTests {
     const root = await ProductAboutTests.createAppAsync(about, icons);
     try {
       const file = new ProductFile(root);
-      await file.writeAsync();
+      await file.writeAsync(false);
       return await readFile(file.file, "utf8");
     }
     finally {
@@ -191,7 +191,7 @@ export class ProductAboutTests {
       String.empty,
       "export const productName: string = \"Sample App\";",
       `export const productAbout: IProductAbout = ${JSON.stringify(about)};`,
-      "export const productTitleBar: IProductTitleBar = {\"name\":null,\"icon\":null};",
+      "export const productTitleBar: IProductTitleBar = {\"name\":null,\"icon\":null,\"documentTabs\":false};",
       String.empty
     ].join("\n");
   }

@@ -7,13 +7,15 @@
  */
 
 export class ProductTitleBar {
-  public static readonly NONE: ProductTitleBar = new ProductTitleBar(null, null);
+  public static readonly NONE: ProductTitleBar = new ProductTitleBar(null, null, false);
 
   public readonly name: string | null;
   public readonly icon: string | null;
+  public readonly isDocumentTabs: boolean;
 
-  public constructor(name: string | null, icon: string | null) {
+  public constructor(name: string | null, icon: string | null, isDocumentTabs: boolean) {
     this.name = name;
     this.icon = icon;
+    this.isDocumentTabs = isDocumentTabs;
   }
 }

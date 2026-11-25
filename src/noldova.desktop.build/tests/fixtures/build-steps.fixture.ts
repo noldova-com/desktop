@@ -137,8 +137,8 @@ class StepProductFile extends ProductFile {
     this.record = record;
   }
 
-  public override async writeAsync(): Promise<void> {
-    await this.record("product-file");
+  public override async writeAsync(isDocumentTabs: boolean): Promise<void> {
+    await this.record(isDocumentTabs ? "product-file document-tabs" : "product-file");
   }
 }
 

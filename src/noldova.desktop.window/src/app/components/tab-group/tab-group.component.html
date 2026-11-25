@@ -16,8 +16,12 @@ LICENSE file in the root directory of this source tree.
         <ng-container [ngTemplateOutlet]="groupActions" />
       </div>
     </div>
-  } @else {
-    <div class="nol-tab-group-bar nol-tab-group-tabs" data-drop-tabs>
+  } @else if (!isInWindowRow()) {
+    <ng-container [ngTemplateOutlet]="bar" />
+  }
+  <ng-template #bar>
+    <div #barElement class="nol-tab-group-bar nol-tab-group-tabs" [class.nol-tab-group-in-window-row]="isInWindowRow()" data-drop-tabs [attr.data-drop-group]="group().id"
+      (focusin)="layout.focusGroup(group().id)">
       <div #scroller="nolTabScroller" class="nol-tab-group-scroller" [nolTabScroller]="actionBar" [nolTabScrollerFrame]="frame()" [nolTabScrollerRows]="rowActions().length">
         <div class="nol-tab-group-strip" role="tablist" (keydown)="onStripKey($event)">
           @for (tab of group().tabs; track tab.key; let index = $index) {
@@ -71,7 +75,7 @@ LICENSE file in the root directory of this source tree.
         </div>
       </div>
     </div>
-  }
+  </ng-template>
   <ng-template #groupActions let-folded>
     @if (!folded && group().active; as active) {
       <nol-place-menu #actions [place]="resources.tabMenu" [context]="{ tab: active.key }" />
