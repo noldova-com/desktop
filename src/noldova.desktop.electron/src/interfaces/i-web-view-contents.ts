@@ -53,7 +53,7 @@ export interface IWebViewContents {
   on(event: "did-start-navigation", listener: (navigation: IWindowNavigation) => void): unknown;
   on(event: "will-attach-webview", listener: (event: IPreventableEvent) => void): unknown;
   on(event: "before-input-event", listener: (event: IPreventableEvent, input: IWebViewInput) => void): unknown;
-  on(event: "did-start-loading" | "did-stop-loading" | "did-navigate" | "did-navigate-in-page" | "page-title-updated" | "destroyed", listener: () => void): unknown;
+  on(event: "did-start-loading" | "did-stop-loading" | "dom-ready" | "did-navigate" | "did-navigate-in-page" | "page-title-updated" | "destroyed", listener: () => void): unknown;
   on(event: "did-fail-load", listener: (event: unknown, code: number, description: string, url: string, isMainFrame: boolean) => void): unknown;
   on(event: "render-process-gone", listener: (event: unknown, details: RenderProcessGoneDetails) => void): unknown;
   on(event: "certificate-error", listener: (event: IPreventableEvent, url: string, error: string, certificate: unknown, callback: (isTrusted: boolean) => void) => void): unknown;

@@ -3760,7 +3760,7 @@ export interface IWebViewContents {
    * @param listener Called on each change, and once when the contents are destroyed.
    * @returns Electron's own return value, which the main process does not use.
    */
-  on(event: "did-start-loading" | "did-stop-loading" | "did-navigate" | "did-navigate-in-page" | "page-title-updated" | "destroyed", listener: () => void): unknown;
+  on(event: "did-start-loading" | "did-stop-loading" | "dom-ready" | "did-navigate" | "did-navigate-in-page" | "page-title-updated" | "destroyed", listener: () => void): unknown;
 
   /**
    * Listens for a load that failed.

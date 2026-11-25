@@ -281,6 +281,7 @@ export class Resources {
   public static readonly nullOrigin: string = "null";
   public static readonly willFrameNavigateEvent: "will-frame-navigate" = "will-frame-navigate";
   public static readonly didStopLoadingEvent: "did-stop-loading" = "did-stop-loading";
+  public static readonly domReadyEvent: "dom-ready" = "dom-ready";
   public static readonly didNavigateEvent: "did-navigate" = "did-navigate";
   public static readonly didNavigateInPageEvent: "did-navigate-in-page" = "did-navigate-in-page";
   public static readonly pageTitleUpdatedEvent: "page-title-updated" = "page-title-updated";
