@@ -170,6 +170,16 @@ Noldova Desktop's packages take context's packages and the kit as ranges, as mod
 - The module's code gives the other program the file's unpacked copy, with Runtime's `PackagedPath.unpacked(file)`, which turns the path's first `app.asar` segment into `app.asar.unpacked` and leaves a checkout's path as it is.
   Electron's own file access reads either path.
 
+### Source the app must offer
+
+- A package whose licence calls for its complete corresponding source to go with the app, such as a GPL program it ships, names where its upstream publishes that source, in its `package.json`, and holds its licence file; `noldovaDesktop.unpacked` may then be left out.
+  - `noldovaDesktop.sourcePages`, a non-empty list of the HTTPS addresses of the pages that publish it, such as the release, tag or commit it was built from.
+  - `noldovaDesktop.sources`, a non-empty list of `{ "url", "size", "sha256" }`, one for each file of that source: its HTTPS address, its size in bytes and its SHA-256 in lowercase hex.
+  - For example, `"noldovaDesktop": { "sourcePages": ["https://github.com/<owner>/<repo>/tree/<tag>"], "sources": [{ "url": "https://<host>/<name>.tar.xz", "size": 8494608, "sha256": "<64 hex digits>" }] }`.
+  - The app keeps no copy of the source, so the upstream addresses must keep serving it.
+- Packaging adds the package's licence, its pages and each source file's address and SHA-256 to the app's third-party licence notice, and lists the pages in the target's package report, as [BUILD.md](BUILD.md#packaging) says; it refuses, naming the package, lists of another shape and a package without a licence file.
+- Each release's notes link the pages the packages name, once each, and say that the licence notice lists each source file, as [BUILD.md](BUILD.md#publication) says.
+
 ### What fails closed
 
 The build refuses:

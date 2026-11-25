@@ -21,6 +21,8 @@ import { PackageTarget } from "../../../src/models/packaging/package-target.js";
 import { Resources } from "../../../src/resources.js";
 import { ReleasePublish } from "../../../src/services/commands/release-publish.js";
 import { ReleaseFileSet } from "../../../src/services/release/release-file-set.js";
+import { CommandRunFixture } from "../../fixtures/command-run.fixture.js";
+import { EnvironmentCaseFixture } from "../../fixtures/environment-case.fixture.js";
 import { GitHubReleasesFixture } from "../../fixtures/github-releases.fixture.js";
 import { InstalledAppFixture } from "../../fixtures/installed-app.fixture.js";
 
@@ -147,15 +149,15 @@ export class ReleasePublishTests {
     await using app = await ReleasePublishTests.createAppAsync();
     const base = ReleasePublishTests.environment(app, ReleasePublishTests.VERSION);
     const marked = path.join(app.path, "release#1");
-    const cases: readonly (readonly [NodeJS.ProcessEnv, string])[] = [
-      [{ ...base, RELEASE_FOLDER: "release" }, "RELEASE_FOLDER must be the absolute path of the folder that holds the release's files, not \"release\"."],
-      [{ ...base, RELEASE_FOLDER: undefined }, "RELEASE_FOLDER must be the absolute path of the folder that holds the release's files, not \"\"."],
-      [{ ...base, RELEASE_FOLDER: marked }, `RELEASE_FOLDER must not contain #, which gh release upload reads as the start of a file's label: "${marked}".`],
-      [{ ...base, RELEASE_REPORTS: "reports" }, "RELEASE_REPORTS must be the absolute path of the folder that holds the targets' package reports, not \"reports\"."],
-      [{ ...base, RELEASE_REPORTS: undefined }, "RELEASE_REPORTS must be the absolute path of the folder that holds the targets' package reports, not \"\"."]
+    const cases: readonly EnvironmentCaseFixture[] = [
+      new EnvironmentCaseFixture({ ...base, RELEASE_FOLDER: "release" }, "RELEASE_FOLDER must be the absolute path of the folder that holds the release's files, not \"release\"."),
+      new EnvironmentCaseFixture({ ...base, RELEASE_FOLDER: undefined }, "RELEASE_FOLDER must be the absolute path of the folder that holds the release's files, not \"\"."),
+      new EnvironmentCaseFixture({ ...base, RELEASE_FOLDER: marked }, `RELEASE_FOLDER must not contain #, which gh release upload reads as the start of a file's label: "${marked}".`),
+      new EnvironmentCaseFixture({ ...base, RELEASE_REPORTS: "reports" }, "RELEASE_REPORTS must be the absolute path of the folder that holds the targets' package reports, not \"reports\"."),
+      new EnvironmentCaseFixture({ ...base, RELEASE_REPORTS: undefined }, "RELEASE_REPORTS must be the absolute path of the folder that holds the targets' package reports, not \"\".")
     ];
 
-    for (const [environment, message] of cases) {
+    for (const { environment, message } of cases) {
       const result = await ReleasePublishTests.runAsync(app.path, new GitHubReleasesFixture(), environment);
 
       Assert.areEqual(1, result.exitCode, message);
@@ -208,6 +210,22 @@ export class ReleasePublishTests {
       + "but didn't install or start: https://github.com/example/sample-app/actions/runs/1")), github.requests.join("\n"));
   }
 
+  @TestMethod
+  public async linksInTheNotesTheUpstreamSourcePagesThePackagesNameAndUploadsOnlyTheReleaseFilesAsync(): Promise<void> {
+    const page = "https://example.com/git/tree/v1.0.0";
+    await using app = await ReleasePublishTests.createAppAsync("1.2.3", ReleasePublishTests.TARGETS, [], [page]);
+    const github = new GitHubReleasesFixture();
+    const environment = { ...ReleasePublishTests.environment(app, String.empty), RELEASE_INTERNAL_VERSION: undefined };
+
+    const result = await ReleasePublishTests.runAsync(app.path, github, environment);
+
+    Assert.areEqual(0, result.exitCode, result.output);
+    Assert.isTrue(result.output.endsWith(`with ${new ReleaseFileSet("Sample App", "1.2.3", ReleasePublishTests.TARGETS).listAll().length} files.\n`), result.output);
+    Assert.isTrue(github.requests.some(t => t.includes("--raw-field body=") && t.includes(`which their upstream publishes at ${page}; the app's licence notice lists each source file`)),
+      github.requests.join("\n"));
+    Assert.isFalse(github.requests.some(t => t.includes(page) && !t.includes("--raw-field body=")), github.requests.join("\n"));
+  }
+
   private static environment(app: InstalledAppFixture, version: string): NodeJS.ProcessEnv {
     return {
       RELEASE_REPOSITORY: "example/sample-app",
@@ -221,16 +239,16 @@ export class ReleasePublishTests {
     };
   }
 
-  private static async runAsync(root: string, github: GitHubReleasesFixture, environment: NodeJS.ProcessEnv): Promise<{ readonly exitCode: number; readonly output: string }> {
+  private static async runAsync(root: string, github: GitHubReleasesFixture, environment: NodeJS.ProcessEnv): Promise<CommandRunFixture> {
     const output = new PassThrough();
     const chunks: string[] = [];
     output.on("data", (t: Buffer) => chunks.push(t.toString()));
     const exitCode = await new ReleasePublish(root, github, environment, output).runAsync([]);
-    return { exitCode, output: chunks.join(String.empty) };
+    return new CommandRunFixture(exitCode, chunks.join(String.empty));
   }
 
   private static async createAppAsync(written: string = ReleasePublishTests.VERSION, targets: readonly PackageTarget[] = ReleasePublishTests.TARGETS,
-    unstarted: readonly string[] = []): Promise<InstalledAppFixture> {
+    unstarted: readonly string[] = [], sourcePages: readonly string[] = []): Promise<InstalledAppFixture> {
     const app = await InstalledAppFixture.createAsync();
     const manifest = await readFile(path.join(app.path, "package.json"), "utf8");
     await app.writeAppFileAsync("package.json", manifest.replace("\"desktop\":{", `"desktop":{"signedPlatforms":${JSON.stringify(ReleasePublishTests.SIGNED)},`));
@@ -240,7 +258,7 @@ export class ReleasePublishTests {
         await app.writeAppFileAsync(`release/${name}`, `${name} bytes`);
       await set.writeAsync(path.join(app.path, "release"), target, ReleasePublishTests.DATE, () => null);
       const isSigned = ReleasePublishTests.SIGNED.includes(target.platform);
-      await new PackageReport(target.id, isSigned, isSigned, !unstarted.includes(target.id)).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
+      await new PackageReport(target.id, isSigned, isSigned, !unstarted.includes(target.id), sourcePages).writeAsync(await app.writeAppFileAsync(`reports/${target.id}/${Resources.packageReportFile}`, String.empty));
     }
     return app;
   }
