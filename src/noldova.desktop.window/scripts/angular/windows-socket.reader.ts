@@ -17,6 +17,8 @@ export class WindowsSocketReader {
   private static readonly TIMEOUT: number = 10_000;
   private static readonly ENCODING: BufferEncoding = "utf8";
   private static readonly OTHER_PLATFORM: string = "Socket state is read on Windows only.";
+  private static readonly MEMORY_SCRIPT: string = "'pool ' + (Get-CimInstance Win32_PerfRawData_PerfOS_Memory).PoolNonpagedBytes; "
+    + "Get-Process -Name chrome*, node -ErrorAction SilentlyContinue | ForEach-Object { 'process ' + $_.ProcessName + ' ' + $_.Id + ' ' + $_.HandleCount + ' ' + $_.WorkingSet64 }";
 
   public readConnections(): string {
     return WindowsSocketReader.run("netstat", ["-ano", "-p", "tcp"]);
@@ -24,6 +26,10 @@ export class WindowsSocketReader {
 
   public readPortRange(): string {
     return WindowsSocketReader.run("netsh", ["int", "ipv4", "show", "dynamicport", "tcp"]);
+  }
+
+  public readMemory(): string {
+    return WindowsSocketReader.run("powershell", ["-NoProfile", "-NonInteractive", "-Command", WindowsSocketReader.MEMORY_SCRIPT]);
   }
 
   private static run(command: string, arguments_: readonly string[]): string {

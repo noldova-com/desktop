@@ -13,6 +13,7 @@ import type { IBrowserPage } from "./interfaces/i-browser-page.ts";
 import type { IBrowserRequest } from "./interfaces/i-browser-request.ts";
 import type { IBrowserResponse } from "./interfaces/i-browser-response.ts";
 import type { IVitestRun } from "./interfaces/i-vitest-run.ts";
+import { MemorySummary } from "./memory-summary.ts";
 import { OpenRequest } from "./open-request.ts";
 import { SocketStateException } from "./socket-state.exception.ts";
 import { SocketSummary } from "./socket-summary.ts";
@@ -90,6 +91,20 @@ export class FailedModuleRequests {
     }
     this.isSocketStateRead = true;
     this.log(this.socketState(request.url(), start), run);
+    this.log(this.memoryState(), run);
+  }
+
+  private memoryState(): string {
+    let state: string;
+    try {
+      state = MemorySummary.format(this.sockets.readMemory());
+    }
+    catch (error) {
+      if (!(error instanceof SocketStateException))
+        throw error;
+      state = `unread, ${error.message}`;
+    }
+    return `Memory state at ${new Date().toISOString()}: ${state}`;
   }
 
   private socketState(url: string, start: number | undefined): string {

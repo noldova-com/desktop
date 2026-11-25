@@ -21,6 +21,7 @@ import type { IFailedRequest } from "../interfaces/i-failed-request.ts";
 import type { IVitestLogger } from "../interfaces/i-vitest-logger.ts";
 import type { IVitestPluginContext } from "../interfaces/i-vitest-plugin-context.ts";
 import type { IVitestRun } from "../interfaces/i-vitest-run.ts";
+import { MemorySummary } from "../memory-summary.ts";
 import { SocketSummary } from "../socket-summary.ts";
 
 const NOW = Date.UTC(2026, 10, 16, 5, 40, 41, 619);
@@ -180,6 +181,10 @@ const SOCKET_STATE = process.platform === "win32"
   ? /^\d+ TCP sockets, .+; to or from port 63315: .+; most held outside TIME_WAIT by process .+; dynamic ports from \d+, \d+ of them$/u
   : /^unread, Socket state is read on Windows only\.$/u;
 
+const MEMORY_STATE = process.platform === "win32"
+  ? /^non-paged pool \d+\.\d MB; .+$/u
+  : /^unread, Socket state is read on Windows only\.$/u;
+
 const STYLES = "http://localhost:63315/styles.css";
 const CHUNK = "http://localhost:63315/chunk-GKUIELHC.js";
 const SPEC = "http://localhost:63315/@fs/b.spec.ts?import";
@@ -200,7 +205,7 @@ describe("FailedModuleRequests", () => {
     assert.deepEqual(recorder.watch(contextOf(page, [])), [line]);
   });
 
-  it("prints the socket state after a module request that fails for want of buffer space or ports, with how long after the request started: its summary on Windows, why it is unread elsewhere", () => {
+  it("prints the socket and memory state after a module request that fails for want of buffer space or ports, with how long after the request started: their summaries on Windows, why they are unread elsewhere", () => {
     const { recorder, page, logged } = watch();
     const failed = page.open("script", CHUNK, "net::ERR_NO_BUFFER_SPACE");
     mock.timers.tick(2_500);
@@ -209,12 +214,14 @@ describe("FailedModuleRequests", () => {
 
     const line = `Failed module request at ${at(2_500)}: net::ERR_NO_BUFFER_SPACE ${CHUNK}`;
     const prefix = `Socket state at ${at(2_500)}, 2.5 s after it started at ${AT}: `;
-    assert.deepEqual(logged.map(t => t.startsWith(prefix) ? prefix : t), [line, prefix]);
-    assert.match(logged.at(-1)?.slice(prefix.length) ?? String.empty, SOCKET_STATE);
+    const memoryPrefix = `Memory state at ${at(2_500)}: `;
+    assert.deepEqual(logged.map(t => t.startsWith(prefix) ? prefix : t.startsWith(memoryPrefix) ? memoryPrefix : t), [line, prefix, memoryPrefix]);
+    assert.match(logged.at(-2)?.slice(prefix.length) ?? String.empty, SOCKET_STATE);
+    assert.match(logged.at(-1)?.slice(memoryPrefix.length) ?? String.empty, MEMORY_STATE);
     assert.deepEqual(recorder.watch(contextOf(page, [])), [line]);
   });
 
-  it("reads the socket state for the first such failure alone, saying when its request's start went unseen, and counts the later ones when the run closes", () => {
+  it("reads the socket and memory state for the first such failure alone, saying when its request's start went unseen, and counts the later ones when the run closes", () => {
     const { page, logged, closes } = watch();
 
     page.fail("script", "net::ERR_INSUFFICIENT_RESOURCES", CHUNK);
@@ -225,6 +232,7 @@ describe("FailedModuleRequests", () => {
 
     const prefix = `Socket state at ${AT}, its start unseen: `;
     assert.deepEqual(logged.filter(t => t.startsWith("Socket")).map(t => t.startsWith(prefix) ? prefix : t), [prefix, "Socket errors after the first, their state unread: 2"]);
+    assert.equal(logged.filter(t => t.startsWith("Memory state at")).length, 1);
   });
 
   it("lets a failure other than an unread socket state out of the listener rather than print it as unread", t => {
@@ -237,6 +245,18 @@ describe("FailedModuleRequests", () => {
 
     assert.throws(() => page.fail("script", "net::ERR_NO_BUFFER_SPACE", CHUNK), RangeError);
     assert.deepEqual(logged.filter(u => u.startsWith("Socket")), []);
+  });
+
+  it("lets a failure other than an unread memory state out of the listener rather than print it as unread", t => {
+    t.mock.property(process, "platform", "win32");
+    t.mock.method(childProcess, "execFileSync", () => String.empty);
+    t.mock.method(MemorySummary, "format", () => {
+      throw new RangeError("summary broke");
+    });
+    const { page, logged } = watch();
+
+    assert.throws(() => page.fail("script", "net::ERR_NO_BUFFER_SPACE", CHUNK), RangeError);
+    assert.deepEqual(logged.filter(u => u.startsWith("Memory")), []);
   });
 
   it("reads no socket state for a module request that fails otherwise, such as refused or cancelled, and counts none when the run closes", () => {
