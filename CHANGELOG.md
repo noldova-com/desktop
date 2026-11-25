@@ -11,7 +11,8 @@ Modules and apps must act on two points:
 - `@noldova/desktop.window` needs `@noldova/ui.components.angular` 0.0.32 or later, below 0.1.0.
 
 A web view declaration that lists one of the five methods newly refused below no longer builds; none of the modules lists them.
-Nothing else needs a module or app to act: every other change to the packages' API is additive, and the main process's own interfaces, such as `ITrayHost`, have no implementer outside Noldova Desktop.
+Two changes to the electron package's API are not additive, and neither has a caller or implementer outside Noldova Desktop, since an app starts the package's `main.js`: `MainProcess.startAsync` takes a required `readUpdateFeed`, and its `createUpdater` takes the feed in place of `isPackaged`; and `ITrayHost` gains `createMenuIcon`.
+Nothing else needs a module or app to act: every other change to the packages' API is additive.
 
 - A window part may run `desktop.openSettings` with its context's `runCommandAsync`, beside `desktop.search`, so a module's link can open Settings on one of its pages; every other Noldova Desktop command is still refused.
 - An app lists its tray menu's items in `desktop.product.tray`: the built-in rows in its order, separators, and rows that run a module's command, each with an optional icon and a dark one, and labels of its own for the built-in rows; the build refuses an invalid entry, naming its field, and an app without a list keeps today's menu.
