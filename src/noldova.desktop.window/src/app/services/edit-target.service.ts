@@ -7,7 +7,7 @@
  */
 
 import { DOCUMENT } from "@angular/common";
-import { Injectable, type Signal, type WritableSignal, inject, signal } from "@angular/core";
+import { Injectable, type Signal, type WritableSignal, inject, signal, untracked } from "@angular/core";
 
 import { EditAction } from "@noldova/desktop.protocol";
 
@@ -28,10 +28,10 @@ export class EditTargetService {
   public readonly hasFocus: Signal<boolean> = this.hasFocusValue.asReadonly();
 
   public constructor() {
-    this.document.addEventListener(Resources.focusInEvent, event => this.follow(event.target), true);
-    this.document.addEventListener(Resources.focusOutEvent, event => this.keep(event.target, event.relatedTarget), true);
-    this.document.defaultView?.addEventListener(Resources.windowFocusEvent, () => this.hasFocusValue.set(true));
-    this.document.defaultView?.addEventListener(Resources.windowBlurEvent, () => this.hasFocusValue.set(false));
+    this.document.addEventListener(Resources.focusInEvent, event => untracked(() => this.follow(event.target)), true);
+    this.document.addEventListener(Resources.focusOutEvent, event => untracked(() => this.keep(event.target, event.relatedTarget)), true);
+    this.document.defaultView?.addEventListener(Resources.windowFocusEvent, () => untracked(() => this.hasFocusValue.set(true)));
+    this.document.defaultView?.addEventListener(Resources.windowBlurEvent, () => untracked(() => this.hasFocusValue.set(false)));
   }
 
   public isEditFocused(): boolean {

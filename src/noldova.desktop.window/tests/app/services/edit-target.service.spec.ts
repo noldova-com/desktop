@@ -8,12 +8,26 @@
 
 import "@noldova/context.core";
 import { EditAction } from "@noldova/desktop.protocol";
+import { Component, signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 
 import type { ISelectionSource } from "../../../src/app/interfaces/i-selection-source";
 import { EditTargetService } from "../../../src/app/services/edit-target.service";
 import { DomFixture } from "../../fixtures/dom.fixture";
 import { EditTargetFixture } from "../../fixtures/edit-target.fixture";
+
+@Component({
+  selector: "nol-test-focus-move",
+  template: "{{ move() }}"
+})
+class FocusMoveComponent {
+  public readonly next = signal<HTMLElement | null>(null);
+
+  public move(): string {
+    this.next()?.focus();
+    return "";
+  }
+}
 
 describe("EditTargetService", () => {
   let page: EditTargetFixture;
@@ -276,5 +290,31 @@ describe("EditTargetService", () => {
     expect(removed).toEqual([false, null]);
     expect(replaced).toBe("second");
     expect(offPage).toEqual([false, null]);
+  });
+
+  it("follows a focus change made inside a template update without writing a signal inside it", () => {
+    const edits = TestBed.inject(EditTargetService);
+    const field = page.find(".field", HTMLInputElement);
+    const errors: unknown[] = [];
+    const record = (event: ErrorEvent): void => {
+      errors.push(event.error);
+      event.preventDefault();
+    };
+    const fixture = TestBed.createComponent(FocusMoveComponent);
+    fixture.detectChanges();
+    field.focus();
+    window.addEventListener("error", record);
+    try {
+      fixture.componentInstance.next.set(elsewhere);
+      fixture.detectChanges();
+    }
+    finally {
+      window.removeEventListener("error", record);
+      fixture.destroy();
+    }
+
+    expect(errors).toEqual([]);
+    expect(document.activeElement).toBe(elsewhere);
+    expect([edits.isEditFocused(), actions(edits)]).toEqual([false, []]);
   });
 });
