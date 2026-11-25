@@ -130,6 +130,27 @@ describe("The document tabs in the window row", () => {
         expect(getComputedStyle(DomFixture.one(tabs, ".nol-tab-group-actions")).backgroundColor).toBe(AppearanceFixture.readColor(DefaultTheme.theme, mode, "title-bar"));
       });
 
+  for (const platform of ["win32", "darwin", "linux"])
+    it(`narrows the search field to its 12rem before the tabs give up any width, in a row too narrow for both at full width, on ${platform}`, async () => {
+      useDocumentTabs(true);
+      await renderAsync(platform);
+      const tabs = DomFixture.one(row(), ".nol-window-row-tabs");
+      const strip = DomFixture.one(tabs, ".nol-tab-group-tabs");
+      const actions = DomFixture.one(tabs, ".nol-tab-group-actions");
+      const lastTab = (): DOMRect => [...tabs.querySelectorAll("nol-tab")].at(-1)?.getBoundingClientRect() ?? strip.getBoundingClientRect();
+      const tabsWidth = lastTab().right - strip.getBoundingClientRect().left + actions.getBoundingClientRect().width;
+      const startEnd = DomFixture.one(row(), ".nol-window-row-start").getBoundingClientRect().right - row().getBoundingClientRect().left;
+      row().style.width = `${startEnd + tabsWidth + AppearanceFixture.toPixels(6 + 20)}px`;
+      await settleAsync();
+
+      const search = DomFixture.one(row(), ".nol-window-row-search").getBoundingClientRect();
+      expect(search.width).toBeLessThan(AppearanceFixture.toPixels(27.5) - 0.5);
+      expect(search.width).toBeGreaterThanOrEqual(AppearanceFixture.toPixels(12) - 0.5);
+      expect(lastTab().right).toBeLessThanOrEqual(actions.getBoundingClientRect().left + 0.5);
+      expect(actions.getBoundingClientRect().right).toBeLessThanOrEqual(tabs.getBoundingClientRect().right + 0.5);
+      expect(search.left).toBeGreaterThanOrEqual(tabs.getBoundingClientRect().right + AppearanceFixture.toPixels(6) - 0.5);
+    });
+
   it("keeps the row a drag region around the tabs and takes only the tabs and the buttons out of it", async () => {
     useDocumentTabs(true);
     await renderAsync("win32");
