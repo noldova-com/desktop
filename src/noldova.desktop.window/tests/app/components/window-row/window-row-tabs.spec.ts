@@ -140,13 +140,15 @@ describe("The document tabs in the window row", () => {
       const lastTab = (): DOMRect => [...tabs.querySelectorAll("nol-tab")].at(-1)?.getBoundingClientRect() ?? strip.getBoundingClientRect();
       const tabsWidth = lastTab().right - strip.getBoundingClientRect().left + actions.getBoundingClientRect().width;
       const startEnd = DomFixture.one(row(), ".nol-window-row-start").getBoundingClientRect().right - row().getBoundingClientRect().left;
+      const endWidth = row().getBoundingClientRect().right - DomFixture.one(row(), ".nol-window-row-middle").getBoundingClientRect().right;
       expect(tabsWidth).toBeGreaterThan(AppearanceFixture.toPixels(10) + 0.5);
-      row().style.width = `${startEnd + tabsWidth + AppearanceFixture.toPixels(6 + 20)}px`;
+      row().style.width = `${startEnd + tabsWidth + AppearanceFixture.toPixels(6 + 20) + endWidth}px`;
       await settleAsync();
 
       const search = DomFixture.one(row(), ".nol-window-row-search").getBoundingClientRect();
       expect(search.width).toBeLessThan(AppearanceFixture.toPixels(27.5) - 0.5);
       expect(search.width).toBeGreaterThanOrEqual(AppearanceFixture.toPixels(12) - 0.5);
+      expect(lastTab().right - strip.getBoundingClientRect().left + actions.getBoundingClientRect().width).toBeGreaterThanOrEqual(tabsWidth - 0.5);
       expect(lastTab().right).toBeLessThanOrEqual(actions.getBoundingClientRect().left + 0.5);
       expect(actions.getBoundingClientRect().right).toBeLessThanOrEqual(tabs.getBoundingClientRect().right + 0.5);
       expect(search.left).toBeGreaterThanOrEqual(tabs.getBoundingClientRect().right + AppearanceFixture.toPixels(6) - 0.5);
