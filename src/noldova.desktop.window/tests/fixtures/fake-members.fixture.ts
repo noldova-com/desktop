@@ -6,31 +6,32 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
 import { Fake, UnansweredCallException } from "@noldova/desktop.protocol/testing";
 
 import { MemberAnsweredException } from "../exceptions/member-answered.exception";
-import type { FakeMember } from "../types/fake-member";
+import type { FakeMember } from "../models/fake-member";
 
 export class FakeMembersFixture {
   private static readonly ASYNC_SUFFIX: string = "Async";
 
   public static check<T extends object>(create: () => Fake<T> & T, members: Readonly<Record<string, FakeMember<T>>>): void {
     for (const [member, entry] of Object.entries(members))
-      it(`stands in for ${member} as a member that is ${entry[0]}`, async () => {
+      it(`stands in for ${member} as a member that is ${entry.kind}`, async () => {
         await FakeMembersFixture.checkMemberAsync(create(), member, entry);
       });
   }
 
   private static async checkMemberAsync<T extends object>(fake: Fake<T> & T, member: string, entry: FakeMember<T>): Promise<void> {
-    if (entry[0] === "tracked" || entry[0] === "listened") {
-      const dispose = entry[1](fake);
+    if (!Object.isNull(entry.track)) {
+      const dispose = entry.track(fake);
       const active = FakeMembersFixture.activeOf(fake);
       dispose();
       expect([fake.calls.map(t => t.member), active, FakeMembersFixture.activeOf(fake)]).toEqual([[member], 1, 0]);
       return;
     }
-    const [kind, call] = entry;
-    switch (kind) {
+    const call = entry.call;
+    switch (entry.kind) {
       case "property":
         expect([FakeMembersFixture.unanswered(() => call(fake)), fake.calls.length]).toEqual([member, 0]);
         break;

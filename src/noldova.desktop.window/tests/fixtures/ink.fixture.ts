@@ -25,13 +25,17 @@ export class InkFixture {
       throw new CanvasContextMissingException();
     context.drawImage(shot, 0, 0);
     const pixels = context.getImageData(0, 0, shot.width, shot.height);
-    const [box, part, ratio] = [element.getBoundingClientRect(), later.getBoundingClientRect(), devicePixelRatio];
-    const [originX, originY] = [Math.floor(box.left * ratio), Math.floor(box.top * ratio)];
+    const box = element.getBoundingClientRect();
+    const part = later.getBoundingClientRect();
+    const ratio = devicePixelRatio;
+    const originX = Math.floor(box.left * ratio);
+    const originY = Math.floor(box.top * ratio);
     const first = Math.ceil(box.left * ratio) - originX;
     const columns = Array.from({ length: Math.max(0, Math.floor(part.left * ratio) - originX - first) }, (_, i) => first + i);
     const rows = Array.from({ length: Math.floor(part.bottom * ratio) - Math.ceil(part.top * ratio) }, (_, i) => Math.ceil(part.top * ratio) - originY + i);
     const difference = (x: number, y: number): number => {
-      const [at, edge] = [(y * pixels.width + x) * 4, (y * pixels.width + first) * 4];
+      const at = (y * pixels.width + x) * 4;
+      const edge = (y * pixels.width + first) * 4;
       return Math.max(...[0, 1, 2].map(t => Math.abs((pixels.data[at + t] ?? 0) - (pixels.data[edge + t] ?? 0))));
     };
     const strongest = Math.max(0, ...columns.flatMap(x => rows.map(y => difference(x, y))));

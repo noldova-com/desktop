@@ -8,14 +8,14 @@
 
 import type { IWindowPalette } from "@noldova/desktop.window";
 
-import type { FakeMember } from "../types/fake-member";
+import { FakeMember } from "../models/fake-member";
 import { FakeMembersFixture } from "./fake-members.fixture";
 import { FakeWindowPalette } from "./fake-window-palette.fixture";
 
 const MEMBERS: Readonly<Record<keyof IWindowPalette<unknown>, FakeMember<IWindowPalette<unknown>>>> = {
-  close: ["told", t => t.close()],
-  componentRef: ["property", t => t.componentRef],
-  closed: ["property", t => t.closed]
+  close: FakeMember.told(t => t.close()),
+  componentRef: FakeMember.property(t => t.componentRef),
+  closed: FakeMember.property(t => t.closed)
 };
 
 describe("FakeWindowPalette", () => {

@@ -7,6 +7,8 @@
  */
 
 import "@noldova/context.core";
+import type { ElementRef } from "@angular/core";
+import type { ComponentFixture } from "@angular/core/testing";
 
 import { ElementMissingException } from "../exceptions/element-missing.exception";
 import { ElementTypeMismatchException } from "../exceptions/element-type-mismatch.exception";
@@ -15,7 +17,7 @@ import { NoAncestorMatchesException } from "../exceptions/no-ancestor-matches.ex
 import { NoElementMatchesException } from "../exceptions/no-element-matches.exception";
 
 export class DomFixture {
-  public static host(fixture: { readonly nativeElement: unknown }): HTMLElement {
+  public static host(fixture: ComponentFixture<unknown> | ElementRef<unknown>): HTMLElement {
     const host = fixture.nativeElement;
     if (!(host instanceof HTMLElement))
       throw new HostNotElementException();
