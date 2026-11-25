@@ -133,13 +133,14 @@ describe("The document tabs in the window row", () => {
   for (const platform of ["win32", "darwin", "linux"])
     it(`narrows the search field to its 12rem before the tabs give up any width, in a row too narrow for both at full width, on ${platform}`, async () => {
       useDocumentTabs(true);
-      await renderAsync(platform);
+      await renderAsync(platform, prepared.openDocument(LayoutFixture.settings));
       const tabs = DomFixture.one(row(), ".nol-window-row-tabs");
       const strip = DomFixture.one(tabs, ".nol-tab-group-tabs");
       const actions = DomFixture.one(tabs, ".nol-tab-group-actions");
       const lastTab = (): DOMRect => [...tabs.querySelectorAll("nol-tab")].at(-1)?.getBoundingClientRect() ?? strip.getBoundingClientRect();
       const tabsWidth = lastTab().right - strip.getBoundingClientRect().left + actions.getBoundingClientRect().width;
       const startEnd = DomFixture.one(row(), ".nol-window-row-start").getBoundingClientRect().right - row().getBoundingClientRect().left;
+      expect(tabsWidth).toBeGreaterThan(AppearanceFixture.toPixels(10) + 0.5);
       row().style.width = `${startEnd + tabsWidth + AppearanceFixture.toPixels(6 + 20)}px`;
       await settleAsync();
 
