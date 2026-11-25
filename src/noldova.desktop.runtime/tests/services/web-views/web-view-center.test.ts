@@ -22,9 +22,9 @@ import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import type { RawConnectionFixture } from "../../fixtures/raw-connection.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 import { TextOutputFixture } from "../../fixtures/text-output.fixture.js";
-import { WebViewCenterPartsFixture } from "../../fixtures/web-view-center-parts.fixture.js";
 import { UpdateBarrierFixture } from "../../fixtures/update-barrier.fixture.js";
 import { WaitFixture } from "../../fixtures/wait.fixture.js";
+import { WebViewCenterPartsFixture } from "../../fixtures/web-view-center-parts.fixture.js";
 
 @TestClass
 export class WebViewCenterTests {
