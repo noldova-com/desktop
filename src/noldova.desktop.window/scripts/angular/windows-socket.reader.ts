@@ -17,7 +17,7 @@ export class WindowsSocketReader {
   private static readonly TIMEOUT: number = 10_000;
   private static readonly ENCODING: BufferEncoding = "utf8";
   private static readonly OTHER_PLATFORM: string = "Socket state is read on Windows only.";
-  private static readonly MEMORY_SCRIPT: string = "'pool ' + (Get-CimInstance Win32_PerfRawData_PerfOS_Memory).PoolNonpagedBytes; "
+  private static readonly MEMORY_SCRIPT: string = "'pool ' + [System.Diagnostics.PerformanceCounter]::new('Memory', 'Pool Nonpaged Bytes').RawValue; "
     + "Get-Process -Name chrome*, node -ErrorAction SilentlyContinue | ForEach-Object { 'process ' + $_.ProcessName + ' ' + $_.Id + ' ' + $_.HandleCount + ' ' + $_.WorkingSet64 }";
 
   public readConnections(): string {
