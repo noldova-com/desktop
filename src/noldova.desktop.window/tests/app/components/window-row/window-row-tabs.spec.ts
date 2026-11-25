@@ -118,12 +118,16 @@ describe("The document tabs in the window row", () => {
         const strip = DomFixture.one(tabs, ".nol-tab-group-tabs").getBoundingClientRect();
         const start = DomFixture.one(row(), ".nol-window-row-start").getBoundingClientRect();
         const search = DomFixture.one(row(), ".nol-window-row-search").getBoundingClientRect();
+        const actions = DomFixture.one(tabs, ".nol-tab-group-actions").getBoundingClientRect();
+        const lastTab = [...tabs.querySelectorAll("nol-tab")].at(-1)?.getBoundingClientRect() ?? strip;
         const box = row().getBoundingClientRect();
 
         expect([keysIn(tabs), keysIn(group(first)), group(first).querySelector(".nol-tab-group-tabs")]).toEqual([[LayoutFixture.plan.key, LayoutFixture.todo.key], [], null]);
         expect(strip.left).toBeGreaterThanOrEqual(start.right - 0.5);
         expect(search.left).toBeGreaterThanOrEqual(strip.right + AppearanceFixture.toPixels(6) - 0.5);
-        expect(search.width).toBeGreaterThanOrEqual(AppearanceFixture.toPixels(12) - 0.5);
+        expect(Math.abs(search.width - AppearanceFixture.toPixels(27.5))).toBeLessThan(0.5);
+        expect(Math.abs(actions.left - lastTab.right)).toBeLessThan(0.5);
+        expect(search.left - actions.right).toBeGreaterThan(AppearanceFixture.toPixels(6));
         expect([strip.top, strip.bottom]).toEqual([box.top, box.bottom]);
         for (const tab of tabs.querySelectorAll("nol-tab"))
           expect(tab.getBoundingClientRect().height).toBeLessThanOrEqual(box.height);
