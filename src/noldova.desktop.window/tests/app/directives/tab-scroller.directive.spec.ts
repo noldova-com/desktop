@@ -68,13 +68,13 @@ describe("TabScrollerDirective", () => {
     expect(DomFixture.one(DomFixture.host(fixture), ".scroller").style.getPropertyValue("--nol-tab-group-actions-width")).toBe("48px");
   });
 
-  it("gives every tab's width together, the hidden ones' included, as the width the tabs want", async () => {
+  it("gives every tab's width together, the hidden ones' included, and the actions' width with every tab shown, as the width the tabs want", async () => {
     const scroller = DomFixture.one(DomFixture.host(fixture), ".scroller");
-    expect(scroller.style.getPropertyValue("--nol-tab-group-tabs-width")).toBe("300px");
+    expect(scroller.style.getPropertyValue("--nol-tab-group-tabs-width")).toBe("348px");
 
     await changeAsync(host => host.keys.set(["a", "b"]));
 
-    await vi.waitFor(() => expect(scroller.style.getPropertyValue("--nol-tab-group-tabs-width")).toBe("120px"));
+    await vi.waitFor(() => expect(scroller.style.getPropertyValue("--nol-tab-group-tabs-width")).toBe("168px"));
   });
 
   it("keeps a selected tab past the room shown, in place of the last tabs before it that fit", () => {

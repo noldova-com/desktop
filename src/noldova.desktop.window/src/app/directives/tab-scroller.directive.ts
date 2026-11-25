@@ -75,7 +75,7 @@ export class TabScrollerDirective {
     const start = parseFloat(getComputedStyle(this.host).paddingInlineStart) || 0;
     const room = this.host.clientWidth - start;
     const tabsWidth = widths.reduce((sum, t) => sum + t, 0);
-    this.host.style.setProperty(Resources.tabsWidthProperty, Resources.formatPixels(start + tabsWidth));
+    this.host.style.setProperty(Resources.tabsWidthProperty, Resources.formatPixels(start + tabsWidth + this.unfoldedWidth));
     const overflows = tabsWidth > room - this.unfoldedWidth + TabScrollerDirective.TOLERANCE;
     if (overflows !== this.isOverflowingValue())
       this.isOverflowingValue.set(overflows);
