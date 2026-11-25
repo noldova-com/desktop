@@ -444,7 +444,7 @@ export class WindowPartContext implements IWindowPartContext {
     this.requireInstance(name, instance);
     const heading = new DocumentHeading(title, options.breadcrumb ?? [], options.breadcrumbIcon ?? null);
     if (!this.isWithdrawn)
-      this.host.openView(this.moduleId, name, instance, heading, options.icon ?? null, options.tabGroup ?? null);
+      this.host.openView(this.moduleId, name, instance, heading, options.icon ?? null, options.tabGroup ?? null, options.revealDock ?? true);
   }
 
   public returnView(name: string, instance: string): void {

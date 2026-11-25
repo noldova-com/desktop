@@ -11,4 +11,5 @@ export interface IViewInstanceOptions {
   readonly tabGroup?: string;
   readonly breadcrumb?: readonly string[];
   readonly breadcrumbIcon?: string;
+  readonly revealDock?: boolean;
 }

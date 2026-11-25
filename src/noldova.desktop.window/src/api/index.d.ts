@@ -669,6 +669,20 @@ export interface IViewInstanceOptions {
    * {@link IDocumentOptions.breadcrumbIcon} describes it; none when left out.
    */
   readonly breadcrumbIcon?: string;
+
+  /**
+   * Whether opening the instance expands its dock when the dock is
+   * collapsed to its strip; `true` when left out. With `false`, the
+   * instance's tab comes to the front of its group, whether it was open or
+   * is new, and a collapsed dock stays collapsed, so the person finds the
+   * tab in front when they open the dock, such as a commit's details opened
+   * as a person clicks through a history. {@link IWindowPartContext.showView}
+   * and the opens the person asks for still expand the dock.
+   *
+   * @example
+   *   context.openView("git.commit", sha, subject, { revealDock: false });
+   */
+  readonly revealDock?: boolean;
 }
 
 /**

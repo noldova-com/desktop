@@ -114,13 +114,13 @@ export class Layout {
     return !Object.isNull(this.groupOf(tab));
   }
 
-  public openView(tab: ViewTab, registry: ViewRegistry): Layout {
+  public openView(tab: ViewTab, registry: ViewRegistry, isRevealing: boolean = true): Layout {
     if (this.isOpen(tab))
-      return this.activate(tab);
+      return isRevealing ? this.activate(tab) : this.showInGroup(tab);
     const dock = this.dock(registry.view(tab.name).defaultSide);
     const root = dock.root;
     const opened = Object.isNull(root) ? new TabGroup(this.nextId, [tab], tab) : root.withGroup(root.cornerGroup.insert(tab, root.cornerGroup.tabs.length));
-    return this.withDock(dock.withRoot(opened).withCollapsed(false));
+    return this.withDock(isRevealing ? dock.withRoot(opened).withCollapsed(false) : dock.withRoot(opened));
   }
 
   public openDocument(tab: DocumentTab, isPreview: boolean = false, after: DocumentTab | null = null, activate: boolean = true): Layout {
@@ -183,12 +183,13 @@ export class Layout {
     return Object.isNull(group) ? this : this.withGroup(group.activate(tab));
   }
 
-  public moveTab(tab: Tab, groupId: number, index: number): Layout {
+  public moveTab(tab: Tab, groupId: number, index: number, isRevealing: boolean = true): Layout {
     const target = this.group(groupId);
     if (Object.isNull(target) || !target.accepts(tab))
       return this;
     const layout = target.has(tab) ? this : this.close(tab);
-    return layout.withGroup(target.insert(tab, index)).reveal(groupId).focusDocuments(groupId);
+    const moved = layout.withGroup(target.insert(tab, index));
+    return (isRevealing ? moved.reveal(groupId) : moved).focusDocuments(groupId);
   }
 
   public splitGroup(tab: Tab, groupId: number, edge: PanelEdge): Layout {
