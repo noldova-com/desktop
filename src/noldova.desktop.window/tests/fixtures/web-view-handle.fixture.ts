@@ -13,6 +13,7 @@ import type { IWebViewFindOptions } from "../../src/app/interfaces/i-web-view-fi
 import type { IWebViewFound } from "../../src/app/interfaces/i-web-view-found";
 import type { IWebViewHandle } from "../../src/app/interfaces/i-web-view-handle";
 import type { IWebViewLayer } from "../../src/app/interfaces/i-web-view-layer";
+import { FixtureLayerMissingException } from "../exceptions/fixture-layer-missing.exception";
 
 export class WebViewHandleFixture implements IWebViewHandle {
   public readonly id: string;
@@ -43,7 +44,7 @@ export class WebViewHandleFixture implements IWebViewHandle {
   public async openLayerAsync<T>(load: () => Promise<Type<T>>): Promise<IWebViewLayer<T>> {
     this.calls.push("openLayer");
     await load();
-    throw new Error("The fixture opens no layer.");
+    throw new FixtureLayerMissingException();
   }
 
   public navigateAsync(url: string): Promise<WebViewNavigation> {

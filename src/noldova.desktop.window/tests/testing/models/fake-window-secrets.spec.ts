@@ -10,12 +10,12 @@ import type { IWindowSecrets } from "@noldova/desktop.window";
 import { FakeWindowSecrets } from "@noldova/desktop.window/testing";
 
 import { FakeMembersFixture } from "../../fixtures/fake-members.fixture";
-import type { FakeMember } from "../../types/fake-member";
+import { FakeMember } from "../../models/fake-member";
 
 const MEMBERS: Readonly<Record<keyof IWindowSecrets, FakeMember<IWindowSecrets>>> = {
-  saveAsync: ["answered", t => t.saveAsync("token", "secret-value")],
-  removeAsync: ["answered", t => t.removeAsync("token")],
-  isSetAsync: ["answered", t => t.isSetAsync("token")]
+  saveAsync: FakeMember.answered(t => t.saveAsync("token", "secret-value")),
+  removeAsync: FakeMember.answered(t => t.removeAsync("token")),
+  isSetAsync: FakeMember.answered(t => t.isSetAsync("token"))
 };
 
 describe("FakeWindowSecrets", () => {

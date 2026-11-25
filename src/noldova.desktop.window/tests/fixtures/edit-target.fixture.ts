@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { PageElementMissingException } from "../exceptions/page-element-missing.exception";
+
 export class EditTargetFixture {
   public readonly host: HTMLElement;
 
@@ -36,7 +38,7 @@ export class EditTargetFixture {
   public find<T extends Element>(selector: string, type: abstract new () => T): T {
     const element = this.host.querySelector(selector);
     if (!(element instanceof type))
-      throw new Error(`The page has no ${type.name} matching ${selector}.`);
+      throw new PageElementMissingException(type.name, selector);
     return element;
   }
 

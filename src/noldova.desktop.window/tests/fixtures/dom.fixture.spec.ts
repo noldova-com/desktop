@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { Component } from "@angular/core";
+import { Component, ElementRef } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 
 import { DomFixture } from "./dom.fixture";
@@ -25,7 +25,7 @@ describe("DomFixture", () => {
 
   for (const [name, host] of [["a text node", document.createTextNode("Host")], ["nothing", null], ["an SVG element", document.createElementNS("http://www.w3.org/2000/svg", "svg")]] as const)
     it(`refuses a fixture whose host is ${name}, since it isn't an HTML element`, () => {
-      expect(() => DomFixture.host({ nativeElement: host })).toThrow("The fixture's host is not an HTML element.");
+      expect(() => DomFixture.host(new ElementRef(host))).toThrow("The fixture's host is not an HTML element.");
     });
 
   describe("queries", () => {
