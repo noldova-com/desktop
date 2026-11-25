@@ -15,6 +15,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { CommandRun, FailureCode, QualifiedName, Request, ShellMethods, StopPolicy, StopRequest } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { EventAndResponseFixture } from "../../fixtures/event-and-response.fixture.js";
 import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
@@ -27,15 +28,15 @@ export class StopMethodTests {
       const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       connection.sendMessages(new Request("main:1", ShellMethods.runCommand, new CommandRun(QualifiedName.parse("clock.tick"), null).toJson()));
-      const began = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const began = await EventAndResponseFixture.readAsync(connection);
       const refused = await RuntimeHostFixture.callAsync(connection, "main:2", ShellMethods.stop, new StopRequest(StopPolicy.IfIdle).toJson());
       connection.sendMessages(new Request("main:3", ShellMethods.stop, new StopRequest(StopPolicy.StopWork).toJson()));
-      const ended = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const ended = await EventAndResponseFixture.readAsync(connection);
       await host.waitForStopAsync();
 
-      Assert.areEqual("desktop.work|{\"descriptions\":[\"Ticking\"],\"sequence\":1}|null", `${began[0].name.text}|${JSON.stringify(began[0].payload)}|${JSON.stringify(began[1].payload)}`);
+      Assert.areEqual("desktop.work|{\"descriptions\":[\"Ticking\"],\"sequence\":1}|null", `${began.event.name.text}|${JSON.stringify(began.event.payload)}|${JSON.stringify(began.response.payload)}`);
       Assert.areEqual(`${FailureCode.Conflict}|{"descriptions":["Ticking"]}`, `${refused.failure?.code}|${JSON.stringify(refused.failure?.details)}`);
-      Assert.areEqual("desktop.work|{\"descriptions\":[],\"sequence\":2}|null", `${ended[0].name.text}|${JSON.stringify(ended[0].payload)}|${JSON.stringify(ended[1].payload)}`);
+      Assert.areEqual("desktop.work|{\"descriptions\":[],\"sequence\":2}|null", `${ended.event.name.text}|${JSON.stringify(ended.event.payload)}|${JSON.stringify(ended.response.payload)}`);
       Assert.isTrue(existsSync(path.join(fixture.dataDirectory.locateWorkFolder("clock"), "aborted")));
       Assert.isTrue((await readFile(fixture.dataDirectory.runtimeLog, "utf8")).includes("clock: Ticking began\n"));
     });

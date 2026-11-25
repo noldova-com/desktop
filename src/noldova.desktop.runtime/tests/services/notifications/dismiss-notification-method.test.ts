@@ -11,6 +11,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { NotificationReference, Request, ShellMethods } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { EventAndResponseFixture } from "../../fixtures/event-and-response.fixture.js";
 import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
@@ -24,12 +25,12 @@ export class DismissNotificationMethodTests {
 
       const { synced, posted: postedId } = await RuntimeHostFixture.listAndPostAsync(connection);
       connection.sendMessages(new Request("main:3", ShellMethods.dismissNotification, new NotificationReference(postedId).toJson()));
-      const dismissed = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const dismissed = await EventAndResponseFixture.readAsync(connection);
       const again = await RuntimeHostFixture.callAsync(connection, "main:4", ShellMethods.dismissNotification, new NotificationReference(postedId).toJson());
       host.requestStop("test");
       await host.waitForStopAsync();
 
-      Assert.areEqual("synced:Synced|null|null", `${RuntimeHostFixture.formatTitles(dismissed[0].payload, synced, postedId)}|${JSON.stringify(dismissed[1].payload)}|${JSON.stringify(again.payload)}`);
+      Assert.areEqual("synced:Synced|null|null", `${RuntimeHostFixture.formatTitles(dismissed.event.payload, synced, postedId)}|${JSON.stringify(dismissed.response.payload)}|${JSON.stringify(again.payload)}`);
     });
   }
 }

@@ -104,8 +104,8 @@ export class MachineSecretBackendTests {
       cli.sendMessages(new Request("cli:1", ShellMethods.saveSecret, new SecretValue(MachineSecretBackendTests.TOKEN, "s3cret").toJson()));
       const encrypt = await UpdateBarrierFixture.readEventAsync(main, ShellEvents.secretCommand);
       cli.sendMessages(new Request("cli:2", ShellMethods.secretAnswered, new SecretAnswered(2, "Zm9yZ2Vk").toJson()));
-      const [first, second] = [await RuntimeHostFixture.readAnswerAsync(cli), await MachineSecretBackendTests.callAsync(main, "main:2",
-        ShellMethods.secretAnswered, new SecretAnswered(99, "Zm9yZ2Vk").toJson())];
+      const first = await RuntimeHostFixture.readAnswerAsync(cli);
+      const second = await MachineSecretBackendTests.callAsync(main, "main:2", ShellMethods.secretAnswered, new SecretAnswered(99, "Zm9yZ2Vk").toJson());
       cli.sendMessages(new Request("cli:3", ShellMethods.saveSecret, new SecretValue(MachineSecretBackendTests.KEY, "k3y").toJson()));
       await UpdateBarrierFixture.readEventAsync(main, ShellEvents.secretCommand);
       main[Symbol.dispose]();

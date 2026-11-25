@@ -11,6 +11,7 @@ import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 import { NotificationBroadcast, Request, ShellMethods } from "@noldova/desktop.protocol";
 import { RuntimeBuild } from "@noldova/desktop.runtime";
 
+import { EventAndResponseFixture } from "../../fixtures/event-and-response.fixture.js";
 import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { RuntimeHostFixture } from "../../fixtures/runtime-host.fixture.js";
 
@@ -23,12 +24,12 @@ export class ClearNotificationsMethodTests {
       const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
       connection.sendMessages(new Request("main:1", ShellMethods.clearNotifications, null));
-      const cleared = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const cleared = await EventAndResponseFixture.readAsync(connection);
       host.requestStop("test");
       await host.waitForStopAsync();
 
-      Assert.areEqual("0", String(NotificationBroadcast.fromJson(cleared[0].payload).notifications.length));
-      Assert.isFalse(cleared[1].hasFailed);
+      Assert.areEqual("0", String(NotificationBroadcast.fromJson(cleared.event.payload).notifications.length));
+      Assert.isFalse(cleared.response.hasFailed);
     });
   }
 }

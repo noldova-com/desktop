@@ -21,6 +21,7 @@ import {
   AppImageCopyRecord, DataDirectoryOwnedException, DeclarationsUnreadableException, Endpoint, OwnershipLock, ProcessPresence, RuntimeBuild, RuntimeEntry, RuntimeHost, RuntimeOptions, ServerSettings
 } from "@noldova/desktop.runtime";
 
+import { EventAndResponseFixture } from "../../fixtures/event-and-response.fixture.js";
 import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { ProgramFixture } from "../../fixtures/program.fixture.js";
@@ -397,11 +398,13 @@ export class RuntimeHostTests {
       const doNotDisturb = (device: string): SettingKey => new SettingKey(QualifiedName.parse("desktop.doNotDisturb"), null, device);
 
       connection.sendMessages(new Request("main:1", ShellMethods.setSetting, new SettingValue(doNotDisturb("laptop"), true).toJson()));
-      const quiet = [await connection.readEventAsync(), await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const quietChange = await connection.readEventAsync();
+      const quiet = await EventAndResponseFixture.readAsync(connection);
       connection.sendMessages(new Request("main:2", ShellMethods.setSetting, new SettingValue(new SettingKey(QualifiedName.parse("desktop.mutedModules")), ["clock"]).toJson()));
-      const muted = [await connection.readEventAsync(), await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      await connection.readEventAsync();
+      const muted = await EventAndResponseFixture.readAsync(connection);
       connection.sendMessages(new Request("main:3", ShellMethods.setSetting, new SettingValue(new SettingKey(QualifiedName.parse("desktop.panelSize"), null, "laptop"), 14).toJson()));
-      const unrelated = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const unrelated = await EventAndResponseFixture.readAsync(connection);
       first.requestStop("test");
       await first.waitForStopAsync();
       const second = await fixture.startAsync(30_000, declarations);
@@ -409,16 +412,17 @@ export class RuntimeHostTests {
       const laptop = await RuntimeHostFixture.callAsync(again, "main:4", ShellMethods.notifications, new NotificationsQuery("laptop").toJson());
       const desk = await RuntimeHostFixture.callAsync(again, "main:5", ShellMethods.notifications, new NotificationsQuery("desk").toJson());
       again.sendMessages(new Request("main:6", ShellMethods.resetSetting, doNotDisturb("laptop").toJson()));
-      const loud = [await again.readEventAsync(), await again.readEventAsync(), await again.readResponseAsync()] as const;
+      await again.readEventAsync();
+      const loud = await EventAndResponseFixture.readAsync(again);
       second.requestStop("test");
       await second.waitForStopAsync();
 
       const broadcast = (event: Event): NotificationBroadcast => NotificationBroadcast.fromJson(event.payload);
-      Assert.areEqual("desktop.settingsChanged|laptop||null", `${quiet[0].name.text}|${broadcast(quiet[1]).quietDevices.join(",")}|${broadcast(quiet[1]).mutedModules.join(",")}|${JSON.stringify(quiet[2].payload)}`);
-      Assert.areEqual("laptop|clock", `${broadcast(muted[1]).quietDevices.join(",")}|${broadcast(muted[1]).mutedModules.join(",")}`);
-      Assert.areEqual("desktop.settingsChanged|null", `${unrelated[0].name.text}|${JSON.stringify(unrelated[1].payload)}`);
+      Assert.areEqual("desktop.settingsChanged|laptop||null", `${quietChange.name.text}|${broadcast(quiet.event).quietDevices.join(",")}|${broadcast(quiet.event).mutedModules.join(",")}|${JSON.stringify(quiet.response.payload)}`);
+      Assert.areEqual("laptop|clock", `${broadcast(muted.event).quietDevices.join(",")}|${broadcast(muted.event).mutedModules.join(",")}`);
+      Assert.areEqual("desktop.settingsChanged|null", `${unrelated.event.name.text}|${JSON.stringify(unrelated.response.payload)}`);
       Assert.areEqual("true|clock,false|clock", [laptop, desk].map(t => NotificationState.fromJson(t.payload)).map(t => `${String(t.isDoNotDisturb)}|${t.mutedModules.join(",")}`).join(","));
-      Assert.areEqual("|clock", `${broadcast(loud[1]).quietDevices.join(",")}|${broadcast(loud[1]).mutedModules.join(",")}`);
+      Assert.areEqual("|clock", `${broadcast(loud.event).quietDevices.join(",")}|${broadcast(loud.event).mutedModules.join(",")}`);
     });
   }
 
@@ -451,7 +455,7 @@ export class RuntimeHostTests {
       const first = await fixture.startAsync(30_000, declarations);
       const { connection } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       connection.sendMessages(new Request("main:1", ShellMethods.setSetting, new SettingValue(new SettingKey(QualifiedName.parse("desktop.keyBindings")), { "notes.old": "Mod+K" }).toJson()));
-      const stored = [await connection.readEventAsync(), await connection.readResponseAsync()] as const;
+      const stored = await EventAndResponseFixture.readAsync(connection);
       first.requestStop("test");
       await first.waitForStopAsync();
       const before = await readFile(activated, "utf8");
@@ -464,7 +468,7 @@ export class RuntimeHostTests {
       const after = await readFile(activated, "utf8");
 
       Assert.areNotEqual(text, renamed);
-      Assert.areEqual("desktop.settingsChanged|null", `${stored[0].name.text}|${JSON.stringify(stored[1].payload)}`);
+      Assert.areEqual("desktop.settingsChanged|null", `${stored.event.name.text}|${JSON.stringify(stored.response.payload)}`);
       Assert.areEqual(JSON.stringify({}), before);
       Assert.areEqual(JSON.stringify({ "notes.tick": "Mod+K" }), after);
     });
