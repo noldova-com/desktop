@@ -7,7 +7,8 @@
  */
 
 import "@noldova/context.core";
-import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { JsonReader } from "@noldova/context.json";
+import { Assert, TestClass, TestData, TestMethod } from "@noldova/context.testing";
 
 import { BuildException } from "../../../src/exceptions/build.exception.js";
 import { Resources } from "../../../src/resources.js";
@@ -28,6 +29,13 @@ export class LockedInstallCheckTests {
     "src/window": { version: "0.0.6" },
     "src/window/node_modules/tslib": { version: "2.8.1" }
   };
+  private static readonly HELD: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+    "node_modules/a": { version: "1.0.0", resolved: "https://registry.npmjs.org/a/-/a-1.0.0.tgz", integrity: "sha512-a" },
+    "node_modules/b": { version: "2.0.0", resolved: "file:_packages/b-2.0.0.tgz", integrity: "sha512-b" },
+    "node_modules/c": { resolved: "src/c", link: true },
+    "src/c": { version: "0.0.1" }
+  };
+  private static readonly OTHER_PLATFORM: string = process.platform === "win32" ? "darwin" : "win32";
 
   @TestMethod
   public async acceptsAnInstallThatHoldsTheLockfilesVersionsBesideTheBuiltArchives(): Promise<void> {
@@ -152,6 +160,85 @@ export class LockedInstallCheckTests {
 
     Assert.areEqual(Resources.formatInstalledLockfileMissing("node_modules/.package-lock.json"), error.message);
     Assert.isTrue(error.message.startsWith("Installing the built packages left no node_modules/.package-lock.json beside package-lock.json,"), error.message);
+  }
+
+  @TestMethod
+  public async takesAnInstallThatHoldsEachLockedPackageAsItLocksItAsInstalled(): Promise<void> {
+    await using tree = await LockedInstallCheckTests.createInstallAsync(LockedInstallCheckTests.HELD, Object.keys(LockedInstallCheckTests.HELD));
+
+    Assert.isTrue(await LockedInstallCheck.isInstalledAsync(tree.path));
+  }
+
+  @TestMethod
+  public async takesAnOptionalPackageForAnotherPlatformThatTheInstallLeftOutAsInstalled(): Promise<void> {
+    const locked = {
+      ...LockedInstallCheckTests.HELD,
+      "node_modules/other-os": { version: "1.0.0", optional: true, os: [LockedInstallCheckTests.OTHER_PLATFORM] },
+      "node_modules/other-cpu": { version: "1.0.0", devOptional: true, cpu: [`!${process.arch}`] }
+    };
+    await using tree = await LockedInstallCheckTests.createInstallAsync(LockedInstallCheckTests.HELD, Object.keys(LockedInstallCheckTests.HELD), locked);
+
+    Assert.isTrue(await LockedInstallCheck.isInstalledAsync(tree.path));
+  }
+
+  @TestMethod
+  @TestData("version", "1.0.1")
+  @TestData("resolved", "https://registry.npmjs.org/a/-/a-1.0.1.tgz")
+  @TestData("integrity", "sha512-other")
+  @TestData("link", "true")
+  public async refusesAnInstalledPackageWhoseEntryDiffersFromTheLockfiles(field: string, value: string): Promise<void> {
+    const installed = { ...LockedInstallCheckTests.HELD, "node_modules/a": { ...LockedInstallCheckTests.HELD["node_modules/a"], [field]: value } };
+    await using tree = await LockedInstallCheckTests.createInstallAsync(installed, Object.keys(LockedInstallCheckTests.HELD), LockedInstallCheckTests.HELD);
+
+    Assert.isFalse(await LockedInstallCheck.isInstalledAsync(tree.path));
+  }
+
+  @TestMethod
+  @TestData("{\"version\":\"1.0.0\"}")
+  @TestData("{\"version\":\"1.0.0\",\"optional\":true}")
+  @TestData("{\"version\":\"1.0.0\",\"devOptional\":true,\"os\":[\"PLATFORM\"]}")
+  @TestData("{\"version\":\"1.0.0\",\"os\":[\"OTHER\"]}")
+  public async refusesAnInstallThatLeftOutALockedPackageThisPlatformTakes(entry: string): Promise<void> {
+    const left = JsonReader.parse(entry.replace("PLATFORM", process.platform).replace("OTHER", LockedInstallCheckTests.OTHER_PLATFORM)).toJson();
+    const locked = { ...LockedInstallCheckTests.HELD, "node_modules/left": left };
+    await using tree = await LockedInstallCheckTests.createInstallAsync(LockedInstallCheckTests.HELD, Object.keys(LockedInstallCheckTests.HELD), locked);
+
+    Assert.isFalse(await LockedInstallCheck.isInstalledAsync(tree.path));
+  }
+
+  @TestMethod
+  public async refusesAnInstalledPackageTheLockfileDoesNotList(): Promise<void> {
+    const installed = { ...LockedInstallCheckTests.HELD, "node_modules/extra": { version: "1.0.0" } };
+    await using tree = await LockedInstallCheckTests.createInstallAsync(installed, Object.keys(installed), LockedInstallCheckTests.HELD);
+
+    Assert.isFalse(await LockedInstallCheck.isInstalledAsync(tree.path));
+  }
+
+  @TestMethod
+  public async refusesAnInstallWhoseInstalledLockfileListsAFolderThatIsGone(): Promise<void> {
+    await using tree = await LockedInstallCheckTests.createInstallAsync(LockedInstallCheckTests.HELD, ["node_modules/a"]);
+
+    Assert.isFalse(await LockedInstallCheck.isInstalledAsync(tree.path));
+  }
+
+  @TestMethod
+  public async takesNothingAsInstalledWithoutBothLockfiles(): Promise<void> {
+    await using empty = await SourceTreeFixture.createAsync();
+    await using installedOnly = await SourceTreeFixture.createAsync({ [LockedInstallCheckTests.INSTALLED]: LockedInstallCheckTests.write({}) });
+    await using lockedOnly = await SourceTreeFixture.createAsync({ [LockedInstallCheckTests.LOCKFILE]: LockedInstallCheckTests.write({}) });
+
+    Assert.isFalse(await LockedInstallCheck.isInstalledAsync(empty.path));
+    Assert.isFalse(await LockedInstallCheck.isInstalledAsync(installedOnly.path));
+    Assert.isFalse(await LockedInstallCheck.isInstalledAsync(lockedOnly.path));
+  }
+
+  private static async createInstallAsync(installed: Readonly<Record<string, unknown>>, folders: readonly string[],
+    locked: Readonly<Record<string, unknown>> = installed): Promise<SourceTreeFixture> {
+    return await SourceTreeFixture.createAsync({
+      [LockedInstallCheckTests.LOCKFILE]: LockedInstallCheckTests.write({ "": { name: "app", version: "1.0.0" }, ...locked }),
+      [LockedInstallCheckTests.INSTALLED]: LockedInstallCheckTests.write(installed),
+      ...Object.fromEntries(folders.map(t => [`${t}/package.json`, "{}"]))
+    });
   }
 
   private static async createAsync(installed: Readonly<Record<string, unknown>>): Promise<SourceTreeFixture> {
