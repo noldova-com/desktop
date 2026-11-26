@@ -12,6 +12,7 @@ import { type ComponentFixture, TestBed } from "@angular/core/testing";
 import type {} from "@vitest/browser-playwright";
 import { userEvent } from "vitest/browser";
 
+import { TooltipDirective } from "@noldova/ui.components.angular";
 
 import { FieldMenuComponent } from "../../../../src/app/components/field-menu/field-menu.component";
 import { TabGroupComponent } from "../../../../src/app/components/tab-group/tab-group.component";
@@ -398,12 +399,16 @@ describe("TabGroupComponent", () => {
     const whole = tab(1, 1);
     const target = tab(1, 0);
     target.style.maxWidth = "3rem";
+    const decided = vi.spyOn(fixture.debugElement.query(t => t.nativeElement === whole).injector.get(TooltipDirective), "isTruncatedOnly");
 
     const { fitting, cut } = await TooltipFixture.shieldAsync(async () => {
       whole.dispatchEvent(new PointerEvent("pointerenter"));
+      await vi.waitFor(() => expect(decided).toHaveBeenCalledTimes(2));
+      const shown = TooltipFixture.find("files.search");
+      whole.dispatchEvent(new PointerEvent("pointerleave"));
       target.dispatchEvent(new PointerEvent("pointerenter"));
       await vi.waitFor(() => expect(TooltipFixture.find("files.tree")).toBeDefined());
-      return { fitting: TooltipFixture.find("files.search"), cut: TooltipFixture.find("files.tree") };
+      return { fitting: shown, cut: TooltipFixture.find("files.tree") };
     });
 
     expect(fitting).toBeUndefined();
