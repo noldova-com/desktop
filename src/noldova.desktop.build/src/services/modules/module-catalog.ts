@@ -133,7 +133,7 @@ export class ModuleCatalog {
     const file = Resources.formatFolderFile(folder, Resources.moduleDeclarationFileName);
     let declaration: JsonReader;
     try {
-      declaration = JsonReader.parse(await readFile(path.join(this.root, file), Resources.textEncoding));
+      declaration = JsonReader.parse(await TextFile.readAsync(path.join(this.root, file)));
     }
     catch (error) {
       throw new BuildException(Resources.formatJsonFileUnreadable(file), new ExceptionOptions(error));

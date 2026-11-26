@@ -7,7 +7,6 @@
  */
 
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -18,6 +17,7 @@ import { MenuGroup } from "../../models/modules/menu-group.ts";
 import { MenuItem } from "../../models/modules/menu-item.ts";
 import { MenuPlace } from "../../models/modules/menu-place.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 import { ToolbarPlacement } from "../../models/modules/toolbar-placement.ts";
 
@@ -43,7 +43,7 @@ export class ModuleMenus {
     }
     let value: JsonObject;
     try {
-      value = JsonReader.parse(await readFile(path.join(root, file), Resources.textEncoding)).toJson();
+      value = JsonReader.parse(await TextFile.readAsync(path.join(root, file))).toJson();
     }
     catch (error) {
       throw new BuildException(Resources.formatJsonFileUnreadable(file), new ExceptionOptions(error));

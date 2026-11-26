@@ -7,7 +7,6 @@
  */
 
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -52,7 +51,7 @@ export class ModuleWindowImports {
       throw new BuildException(Resources.formatWindowExportMissing(name));
     const specifiers = new Set<string>();
     for (const source of await new ImportClosure(folder).listAsync(file))
-      for (const literal of new SourceScanner(await readFile(source, Resources.textEncoding)).scan().imports)
+      for (const literal of new SourceScanner(await TextFile.readAsync(source)).scan().imports)
         if (!literal.value.startsWith(Resources.relativeSpecifierPrefix))
           specifiers.add(literal.value);
     return [...specifiers].sort();

@@ -7,7 +7,6 @@
  */
 
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -16,6 +15,7 @@ import { JsonReader, type JsonObject } from "@noldova/context.json";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { IWebViewKeyJson } from "../../interfaces/i-web-view-key-json.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 import { WebViewKeys } from "../../models/modules/web-view-keys.ts";
 
@@ -26,7 +26,7 @@ export class ModuleWebViews {
       return null;
     let value: JsonObject;
     try {
-      value = JsonReader.parse(await readFile(path.join(root, file), Resources.textEncoding)).toJson();
+      value = JsonReader.parse(await TextFile.readAsync(path.join(root, file))).toJson();
     }
     catch (error) {
       throw new BuildException(Resources.formatJsonFileUnreadable(file), new ExceptionOptions(error));
