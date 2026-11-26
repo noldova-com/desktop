@@ -6,12 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Writable } from "node:stream";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
 import type { ProcessRunner } from "../processes/process-runner.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 import { RetriedDownload } from "../processes/retried-download.ts";
 
@@ -30,21 +31,21 @@ export class ElectronBinary {
     this.environment = environment;
   }
 
-  public isInstalled(): boolean {
+  public async isInstalledAsync(): Promise<boolean> {
     const pathFile = path.join(this.directory, Resources.electronPathFile);
-    return existsSync(pathFile) && existsSync(path.join(this.directory, Resources.electronDistributionFolder, readFileSync(pathFile, Resources.textEncoding)));
+    return existsSync(pathFile) && existsSync(path.join(this.directory, Resources.electronDistributionFolder, await TextFile.readAsync(pathFile)));
   }
 
   public async installAsync(output: Writable): Promise<void> {
     const installer = path.join(this.directory, Resources.electronInstallerFile);
-    if (!existsSync(installer) || this.isInstalled())
+    if (!existsSync(installer) || await this.isInstalledAsync())
       return;
 
     output.write(Resources.electronInstalling);
     await RetriedDownload.runAsync(Resources.electronSubject, output, async () => {
       const result = await this.runner.captureAsync(process.execPath, [installer], this.root, Resources.downloadAttemptTimeout,
         { ...this.environment, [Resources.electronArchitectureVariable]: this.architecture });
-      if (result.isSuccessful && !this.isInstalled())
+      if (result.isSuccessful && !await this.isInstalledAsync())
         throw new BuildException(Resources.formatDownloadNotRetried(Resources.electronSubject, Resources.electronStillMissing));
       return RetriedDownload.describeInstall(Resources.electronSubject, result);
     });

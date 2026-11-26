@@ -37,7 +37,7 @@ export class ElectronBinaryTests {
     await ElectronBinaryTests.installElectronAsync(folder);
     await binary.installAsync(output);
 
-    Assert.isTrue(binary.isInstalled());
+    Assert.isTrue(await binary.isInstalledAsync());
     Assert.isNull(output.read(output.readableLength));
     Assert.areEqual(0, runner.captured.length);
   }
@@ -47,7 +47,7 @@ export class ElectronBinaryTests {
     await using folder = await DevelopmentFolderFixture.createAsync();
     await folder.writeAsync(["node_modules", "electron", "path.txt"], "electron");
 
-    Assert.isFalse(new ElectronBinary(folder.path, new ScriptedRunnerFixture()).isInstalled());
+    Assert.isFalse(await new ElectronBinary(folder.path, new ScriptedRunnerFixture()).isInstalledAsync());
   }
 
   @TestMethod

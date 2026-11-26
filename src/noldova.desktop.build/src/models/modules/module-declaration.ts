@@ -7,7 +7,6 @@
  */
 
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -116,7 +115,7 @@ export class ModuleDeclaration {
     const fail = (problem: string): BuildException => new BuildException(Resources.formatModuleFileProblem(file, problem));
     let value: JsonObject;
     try {
-      value = JsonReader.parse(await readFile(path.join(root, file), Resources.textEncoding)).toJson();
+      value = JsonReader.parse(await TextFile.readAsync(path.join(root, file))).toJson();
     }
     catch (error) {
       throw new BuildException(Resources.formatJsonFileUnreadable(file), new ExceptionOptions(error));

@@ -37,7 +37,8 @@ export class PackageTestCheck implements ISelectableCheck {
   private static readonly PROCESSES: readonly (readonly TestProcessPart[])[] = [
     [new TestProcessPart(Resources.packageTestRuntimePackage, Resources.packageTestRuntimeProcessPaths)],
     [new TestProcessPart(Resources.packageTestRuntimePackage, Resources.packageTestRuntimeProcessPaths, true), new TestProcessPart(Resources.packageTestElectronPackage)],
-    [new TestProcessPart(Resources.packageTestCliPackage)]
+    [new TestProcessPart(Resources.packageTestCliPackage), new TestProcessPart(Resources.packageTestBuildPackage, Resources.packageTestBuildProcessPaths)],
+    [new TestProcessPart(Resources.packageTestBuildPackage, Resources.packageTestBuildProcessPaths, true)]
   ];
 
   private readonly root: string;
@@ -58,7 +59,7 @@ export class PackageTestCheck implements ISelectableCheck {
     const named = new Set(PackageTestCheck.PROCESSES.flat().map(t => t.name));
     const listed = PackageTestCheck.PROCESSES.map(t => t.flatMap(part => packages.filter(u => u.name === part.name).map(u => new TestedPackage(u, part))));
     const rest = packages.filter(t => !named.has(t.name)).map(t => new TestedPackage(t, new TestProcessPart(t.name)));
-    return [...listed, rest].filter(t => t.length > 0);
+    return [...listed.slice(0, -1), [...listed.at(-1) ?? [], ...rest]].filter(t => t.length > 0);
   }
 
   public async runAsync(output: Writable): Promise<boolean> {

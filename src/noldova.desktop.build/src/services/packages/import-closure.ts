@@ -7,13 +7,13 @@
  */
 
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
 
 import { SourceScanner } from "../structure/source-scanner.ts";
 import { ContentHash } from "./content-hash.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class ImportClosure {
@@ -27,7 +27,7 @@ export class ImportClosure {
     const found = new Set<string>([path.resolve(entry)]);
     const pending = [...found];
     for (let file = pending.pop(); !Object.isUndefined(file); file = pending.pop())
-      for (const literal of new SourceScanner(await readFile(file, Resources.textEncoding)).scan().imports) {
+      for (const literal of new SourceScanner(await TextFile.readAsync(file)).scan().imports) {
         if (!literal.value.startsWith(Resources.relativeSpecifierPrefix))
           continue;
         const imported = path.resolve(path.dirname(file), literal.value);
