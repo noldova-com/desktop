@@ -39,6 +39,7 @@ export class AngularProjectTests {
   private static readonly CLI: string = "node_modules/@angular/cli/bin/ng.js";
   private static readonly RECORD: string = "node_modules/.noldova-install";
   private static readonly LOCKFILE: string = "package-lock.json";
+  private static readonly INSTALLED: string = "node_modules/.package-lock.json";
   private static readonly BUILD_ONLY: string = JSON.stringify({ projects: { app: { architect: { build: {} } } } });
   private static readonly WITH_TEST: string = JSON.stringify({ projects: { app: { architect: { build: {}, test: {} } } } });
   private static readonly CI: string = " ci --ignore-scripts --no-audit --no-fund";
@@ -203,6 +204,66 @@ export class AngularProjectTests {
   @TestMethod
   public async installsAgainWhenTheAngularCommandLineIsMissing(): Promise<void> {
     await using tree = await AngularProjectTests.createTreeAsync({}, true);
+    const runner = new ScriptedRunnerFixture(AngularProjectTests.answer());
+
+    const output = await AngularProjectTests.collectAsync(t => AngularProjectTests.create(tree, runner).installAsync(t));
+
+    Assert.areEqual(Resources.angularInstalling + Resources.angularNoBrowser, output);
+    Assert.areEqual(1, runner.captured.filter(t => t.endsWith(AngularProjectTests.CI)).length);
+  }
+
+  @TestMethod
+  public async recordsWithoutInstallingAnAppWithoutAnInstallRecordWhoseNodeModulesHoldsItsLockfile(): Promise<void> {
+    const lockfile = AngularProjectTests.lockfile({ "": { name: "app" }, "node_modules/@angular/cli": { version: "22.2.6" } });
+    await using tree = await AngularProjectTests.createTreeAsync({
+      [AngularProjectTests.CLI]: String.empty,
+      [AngularProjectTests.LOCKFILE]: lockfile,
+      [AngularProjectTests.INSTALLED]: AngularProjectTests.lockfile({ "node_modules/@angular/cli": { version: "22.2.6" } })
+    }, false);
+    const runner = new ScriptedRunnerFixture(AngularProjectTests.answer());
+
+    const output = await AngularProjectTests.collectAsync(t => AngularProjectTests.create(tree, runner).installAsync(t));
+
+    Assert.areEqual(Resources.angularAlreadyInstalled + Resources.angularNoBrowser, output);
+    Assert.areEqual(0, runner.captured.filter(t => t.endsWith(AngularProjectTests.CI)).length);
+    Assert.areEqual(`${process.platform} ${process.arch} ${createHash("sha256").update(lockfile).digest("hex")}\n`, await AngularProjectTests.readRecordAsync(tree));
+  }
+
+  @TestMethod
+  public async installsAgainForAnInstallRecordOfAnotherLockfileThoughNodeModulesHoldsTheLockfile(): Promise<void> {
+    const held = { "node_modules/@angular/cli": { version: "22.2.6" } };
+    await using tree = await AngularProjectTests.createTreeAsync({
+      [AngularProjectTests.CLI]: String.empty,
+      [AngularProjectTests.LOCKFILE]: AngularProjectTests.lockfile(held),
+      [AngularProjectTests.INSTALLED]: AngularProjectTests.lockfile(held),
+      [AngularProjectTests.RECORD]: `${process.platform} ${process.arch} other\n`
+    }, false);
+    const runner = new ScriptedRunnerFixture(AngularProjectTests.answer());
+
+    const output = await AngularProjectTests.collectAsync(t => AngularProjectTests.create(tree, runner).installAsync(t));
+
+    Assert.areEqual(Resources.angularInstalling + Resources.angularNoBrowser, output);
+    Assert.areEqual(1, runner.captured.filter(t => t.endsWith(AngularProjectTests.CI)).length);
+  }
+
+  @TestMethod
+  public async installsAgainForAnInstallRecordOfAnotherPlatformThoughNodeModulesHoldsTheLockfile(): Promise<void> {
+    await AngularProjectTests.assertInstallsAgainForRecordAsync(t => `${process.platform === "win32" ? "linux" : "win32"} ${process.arch} ${t}\n`);
+  }
+
+  @TestMethod
+  public async installsAgainForAnInstallRecordOfAnotherArchitectureThoughNodeModulesHoldsTheLockfile(): Promise<void> {
+    await AngularProjectTests.assertInstallsAgainForRecordAsync(t => `${process.platform} ${process.arch === "arm64" ? "x64" : "arm64"} ${t}\n`);
+  }
+
+  private static async assertInstallsAgainForRecordAsync(record: (hash: string) => string): Promise<void> {
+    const lockfile = AngularProjectTests.lockfile({ "node_modules/@angular/cli": { version: "22.2.6" } });
+    await using tree = await AngularProjectTests.createTreeAsync({
+      [AngularProjectTests.CLI]: String.empty,
+      [AngularProjectTests.LOCKFILE]: lockfile,
+      [AngularProjectTests.INSTALLED]: lockfile,
+      [AngularProjectTests.RECORD]: record(createHash("sha256").update(lockfile).digest("hex"))
+    }, false);
     const runner = new ScriptedRunnerFixture(AngularProjectTests.answer());
 
     const output = await AngularProjectTests.collectAsync(t => AngularProjectTests.create(tree, runner).installAsync(t));
@@ -377,6 +438,10 @@ export class AngularProjectTests {
         return new ProcessResult(0, "{}", String.empty);
       return browser();
     };
+  }
+
+  private static lockfile(packages: Readonly<Record<string, unknown>>): string {
+    return JSON.stringify({ name: "app", lockfileVersion: 3, packages });
   }
 
   private static async readRecordAsync(tree: SourceTreeFixture): Promise<string> {
