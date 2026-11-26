@@ -67,8 +67,8 @@ export class PackageTests {
 
     const result = await app.packageAsync("win32", ["--signed"]);
 
-    Assert.areEqual("1 Signing Windows packages needs desktop.product.windowsSigning in the root package.json, with the Artifact Signing endpoint, account and certificate profile.\n",
-      result);
+    Assert.areEqual("1 Signing Windows packages needs the Artifact Signing endpoint, account and certificate profile, in NOLDOVA_DESKTOP_SIGNING_ENDPOINT, "
+      + "NOLDOVA_DESKTOP_SIGNING_ACCOUNT and NOLDOVA_DESKTOP_SIGNING_PROFILE or in desktop.product.windowsSigning in the root package.json.\n", result);
   }
 
   @TestMethod
@@ -87,7 +87,17 @@ export class PackageTests {
     const result = await PackageTests.signWindowsAsync({});
 
     Assert.areEqual("1 Signing Windows packages needs AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, "
-      + "the Azure service principal for the signing account in desktop.product.windowsSigning.\n", result);
+      + "the Azure service principal for the Artifact Signing account.\n", result);
+  }
+
+  @TestMethod
+  public async takesTheWindowsSigningAccountFromTheEnvironmentBeforeTheProducts(): Promise<void> {
+    const result = await PackageTests.signWindowsAsync({ endpoint: "http://sample.codesigning.example.com/" }, {
+      NOLDOVA_DESKTOP_SIGNING_ENDPOINT: "https://other.codesigning.example.com/", NOLDOVA_DESKTOP_SIGNING_ACCOUNT: "other-signing", NOLDOVA_DESKTOP_SIGNING_PROFILE: "OtherApp"
+    });
+
+    Assert.areEqual("1 Signing Windows packages needs AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, "
+      + "the Azure service principal for the Artifact Signing account.\n", result);
   }
 
   @TestMethod

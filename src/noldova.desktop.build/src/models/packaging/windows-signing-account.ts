@@ -23,16 +23,33 @@ export class WindowsSigningAccount {
     this.profile = profile;
   }
 
+  public static fromSources(environment: NodeJS.ProcessEnv, signing: Readonly<Record<string, unknown>> | null): WindowsSigningAccount {
+    const endpoint = environment[Resources.trustedSigningEndpointVariable] ?? String.empty;
+    const account = environment[Resources.trustedSigningAccountVariable] ?? String.empty;
+    const profile = environment[Resources.trustedSigningProfileVariable] ?? String.empty;
+    if ([endpoint, account, profile].every(t => t.length === 0))
+      return WindowsSigningAccount.fromProduct(signing);
+    const missing = Resources.trustedSigningAccountVariables.filter(t => (environment[t] ?? String.empty).length === 0);
+    if (missing.length > 0)
+      throw new BuildException(Resources.formatWindowsSigningVariablesMissing(missing));
+    return WindowsSigningAccount.validated([Resources.trustedSigningEndpointVariable, endpoint], [Resources.trustedSigningAccountVariable, account],
+      [Resources.trustedSigningProfileVariable, profile], Resources.formatWindowsSigningVariableInvalid);
+  }
+
   public static fromProduct(signing: Readonly<Record<string, unknown>> | null): WindowsSigningAccount {
     if (Object.isNull(signing))
       throw new BuildException(Resources.windowsSigningMissing);
-    const endpoint = WindowsSigningAccount.read(signing, Resources.windowsSigningEndpointField);
-    const account = WindowsSigningAccount.read(signing, Resources.windowsSigningAccountField);
-    const profile = WindowsSigningAccount.read(signing, Resources.windowsSigningProfileField);
-    WindowsSigningAccount.require(Resources.windowsSigningEndpointPattern.test(endpoint), Resources.windowsSigningEndpointField, Resources.windowsSigningEndpointExpected);
-    for (const [field, value] of [[Resources.windowsSigningAccountField, account], [Resources.windowsSigningProfileField, profile]] as const)
-      WindowsSigningAccount.require(Resources.windowsSigningNamePattern.test(value), field, Resources.windowsSigningNameExpected);
-    return new WindowsSigningAccount(endpoint, account, profile);
+    const field = (name: string): readonly [string, string] => [name, WindowsSigningAccount.read(signing, name)];
+    return WindowsSigningAccount.validated(field(Resources.windowsSigningEndpointField), field(Resources.windowsSigningAccountField), field(Resources.windowsSigningProfileField),
+      Resources.formatWindowsSigningInvalid);
+  }
+
+  private static validated(endpoint: readonly [string, string], account: readonly [string, string], profile: readonly [string, string],
+    invalid: (name: string, expected: string) => string): WindowsSigningAccount {
+    WindowsSigningAccount.require(Resources.windowsSigningEndpointPattern.test(endpoint[1]), invalid(endpoint[0], Resources.windowsSigningEndpointExpected));
+    for (const [name, value] of [account, profile])
+      WindowsSigningAccount.require(Resources.windowsSigningNamePattern.test(value), invalid(name, Resources.windowsSigningNameExpected));
+    return new WindowsSigningAccount(endpoint[1], account[1], profile[1]);
   }
 
   private static read(signing: Readonly<Record<string, unknown>>, field: string): string {
@@ -40,8 +57,8 @@ export class WindowsSigningAccount {
     return Object.isString(value) ? value : String.empty;
   }
 
-  private static require(isValid: boolean, field: string, expected: string): void {
+  private static require(isValid: boolean, message: string): void {
     if (!isValid)
-      throw new BuildException(Resources.formatWindowsSigningInvalid(field, expected));
+      throw new BuildException(message);
   }
 }

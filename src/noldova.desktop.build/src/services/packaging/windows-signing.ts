@@ -45,7 +45,7 @@ export class WindowsSigning implements IPackageSigning {
     this.output = output;
     this.target = target;
     this.environment = environment;
-    this.module = new TrustedSigningModule(runner, folder, WindowsSigningAccount.fromProduct(product.windowsSigning), environment);
+    this.module = new TrustedSigningModule(runner, folder, WindowsSigningAccount.fromSources(environment, product.windowsSigning), environment);
     this.packages = packages;
     this.builderEnvironment = this.module.describeEnvironment(credentials);
     this.windowsPublisher = WindowsPublisher.take(credentials);

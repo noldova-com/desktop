@@ -1987,7 +1987,8 @@ export class Resources {
   public static readonly windowsSigningEndpointExpected: string = "the HTTPS URL of the Artifact Signing endpoint, ending in /";
   public static readonly windowsSigningNameExpected: string = "a name of letters, digits and hyphens that starts and ends with a letter or digit";
   public static readonly windowsSigningMissing: string =
-    `Signing Windows packages needs ${Resources.windowsSigningSection} in the root package.json, with the Artifact Signing endpoint, account and certificate profile.`;
+    `Signing Windows packages needs the Artifact Signing endpoint, account and certificate profile, in ${Resources.trustedSigningEndpointVariable}, `
+    + `${Resources.trustedSigningAccountVariable} and ${Resources.trustedSigningProfileVariable} or in ${Resources.windowsSigningSection} in the root package.json.`;
   public static readonly checksumAlgorithm: string = "sha256";
   public static readonly checksumDigestEncoding: "hex" = "hex";
   public static readonly checksumSeparator: string = "  ";
@@ -2252,7 +2253,7 @@ export class Resources {
   }
 
   public static formatWindowsSigningCredentialsMissing(missing: readonly string[]): string {
-    return `Signing Windows packages needs ${missing.join(Resources.listSeparator)}, the Azure service principal for the signing account in ${Resources.windowsSigningSection}.`;
+    return `Signing Windows packages needs ${missing.join(Resources.listSeparator)}, the Azure service principal for the Artifact Signing account.`;
   }
 
   public static formatUnknownFields(fields: readonly string[]): string {
@@ -4967,6 +4968,15 @@ export class Resources {
 
   public static formatWindowsPublisherInvalid(publisher: string): string {
     return `Signing Windows packages needs ${Resources.windowsPublisherVariable}, the distinguished name of the signing certificate's subject, starting with CN= and with its fields separated by ", "; ${publisher.length === 0 ? "it is not set" : "it is set to something else"}.`;
+  }
+
+  public static formatWindowsSigningVariablesMissing(missing: readonly string[]): string {
+    return `Signing Windows packages with the account from the environment needs ${missing.join(Resources.listSeparator)} as well, `
+      + `since the environment sets the account in place of ${Resources.windowsSigningSection}.`;
+  }
+
+  public static formatWindowsSigningVariableInvalid(variable: string, expected: string): string {
+    return `${variable} must be ${expected}.`;
   }
 
   public static formatWindowsSigningInvalid(field: string, expected: string): string {

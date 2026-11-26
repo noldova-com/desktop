@@ -118,7 +118,7 @@ export class TrustedSigningModuleTests {
 
     const error = Assert.throws(() => module.describeEnvironment({ AZURE_TENANT_ID: "tenant", AZURE_CLIENT_SECRET: String.empty }), BuildException);
 
-    Assert.areEqual("Signing Windows packages needs AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, the Azure service principal for the signing account in desktop.product.windowsSigning.",
+    Assert.areEqual("Signing Windows packages needs AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, the Azure service principal for the Artifact Signing account.",
       error.message);
   }
 
