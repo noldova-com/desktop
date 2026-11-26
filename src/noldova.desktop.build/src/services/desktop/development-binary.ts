@@ -20,6 +20,7 @@ import { RootManifest } from "../../models/packages/root-manifest.ts";
 import { ProcessRunner } from "../processes/process-runner.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { FolderCreation } from "../files/folder-creation.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class DevelopmentBinary {
@@ -50,7 +51,7 @@ export class DevelopmentBinary {
     const binary = this.locateBinary(output, product);
     const icons = path.join(this.root, product.icons);
     const stamp = createHash(Resources.developmentStampHash)
-      .update(await readFile(path.join(this.root, ...Resources.electronManifestSegments)))
+      .update(await TextFile.readAsync(path.join(this.root, ...Resources.electronManifestSegments)))
       .update(JSON.stringify([manifest.productVersion, product, product.formatDevelopmentApplicationId(this.root), this.platform, this.architecture]))
       .update(await readFile(import.meta.filename))
       .update(await readFile(path.join(icons, Resources.windowsIconFile)))

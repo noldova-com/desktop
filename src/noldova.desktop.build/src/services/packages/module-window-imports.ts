@@ -18,6 +18,7 @@ import { SourceScanner } from "../structure/source-scanner.ts";
 import type { BuildLayout } from "./build-layout.ts";
 import { ImportClosure } from "./import-closure.ts";
 import { InstalledPackages } from "./installed-packages.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class ModuleWindowImports {
@@ -44,7 +45,7 @@ export class ModuleWindowImports {
   }
 
   private static async readWindowImportsAsync(name: string, folder: string): Promise<readonly string[]> {
-    const exports = JsonReader.parse(await readFile(path.join(folder, Resources.packageManifestFileName), Resources.textEncoding)).toJson()[Resources.manifestExportsField];
+    const exports = JsonReader.parse(await TextFile.readAsync(path.join(folder, Resources.packageManifestFileName))).toJson()[Resources.manifestExportsField];
     const entry = ModuleWindowImports.resolveExport(Object.isPlainObject(exports) ? new Map(Object.entries(exports)).get(Resources.windowExportPath) : null);
     const file = Object.isNull(entry) ? null : path.join(folder, entry);
     if (Object.isNull(file) || !existsSync(file))

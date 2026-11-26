@@ -28,11 +28,19 @@ export class FileErrorsTests {
   }
 
   @TestMethod
+  public takesOnlyEinvalFromFstatAsUnsized(): void {
+    const errors = [["EINVAL", "fstat"], ["EINVAL", "open"], ["EINVAL", undefined], ["EACCES", "fstat"]].map(([code, syscall]) => Object.assign(new Error(String(code)), { code, syscall }));
+
+    Assert.areEqual("true,false,false,false", errors.map(t => FileErrors.isUnsized(t)).join(","));
+  }
+
+  @TestMethod
   public takesNoOtherValueForAFileError(): void {
-    for (const error of [new Error("no code"), Object.assign(new Error("number"), { code: 2 }), { code: "ENOENT" }, "ENOENT", null, undefined]) {
+    for (const error of [new Error("no code"), Object.assign(new Error("number"), { code: 2 }), { code: "ENOENT" }, { code: "EINVAL", syscall: "fstat" }, "ENOENT", null, undefined]) {
       Assert.isFalse(FileErrors.isMissing(error));
       Assert.isFalse(FileErrors.isUnreachable(error));
       Assert.isFalse(FileErrors.isDenied(error));
+      Assert.isFalse(FileErrors.isUnsized(error));
     }
   }
 

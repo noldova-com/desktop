@@ -25,6 +25,7 @@ import { ModuleMenus } from "../../services/modules/module-menus.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { ModuleSettings } from "../../services/modules/module-settings.ts";
 import { ModuleWebViews } from "../../services/modules/module-web-views.ts";
+import { TextFile } from "../../services/files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class ModuleDeclaration {
@@ -285,7 +286,7 @@ export class ModuleDeclaration {
     const manifestFile = Resources.formatFolderFile(folder, Resources.packageManifestFileName);
     let manifest: JsonObject;
     try {
-      manifest = JsonReader.parse(await readFile(path.join(root, folder, Resources.packageManifestFileName), Resources.textEncoding)).toJson();
+      manifest = JsonReader.parse(await TextFile.readAsync(path.join(root, folder, Resources.packageManifestFileName))).toJson();
     }
     catch (error) {
       throw new BuildException(Resources.formatJsonFileUnreadable(manifestFile), new ExceptionOptions(error));

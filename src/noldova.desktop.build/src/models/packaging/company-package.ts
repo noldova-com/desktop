@@ -21,6 +21,7 @@ import { BuildException } from "../../exceptions/build.exception.ts";
 import { FetchedArchive } from "./fetched-archive.ts";
 import { TarArchive } from "./tar-archive.ts";
 import { FolderCreation } from "../../services/files/folder-creation.ts";
+import { TextFile } from "../../services/files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class CompanyPackage {
@@ -70,7 +71,7 @@ export class CompanyPackage {
 
   private static async readInstalledAsync(locked: LockedPackage, installed: string, archives: string | null): Promise<JsonObject> {
     try {
-      return JsonReader.parse(await readFile(path.join(installed, Resources.packageManifestFileName), Resources.textEncoding)).toJson();
+      return JsonReader.parse(await TextFile.readAsync(path.join(installed, Resources.packageManifestFileName))).toJson();
     }
     catch (error) {
       throw new BuildException(Object.isNull(archives)

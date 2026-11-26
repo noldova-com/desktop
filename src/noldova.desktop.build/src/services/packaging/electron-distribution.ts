@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { cp, readFile, rm } from "node:fs/promises";
+import { cp, rm } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -14,6 +14,7 @@ import { ExceptionOptions } from "@noldova/context.exceptions";
 import { JsonReader } from "@noldova/context.json";
 
 import { BuildException } from "../../exceptions/build.exception.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class ElectronDistribution {
@@ -28,7 +29,7 @@ export class ElectronDistribution {
 
   public async readVersionAsync(): Promise<string> {
     const manifest = path.join(this.root, ...Resources.electronPackageSegments, Resources.packageManifestFileName);
-    const text = await readFile(manifest, Resources.textEncoding);
+    const text = await TextFile.readAsync(manifest);
     try {
       return JsonReader.parse(text).readString(Resources.manifestVersionField);
     }

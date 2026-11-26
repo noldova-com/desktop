@@ -7,13 +7,14 @@
  */
 
 import { existsSync } from "node:fs";
-import { lstat, readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
 import { JsonException, JsonReader } from "@noldova/context.json";
 
 import { FileErrors } from "../files/file-errors.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class InstalledPackages {
@@ -40,7 +41,7 @@ export class InstalledPackages {
 
   public static async readNameAsync(folder: string, fallback: string): Promise<string> {
     try {
-      return JsonReader.parse(await readFile(path.join(folder, Resources.packageManifestFileName), Resources.textEncoding)).readString(Resources.manifestNameField);
+      return JsonReader.parse(await TextFile.readAsync(path.join(folder, Resources.packageManifestFileName))).readString(Resources.manifestNameField);
     }
     catch (error) {
       if (!(error instanceof JsonException || FileErrors.isMissing(error)))
@@ -50,7 +51,7 @@ export class InstalledPackages {
   }
 
   public static async readDependencyNamesAsync(folder: string, fields: readonly string[] = Resources.installedDependencyFields): Promise<readonly string[]> {
-    const entries = new Map(Object.entries(JsonReader.parse(await readFile(path.join(folder, Resources.packageManifestFileName), Resources.textEncoding)).toJson()));
+    const entries = new Map(Object.entries(JsonReader.parse(await TextFile.readAsync(path.join(folder, Resources.packageManifestFileName))).toJson()));
     const names: string[] = [];
     for (const field of fields) {
       const listed = entries.get(field);
@@ -61,7 +62,7 @@ export class InstalledPackages {
   }
 
   public static async readVersionAsync(folder: string): Promise<string> {
-    const version = JsonReader.parse(await readFile(path.join(folder, Resources.packageManifestFileName), Resources.textEncoding)).toJson()[Resources.manifestVersionField];
+    const version = JsonReader.parse(await TextFile.readAsync(path.join(folder, Resources.packageManifestFileName))).toJson()[Resources.manifestVersionField];
     return Object.isString(version) ? version : String.empty;
   }
 

@@ -23,6 +23,11 @@ export class FileErrors {
     return FileErrors.hasCode(error, Resources.deniedFileCodes);
   }
 
+  public static isUnsized(error: unknown): boolean {
+    const call: unknown = error instanceof Error && Resources.errorCallField in error ? error[Resources.errorCallField] : undefined;
+    return FileErrors.hasCode(error, Resources.unsizedFileCodes) && call === Resources.fileStatusCall;
+  }
+
   private static hasCode(error: unknown, codes: ReadonlySet<string>): boolean {
     const code: unknown = error instanceof Error && Resources.errorCodeField in error ? error[Resources.errorCodeField] : undefined;
     return Object.isString(code) && codes.has(code);
