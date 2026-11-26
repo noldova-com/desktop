@@ -455,10 +455,11 @@ export class WindowPartContext implements IWindowPartContext {
   public openView(name: string, instance: string, title: string, options: IViewInstanceOptions = {}): void {
     this.requireInstance(name, instance);
     const heading = new DocumentHeading(title, options.breadcrumb ?? [], options.breadcrumbIcon ?? null);
+    const icon = WindowPartContext.requireIcon(options.icon);
     if (this.isWithdrawn)
       return;
-    this.noteIcon(options.icon ?? null);
-    this.host.openView(this.moduleId, name, instance, heading, options.icon ?? null, options.tabGroup ?? null, options.revealDock ?? true);
+    this.noteIcon(icon);
+    this.host.openView(this.moduleId, name, instance, heading, icon, options.tabGroup ?? null, options.revealDock ?? true);
   }
 
   public returnView(name: string, instance: string): void {
@@ -472,10 +473,11 @@ export class WindowPartContext implements IWindowPartContext {
     const title = Object.isUndefined(update.title) ? null : DocumentHeading.requireTitle(update.title);
     const breadcrumb = Object.isUndefined(update.breadcrumb) ? null : DocumentHeading.requireBreadcrumb(update.breadcrumb);
     const breadcrumbIcon = DocumentHeading.requireUpdateIcon(update.breadcrumbIcon ?? null, breadcrumb);
+    const icon = WindowPartContext.requireIcon(update.icon);
     if (this.isWithdrawn)
       return;
-    this.noteIcon(update.icon ?? null);
-    this.host.updateView(this.moduleId, name, instance, title, update.icon ?? null, breadcrumb, breadcrumbIcon);
+    this.noteIcon(icon);
+    this.host.updateView(this.moduleId, name, instance, title, icon, breadcrumb, breadcrumbIcon);
   }
 
   public closeView(name: string, instance: string): void {
@@ -853,6 +855,12 @@ export class WindowPartContext implements IWindowPartContext {
     if (this.source.documentNames.includes(name))
       return new DocumentTab(name, instance);
     throw new ContributionNotDeclaredException(this.moduleId, name, Resources.viewOrDocumentKind);
+  }
+
+  private static requireIcon(icon: string | undefined): string | null {
+    if (!Object.isUndefined(icon))
+      ArgumentException.throwIfNullOrWhitespace(icon, Resources.iconParameter);
+    return icon ?? null;
   }
 
   private noteLookIcons(look: IDocumentUpdate): void {

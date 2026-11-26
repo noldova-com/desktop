@@ -1821,8 +1821,8 @@ describe("WindowPartHostService", () => {
     const { host } = start([source("notes", notes)], [status("clock"), status("notes")]);
     await vi.waitFor(() => expect(host.generation()).toBe(1));
 
-    expect([...bridge.logged].sort()).toEqual(["clock: The icon unknown_tick isn't one of the kit's icon names, so it shows no icon.",
-      "notes: The icon unknown_view isn't one of the kit's icon names, so it shows no icon."]);
+    expect([...bridge.logged].sort()).toEqual(["clock: The icon unknown_tick isn't one of the kit's icon names, so it shows as if no icon were given.",
+      "notes: The icon unknown_view isn't one of the kit's icon names, so it shows as if no icon were given."]);
     expect(TestBed.inject(TabLabelService).of(new ViewTab("notes.list")).icon).toBe("web_asset");
   });
 

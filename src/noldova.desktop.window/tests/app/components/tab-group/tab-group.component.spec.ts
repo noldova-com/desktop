@@ -12,7 +12,6 @@ import { type ComponentFixture, TestBed } from "@angular/core/testing";
 import type {} from "@vitest/browser-playwright";
 import { userEvent } from "vitest/browser";
 
-import { TooltipDirective } from "@noldova/ui.components.angular";
 
 import { FieldMenuComponent } from "../../../../src/app/components/field-menu/field-menu.component";
 import { TabGroupComponent } from "../../../../src/app/components/tab-group/tab-group.component";
@@ -396,19 +395,15 @@ describe("TabGroupComponent", () => {
 
   it("shows a tab's title below it only while its label is cut short", async () => {
     await renderAsync();
-    const target = tab(1, 1);
-    const tooltip = fixture.debugElement.query(t => t.nativeElement === target).injector.get(TooltipDirective);
-    const decided = vi.spyOn(tooltip, "isTruncatedOnly");
+    const whole = tab(1, 1);
+    const target = tab(1, 0);
+    target.style.maxWidth = "3rem";
 
     const { fitting, cut } = await TooltipFixture.shieldAsync(async () => {
+      whole.dispatchEvent(new PointerEvent("pointerenter"));
       target.dispatchEvent(new PointerEvent("pointerenter"));
-      await vi.waitFor(() => expect(decided).toHaveBeenCalled());
-      const shown = TooltipFixture.find("files.search");
-      target.dispatchEvent(new PointerEvent("pointerleave"));
-      target.style.maxWidth = "3rem";
-      target.dispatchEvent(new PointerEvent("pointerenter"));
-      await vi.waitFor(() => expect(TooltipFixture.find("files.search")).toBeDefined());
-      return { fitting: shown, cut: TooltipFixture.find("files.search") };
+      await vi.waitFor(() => expect(TooltipFixture.find("files.tree")).toBeDefined());
+      return { fitting: TooltipFixture.find("files.search"), cut: TooltipFixture.find("files.tree") };
     });
 
     expect(fitting).toBeUndefined();

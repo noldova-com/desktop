@@ -1090,6 +1090,15 @@ describe("WindowPartContext", () => {
       "notes unknown_image", "notes unknown_status", "notes unknown_marker", "notes unknown_glyph", "notes -", "notes -", "notes unknown_view", "notes unknown_icon"]);
   });
 
+  it("refuses a blank icon for an instance of its view, as for its other icons", () => {
+    context.registerView(instanceView());
+    const noted = [...host.icons];
+
+    expect(() => context.openView("notes.list", "1", "Inbox", { icon: " " })).toThrowError(ArgumentException);
+    expect(() => context.updateView("notes.list", "1", { icon: String.empty })).toThrowError(ArgumentException);
+    expect([host.calls.filter(t => t.startsWith("openView") || t.startsWith("updateView")), host.icons]).toEqual([[], noted]);
+  });
+
   it("supplies the rows of its own dynamic groups, keeps only the commands it may run and stops supplying them when withdrawn", () => {
     const withdraw = context.provideMenuGroup("notes.recent", t => [new MenuRowContribution("notes.newNote", t, "New", "note_add"), new MenuRowContribution("tasks.show"), new MenuRowContribution("other.show")]);
     const items = host.providers.get("notes.recent")?.({ tab: "a" }) ?? [];

@@ -1202,7 +1202,7 @@ export class Resources {
   }
 
   public static formatUnknownIcon(name: string): string {
-    return `The icon ${name} isn't one of the kit's icon names, so it shows no icon.`;
+    return `The icon ${name} isn't one of the kit's icon names, so it shows as if no icon were given.`;
   }
 
   public static formatSettingCheckFailed(setting: string, error: unknown): string {

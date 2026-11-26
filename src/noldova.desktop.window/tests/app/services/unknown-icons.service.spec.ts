@@ -26,9 +26,9 @@ describe("UnknownIconsService", () => {
     icons.note("notes", "another_unknown");
 
     expect(bridge.logged).toEqual([
-      "notes: The icon not_a_kit_icon isn't one of the kit's icon names, so it shows no icon.",
-      "clock: The icon not_a_kit_icon isn't one of the kit's icon names, so it shows no icon.",
-      "notes: The icon another_unknown isn't one of the kit's icon names, so it shows no icon."
+      "notes: The icon not_a_kit_icon isn't one of the kit's icon names, so it shows as if no icon were given.",
+      "clock: The icon not_a_kit_icon isn't one of the kit's icon names, so it shows as if no icon were given.",
+      "notes: The icon another_unknown isn't one of the kit's icon names, so it shows as if no icon were given."
     ]);
   });
 });
