@@ -179,6 +179,7 @@
 
 :host(.nol-window-row-with-tabs) .nol-window-row-middle {
   flex: 0 1000 auto;
+  min-width: var(--nol-window-row-search-minimum);
   padding-inline-start: 0;
 }
 
