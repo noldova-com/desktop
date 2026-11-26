@@ -232,6 +232,30 @@ export class LockedInstallCheckTests {
     Assert.isFalse(await LockedInstallCheck.isInstalledAsync(lockedOnly.path));
   }
 
+  @TestMethod
+  @TestData("{")
+  @TestData("{\"name\":\"app\",\"lockfileVersion\":3}")
+  public async takesNothingAsInstalledForAHiddenLockfileItCantRead(installed: string): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      [LockedInstallCheckTests.LOCKFILE]: LockedInstallCheckTests.write(LockedInstallCheckTests.HELD),
+      [LockedInstallCheckTests.INSTALLED]: installed
+    });
+
+    Assert.isFalse(await LockedInstallCheck.isInstalledAsync(tree.path));
+  }
+
+  @TestMethod
+  public async passesOnAFailureToReadAHiddenLockfile(): Promise<void> {
+    await using tree = await SourceTreeFixture.createAsync({
+      [LockedInstallCheckTests.LOCKFILE]: LockedInstallCheckTests.write(LockedInstallCheckTests.HELD),
+      [`${LockedInstallCheckTests.INSTALLED}/file`]: String.empty
+    });
+
+    const error = await Assert.throwsAsync(() => LockedInstallCheck.isInstalledAsync(tree.path), Error);
+
+    Assert.isTrue(error.message.startsWith("EISDIR"), error.message);
+  }
+
   private static async createInstallAsync(installed: Readonly<Record<string, unknown>>, folders: readonly string[],
     locked: Readonly<Record<string, unknown>> = installed): Promise<SourceTreeFixture> {
     return await SourceTreeFixture.createAsync({

@@ -11,7 +11,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
-import { type JsonObject, JsonReader, type JsonValue } from "@noldova/context.json";
+import { JsonException, type JsonObject, JsonReader, type JsonValue } from "@noldova/context.json";
 
 import { PlatformFit } from "../../models/packages/platform-fit.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
@@ -78,8 +78,10 @@ export class LockedInstallCheck {
     const installedLockfile = path.join(root, ...Resources.installedLockfileSegments);
     if (!existsSync(lockfile) || !existsSync(installedLockfile))
       return false;
-    const locked = await LockedInstallCheck.readPackagesAsync(lockfile);
-    const installed = await LockedInstallCheck.readPackagesAsync(installedLockfile);
+    const locked = await LockedInstallCheck.readPackagesOrNullAsync(lockfile);
+    const installed = await LockedInstallCheck.readPackagesOrNullAsync(installedLockfile);
+    if (Object.isNull(locked) || Object.isNull(installed))
+      return false;
     for (const [location, value] of Object.entries(installed)) {
       const entry = LockedInstallCheck.toRecord(locked[location]);
       const held = LockedInstallCheck.toRecord(value);
@@ -103,6 +105,17 @@ export class LockedInstallCheck {
 
   private static async readPackagesAsync(file: string): Promise<JsonObject> {
     return JsonReader.parse(await readFile(file, Resources.textEncoding)).readObject(Resources.lockfilePackagesField).toJson();
+  }
+
+  private static async readPackagesOrNullAsync(file: string): Promise<JsonObject | null> {
+    try {
+      return await LockedInstallCheck.readPackagesAsync(file);
+    }
+    catch (error) {
+      if (!(error instanceof JsonException))
+        throw error;
+      return null;
+    }
   }
 
   private static toRecord(value: JsonValue | undefined): JsonObject {

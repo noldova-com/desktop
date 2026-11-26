@@ -247,6 +247,32 @@ export class AngularProjectTests {
   }
 
   @TestMethod
+  public async installsAgainForAnInstallRecordOfAnotherPlatformThoughNodeModulesHoldsTheLockfile(): Promise<void> {
+    await AngularProjectTests.assertInstallsAgainForRecordAsync(t => `${process.platform === "win32" ? "linux" : "win32"} ${process.arch} ${t}\n`);
+  }
+
+  @TestMethod
+  public async installsAgainForAnInstallRecordOfAnotherArchitectureThoughNodeModulesHoldsTheLockfile(): Promise<void> {
+    await AngularProjectTests.assertInstallsAgainForRecordAsync(t => `${process.platform} ${process.arch === "arm64" ? "x64" : "arm64"} ${t}\n`);
+  }
+
+  private static async assertInstallsAgainForRecordAsync(record: (hash: string) => string): Promise<void> {
+    const lockfile = AngularProjectTests.lockfile({ "node_modules/@angular/cli": { version: "22.2.6" } });
+    await using tree = await AngularProjectTests.createTreeAsync({
+      [AngularProjectTests.CLI]: String.empty,
+      [AngularProjectTests.LOCKFILE]: lockfile,
+      [AngularProjectTests.INSTALLED]: lockfile,
+      [AngularProjectTests.RECORD]: record(createHash("sha256").update(lockfile).digest("hex"))
+    }, false);
+    const runner = new ScriptedRunnerFixture(AngularProjectTests.answer());
+
+    const output = await AngularProjectTests.collectAsync(t => AngularProjectTests.create(tree, runner).installAsync(t));
+
+    Assert.areEqual(Resources.angularInstalling + Resources.angularNoBrowser, output);
+    Assert.areEqual(1, runner.captured.filter(t => t.endsWith(AngularProjectTests.CI)).length);
+  }
+
+  @TestMethod
   public async failsTheInstallWithTheExitCodeAndErrorOutputOfNpm(): Promise<void> {
     await using tree = await AngularProjectTests.createTreeAsync({ [AngularProjectTests.CLI]: String.empty }, false);
     const runner = new ScriptedRunnerFixture(AngularProjectTests.answer(new ProcessResult(1, String.empty, "npm ERR! broken\n")));
