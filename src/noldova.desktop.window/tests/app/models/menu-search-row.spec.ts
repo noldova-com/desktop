@@ -14,4 +14,8 @@ describe("MenuSearchRow", () => {
 
     expect([row.id, row.title, row.icon, row.menu]).toEqual(["notes.tools/notes.sortBy", "By title", "sort", "Notes > Sort"]);
   });
+
+  it("has no icon for an icon name the kit doesn't know", () => {
+    expect(new MenuSearchRow("notes.tools/notes.sortBy", "By title", "not_a_kit_icon", "Notes > Sort").icon).toBeNull();
+  });
 });

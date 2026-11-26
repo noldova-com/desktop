@@ -12,11 +12,10 @@ import { ArgumentException } from "@noldova/context.exceptions";
 import { TabLabel } from "../../../../src/app/models/layout/tab-label";
 
 describe("TabLabel", () => {
-  it("carries a title and an icon and rejects blank ones", () => {
+  it("carries a title and an icon and rejects a blank title", () => {
     const label = new TabLabel("Files", "folder");
 
     expect([label.title, label.icon]).toEqual(["Files", "folder"]);
     expect(() => new TabLabel(" ", "folder")).toThrow(ArgumentException);
-    expect(() => new TabLabel("Files", String.empty)).toThrow(ArgumentException);
   });
 });

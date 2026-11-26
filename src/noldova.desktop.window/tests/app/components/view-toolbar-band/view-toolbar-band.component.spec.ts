@@ -23,7 +23,7 @@ import { DomFixture } from "../../../fixtures/dom.fixture";
 import { PreloadBridgeFixture } from "../../../fixtures/preload-bridge.fixture";
 
 describe("ViewToolbarBandComponent", () => {
-  const section = new MenuSection("notes.create", [new CommandRow("notes.newNote", {}, "New note", "note", null, true, MenuCheck.None, false)]);
+  const section = new MenuSection("notes.create", [new CommandRow("notes.newNote", {}, "New note", "sticky_note_2", null, true, MenuCheck.None, false)]);
   const rowsOf = vi.fn(() => [[new Toolbar("notes.boardMain", "Board", [section])]]);
 
   beforeEach(() => {

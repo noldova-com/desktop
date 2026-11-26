@@ -121,6 +121,17 @@ describe("SearchPaletteComponent", () => {
     expect(host.querySelector(".nol-quick-input-empty")).toBeNull();
   });
 
+  it("draws no icon on the rows of a source whose icon name the kit doesn't know", async () => {
+    const drafts = new SearchSourceContribution("chat.drafts", "Drafts", "drafts", "In Drafts", "Recent drafts", "not_a_kit_icon",
+      () => Promise.resolve([result("chat.draft", "Draft reply")]), () => Promise.resolve(new SearchAnswer([])));
+    TestBed.overrideProvider(SearchService, { useValue: { placeholder: signal("Search drafts and chats"), createSession: () => new SearchSession([drafts, chats], "desktop.commands", () => undefined) } });
+
+    const host = DomFixture.host(await renderAsync(host => host.querySelectorAll("[role=option]").length === 2));
+
+    expect([...host.querySelectorAll<HTMLElement>("[role=option]")].map(t => [t.getAttribute("data-item"), String(DomFixture.one(t, ".nol-quick-input-icon").textContent).trim()]))
+      .toEqual([["chat.drafts/chat.draft", String.empty], ["chat.chats/chat.fix", "forum"]]);
+  });
+
   it("shows a Best match, then two of each source's matches under its heading with its marks, and each source's total on its filter", async () => {
     const fixture = await renderAsync();
     const host = DomFixture.host(fixture);

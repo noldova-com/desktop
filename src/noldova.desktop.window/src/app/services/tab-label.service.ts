@@ -9,10 +9,12 @@
 import { Injectable, type WritableSignal, signal } from "@angular/core";
 
 import "@noldova/context.core";
+import type { IconName } from "@noldova/ui.components.angular";
 
 import { Resources } from "../../resources.js";
 import { DocumentHeading } from "../models/document-heading.js";
 import { DocumentLook } from "../models/document-look.js";
+import { KnownIcon } from "../models/known-icon.js";
 import type { Tab } from "../models/layout/tab.js";
 import { TabLabel } from "../models/layout/tab-label.js";
 import type { ViewBadge } from "../models/view-badge.js";
@@ -21,7 +23,7 @@ import type { ViewBadge } from "../models/view-badge.js";
 export class TabLabelService {
   private readonly labels: WritableSignal<ReadonlyMap<string, TabLabel>> = signal(new Map());
   private readonly titles: WritableSignal<ReadonlyMap<string, string>> = signal(new Map());
-  private readonly icons: WritableSignal<ReadonlyMap<string, string>> = signal(new Map());
+  private readonly icons: WritableSignal<ReadonlyMap<string, IconName>> = signal(new Map());
   private readonly breadcrumbs: WritableSignal<ReadonlyMap<string, readonly string[]>> = signal(new Map());
   private readonly breadcrumbIcons: WritableSignal<ReadonlyMap<string, string>> = signal(new Map());
   private readonly badges: WritableSignal<ReadonlyMap<string, ViewBadge>> = signal(new Map());
@@ -79,7 +81,8 @@ export class TabLabelService {
   }
 
   public setIcon(tab: Tab, icon: string): void {
-    this.icons.update(t => new Map([...t, [tab.key, icon]]));
+    const known = KnownIcon.of(icon);
+    this.icons.update(t => Object.isNull(known) ? new Map([...t].filter(([key]) => key !== tab.key)) : new Map([...t, [tab.key, known]]));
   }
 
   public forget(tabKey: string): void {

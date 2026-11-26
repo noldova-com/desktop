@@ -110,7 +110,7 @@ describe("WindowComponent", () => {
     for (const platform of ["win32", "darwin"])
       for (const count of [0, 2])
         it(`stands the window row's controls, ${count} toolbar rows and the panels 0.25rem apart at panel size ${panelSize} on ${platform}`, async () => {
-          const toolbar = new Toolbar("notes.main", "Main", [new MenuSection("notes.create", [new CommandRow("notes.newNote", {}, "New note", "note", null, true, MenuCheck.None, false)])]);
+          const toolbar = new Toolbar("notes.main", "Main", [new MenuSection("notes.create", [new CommandRow("notes.newNote", {}, "New note", "sticky_note_2", null, true, MenuCheck.None, false)])]);
           const rows = Array.from({ length: count }, () => [toolbar]);
           PreloadBridgeFixture.install(platform);
           TestBed.configureTestingModule({ providers: [{ provide: ToolbarService, useValue: { rowsOf: () => rows } }] });

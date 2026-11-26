@@ -155,6 +155,7 @@ export class WindowPartContext implements IWindowPartContext {
       this.requireOwn(view.tabRowPlace);
     if (this.isWithdrawn)
       return;
+    this.noteIcon(view.icon);
     this.viewList.push(view);
     this.host.refresh();
   }
@@ -214,6 +215,7 @@ export class WindowPartContext implements IWindowPartContext {
       return;
     if (this.host.isCommandRegistered(command.name))
       throw new CommandAlreadyRegisteredException(this.moduleId, command.name);
+    this.noteIcon(command.icon);
     this.commandList.push(command);
     this.host.refresh();
   }
@@ -224,6 +226,7 @@ export class WindowPartContext implements IWindowPartContext {
       return;
     if (this.searchSourceList.some(t => t.name === source.name))
       throw new SearchSourceRegisteredException(this.moduleId, source.name);
+    this.noteIcon(source.icon);
     this.searchSourceList.push(source);
     this.host.refresh();
   }
@@ -243,7 +246,10 @@ export class WindowPartContext implements IWindowPartContext {
 
   public registerTopBarAction(action: TopBarActionContribution): TopBarAction {
     this.requireDeclared(action.name, this.source.topBarActionNames, this.topBarActionList, Resources.topBarActionKind);
-    const registered = new TopBarAction(action, t => this.requireAllowed(t.command));
+    const registered = new TopBarAction(action, t => {
+      this.requireAllowed(t.command);
+      this.noteIcon(t.icon);
+    });
     if (this.isWithdrawn)
       return registered;
     this.topBarActionList.push(registered);
@@ -285,7 +291,10 @@ export class WindowPartContext implements IWindowPartContext {
     if (this.isWithdrawn)
       return WindowPartContext.ignore;
     const withdraw = this.host.provideMenuGroup(group, context => provider(context).filter(t => this.isAllowed(t.command))
-      .map(t => MenuItem.ofCommand(t.command, t.commandArguments, t.label, t.icon)));
+      .map(t => {
+        this.noteIcon(t.icon);
+        return MenuItem.ofCommand(t.command, t.commandArguments, t.label, t.icon);
+      }));
     this.subscriptions.push(withdraw);
     return withdraw;
   }
@@ -378,6 +387,7 @@ export class WindowPartContext implements IWindowPartContext {
     DocumentLook.validate(options);
     if (this.isWithdrawn)
       return;
+    this.noteLookIcons(options);
     this.host.openDocumentLook(this.moduleId, name, instance, options);
     this.host.openDocument(this.moduleId, name, instance, heading, options.preview === true, options.after ?? null, options.activate !== false);
   }
@@ -411,8 +421,10 @@ export class WindowPartContext implements IWindowPartContext {
     if (this.isWithdrawn)
       return;
     this.host.updateDocument(this.moduleId, name, instance, title, breadcrumb, breadcrumbIcon);
-    if (changesLook)
+    if (changesLook) {
+      this.noteLookIcons(update);
       this.host.updateDocumentLook(name, instance, update);
+    }
   }
 
   public onDocumentClosed(name: string, listener: (instance: string) => void): () => void {
@@ -443,8 +455,11 @@ export class WindowPartContext implements IWindowPartContext {
   public openView(name: string, instance: string, title: string, options: IViewInstanceOptions = {}): void {
     this.requireInstance(name, instance);
     const heading = new DocumentHeading(title, options.breadcrumb ?? [], options.breadcrumbIcon ?? null);
-    if (!this.isWithdrawn)
-      this.host.openView(this.moduleId, name, instance, heading, options.icon ?? null, options.tabGroup ?? null, options.revealDock ?? true);
+    const icon = WindowPartContext.requireIcon(options.icon);
+    if (this.isWithdrawn)
+      return;
+    this.noteIcon(icon);
+    this.host.openView(this.moduleId, name, instance, heading, icon, options.tabGroup ?? null, options.revealDock ?? true);
   }
 
   public returnView(name: string, instance: string): void {
@@ -458,8 +473,11 @@ export class WindowPartContext implements IWindowPartContext {
     const title = Object.isUndefined(update.title) ? null : DocumentHeading.requireTitle(update.title);
     const breadcrumb = Object.isUndefined(update.breadcrumb) ? null : DocumentHeading.requireBreadcrumb(update.breadcrumb);
     const breadcrumbIcon = DocumentHeading.requireUpdateIcon(update.breadcrumbIcon ?? null, breadcrumb);
-    if (!this.isWithdrawn)
-      this.host.updateView(this.moduleId, name, instance, title, update.icon ?? null, breadcrumb, breadcrumbIcon);
+    const icon = WindowPartContext.requireIcon(update.icon);
+    if (this.isWithdrawn)
+      return;
+    this.noteIcon(icon);
+    this.host.updateView(this.moduleId, name, instance, title, icon, breadcrumb, breadcrumbIcon);
   }
 
   public closeView(name: string, instance: string): void {
@@ -837,6 +855,21 @@ export class WindowPartContext implements IWindowPartContext {
     if (this.source.documentNames.includes(name))
       return new DocumentTab(name, instance);
     throw new ContributionNotDeclaredException(this.moduleId, name, Resources.viewOrDocumentKind);
+  }
+
+  private static requireIcon(icon: string | undefined): string | null {
+    if (!Object.isUndefined(icon))
+      ArgumentException.throwIfNullOrWhitespace(icon, Resources.iconParameter);
+    return icon ?? null;
+  }
+
+  private noteLookIcons(look: IDocumentUpdate): void {
+    for (const name of [look.imageGlyph, look.status?.glyph, look.marker?.glyph])
+      this.noteIcon(name ?? null);
+  }
+
+  private noteIcon(name: string | null): void {
+    this.host.noteIcon(this.moduleId, name);
   }
 
   private requireOwn(name: string): void {

@@ -38,7 +38,7 @@ class HostComponent {
 
 describe("ToolbarComponent", () => {
   const row = (command: string, title: string, key: string | null = null, isEnabled: boolean = true, check: MenuCheck = MenuCheck.None, isChecked: boolean = false): CommandRow =>
-    new CommandRow(command, { by: "title" }, title, "note", key, isEnabled, check, isChecked);
+    new CommandRow(command, { by: "title" }, title, "sticky_note_2", key, isEnabled, check, isChecked);
   const sections = [
     new MenuSection("notes.create", [row("notes.newNote", "New note", "Ctrl+N"), row("notes.locked", "Locked", null, false)]),
     new MenuSection("notes.display", [row("notes.wrap", "Wrap", null, true, MenuCheck.Checkbox, true)]),

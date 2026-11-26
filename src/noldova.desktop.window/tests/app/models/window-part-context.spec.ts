@@ -1072,6 +1072,33 @@ describe("WindowPartContext", () => {
     expect(() => context.onEvent("clock.ticked", () => undefined)).toThrowError(WindowPartAccessException);
   });
 
+  it("hands the host each icon name it is given, by its module, so the host can log a name the kit doesn't know", () => {
+    context.registerView(instanceView());
+    context.registerCommand(new CommandContribution("notes.newNote", "New note", "edit_note", null, () => Promise.resolve(null)));
+    context.registerSearchSource(new SearchSourceContribution("notes.notes", "Notes", "notes", "Notes", null, "unknown_search", () => Promise.resolve([]), () => Promise.resolve(new SearchAnswer([]))));
+    const share = context.registerTopBarAction(new TopBarActionContribution("notes.share", new TopBarActionState("unknown_share", "Share", "tasks.share")));
+    share.update(new TopBarActionState("unknown_shared", "Shared", "tasks.share"));
+    context.provideMenuGroup("notes.recent", () => [new MenuRowContribution("notes.newNote", {}, "New", "unknown_row")]);
+    host.providers.get("notes.recent")?.({});
+    context.openDocument("notes.note", "1", "Note 1", { imageGlyph: "unknown_image", status: { glyph: "unknown_status", description: "Gone" }, marker: { glyph: "unknown_marker", label: "From" } });
+    context.updateDocument("notes.note", "1", { title: "Note one" });
+    context.updateDocument("notes.note", "1", { imageGlyph: "unknown_glyph" });
+    context.openView("notes.list", "1", "Inbox", { icon: "unknown_view" });
+    context.updateView("notes.list", "1", { icon: "unknown_icon" });
+
+    expect(host.icons).toEqual(["notes sticky_note_2", "notes edit_note", "notes unknown_search", "notes unknown_share", "notes unknown_shared", "notes unknown_row",
+      "notes unknown_image", "notes unknown_status", "notes unknown_marker", "notes unknown_glyph", "notes -", "notes -", "notes unknown_view", "notes unknown_icon"]);
+  });
+
+  it("refuses a blank icon for an instance of its view, as for its other icons", () => {
+    context.registerView(instanceView());
+    const noted = [...host.icons];
+
+    expect(() => context.openView("notes.list", "1", "Inbox", { icon: " " })).toThrowError(ArgumentException);
+    expect(() => context.updateView("notes.list", "1", { icon: String.empty })).toThrowError(ArgumentException);
+    expect([host.calls.filter(t => t.startsWith("openView") || t.startsWith("updateView")), host.icons]).toEqual([[], noted]);
+  });
+
   it("supplies the rows of its own dynamic groups, keeps only the commands it may run and stops supplying them when withdrawn", () => {
     const withdraw = context.provideMenuGroup("notes.recent", t => [new MenuRowContribution("notes.newNote", t, "New", "note_add"), new MenuRowContribution("tasks.show"), new MenuRowContribution("other.show")]);
     const items = host.providers.get("notes.recent")?.({ tab: "a" }) ?? [];

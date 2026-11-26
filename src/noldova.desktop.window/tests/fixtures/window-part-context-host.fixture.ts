@@ -40,6 +40,7 @@ import { WebViewHandleFixture } from "./web-view-handle.fixture";
 
 export class WindowPartContextHostFixture implements IWindowPartHost {
   public readonly calls: string[] = [];
+  public readonly icons: string[] = [];
   public readonly keys: WritableSignal<ICommandKey | null> = signal(null);
   public readonly docks: WritableSignal<DockSide | null> = signal(null);
   public readonly looks: (readonly [string, IDocumentUpdate])[] = [];
@@ -184,6 +185,10 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
 
   public log(moduleId: string, message: string): void {
     this.calls.push(`log ${moduleId} ${message}`);
+  }
+
+  public noteIcon(moduleId: string, name: string | null): void {
+    this.icons.push(`${moduleId} ${name ?? "-"}`);
   }
 
   public openLinkAsync(url: string, options: ILinkOpenOptions): Promise<void> {

@@ -7,15 +7,16 @@
  */
 
 import { ArgumentException } from "@noldova/context.exceptions";
+import type { IconName } from "@noldova/ui.components.angular";
+
 import { Resources } from "../../../resources.js";
 
 export class TabLabel {
   public readonly title: string;
-  public readonly icon: string;
+  public readonly icon: IconName;
 
-  public constructor(title: string, icon: string) {
+  public constructor(title: string, icon: IconName) {
     ArgumentException.throwIfNullOrWhitespace(title, Resources.titleParameterName);
-    ArgumentException.throwIfNullOrWhitespace(icon, Resources.iconParameterName);
 
     this.title = title;
     this.icon = icon;

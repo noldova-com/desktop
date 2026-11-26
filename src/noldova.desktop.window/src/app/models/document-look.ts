@@ -9,12 +9,13 @@
 import "@noldova/context.core";
 import { ArgumentException } from "@noldova/context.exceptions";
 
-import { TabMarker, TabStatus, TabTone } from "@noldova/ui.components.angular";
+import { type IconName, TabMarker, TabStatus, TabTone } from "@noldova/ui.components.angular";
 
 import { DocumentTone } from "../enums/document-tone.js";
 import type { IDocumentUpdate } from "../interfaces/i-document-update.js";
 import type { IDocumentMarker } from "../interfaces/i-document-marker.js";
 import type { IDocumentStatus } from "../interfaces/i-document-status.js";
+import { KnownIcon } from "./known-icon.js";
 import { Resources } from "../../resources.js";
 
 export class DocumentLook {
@@ -27,11 +28,11 @@ export class DocumentLook {
   };
 
   public readonly image: string | null;
-  public readonly imageGlyph: string | null;
+  public readonly imageGlyph: IconName | null;
   public readonly status: TabStatus | null;
   public readonly marker: TabMarker | null;
 
-  private constructor(image: string | null, imageGlyph: string | null, status: TabStatus | null, marker: TabMarker | null) {
+  private constructor(image: string | null, imageGlyph: IconName | null, status: TabStatus | null, marker: TabMarker | null) {
     this.image = image;
     this.imageGlyph = imageGlyph;
     this.status = status;
@@ -49,7 +50,7 @@ export class DocumentLook {
   public updated(change: IDocumentUpdate): DocumentLook {
     return new DocumentLook(
       Object.isUndefined(change.image) ? this.image : DocumentLook.requireImage(change.image),
-      Object.isUndefined(change.imageGlyph) ? this.imageGlyph : DocumentLook.requireText(change.imageGlyph, Resources.imageGlyphParameter),
+      Object.isUndefined(change.imageGlyph) ? this.imageGlyph : KnownIcon.of(DocumentLook.requireText(change.imageGlyph, Resources.imageGlyphParameter)),
       Object.isUndefined(change.status) ? this.status : DocumentLook.toStatus(change.status),
       Object.isUndefined(change.marker) ? this.marker : DocumentLook.toMarker(change.marker));
   }
@@ -71,7 +72,8 @@ export class DocumentLook {
       return null;
     ArgumentException.throwIfNullOrWhitespace(status.glyph, Resources.statusParameter);
     ArgumentException.throwIfNullOrWhitespace(status.description, Resources.statusParameter);
-    return new TabStatus(status.glyph, status.description, DocumentLook.TONES[status.tone ?? DocumentTone.Neutral]);
+    const glyph = KnownIcon.of(status.glyph);
+    return Object.isNull(glyph) ? null : new TabStatus(glyph, status.description, DocumentLook.TONES[status.tone ?? DocumentTone.Neutral]);
   }
 
   private static toMarker(marker: IDocumentMarker | null): TabMarker | null {
@@ -79,6 +81,7 @@ export class DocumentLook {
       return null;
     ArgumentException.throwIfNullOrWhitespace(marker.glyph, Resources.markerParameter);
     ArgumentException.throwIfNullOrWhitespace(marker.label, Resources.markerParameter);
-    return new TabMarker(marker.glyph, marker.label);
+    const glyph = KnownIcon.of(marker.glyph);
+    return Object.isNull(glyph) ? null : new TabMarker(glyph, marker.label);
   }
 }

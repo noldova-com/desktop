@@ -396,18 +396,19 @@ describe("TabGroupComponent", () => {
 
   it("shows a tab's title below it only while its label is cut short", async () => {
     await renderAsync();
-    const target = tab(1, 1);
-    const decided = vi.spyOn(TooltipDirective.prototype, "show");
+    const whole = tab(1, 1);
+    const target = tab(1, 0);
+    target.style.maxWidth = "3rem";
+    const decided = vi.spyOn(fixture.debugElement.query(t => t.nativeElement === whole).injector.get(TooltipDirective), "isTruncatedOnly");
 
     const { fitting, cut } = await TooltipFixture.shieldAsync(async () => {
-      target.dispatchEvent(new PointerEvent("pointerenter"));
-      await vi.waitFor(() => expect(decided).toHaveBeenCalled());
+      whole.dispatchEvent(new PointerEvent("pointerenter"));
+      await vi.waitFor(() => expect(decided).toHaveBeenCalledTimes(2));
       const shown = TooltipFixture.find("files.search");
-      target.dispatchEvent(new PointerEvent("pointerleave"));
-      target.style.maxWidth = "3rem";
+      whole.dispatchEvent(new PointerEvent("pointerleave"));
       target.dispatchEvent(new PointerEvent("pointerenter"));
-      await vi.waitFor(() => expect(TooltipFixture.find("files.search")).toBeDefined());
-      return { fitting: shown, cut: TooltipFixture.find("files.search") };
+      await vi.waitFor(() => expect(TooltipFixture.find("files.tree")).toBeDefined());
+      return { fitting: shown, cut: TooltipFixture.find("files.tree") };
     });
 
     expect(fitting).toBeUndefined();

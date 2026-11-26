@@ -11,6 +11,7 @@ import { Component, DestroyRef, ErrorHandler, type Signal, type WritableSignal, 
 import "@noldova/context.core";
 import { QuickInputComponent, QuickInputItem } from "@noldova/ui.components.angular";
 
+import { KnownIcon } from "../../models/known-icon.js";
 import type { SearchFilter } from "../../models/search-filter.js";
 import type { SearchRow } from "../../models/search-row.js";
 import type { SearchSession } from "../../models/search-session.js";
@@ -39,7 +40,7 @@ export class SearchPaletteComponent {
   protected readonly itemsQuery: Signal<string> = this.session.answeredText;
   protected readonly emptyText: Signal<string> = computed(() => this.session.query().isEmpty ? String.empty : Resources.nothingFound);
   protected readonly items: Signal<readonly QuickInputItem[]> = computed(() => this.session.groups().flatMap(group => group.rows.map((t, index) =>
-    new QuickInputItem(t.id, t.result.title, t.source.icon, t.result.detail, t.result.keyLabel, SearchPaletteComponent.indicesOf(t.result.titleMatch),
+    new QuickInputItem(t.id, t.result.title, KnownIcon.of(t.source.icon), t.result.detail, t.result.keyLabel, SearchPaletteComponent.indicesOf(t.result.titleMatch),
       SearchPaletteComponent.indicesOf(t.result.detailMatch), index === 0 ? group.heading : null))));
 
   public constructor() {

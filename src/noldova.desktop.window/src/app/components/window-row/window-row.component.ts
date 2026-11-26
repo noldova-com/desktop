@@ -11,10 +11,12 @@ import { OverlayContainer } from "@angular/cdk/overlay";
 import { NgTemplateOutlet } from "@angular/common";
 import { Component, DestroyRef, ElementRef, ErrorHandler, PendingTasks, type Signal, type WritableSignal, afterNextRender, afterRenderEffect, computed, effect, inject, signal, viewChild } from "@angular/core";
 
-import { AppearanceService, DialogService, IconButtonComponent, MenuBarComponent, MenuBarItemComponent, MenuComponent, MenuItemComponent, MenuTriggerDirective, OverlaySide, TooltipDirective } from "@noldova/ui.components.angular";
+import { AppearanceService, DialogService, IconButtonComponent, type IconName, MenuBarComponent, MenuBarItemComponent, MenuComponent, MenuItemComponent, MenuTriggerDirective, OverlaySide, TooltipDirective } from "@noldova/ui.components.angular";
 import type { JsonValue } from "@noldova/context.json";
 
 import { BuildTokens } from "../../models/build-tokens.js";
+import { KnownIcon } from "../../models/known-icon.js";
+import type { TopBarActionState } from "../../models/top-bar-action-state.js";
 import { ProductName } from "../../models/product-name.js";
 import { Resources } from "../../../resources.js";
 import { DockSide } from "../../enums/dock-side.js";
@@ -104,7 +106,7 @@ export class WindowRowComponent {
   protected readonly fieldShift: Signal<string> = computed(() => Resources.formatPixels(this.shiftValue()));
   protected readonly below: OverlaySide = OverlaySide.below;
   protected readonly leftDockCommand: string = Resources.toggleDockCommands[DockSide.Left];
-  protected readonly leftDockGlyph: string = Resources.hideDockGlyphs[DockSide.Left];
+  protected readonly leftDockGlyph: IconName = Resources.hideDockGlyphs[DockSide.Left];
   protected readonly isLeftDockShown: Signal<boolean> = computed(() => this.commands.isChecked(this.leftDockCommand));
   protected readonly heading: Signal<DocumentHeading | null> = computed(() => {
     const active = this.layout.layout().documents.active;
@@ -210,6 +212,10 @@ export class WindowRowComponent {
     this.isAltAlone = false;
     if (isAlone)
       this.focusMenu(event);
+  }
+
+  protected iconOf(state: TopBarActionState): IconName {
+    return KnownIcon.of(state.icon) ?? Resources.topBarActionGlyph;
   }
 
   protected isAvailable(command: string, commandArguments: JsonValue): boolean {

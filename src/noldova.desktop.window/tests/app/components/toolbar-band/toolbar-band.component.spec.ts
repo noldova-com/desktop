@@ -30,7 +30,7 @@ import { PreloadBridgeFixture } from "../../../fixtures/preload-bridge.fixture";
 import { DomFixture } from "../../../fixtures/dom.fixture";
 
 describe("ToolbarBandComponent", () => {
-  const section = new MenuSection("notes.create", [new CommandRow("notes.newNote", {}, "New note", "note", null, true, MenuCheck.None, false)]);
+  const section = new MenuSection("notes.create", [new CommandRow("notes.newNote", {}, "New note", "sticky_note_2", null, true, MenuCheck.None, false)]);
   const rows: WritableSignal<readonly (readonly Toolbar[])[]> = signal([]);
   const target: WritableSignal<ToolbarDropTarget | null> = signal(null);
   const dragBand: WritableSignal<HTMLElement | null> = signal(null);

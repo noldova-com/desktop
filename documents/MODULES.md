@@ -335,6 +335,9 @@ Noldova Desktop registers its own entries, such as the default theme, through th
 | Storage | Its database's tables and migrations, and its files. | Creates, migrates, backs up and closes its database. |
 | Command line | Commands under its id, from `cli.json`. | Reads the command line against them, prints their help and runs them. |
 
+- An icon or glyph a module gives is a name from the kit's icon names, `IconNames.all` in `@noldova/ui.components.angular`, though the contract types it as a string.
+  A name the kit doesn't know, such as one from a newer kit, counts as no name: the entry shows the icon it shows without one, such as a view's default glyph or none, and Noldova Desktop logs one line under the module naming it, once per module and name.
+  A blank name is still refused.
 - A saved layout keeps the place of a view or document whose module is absent, and shows it again when the module returns.
 - A window part places a palette just under the window row through its context, never by reaching into Noldova Desktop's elements, as [WINDOW.md](WINDOW.md#keys-and-menus) says.
 - The data format of a theme is decided when a second theme is built.

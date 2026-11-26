@@ -161,7 +161,7 @@ describe("TabRowActionsComponent", () => {
       expect(group(tab).querySelector("nol-tab:last-of-type")?.compareDocumentPosition(button(tab, "New terminal"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
     expect([button(first, "New terminal").textContent?.trim(), button(first, "Split terminal").textContent?.trim(), button(first, "Choose a shell").textContent?.trim()])
-      .toEqual(["add", "play_arrow", "expand_more"]);
+      .toEqual(["add", "play_arrow", "keyboard_arrow_down"]);
     expect(others?.querySelectorAll(".nol-tab-group-actions button").length).toBe(2);
     expect(others?.querySelectorAll("nol-tab-row-actions button").length).toBe(0);
   });

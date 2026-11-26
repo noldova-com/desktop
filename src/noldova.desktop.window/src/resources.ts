@@ -10,7 +10,7 @@ import type { AriaLivePoliteness, FocusOrigin } from "@angular/cdk/a11y";
 import type { ConnectedPosition } from "@angular/cdk/overlay";
 
 import "@noldova/context.core";
-import { DockingDirection, OverlaySide } from "@noldova/ui.components.angular";
+import { DockingDirection, type IconName, OverlaySide } from "@noldova/ui.components.angular";
 import { EditAction, ModuleState, NotificationSeverity } from "@noldova/desktop.protocol";
 
 import { BottomDockSpan } from "./app/enums/bottom-dock-span.js";
@@ -151,31 +151,32 @@ export class Resources {
   };
   public static readonly dockingPlateGap: number = 0.125;
   public static readonly dockingPlateClearance: number = 0.25;
-  public static readonly viewGlyph: string = "web_asset";
-  public static readonly documentGlyph: string = "description";
-  public static readonly moduleFailureGlyph: string = "error";
-  public static readonly moduleOffGlyph: string = "toggle_off";
-  public static readonly moduleUnavailableGlyph: string = "block";
-  public static readonly copyGlyph: string = "content_copy";
-  public static readonly copiedGlyph: string = "check";
-  public static readonly logFolderGlyph: string = "folder_open";
-  public static readonly panelActionsGlyph: string = "more_horiz";
-  public static readonly moveToGlyph: string = "drive_file_move";
-  public static readonly splitGlyph: string = "splitscreen";
-  public static readonly dockGlyph: string = "dock_to_right";
-  public static readonly closeGlyph: string = "close";
-  public static readonly closeOthersGlyph: string = "tab_close";
-  public static readonly keepGlyph: string = "keep";
-  public static readonly renameGlyph: string = "edit";
-  public static readonly closeToTheRightGlyph: string = "tab_close_right";
-  public static readonly closeAllGlyph: string = "clear_all";
-  public static readonly moveEarlierGlyph: string = "arrow_back";
-  public static readonly moveLaterGlyph: string = "arrow_forward";
-  public static readonly resetLayoutGlyph: string = "restart_alt";
+  public static readonly viewGlyph: IconName = "web_asset";
+  public static readonly documentGlyph: IconName = "description";
+  public static readonly moduleFailureGlyph: IconName = "error";
+  public static readonly moduleOffGlyph: IconName = "toggle_off";
+  public static readonly moduleUnavailableGlyph: IconName = "block";
+  public static readonly copyGlyph: IconName = "content_copy";
+  public static readonly copiedGlyph: IconName = "check";
+  public static readonly logFolderGlyph: IconName = "folder_open";
+  public static readonly panelActionsGlyph: IconName = "more_horiz";
+  public static readonly moveToGlyph: IconName = "drive_file_move";
+  public static readonly splitGlyph: IconName = "splitscreen";
+  public static readonly dockGlyph: IconName = "dock_to_right";
+  public static readonly closeGlyph: IconName = "close";
+  public static readonly closeOthersGlyph: IconName = "tab_close";
+  public static readonly keepGlyph: IconName = "keep";
+  public static readonly renameGlyph: IconName = "edit";
+  public static readonly closeToTheRightGlyph: IconName = "tab_close_right";
+  public static readonly closeAllGlyph: IconName = "clear_all";
+  public static readonly moveEarlierGlyph: IconName = "arrow_back";
+  public static readonly moveLaterGlyph: IconName = "arrow_forward";
+  public static readonly resetLayoutGlyph: IconName = "restart_alt";
   public static readonly panelActionsLabel: string = "Panel actions";
-  public static readonly overflowGlyph: string = "expand_more";
-  public static readonly tabRowSubmenuGlyph: string = "expand_more";
-  public static readonly tabRowCommandGlyph: string = "play_arrow";
+  public static readonly overflowGlyph: IconName = "keyboard_arrow_down";
+  public static readonly tabRowSubmenuGlyph: IconName = "keyboard_arrow_down";
+  public static readonly tabRowCommandGlyph: IconName = "play_arrow";
+  public static readonly topBarActionGlyph: IconName = "play_arrow";
   public static readonly overflowLabel: string = "Show all tabs";
   public static readonly moveToLabel: string = "Move to";
   public static readonly splitLabel: string = "Split";
@@ -193,7 +194,7 @@ export class Resources {
     [BottomDockSpan.Full]: "desktop.spanBottomDock",
     [BottomDockSpan.Between]: "desktop.fitBottomDockBetween"
   };
-  public static readonly bottomSpanGlyphs: Readonly<Record<BottomDockSpan, string>> = {
+  public static readonly bottomSpanGlyphs: Readonly<Record<BottomDockSpan, IconName>> = {
     [BottomDockSpan.Full]: "width_full",
     [BottomDockSpan.Between]: "width_normal"
   };
@@ -213,7 +214,7 @@ export class Resources {
     [PanelEdge.Top]: "Split up",
     [PanelEdge.Bottom]: "Split down"
   };
-  public static readonly splitGlyphs: Readonly<Record<PanelEdge, string>> = {
+  public static readonly splitGlyphs: Readonly<Record<PanelEdge, IconName>> = {
     [PanelEdge.Left]: "arrow_back",
     [PanelEdge.Right]: "arrow_forward",
     [PanelEdge.Top]: "arrow_upward",
@@ -229,7 +230,7 @@ export class Resources {
     [DockSide.Right]: "Dock right",
     [DockSide.Bottom]: "Dock at the bottom"
   };
-  public static readonly dockGlyphs: Readonly<Record<DockSide, string>> = {
+  public static readonly dockGlyphs: Readonly<Record<DockSide, IconName>> = {
     [DockSide.Left]: "dock_to_left",
     [DockSide.Right]: "dock_to_right",
     [DockSide.Bottom]: "dock_to_bottom"
@@ -249,30 +250,30 @@ export class Resources {
   public static readonly openSettingsTitle: string = "Settings…";
   public static readonly showShortcutsCommand: string = "desktop.showShortcuts";
   public static readonly showShortcutsTitle: string = "Show keyboard shortcuts";
-  public static readonly showShortcutsGlyph: string = "keyboard";
+  public static readonly showShortcutsGlyph: IconName = "keyboard";
   public static readonly showInDialogCommand: string = "desktop.showInDialog";
   public static readonly showInDialogTitle: string = "Show in a dialog";
-  public static readonly showInDialogGlyph: string = "open_in_full";
+  public static readonly showInDialogGlyph: IconName = "open_in_full";
   public static readonly openInMainWindowLabel: string = "Open in main window";
-  public static readonly openInMainWindowGlyph: string = "tab_move";
+  public static readonly openInMainWindowGlyph: IconName = "tab_move";
   public static readonly dialogAlreadyOpen: string = "A dialog is already open.";
   public static readonly dialogWhileReconnecting: string = "A dialog can't open while the window reconnects to the runtime.";
   public static readonly settingsDocument: string = "desktop.settings";
   public static readonly settingsTitle: string = "Settings";
   public static readonly settingsReason: string = "Settings opens once the window has started";
-  public static readonly settingsGlyph: string = "settings";
+  public static readonly settingsGlyph: IconName = "settings";
   public static readonly installCommandCommand: string = "desktop.installCommand";
   public static readonly installCommandTitle: string = "Install command in PATH";
-  public static readonly installCommandGlyph: string = "terminal";
+  public static readonly installCommandGlyph: IconName = "terminal";
   public static readonly checkForUpdatesCommand: string = "desktop.checkForUpdates";
   public static readonly checkForUpdatesTitle: string = "Check for updates";
   public static readonly releasesLink: string = "Releases";
   public static readonly licensesTitle: string = "Licenses";
-  public static readonly checkForUpdatesGlyph: string = "update";
+  public static readonly checkForUpdatesGlyph: IconName = "update";
   public static readonly restartToUpdateCommand: string = "desktop.restartToUpdate";
   public static readonly restartToUpdateTitle: string = "Restart to update";
   public static readonly restartToUpdateLabel: string = "Restart to update";
-  public static readonly restartToUpdateGlyph: string = "restart_alt";
+  public static readonly restartToUpdateGlyph: IconName = "restart_alt";
   public static readonly pageArgument: string = "page";
   public static readonly openLogFolderCommand: string = "desktop.openLogFolder";
   public static readonly copyDetailsCommand: string = "desktop.copyDetails";
@@ -280,9 +281,9 @@ export class Resources {
   public static readonly openModulesTitle: string = "Modules…";
   public static readonly modulesDocument: string = "desktop.modules";
   public static readonly modulesTitle: string = "Modules";
-  public static readonly modulesGlyph: string = "extension";
+  public static readonly modulesGlyph: IconName = "extension";
   public static readonly modifiedLabel: string = "Modified";
-  public static readonly modifiedGlyph: string = "circle";
+  public static readonly modifiedGlyph: IconName = "circle";
   public static readonly resetLabel: string = "Reset";
   public static readonly generalPage: string = "General";
   public static readonly dateTimeGroup: string = "Date and time";
@@ -396,8 +397,8 @@ export class Resources {
   public static readonly moveTabRightTitle: string = "Move the tab right";
   public static readonly nextTabTitle: string = "Show the next tab";
   public static readonly previousTabTitle: string = "Show the previous tab";
-  public static readonly nextTabGlyph: string = "keyboard_tab";
-  public static readonly previousTabGlyph: string = "keyboard_tab_rtl";
+  public static readonly nextTabGlyph: IconName = "keyboard_tab";
+  public static readonly previousTabGlyph: IconName = "keyboard_tab_rtl";
   public static readonly splitTabTitles: Readonly<Record<PanelEdge, string>> = {
     [PanelEdge.Left]: "Split the tab left",
     [PanelEdge.Right]: "Split the tab right",
@@ -423,19 +424,19 @@ export class Resources {
   public static readonly sourceArgument: string = "source";
   public static readonly showCommandsCommand: string = "desktop.showCommands";
   public static readonly showCommandsTitle: string = "Show all commands";
-  public static readonly showCommandsGlyph: string = "search";
+  public static readonly showCommandsGlyph: IconName = "search";
   public static readonly goBackCommand: string = "desktop.goBack";
   public static readonly goBackTitle: string = "Back";
-  public static readonly goBackGlyph: string = "arrow_back";
+  public static readonly goBackGlyph: IconName = "arrow_back";
   public static readonly goForwardCommand: string = "desktop.goForward";
   public static readonly goForwardTitle: string = "Forward";
-  public static readonly goForwardGlyph: string = "arrow_forward";
+  public static readonly goForwardGlyph: IconName = "arrow_forward";
   public static readonly goBackReason: string = "No earlier document to go back to";
   public static readonly goForwardReason: string = "No later document to go forward to";
   public static readonly documentHistoryLimit: number = 50;
   public static readonly toggleViewCommand: string = "desktop.toggleView";
   public static readonly toggleViewTitle: string = "Show or hide a view";
-  public static readonly toggleViewGlyph: string = "view_sidebar";
+  public static readonly toggleViewGlyph: IconName = "view_sidebar";
   public static readonly viewArgument: string = "view";
   public static readonly commandsOnlyPrefix: string = ">";
   public static readonly wordCharacterPattern: RegExp = /[\p{L}\p{N}]/u;
@@ -449,16 +450,16 @@ export class Resources {
   public static readonly commandsSearchLabel: string = "Commands";
   public static readonly commandsPlaceholderName: string = "commands";
   public static readonly recentCommandsHeading: string = "Recent commands";
-  public static readonly commandsSearchGlyph: string = "terminal";
+  public static readonly commandsSearchGlyph: IconName = "terminal";
   public static readonly settingsSearchSource: string = "desktop.settings";
   public static readonly settingsSearchLabel: string = "Settings";
   public static readonly settingsPlaceholderName: string = "settings";
-  public static readonly settingsSearchGlyph: string = "settings";
+  public static readonly settingsSearchGlyph: IconName = "settings";
   public static readonly settingControlSelector: string = "input, select, textarea, button, [tabindex]:not([tabindex=\"-1\"])";
   public static readonly recentCommandCountSetting: string = "desktop.recentCommandCount";
   public static readonly searchPaneClass: string = "nol-search-pane";
   public static readonly searchMarginProbeStyle: string = "position: fixed; visibility: hidden; height: var(--nol-quick-input-margin)";
-  public static readonly searchGlyph: string = "search";
+  public static readonly searchGlyph: IconName = "search";
   public static readonly cappedCountMark: string = "+";
   public static readonly nothingFound: string = "Nothing found.";
   public static readonly searchFooterHints: readonly string[] = ["Enter to open", "↑ ↓ to move", "Tab for the next filter"];
@@ -491,12 +492,12 @@ export class Resources {
     [DockSide.Right]: OverlaySide.start,
     [DockSide.Bottom]: OverlaySide.above
   };
-  public static readonly hideDockGlyphs: Readonly<Record<DockSide, string>> = {
+  public static readonly hideDockGlyphs: Readonly<Record<DockSide, IconName>> = {
     [DockSide.Left]: "left_panel_close",
     [DockSide.Right]: "right_panel_close",
     [DockSide.Bottom]: "bottom_panel_close"
   };
-  public static readonly showLeftDockGlyph: string = "left_panel_open";
+  public static readonly showLeftDockGlyph: IconName = "left_panel_open";
   public static readonly showLeftDockLabel: string = "Show the left dock";
   public static readonly hideLeftDockLabel: string = "Hide the left dock";
   public static readonly resizeDockLabels: Readonly<Record<DockSide, string>> = {
@@ -673,7 +674,7 @@ export class Resources {
   public static readonly undoRowId: string = "desktop.undo";
   public static readonly undoKey: string = "Mod+Z";
   public static readonly menuTitleSeparator: string = " › ";
-  public static readonly menuGlyph: string = "menu";
+  public static readonly menuGlyph: IconName = "menu";
   public static readonly focusInEvent: "focusin" = "focusin";
   public static readonly focusOutEvent: "focusout" = "focusout";
   public static readonly windowFocusEvent: "focus" = "focus";
@@ -699,7 +700,7 @@ export class Resources {
     [EditAction.Paste]: "Paste",
     [EditAction.SelectAll]: "Select all"
   };
-  public static readonly editGlyphs: Readonly<Record<EditAction, string>> = {
+  public static readonly editGlyphs: Readonly<Record<EditAction, IconName>> = {
     [EditAction.Undo]: "undo",
     [EditAction.Redo]: "redo",
     [EditAction.Cut]: "content_cut",
@@ -747,15 +748,15 @@ export class Resources {
   public static readonly replaceMisspellingTitle: string = "Replace the misspelled word";
   public static readonly addToDictionaryCommand: string = "desktop.addToDictionary";
   public static readonly addToDictionaryTitle: string = "Add to dictionary";
-  public static readonly addToDictionaryGlyph: string = "library_add";
+  public static readonly addToDictionaryGlyph: IconName = "library_add";
   public static readonly linkMenu: string = "desktop.link";
   public static readonly linkMenuTitle: string = "Link";
   public static readonly linkOpenGroup: string = "desktop.linkOpen";
   public static readonly openLinkInAppCommand: string = "desktop.openLinkInApp";
-  public static readonly openLinkInAppGlyph: string = "tab";
+  public static readonly openLinkInAppGlyph: IconName = "tab";
   public static readonly openLinkInBrowserCommand: string = "desktop.openLinkInBrowser";
   public static readonly openLinkInBrowserTitle: string = "Open in your browser";
-  public static readonly openLinkInBrowserGlyph: string = "open_in_new";
+  public static readonly openLinkInBrowserGlyph: IconName = "open_in_new";
   public static readonly urlArgument: string = "url";
   public static readonly inAppBrowserTaken: string = "Another window part is already the in-app browser.";
   public static readonly undoProviderTaken: string = "Another window part already provides Undo in this window.";
@@ -783,14 +784,14 @@ export class Resources {
   public static readonly focusPreviousGroupCommand: string = "desktop.focusPreviousGroup";
   public static readonly focusNextGroupTitle: string = "Focus the next group";
   public static readonly focusPreviousGroupTitle: string = "Focus the previous group";
-  public static readonly focusNextGroupGlyph: string = "keyboard_double_arrow_right";
-  public static readonly focusPreviousGroupGlyph: string = "keyboard_double_arrow_left";
+  public static readonly focusNextGroupGlyph: IconName = "keyboard_double_arrow_right";
+  public static readonly focusPreviousGroupGlyph: IconName = "keyboard_double_arrow_left";
   public static readonly focusNextRegionCommand: string = "desktop.focusNextRegion";
   public static readonly focusPreviousRegionCommand: string = "desktop.focusPreviousRegion";
   public static readonly focusNextRegionTitle: string = "Focus the next region";
   public static readonly focusPreviousRegionTitle: string = "Focus the previous region";
-  public static readonly focusNextRegionGlyph: string = "move_down";
-  public static readonly focusPreviousRegionGlyph: string = "move_up";
+  public static readonly focusNextRegionGlyph: IconName = "move_down";
+  public static readonly focusPreviousRegionGlyph: IconName = "move_up";
   public static readonly regionSelector: string = "nol-window-row, nol-toolbar-band:not(nol-view-toolbar-band nol-toolbar-band), nol-dock, nol-tab-group, nol-status-bar";
   public static readonly regionContentSelector: string = "nol-tab-slot";
   public static readonly webViewGuestSelector: string = ".nol-web-view-guest";
@@ -806,7 +807,7 @@ export class Resources {
   public static readonly layoutGroup: string = "desktop.layout";
   public static readonly layoutMenu: string = "desktop.layoutMenu";
   public static readonly layoutMenuTitle: string = "Layout";
-  public static readonly layoutMenuGlyph: string = "dashboard";
+  public static readonly layoutMenuGlyph: IconName = "dashboard";
   public static readonly layoutDocksGroup: string = "desktop.layoutDocks";
   public static readonly layoutViewsGroup: string = "desktop.layoutViews";
   public static readonly layoutResetGroup: string = "desktop.layoutReset";
@@ -824,7 +825,7 @@ export class Resources {
   public static readonly bandArgument: string = "band";
   public static readonly focusToolbarsCommand: string = "desktop.focusToolbars";
   public static readonly focusToolbarsTitle: string = "Focus the toolbars";
-  public static readonly focusToolbarsGlyph: string = "toolbar";
+  public static readonly focusToolbarsGlyph: IconName = "toolbar";
   public static readonly toolbarItemSelector: string = ".nol-toolbar-item[tabindex=\"0\"]";
   public static readonly toolbarSectionSelector: string = ".nol-toolbar-ghost-section";
   public static readonly toolbarOverflowSelector: string = ".nol-toolbar-ghost-overflow";
@@ -837,7 +838,7 @@ export class Resources {
   public static readonly toolbarRowData: string = "toolbarRow";
   public static readonly toolbarIndexData: string = "toolbarIndex";
   public static readonly toolbarOverflowLabel: string = "More actions";
-  public static readonly toolbarOverflowGlyph: string = "more_horiz";
+  public static readonly toolbarOverflowGlyph: IconName = "more_horiz";
   public static readonly toolbarGripLabel: string = "Move toolbar";
   public static readonly toolbarMenu: string = "desktop.toolbar";
   public static readonly toolbarMenuTitle: string = "Toolbar";
@@ -861,13 +862,13 @@ export class Resources {
     [ToolbarMove.Up]: "Move to the row above",
     [ToolbarMove.Down]: "Move to the row below"
   };
-  public static readonly moveToolbarGlyphs: Readonly<Record<ToolbarMove, string>> = {
+  public static readonly moveToolbarGlyphs: Readonly<Record<ToolbarMove, IconName>> = {
     [ToolbarMove.Left]: "arrow_back",
     [ToolbarMove.Right]: "arrow_forward",
     [ToolbarMove.Up]: "arrow_upward",
     [ToolbarMove.Down]: "arrow_downward"
   };
-  public static readonly hideToolbarGlyph: string = "visibility_off";
+  public static readonly hideToolbarGlyph: IconName = "visibility_off";
   public static readonly hideToolbarCommand: string = "desktop.hideToolbar";
   public static readonly hideToolbarTitle: string = "Hide the toolbar";
   public static readonly hideToolbarLabel: string = "Hide toolbar";
@@ -1060,17 +1061,17 @@ export class Resources {
   public static readonly quitListLimit: number = 5;
   public static readonly waitFocusSelector: string = "[data-nol-quit=Wait]";
   public static readonly cancelReference: string = "cancel";
-  public static readonly notificationsGlyph: string = "notifications";
+  public static readonly notificationsGlyph: IconName = "notifications";
   public static readonly updateFailedItem: string = "Update failed";
   public static readonly moveToUpdateItem: string = "Move to Applications to update";
-  public static readonly updateAvailableGlyph: string = "deployed_code_update";
-  public static readonly updateFailedGlyph: string = "error";
+  public static readonly updateAvailableGlyph: IconName = "deployed_code_update";
+  public static readonly updateFailedGlyph: IconName = "error";
   public static readonly checkingForUpdates: string = "Checking for updates…";
   public static readonly updateFailed: string = "The update failed.";
   public static readonly updatesOff: string = "Updates are turned off in this build.";
   public static readonly platformTitles: Readonly<Record<string, string>> = { win32: "Windows", darwin: "macOS", linux: "Linux" };
   public static readonly processorTitles: Readonly<Record<string, string>> = { x64: "x64", arm64: "ARM64" };
-  public static readonly notificationsOffGlyph: string = "notifications_off";
+  public static readonly notificationsOffGlyph: IconName = "notifications_off";
   public static readonly notificationsTitle: string = "Notifications";
   public static readonly clearAllLabel: string = "Clear all";
   public static readonly doNotDisturbLabel: string = "Do not disturb";
@@ -1085,7 +1086,7 @@ export class Resources {
   public static readonly toastDuration: number = 8000;
   public static readonly toastKindInterval: number = 5000;
   public static readonly closeToastLabel: string = "Close";
-  public static readonly severityGlyphs: Readonly<Record<NotificationSeverity, string>> = {
+  public static readonly severityGlyphs: Readonly<Record<NotificationSeverity, IconName>> = {
     [NotificationSeverity.Info]: "info",
     [NotificationSeverity.Success]: "check_circle",
     [NotificationSeverity.Warning]: "warning",
@@ -1198,6 +1199,10 @@ export class Resources {
 
   public static formatOpenLinkInAppTitle(productName: string): string {
     return `Open in ${productName}`;
+  }
+
+  public static formatUnknownIcon(name: string): string {
+    return `The icon ${name} isn't one of the kit's icon names, so it shows as if no icon were given.`;
   }
 
   public static formatSettingCheckFailed(setting: string, error: unknown): string {
