@@ -11,8 +11,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
-import { type JsonObject, JsonReader, type JsonValue } from "@noldova/context.json";
+import { JsonException, type JsonObject, JsonReader, type JsonValue } from "@noldova/context.json";
 
+import { PlatformFit } from "../../models/packages/platform-fit.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { Resources } from "../../resources.ts";
 
@@ -72,6 +73,29 @@ export class LockedInstallCheck {
     }
   }
 
+  public static async isInstalledAsync(root: string): Promise<boolean> {
+    const lockfile = path.join(root, Resources.packageLockFileName);
+    const installedLockfile = path.join(root, ...Resources.installedLockfileSegments);
+    if (!existsSync(lockfile) || !existsSync(installedLockfile))
+      return false;
+    const locked = await LockedInstallCheck.readPackagesOrNullAsync(lockfile);
+    const installed = await LockedInstallCheck.readPackagesOrNullAsync(installedLockfile);
+    if (Object.isNull(locked) || Object.isNull(installed))
+      return false;
+    for (const [location, value] of Object.entries(installed)) {
+      const entry = LockedInstallCheck.toRecord(locked[location]);
+      const held = LockedInstallCheck.toRecord(value);
+      if (!Object.hasOwn(locked, location) || Resources.installedEntryFields.some(t => entry[t] !== held[t]) || !existsSync(path.join(root, location)))
+        return false;
+    }
+    return Object.entries(locked).every(([location, value]) => location === String.empty || Object.hasOwn(installed, location)
+      || LockedInstallCheck.isLeftOut(LockedInstallCheck.toRecord(value)));
+  }
+
+  private static isLeftOut(entry: JsonObject): boolean {
+    return (entry[Resources.optionalField] === true || entry[Resources.lockDevOptionalField] === true) && !PlatformFit.fits(entry, process.platform, process.arch);
+  }
+
   private static locate(location: string, links: ReadonlyMap<string, string>): string {
     for (const [link, target] of links)
       if (location.startsWith(`${link}${Resources.pathSegmentSeparator}`))
@@ -81,6 +105,17 @@ export class LockedInstallCheck {
 
   private static async readPackagesAsync(file: string): Promise<JsonObject> {
     return JsonReader.parse(await readFile(file, Resources.textEncoding)).readObject(Resources.lockfilePackagesField).toJson();
+  }
+
+  private static async readPackagesOrNullAsync(file: string): Promise<JsonObject | null> {
+    try {
+      return await LockedInstallCheck.readPackagesAsync(file);
+    }
+    catch (error) {
+      if (!(error instanceof JsonException))
+        throw error;
+      return null;
+    }
   }
 
   private static toRecord(value: JsonValue | undefined): JsonObject {

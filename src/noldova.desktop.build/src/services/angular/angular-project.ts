@@ -19,6 +19,7 @@ import { BuildPart } from "../../models/build-part.ts";
 import { BuildLayout } from "../packages/build-layout.ts";
 import { ContentHash } from "../packages/content-hash.ts";
 import { InstalledPackages } from "../packages/installed-packages.ts";
+import { LockedInstallCheck } from "../packages/locked-install-check.ts";
 import { PackageManifest } from "../../models/packages/package-manifest.ts";
 import { ProductIdentity } from "../../models/packages/product-identity.ts";
 import { AboutLogo } from "./about-logo.ts";
@@ -53,10 +54,14 @@ export class AngularProject {
     }
 
     if (await this.needsInstallAsync()) {
-      output.write(Resources.angularInstalling);
-      const result = await this.npm.runAsync(Resources.angularInstallArguments, this.root);
-      if (!result.isSuccessful)
-        throw new BuildException(Resources.formatAngularInstallFailed(result.exitCode, result.errorOutput));
+      if (await this.isInstalledWithoutRecordAsync())
+        output.write(Resources.angularAlreadyInstalled);
+      else {
+        output.write(Resources.angularInstalling);
+        const result = await this.npm.runAsync(Resources.angularInstallArguments, this.root);
+        if (!result.isSuccessful)
+          throw new BuildException(Resources.formatAngularInstallFailed(result.exitCode, result.errorOutput));
+      }
       await writeFile(path.join(this.root, Resources.angularInstallRecord), await this.describeInstallAsync(), Resources.textEncoding);
     }
 
@@ -190,6 +195,11 @@ export class AngularProject {
       if ((await readdir(scope)).length === 0)
         await rmdir(scope);
     }
+  }
+
+  private async isInstalledWithoutRecordAsync(): Promise<boolean> {
+    return !existsSync(path.join(this.root, Resources.angularInstallRecord)) && existsSync(path.join(this.root, Resources.angularCli))
+      && await LockedInstallCheck.isInstalledAsync(this.root);
   }
 
   private async needsInstallAsync(): Promise<boolean> {

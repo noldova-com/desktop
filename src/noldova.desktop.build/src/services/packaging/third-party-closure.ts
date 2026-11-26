@@ -16,6 +16,7 @@ import { JsonReader, type JsonObject, type JsonValue } from "@noldova/context.js
 import { CodePointComparer } from "@noldova/context.text";
 
 import type { PackageManifest } from "../../models/packages/package-manifest.ts";
+import { PlatformFit } from "../../models/packages/platform-fit.ts";
 import { CollectedClosure } from "../../models/packaging/collected-closure.ts";
 import { FoundPackage } from "../../models/packaging/found-package.ts";
 import { LockedPackage } from "../../models/packaging/locked-package.ts";
@@ -130,15 +131,6 @@ export class ThirdPartyClosure {
     return Object.isPlainObject(value) ? Object.fromEntries(Object.entries(value)) : null;
   }
 
-  private static allows(list: unknown, value: string): boolean {
-    if (!Array.isArray(list))
-      return true;
-    if (list.includes(`${Resources.lockfileNegation}${value}`))
-      return false;
-    const required = list.filter(t => Object.isString(t) && !t.startsWith(Resources.lockfileNegation));
-    return required.length === 0 || required.includes(value);
-  }
-
   private visit(found: Map<string, FoundPackage>, from: string, name: string, isOptional: boolean, windowPackages: ReadonlySet<string>,
     omitted: OmittedOptionals): void {
     const resolved = this.resolve(from, name);
@@ -193,8 +185,6 @@ export class ThirdPartyClosure {
   }
 
   private fits(entry: JsonObject): boolean {
-    return ThirdPartyClosure.allows(entry[Resources.lockfileOsField], String(Resources.lockfilePlatforms.get(this.target.platform)))
-      && ThirdPartyClosure.allows(entry[Resources.lockfileCpuField], this.target.architecture)
-      && (this.target.platform !== Resources.linuxTarget || ThirdPartyClosure.allows(entry[Resources.lockfileLibcField], Resources.lockfileLinuxLibrary));
+    return PlatformFit.fits(entry, String(Resources.lockfilePlatforms.get(this.target.platform)), this.target.architecture);
   }
 }

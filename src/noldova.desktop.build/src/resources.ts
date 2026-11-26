@@ -674,7 +674,8 @@ export class Resources {
   public static readonly lockfileRootLocation: string = String.empty;
   public static readonly lockfileNestedFolder: string = `${Resources.pathSegmentSeparator}${Resources.nodeModulesFolder}${Resources.pathSegmentSeparator}`;
   public static readonly lockfileNegation: string = "!";
-  public static readonly lockfilePlatforms: ReadonlyMap<string, string> = new Map([[Resources.windowsTarget, "win32"], [Resources.macosTarget, "darwin"], [Resources.linuxTarget, "linux"]]);
+  public static readonly lockfileLinuxPlatform: string = "linux";
+  public static readonly lockfilePlatforms: ReadonlyMap<string, string> = new Map([[Resources.windowsTarget, "win32"], [Resources.macosTarget, "darwin"], [Resources.linuxTarget, Resources.lockfileLinuxPlatform]]);
   public static readonly lockfileLinuxLibrary: string = "glibc";
   public static readonly lockfileVersionField: string = "lockfileVersion";
   public static readonly lockfilePackagesField: string = "packages";
@@ -1118,6 +1119,7 @@ export class Resources {
   public static readonly windowAppSuffix: string = ".window.app";
   public static readonly angularNoProject: string = `No window app in ${Resources.sourceFolder}/, a folder whose name ends in ${Resources.windowAppSuffix} and holds an angular.json; there is nothing to prepare.\n`;
   public static readonly angularInstalling: string = "Installing the app's packages from its package-lock.json...\n";
+  public static readonly angularAlreadyInstalled: string = "The app's packages already match its package-lock.json, so they aren't installed again.\n";
   public static readonly angularInstallingBrowser: string = "Installing the browser for the Angular tests...\n";
   public static readonly angularNotInstalled: string = `The app isn't installed for its package-lock.json; run ${Resources.commandName} ${Resources.installCommand} first, `
     + "with the token for the registry its packages come from.";
@@ -1904,6 +1906,8 @@ export class Resources {
   public static readonly lockResolvedField: string = "resolved";
   public static readonly lockInBundleField: string = "inBundle";
   public static readonly lockLinkField: string = "link";
+  public static readonly lockDevOptionalField: string = "devOptional";
+  public static readonly installedEntryFields: readonly string[] = [Resources.manifestVersionField, Resources.lockResolvedField, Resources.lockIntegrityField, Resources.lockLinkField];
   public static readonly ownArchiveFolder: RegExp = /^(?:\.\.\/)*_packages$/u;
   public static readonly omittedOptionalsField: string = "omittedOptionals";
   public static readonly omittedOptionalsShape: string = `The root package.json's ${Resources.omittedOptionalsSection} must map each package, as <name>@<version>, to `
