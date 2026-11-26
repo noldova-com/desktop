@@ -188,6 +188,8 @@ export class Resources {
   ];
   public static readonly packageTestElectronPackage: string = "@noldova/desktop.electron";
   public static readonly packageTestCliPackage: string = "@noldova/desktop.cli";
+  public static readonly packageTestBuildPackage: string = "@noldova/desktop.build";
+  public static readonly packageTestBuildProcessPaths: readonly string[] = ["services/files/file-routes.test.js"];
   public static readonly serialTestNodeCoverageVariable: string = "NODE_V8_COVERAGE";
   public static readonly packageTestTotalsTitle: string = "Package tests";
   public static readonly serialTestResultsFileVariable: string = "NOLDOVA_TEST_RESULTS_FILE";

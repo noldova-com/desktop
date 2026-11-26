@@ -7,9 +7,10 @@
  */
 
 import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 
+import { ByteFile } from "../files/byte-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class ContentHash {
@@ -21,7 +22,7 @@ export class ContentHash {
   }
 
   public static async ofFileAsync(file: string): Promise<string> {
-    return createHash(Resources.hashAlgorithm).update(await readFile(file)).digest(Resources.hashEncoding);
+    return createHash(Resources.hashAlgorithm).update(await ByteFile.readAsync(file)).digest(Resources.hashEncoding);
   }
 
   public static async ofTreeAsync(directory: string): Promise<string> {

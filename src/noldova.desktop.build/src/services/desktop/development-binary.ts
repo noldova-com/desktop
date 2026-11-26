@@ -20,6 +20,7 @@ import { RootManifest } from "../../models/packages/root-manifest.ts";
 import { ProcessRunner } from "../processes/process-runner.ts";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { FolderCreation } from "../files/folder-creation.ts";
+import { ByteFile } from "../files/byte-file.ts";
 import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
@@ -53,7 +54,7 @@ export class DevelopmentBinary {
     const stamp = createHash(Resources.developmentStampHash)
       .update(await TextFile.readAsync(path.join(this.root, ...Resources.electronManifestSegments)))
       .update(JSON.stringify([manifest.productVersion, product, product.formatDevelopmentApplicationId(this.root), this.platform, this.architecture]))
-      .update(await readFile(import.meta.filename))
+      .update(await ByteFile.readAsync(import.meta.filename))
       .update(await readFile(path.join(icons, Resources.windowsIconFile)))
       .update(await readFile(path.join(icons, Resources.macIconFile)))
       .digest(Resources.developmentStampDigest);
