@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { readFile, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -16,6 +16,7 @@ import { CodePointComparer } from "@noldova/context.text";
 import { BuildException } from "../../exceptions/build.exception.ts";
 import { PackageSource } from "../../models/packaging/package-source.ts";
 import { StagedSource } from "../../models/packaging/staged-source.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class StagedSources {
@@ -37,7 +38,7 @@ export class StagedSources {
   private static async readPackageAsync(folder: string, relative: string): Promise<StagedSource | null> {
     let manifest: Readonly<Record<string, unknown>>;
     try {
-      manifest = JsonReader.parse(await readFile(path.join(folder, Resources.packageManifestFileName), Resources.textEncoding)).toJson();
+      manifest = JsonReader.parse(await TextFile.readAsync(path.join(folder, Resources.packageManifestFileName))).toJson();
     }
     catch {
       return null;
@@ -60,6 +61,6 @@ export class StagedSources {
       .sort((left, right) => CodePointComparer.compare(left, right));
     if (Object.isUndefined(license))
       throw new BuildException(Resources.formatPackageSourceNoLicense(id));
-    return new StagedSource(id, await readFile(path.join(folder, license), Resources.textEncoding), source);
+    return new StagedSource(id, await TextFile.readAsync(path.join(folder, license)), source);
   }
 }

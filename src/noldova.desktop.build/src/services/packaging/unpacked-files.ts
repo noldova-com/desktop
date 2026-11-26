@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { readFile, readdir, realpath, stat } from "node:fs/promises";
+import { readdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 import "@noldova/context.core";
@@ -18,6 +18,7 @@ import { PackageTarget } from "../../models/packaging/package-target.ts";
 import { ForeignAddons } from "./foreign-addons.ts";
 import { ShippedFiles } from "./shipped-files.ts";
 import { FileErrors } from "../files/file-errors.ts";
+import { TextFile } from "../files/text-file.ts";
 import { Resources } from "../../resources.ts";
 
 export class UnpackedFiles {
@@ -34,7 +35,7 @@ export class UnpackedFiles {
   }
 
   private static async readPackageAsync(stage: string, folder: string, target: PackageTarget): Promise<readonly string[]> {
-    const manifest = UnpackedFiles.parse(await readFile(path.join(stage, folder, Resources.packageManifestFileName), Resources.textEncoding));
+    const manifest = UnpackedFiles.parse(await TextFile.readAsync(path.join(stage, folder, Resources.packageManifestFileName)));
     if (Object.isNull(manifest) || !manifest.hasField(Resources.noldovaDesktopField))
       return [];
     const named = manifest.toJson()[Resources.manifestNameField];
