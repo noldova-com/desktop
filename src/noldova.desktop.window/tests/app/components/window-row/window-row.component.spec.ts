@@ -183,7 +183,7 @@ describe("WindowRowComponent", () => {
       compose,
       action("notes.print", new TopBarActionState("print", "Print", "notes.print")),
       action("notes.share", new TopBarActionState("share", "Share", "notes.newNote", { isHidden: true })),
-      action("notes.broken", new TopBarActionState("error", "Broken", "notes.fail"))
+      action("notes.broken", new TopBarActionState("not_a_kit_icon", "Broken", "notes.fail"))
     ]);
 
     const fixture = TestBed.createComponent(WindowRowComponent);
@@ -198,6 +198,7 @@ describe("WindowRowComponent", () => {
       ["notes.compose", "New note", null, false], ["notes.print", "Print", "true", false], ["notes.broken", "Broken", null, false]
     ]);
     expect(getComputedStyle(buttons[0] ?? fixture.nativeElement).getPropertyValue("app-region")).toBe("no-drag");
+    expect(buttons.map(t => String(DomFixture.one(t, ".nol-icon-button-glyph").textContent).trim())).toEqual(["note_add", "print", "play_arrow"]);
     expect(runs).toEqual([{ title: "Plan" }]);
     expect(errors.map(t => String(t))).toEqual(["Error: The note was not created."]);
   });
@@ -1037,7 +1038,7 @@ describe("WindowRowComponent", () => {
       apply();
       await useLayout();
       TestBed.inject(BarItemsService).set([], [
-        new TopBarAction(new TopBarActionContribution("notes.pin", new TopBarActionState("push_pin", "Pin", "notes.newNote"), TopBarSide.Start), () => undefined)
+        new TopBarAction(new TopBarActionContribution("notes.pin", new TopBarActionState("keep", "Pin", "notes.newNote"), TopBarSide.Start), () => undefined)
       ]);
       const fixture = TestBed.createComponent(WindowRowComponent);
       const row: HTMLElement = DomFixture.host(fixture);

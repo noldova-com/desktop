@@ -19,4 +19,11 @@ describe("MenuRow", () => {
     expect([command instanceof MenuRow, command.title, command.icon]).toEqual([true, "Sort", "sort"]);
     expect([submenu instanceof MenuRow, submenu.title, submenu.icon]).toEqual([true, "Templates", null]);
   });
+
+  it("has no icon for an icon name the kit doesn't know", () => {
+    const command = new CommandRow("notes.sortBy", {}, "Sort", "not_a_kit_icon", null, true, MenuCheck.None, false);
+    const submenu = new SubmenuRow("notes.templates", "Templates", "not_a_kit_icon");
+
+    expect([command.icon, submenu.icon]).toEqual([null, null]);
+  });
 });

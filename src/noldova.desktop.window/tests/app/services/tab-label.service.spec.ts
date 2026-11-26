@@ -69,13 +69,13 @@ describe("TabLabelService", () => {
 
   it("names a tab by its own title before its registered label", () => {
     const labels = TestBed.inject(TabLabelService);
-    labels.register("notes.note", new TabLabel("Note", "note"));
+    labels.register("notes.note", new TabLabel("Note", "sticky_note_2"));
     labels.setTitle(LayoutFixture.plan, "Plan for Monday");
     labels.setTitle(LayoutFixture.files, "Project files");
 
-    expect(labels.of(LayoutFixture.plan)).toEqual(new TabLabel("Plan for Monday", "note"));
+    expect(labels.of(LayoutFixture.plan)).toEqual(new TabLabel("Plan for Monday", "sticky_note_2"));
     expect(labels.of(LayoutFixture.files)).toEqual(new TabLabel("Project files", "web_asset"));
-    expect(labels.of(LayoutFixture.todo)).toEqual(new TabLabel("Note todo", "note"));
+    expect(labels.of(LayoutFixture.todo)).toEqual(new TabLabel("Note todo", "sticky_note_2"));
     labels.setTitle(LayoutFixture.todo, "Todo");
     expect(labels.of(new DocumentTab("desktop.settings", "x"))).toEqual(new TabLabel("x", "description"));
     expect(labels.of(LayoutFixture.todo).title).toBe("Todo");
@@ -91,6 +91,16 @@ describe("TabLabelService", () => {
     labels.setIcon(LayoutFixture.secondTerminal, "code");
 
     expect([labels.of(LayoutFixture.terminal), labels.of(LayoutFixture.secondTerminal)]).toEqual([new TabLabel("pwsh", "terminal"), new TabLabel("bash", "code")]);
+  });
+
+  it("drops a titled tab's own glyph for an icon name the kit doesn't know, so the registered icon shows", () => {
+    const labels = TestBed.inject(TabLabelService);
+    labels.register("terminal.shell", new TabLabel("Terminal", "terminal"));
+    labels.setTitle(LayoutFixture.secondTerminal, "bash");
+    labels.setIcon(LayoutFixture.secondTerminal, "code");
+    labels.setIcon(LayoutFixture.secondTerminal, "not_a_kit_icon");
+
+    expect(labels.of(LayoutFixture.secondTerminal)).toEqual(new TabLabel("bash", "terminal"));
   });
 
   it("keeps a document's breadcrumb with its title, and gives any other tab its label's title with none", () => {

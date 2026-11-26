@@ -7,6 +7,7 @@
  */
 
 import { ModuleState } from "@noldova/desktop.protocol";
+import type { IconName } from "@noldova/ui.components.angular";
 
 import { Resources } from "../../resources.js";
 
@@ -33,7 +34,7 @@ export class ModuleFailure {
     this.isTurnedOff = isTurnedOff;
   }
 
-  public get glyph(): string {
+  public get glyph(): IconName {
     if (this.state === ModuleState.Unavailable)
       return Resources.moduleUnavailableGlyph;
     return this.isTurnedOff ? Resources.moduleOffGlyph : Resources.moduleFailureGlyph;

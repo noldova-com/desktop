@@ -47,6 +47,7 @@ import type { DocumentContribution } from "../models/document-contribution.js";
 import type { DocumentHeading } from "../models/document-heading.js";
 import { DocumentLook } from "../models/document-look.js";
 import type { IssuedFileGrants } from "../models/issued-file-grants.js";
+import { KnownIcon } from "../models/known-icon.js";
 import { DocumentTab } from "../models/layout/document-tab.js";
 import type { Tab } from "../models/layout/tab.js";
 import { TabLabel } from "../models/layout/tab-label.js";
@@ -93,6 +94,7 @@ import { TabLabelService } from "./tab-label.service.js";
 import { TabRenameService } from "./tab-rename.service.js";
 import { UndoService } from "./undo.service.js";
 import { ViewDialogService } from "./view-dialog.service.js";
+import { UnknownIconsService } from "./unknown-icons.service.js";
 import { ViewInstancesService } from "./view-instances.service.js";
 import { WebViewService } from "./web-view.service.js";
 import { WindowRowOverlayService } from "./window-row-overlay.service.js";
@@ -100,6 +102,7 @@ import { WindowRowOverlayService } from "./window-row-overlay.service.js";
 @Injectable({ providedIn: "root" })
 export class WindowPartHostService implements IWindowPartHost {
   private readonly bridge: PreloadBridgeService = inject(PreloadBridgeService);
+  private readonly icons: UnknownIconsService = inject(UnknownIconsService);
   private readonly links: LinkService = inject(LinkService);
   private readonly layout: LayoutService = inject(LayoutService);
   private readonly liveViews: LiveViewService = inject(LiveViewService);
@@ -243,6 +246,10 @@ export class WindowPartHostService implements IWindowPartHost {
 
   public log(moduleId: string, message: string): void {
     this.bridge.logModule(moduleId, message);
+  }
+
+  public noteIcon(moduleId: string, name: string | null): void {
+    this.icons.note(moduleId, name);
   }
 
   public openLinkAsync(url: string, options: ILinkOpenOptions): Promise<void> {
@@ -509,7 +516,7 @@ export class WindowPartHostService implements IWindowPartHost {
     this.menus.setActiveModules(this.moduleOrder.filter(t => !notStarted.has(t)));
     const views = ordered.flatMap(t => t.context.views);
     for (const view of views)
-      this.labels.register(view.name, new TabLabel(view.title, view.icon));
+      this.labels.register(view.name, new TabLabel(view.title, KnownIcon.of(view.icon) ?? Resources.viewGlyph));
     const failed = failures.flatMap(t => t.viewNames.map(u => ({ name: u, failure: t })));
     for (const view of failed)
       this.labels.register(view.name, new TabLabel(view.failure.displayName, view.failure.glyph));
@@ -838,6 +845,7 @@ export class WindowPartHostService implements IWindowPartHost {
   }
 
   private describeRuntimeCommand(info: CommandInfo): CommandContribution {
+    this.icons.note(info.name.owner, info.icon);
     return new CommandContribution(
       info.name.text,
       info.title,

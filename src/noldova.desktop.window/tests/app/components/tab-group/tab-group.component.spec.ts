@@ -397,7 +397,8 @@ describe("TabGroupComponent", () => {
   it("shows a tab's title below it only while its label is cut short", async () => {
     await renderAsync();
     const target = tab(1, 1);
-    const decided = vi.spyOn(TooltipDirective.prototype, "show");
+    const tooltip = fixture.debugElement.query(t => t.nativeElement === target).injector.get(TooltipDirective);
+    const decided = vi.spyOn(tooltip, "isTruncatedOnly");
 
     const { fitting, cut } = await TooltipFixture.shieldAsync(async () => {
       target.dispatchEvent(new PointerEvent("pointerenter"));

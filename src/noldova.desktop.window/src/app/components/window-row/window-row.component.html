@@ -89,7 +89,7 @@ LICENSE file in the root directory of this source tree.
 <ng-template #actionButton let-action>
   @let state = action.state();
   @if (!state.isHidden) {
-    <button type="button" nol-icon-button class="nol-window-row-action" [attr.data-nol-item]="action.name" [icon]="state.icon" [label]="state.title"
+    <button type="button" nol-icon-button class="nol-window-row-action" [attr.data-nol-item]="action.name" [icon]="iconOf(state)" [label]="state.title"
       [attr.aria-disabled]="isAvailable(state.command, state.commandArguments) ? null : resources.trueValue" [nolTooltip]="state.title" [nolTooltipSide]="below"
       (click)="runAvailable(state.command, state.commandArguments)"></button>
   }

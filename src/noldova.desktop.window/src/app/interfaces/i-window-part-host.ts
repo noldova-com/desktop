@@ -87,6 +87,7 @@ export interface IWindowPartHost {
   openBelowWindowRow<T>(context: IWindowPartContext, component: Type<T>): IWindowPalette<T> | null;
 
   log(moduleId: string, message: string): void;
+  noteIcon(moduleId: string, name: string | null): void;
 
   openLinkAsync(url: string, options: ILinkOpenOptions): Promise<void>;
 

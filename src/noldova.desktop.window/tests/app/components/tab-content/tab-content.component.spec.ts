@@ -132,6 +132,7 @@ describe("TabContentComponent", () => {
     showInDialogAsync: () => Promise.resolve(),
     openBelowWindowRow: () => null,
     log: () => undefined,
+    noteIcon: () => undefined,
     setTabWorking: () => undefined,
     setTabWaiting: () => undefined,
     registerSelectionSource: () => () => undefined,

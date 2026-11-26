@@ -16,6 +16,7 @@ import { UpdateStateKind } from "../enums/update-state-kind.js";
 import { CommandMatch } from "../models/command-match.js";
 import { CommandMatcher } from "../models/command-matcher.js";
 import { CommandSearchEntry } from "../models/command-search-entry.js";
+import { KnownIcon } from "../models/known-icon.js";
 import { SearchAnswer } from "../models/search-answer.js";
 import { SearchRank } from "../models/search-rank.js";
 import { SearchResult } from "../models/search-result.js";
@@ -44,7 +45,7 @@ export class ShellSearchSourcesService {
 
   private readonly entries: Signal<readonly CommandSearchEntry[]> = computed(() => [
     ...this.commands.commands().filter(t => this.commands.isEnabled(t.name))
-      .map(t => new CommandSearchEntry(new QuickInputItem(t.name, t.title, t.icon, this.commands.ownerOf(t.name), this.commands.keyLabel(t.name)), () => this.commands.run(t.name))),
+      .map(t => new CommandSearchEntry(new QuickInputItem(t.name, t.title, KnownIcon.of(t.icon), this.commands.ownerOf(t.name), this.commands.keyLabel(t.name)), () => this.commands.run(t.name))),
     ...this.menuBar.searchRows().map(t => new CommandSearchEntry(new QuickInputItem(t.id, t.title, t.icon, t.menu, null), () => this.menuBar.run(t.id)))
   ].sort((a, b) => a.item.title.localeCompare(b.item.title) || a.detail.localeCompare(b.detail)));
   private readonly definitions: Signal<readonly SettingDefinition[]> = computed(() => {

@@ -6,16 +6,20 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { IconName } from "@noldova/ui.components.angular";
+
+import { KnownIcon } from "./known-icon.js";
+
 export class MenuSearchRow {
   public readonly id: string;
   public readonly title: string;
-  public readonly icon: string | null;
+  public readonly icon: IconName | null;
   public readonly menu: string;
 
   public constructor(id: string, title: string, icon: string | null, menu: string) {
     this.id = id;
     this.title = title;
-    this.icon = icon;
+    this.icon = KnownIcon.of(icon);
     this.menu = menu;
   }
 }

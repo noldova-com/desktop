@@ -50,6 +50,12 @@ describe("DocumentLook", () => {
       expect(() => DocumentLook.none.updated({ image })).toThrowError(ArgumentException);
   });
 
+  it("draws no glyph, status or marker whose icon name the kit doesn't know", () => {
+    const look = DocumentLook.none.updated({ imageGlyph: "not_a_kit_icon", status: { glyph: "not_a_kit_icon", description: "Gone" }, marker: { glyph: "not_a_kit_icon", label: "From" } });
+
+    expect([look.imageGlyph, look.status, look.marker]).toEqual([null, null, null]);
+  });
+
   it("refuses a blank glyph, status or marker", () => {
     expect(() => DocumentLook.none.updated({ imageGlyph: " " })).toThrowError(ArgumentException);
     expect(() => DocumentLook.none.updated({ status: { glyph: String.empty, description: "Gone" } })).toThrowError(ArgumentException);
