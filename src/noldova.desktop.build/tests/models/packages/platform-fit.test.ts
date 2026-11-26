@@ -35,4 +35,14 @@ export class PlatformFitTests {
   public async takesTheGlibcLibraryOnLinuxAndNoLibraryElsewhere(entry: string, platform: string, expected: boolean): Promise<void> {
     Assert.areEqual(expected, PlatformFit.fits(JsonReader.parse(entry).toJson(), platform, "x64"));
   }
+
+  @TestMethod
+  @TestData("{\"libc\":\"musl\"}", "linux", "x64", false)
+  @TestData("{\"libc\":\"glibc\"}", "linux", "x64", true)
+  @TestData("{\"os\":\"darwin\"}", "linux", "x64", false)
+  @TestData("{\"cpu\":\"!x64\"}", "linux", "x64", false)
+  @TestData("{\"cpu\":5}", "linux", "x64", true)
+  public async takesAFieldWrittenAsOneTextAsAListOfIt(entry: string, platform: string, architecture: string, expected: boolean): Promise<void> {
+    Assert.areEqual(expected, PlatformFit.fits(JsonReader.parse(entry).toJson(), platform, architecture));
+  }
 }

@@ -18,9 +18,8 @@ export class PlatformFit {
       && (platform !== Resources.lockfileLinuxPlatform || PlatformFit.allows(entry[Resources.lockfileLibcField], Resources.lockfileLinuxLibrary));
   }
 
-  private static allows(list: unknown, value: string): boolean {
-    if (!Array.isArray(list))
-      return true;
+  private static allows(field: unknown, value: string): boolean {
+    const list: readonly unknown[] = Object.isString(field) ? [field] : Array.isArray(field) ? field : [];
     if (list.includes(`${Resources.lockfileNegation}${value}`))
       return false;
     const required = list.filter(t => Object.isString(t) && !t.startsWith(Resources.lockfileNegation));
