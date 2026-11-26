@@ -120,7 +120,7 @@ function measureAsync(window: Page): Promise<ITabsGeometry> {
       fieldWidth: field.width,
       fieldEnd: field.right,
       actionsStart: rowActions.left,
-      isMenuBarFolded: row.querySelector(".nol-window-row-menu-bar-folded") !== null && visible(row.querySelectorAll(".nol-window-row-menu")).length === 1,
+      isMenuBarFolded: !Object.isNull(row.querySelector(".nol-window-row-menu-bar-folded")) && visible(row.querySelectorAll(".nol-window-row-menu")).length === 1,
       foldedTabKeys: tabs.filter(t => t.classList.contains("nol-tab-overflowed")).map(t => String(t.getAttribute("data-tab-key"))),
       isOverflowMenuShown: visible(row.querySelectorAll(".nol-window-row-tabs .nol-tab-group-overflow")).length === 1,
       contentStart: Math.min(...ownContent.map(t => t.left)),
