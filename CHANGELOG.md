@@ -4,6 +4,21 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version, as the [README](README.md#releases) says; other pull requests don't edit this file.
 
+## 0.0.18
+
+Modules and apps must act on two points:
+- `@noldova/desktop.window` needs `@noldova/ui.components.angular` 0.0.33 or later, below 0.1.0.
+- An object of a module's or app's own typed `IProductTitleBar`, such as a test fake, adds `documentTabs`, or it no longer compiles.
+
+Nothing else needs a module or app to act: every other change to the packages' API is additive.
+
+- An app can put the document tabs in the title bar with `desktop.product.titleBarDocumentTabs`, false by default: the tab row of the first document group in reading order, the top-start one, stands after the row's buttons, with the search field after it, and works as it does in its group; an app that leaves the option out keeps the centred search field and every group's own tab row.
+- A window part can open a view's instance without expanding its collapsed dock, with `context.openView(name, instance, title, { revealDock: false })`: the instance's tab comes to the front of its group and the dock stays collapsed; leaving the option out keeps today's open.
+- The build reads an installed package's manifest again through a file handle when `fstat` answers `EINVAL`, as it once did on a Windows Dev Drive, where the read failed the build.
+- The window's edit target writes its signals outside the update that moves the focus, so such an update no longer logs `NG0600`, and removes its focus listeners when it is destroyed.
+- Test and check changes with no effect on the packages: the tests' read fixture counts a file read once it has finished, the socket reader's real commands run in its tests without the 10 s limit, and the recorder's tests sum up the socket and memory state from given listings.
+- The workflows are pinned to .github v2.51.0, and the ui-components packages to 0.0.33.
+
 ## 0.0.17
 
 Modules and apps must act on two points:
