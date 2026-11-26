@@ -7,6 +7,7 @@
  */
 
 import type { Page } from "@playwright/test";
+import type { Size } from "electron";
 
 import { BuildVariantFixture } from "./fixtures/build-variant.fixture.ts";
 import type { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
@@ -29,18 +30,38 @@ interface ITabsGeometry {
   readonly stripEnd: number;
   readonly fieldStart: number;
   readonly fieldWidth: number;
+  readonly fieldEnd: number;
+  readonly actionsStart: number;
+  readonly isMenuBarFolded: boolean;
+  readonly foldedTabKeys: readonly string[];
+  readonly isOverflowMenuShown: boolean;
   readonly contentStart: number;
   readonly contentEnd: number;
   readonly controlsStart: number;
 }
 
 const TRAFFIC_LIGHTS = 78;
-const SMALL_SCREEN_WINDOW = { width: 921, height: 648 };
+const SMALL_SCREEN_WINDOW: Size = { width: 921, height: 648 };
 
 async function readAsync(window: Page): Promise<ITabsGeometry> {
   await expect(window.locator("nol-window-row .nol-window-row-tabs nol-tab[data-tab-key=\"document/notes.note/1\"]")).toBeAttached();
   await expect(window.locator("nol-window-row .nol-window-row-tabs nol-tab.nol-tab-selected")).toBeVisible();
   await expect(window.locator("nol-window-row .nol-window-row-search")).toBeVisible();
+  await window.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  const reads: ITabsGeometry[] = [];
+  await expect.poll(async () => {
+    reads.push(await measureAsync(window));
+    return reads.length > 1 && JSON.stringify(reads.at(-1)) === JSON.stringify(reads.at(-2));
+  }, { message: "The window row's boxes should be the same in two reads in a row, once its fonts have loaded." }).toBe(true);
+  const settled = reads.at(-1);
+  if (Object.isUndefined(settled))
+    throw new Error("The window row was never read.");
+  return settled;
+}
+
+function measureAsync(window: Page): Promise<ITabsGeometry> {
   return window.evaluate(() => {
     const row = document.querySelector<HTMLElement>("nol-window-row");
     if (row === null)
@@ -66,6 +87,7 @@ async function readAsync(window: Page): Promise<ITabsGeometry> {
     const strip = one(".nol-window-row-tabs .nol-tab-group-tabs");
     const field = one(".nol-window-row-search");
     const start = one(".nol-window-row-start");
+    const rowActions = one(".nol-window-row-actions");
     const shownTabs = visible(tabs);
     const lastTab = shownTabs.at(-1)?.getBoundingClientRect() ?? strip;
     const actions = row.querySelector(".nol-window-row-tabs .nol-tab-group-actions")?.getBoundingClientRect() ?? strip;
@@ -96,6 +118,11 @@ async function readAsync(window: Page): Promise<ITabsGeometry> {
       stripEnd: Math.max(strip.right, actions.right),
       fieldStart: field.left,
       fieldWidth: field.width,
+      fieldEnd: field.right,
+      actionsStart: rowActions.left,
+      isMenuBarFolded: row.querySelector(".nol-window-row-menu-bar-folded") !== null && visible(row.querySelectorAll(".nol-window-row-menu")).length === 1,
+      foldedTabKeys: tabs.filter(t => t.classList.contains("nol-tab-overflowed")).map(t => String(t.getAttribute("data-tab-key"))),
+      isOverflowMenuShown: visible(row.querySelectorAll(".nol-window-row-tabs .nol-tab-group-overflow")).length === 1,
       contentStart: Math.min(...ownContent.map(t => t.left)),
       contentEnd: Math.max(...ownContent.map(t => t.right)),
       controlsStart: area?.right ?? drawn?.left ?? innerWidth
@@ -113,6 +140,8 @@ function checkPlaces(geometry: ITabsGeometry): void {
   expect(geometry.stripStart).toBeGreaterThanOrEqual(geometry.startEnd - 0.5);
   expect(geometry.fieldStart - geometry.stripEnd).toBeGreaterThanOrEqual(6 * geometry.rem - 0.5);
   expect(geometry.fieldWidth).toBeGreaterThanOrEqual(12 * geometry.rem - 0.5);
+  expect(geometry.fieldEnd).toBeLessThanOrEqual(geometry.actionsStart + 0.5);
+  expect(geometry.fieldEnd).toBeLessThanOrEqual(geometry.controlsStart + 0.5);
   expect(geometry.contentEnd).toBeLessThanOrEqual(geometry.controlsStart + 0.5);
   if (process.platform === "darwin")
     expect(geometry.contentStart).toBeGreaterThanOrEqual(TRAFFIC_LIGHTS - 0.5);
@@ -125,7 +154,7 @@ function checkRegions(geometry: ITabsGeometry): void {
   expect(geometry.gapRegions).toEqual(Array<string>(geometry.gapRegions.length).fill("drag"));
 }
 
-async function reopenAsync(mainProcess: MainProcessFixture, size: { width: number; height: number }): Promise<void> {
+async function reopenAsync(mainProcess: MainProcessFixture, size: Size): Promise<void> {
   await test.step(`reopen the window at ${size.width} × ${size.height}, the size a 1024 × 768 screen opens it at`, async () => {
     await mainProcess.application.evaluate(({ BrowserWindow, screen }, bounds) => {
       const area = screen.getPrimaryDisplay().workArea;
@@ -152,12 +181,17 @@ test.describe("the document tabs in the window row", () => {
     checkRegions(await readAsync(mainProcess.window));
   });
 
-  test("keeps 6rem before a 12rem search field and the regions in a window a small screen opens, folding the menu bar and the tabs that don't fit", async ({ mainProcess }) => {
+  test("keeps 6rem before a 12rem search field that ends before the row's actions, and the regions, in a window a small screen opens, and a row that small folds the menu bar and the tabs that don't fit", async ({ mainProcess }) => {
     await reopenAsync(mainProcess, SMALL_SCREEN_WINDOW);
     const geometry = await readAsync(mainProcess.window);
 
     checkPlaces(geometry);
     checkRegions(geometry);
+    if (geometry.controlsStart < SMALL_SCREEN_WINDOW.width) {
+      expect(geometry.isMenuBarFolded).toBe(true);
+      expect(geometry.foldedTabKeys).toEqual(["document/notes.note/1"]);
+      expect(geometry.isOverflowMenuShown).toBe(true);
+    }
     await mainProcess.checkpointAsync("title-bar-document-tabs-small-screen");
   });
 });
