@@ -149,7 +149,7 @@ export class TabScrollerDirective {
   }
 
   private startOf(): number {
-    return parseFloat(getComputedStyle(this.host).paddingInlineStart) || 0;
+    return parseFloat(getComputedStyle(this.host).paddingInlineStart);
   }
 
   private static widthOf(tab: HTMLElement): number {
