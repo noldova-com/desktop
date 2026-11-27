@@ -40,6 +40,11 @@ export class ClosingService implements IModuleSaver {
     return outcomes.every(t => t !== PartSaveOutcome.Failed);
   }
 
+  public reportSaveFailed(moduleIds: ReadonlySet<string>, formatFailed: (moduleName: string) => string, text: string): void {
+    for (const moduleId of moduleIds)
+      this.post(ShellNotifications.saveFailed, moduleId, formatFailed(this.statuses.nameOf(moduleId)), text, NotificationSeverity.Error);
+  }
+
   public async saveForUpdateAsync(): Promise<readonly string[]> {
     const outcomes = await this.saveAllAsync(true);
     return outcomes.flatMap(([moduleId, outcome]) => {

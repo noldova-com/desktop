@@ -912,6 +912,8 @@ export class Resources {
   public static readonly windowPartReconnectionFailed: string = "Its window part failed to continue after the runtime started again.";
   public static readonly windowPartDependencyListenerFailed: string = "Its window part failed to follow a change of a module it optionally depends on.";
   public static readonly partSaveTimeout: number = 4000;
+  public static readonly resetSavePasses: number = 3;
+  public static readonly resetSaveKeptOpeningViews: string = `Its window part opened another view each time it saved, ${Resources.resetSavePasses} times in a row.`;
   public static readonly windowLogLimit: number = 65536;
   public static readonly imageCopyByteLimit: number = 64 * 1024 * 1024;
   public static readonly imageCopyPixelLimit: number = 50_000_000;
@@ -1387,6 +1389,10 @@ export class Resources {
 
   public static formatPartSaveFailedBeforeStop(moduleName: string): string {
     return `${moduleName} couldn't save before it stopped`;
+  }
+
+  public static formatPartSaveFailedBeforeReset(moduleName: string): string {
+    return `${moduleName} couldn't save, so the layout wasn't reset`;
   }
 
   public static formatPartSaveFailedForUpdate(moduleName: string): string {
