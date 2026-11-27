@@ -315,7 +315,6 @@ export class LayoutService {
     this.update(this.layoutState().withToolbars(toolbars, band));
   }
 
-  // The open tabs a reset closes: every view not shown by default.
   public closedByReset(): readonly Tab[] {
     const reset = this.layoutState().reset(this.registryState());
     return this.layoutState().groups.flatMap(t => t.tabs).filter(t => !reset.isOpen(t));

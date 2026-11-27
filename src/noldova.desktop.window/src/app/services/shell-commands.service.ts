@@ -453,7 +453,6 @@ export class ShellCommandsService {
     }
   }
 
-  // A view a reset closes saves first, as on closing: the save steps of each part that owns one run, and a failed one is reported.
   private async resetLayoutAsync(): Promise<JsonValue> {
     const owners = this.environment.get(WindowPartHostService).ownersOf(this.layout.closedByReset());
     await this.environment.get(ClosingService).saveModulesAsync(owners, t => Resources.formatPartSaveFailedBeforeReset(t));
