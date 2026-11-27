@@ -432,7 +432,10 @@ A module adds settings only through `settings.json`, whose field `settings` list
   A check that throws accepts the value, and the part's log names the setting and the error's name, or the type of what was thrown, never the value.
 - A part reads the settings of its module, its dependencies and Noldova Desktop, and changes only its own module's.
   A runtime part that reads a device setting with no device gets the value for the device its runtime serves, which the runtime asks the app for once the app's main process connects, and the default until it knows; `onChanged` with no device passes only that device's changes to a device setting, and once the runtime learns the device it passes that device's stored value as a change; the device's id stays inside the runtime.
-- Noldova Desktop's `desktop.timeFormat` and `desktop.dateTimeFormat` are the patterns every time a module shows follows, and a part formats a date in one with `DatePattern.format` from `@noldova/desktop.protocol`, and the kit's messages and permission cards follow them without it; a change reaches its readers as any setting's does.
+- Noldova Desktop's `desktop.timeFormat` and `desktop.dateTimeFormat` are the patterns every date and time a module shows follows.
+  A module shows each through `@noldova/desktop.window`'s `TimeFormatService`, which its components inject from the window's root injector and its other code reads as its context's `timeFormats`, and never with `toLocaleString`, `toLocaleDateString`, `toLocaleTimeString` or `Intl.DateTimeFormat`.
+  The service writes a time, a date and time, and the shorter forms, the date and time without its year or weekday, the date without its time, the day and month alone, and the weekday with the time, in the date-and-time pattern's order; it reads the patterns as signals, so a template or a `computed` that calls it redraws on a change.
+  A module's tests give it formats with `FakeTimeFormats` from `@noldova/desktop.window/testing`, and the kit's messages and permission cards follow the patterns without it.
   A pattern's letters that are no token, such as `Q` or a third `y`, show as text, as quoted text does.
 - Setting a value equal to the default where the setting would otherwise take its default removes the stored value.
 - A stored value that the setting's type no longer accepts is kept but ignored, and logged once.

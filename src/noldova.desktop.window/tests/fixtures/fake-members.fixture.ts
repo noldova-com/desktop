@@ -38,6 +38,9 @@ export class FakeMembersFixture {
       case "fake":
         expect(call(fake)).toBeInstanceOf(Fake);
         break;
+      case "given":
+        expect([Object.isNullOrUndefined(call(fake)), fake.calls.length]).toEqual([false, 0]);
+        break;
       case "answered":
         if (member.endsWith(FakeMembersFixture.ASYNC_SUFFIX)) {
           const result = call(fake);

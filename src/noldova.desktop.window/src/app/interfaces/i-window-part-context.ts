@@ -18,6 +18,7 @@ import type { DocumentContribution } from "../models/document-contribution.js";
 import type { IssuedFileGrants } from "../models/issued-file-grants.js";
 import type { MenuRowContribution } from "../models/menu-row-contribution.js";
 import type { NotificationHandle } from "../models/notification-handle.js";
+import type { TimeFormatService } from "../services/time-format.service.js";
 import type { PlaceholderContribution } from "../models/placeholder-contribution.js";
 import type { SearchSourceContribution } from "../models/search-source-contribution.js";
 import type { SettingsPageContribution } from "../models/settings-page-contribution.js";
@@ -48,6 +49,7 @@ import type { IWindowWebViews } from "./i-window-web-views.js";
 export interface IWindowPartContext {
   readonly webViews: IWindowWebViews;
   readonly secrets: IWindowSecrets;
+  readonly timeFormats: TimeFormatService;
   readonly agentControl: Signal<AgentControlState | null>;
 
   registerView(view: ViewContribution): void;

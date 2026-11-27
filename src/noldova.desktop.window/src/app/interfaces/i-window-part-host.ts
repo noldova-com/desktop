@@ -19,6 +19,7 @@ import type { Tab } from "../models/layout/tab.js";
 import type { MenuItem } from "../models/menu-item.js";
 import type { ViewBadge } from "../models/view-badge.js";
 import type { ViewPlace } from "../models/view-place.js";
+import type { TimeFormatService } from "../services/time-format.service.js";
 import type { ICommandKey } from "./i-command-key.js";
 import type { IDocumentUpdate } from "./i-document-update.js";
 import type { IInAppBrowser } from "./i-in-app-browser.js";
@@ -35,6 +36,7 @@ import type { IWindowPartContext } from "./i-window-part-context.js";
 export interface IWindowPartHost {
   readonly agentControl: Signal<AgentControlState | null>;
   readonly platform: string;
+  readonly timeFormats: TimeFormatService;
 
   requestAsync(method: string, payload: JsonValue): Promise<JsonValue>;
 
