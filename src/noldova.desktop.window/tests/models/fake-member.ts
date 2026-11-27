@@ -31,6 +31,10 @@ export class FakeMember<T extends object> {
     return new FakeMember("property", call, null);
   }
 
+  public static given<T extends object>(call: (fake: Fake<T> & T) => unknown): FakeMember<T> {
+    return new FakeMember("given", call, null);
+  }
+
   public static fake<T extends object>(call: (fake: Fake<T> & T) => unknown): FakeMember<T> {
     return new FakeMember("fake", call, null);
   }

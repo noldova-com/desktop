@@ -20,8 +20,8 @@ import { SettingsService } from "./settings.service.js";
 @Injectable({ providedIn: "root" })
 export class TimeFormatsService {
   private readonly settings: SettingsService = inject(SettingsService);
-  private readonly time: Signal<string> = this.patternOf(Resources.timeFormatSetting, Resources.clockFormats[ClockChoice.TwelveHour][0]);
-  private readonly dateTime: Signal<string> = this.patternOf(Resources.dateTimeFormatSetting, Resources.clockFormats[ClockChoice.TwelveHour][1]);
+  public readonly time: Signal<string> = this.patternOf(Resources.timeFormatSetting, Resources.clockFormats[ClockChoice.TwelveHour][0]);
+  public readonly dateTime: Signal<string> = this.patternOf(Resources.dateTimeFormatSetting, Resources.clockFormats[ClockChoice.TwelveHour][1]);
 
   public readonly formats: Signal<TimeFormats> = computed(() => {
     const time = this.time();
