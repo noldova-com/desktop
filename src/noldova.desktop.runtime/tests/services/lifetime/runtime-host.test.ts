@@ -153,7 +153,7 @@ export class RuntimeHostTests {
       const { connection, response } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
       Assert.isFalse(response.hasFailed);
 
-      connection.reset();
+      connection[Symbol.dispose]();
 
       Assert.areEqual("idle", await host.waitForStopAsync());
       Assert.isFalse(OwnershipLock.isOwned(fixture.dataDirectory));
@@ -173,7 +173,7 @@ export class RuntimeHostTests {
 
       Assert.isFalse(response.hasFailed);
       Assert.isFalse(host.isIdle);
-      connection.reset();
+      connection[Symbol.dispose]();
       Assert.areEqual("idle", await host.waitForStopAsync());
     });
   }
