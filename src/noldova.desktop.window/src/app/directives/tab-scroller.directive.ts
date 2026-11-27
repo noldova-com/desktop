@@ -44,7 +44,7 @@ export class TabScrollerDirective {
   public constructor() {
     const appearance = inject(AppearanceService);
     this.observer = new ResizeObserver(() => {
-      const wasActiveWhole = this.isActiveWhole;
+      const wasActiveWhole = this.isActiveWhole && this.host.scrollLeft === this.followedScroll;
       const isMoved = this.measureActions();
       this.measureTabs();
       if (isMoved || wasActiveWhole)
@@ -66,7 +66,7 @@ export class TabScrollerDirective {
         this.isOverflowingValue.set(false);
         return;
       }
-      const wasActiveWhole = this.isActiveWhole;
+      const wasActiveWhole = this.isActiveWhole && this.host.scrollLeft === this.followedScroll;
       const isMoved = this.measureActions();
       this.measureTabs();
       if (isMoved || wasActiveWhole || view.some((t, index) => t !== this.revealed[index]))
