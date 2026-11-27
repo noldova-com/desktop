@@ -66,9 +66,10 @@ export class TabScrollerDirective {
         this.isOverflowingValue.set(false);
         return;
       }
+      const wasActiveWhole = this.isActiveWhole;
       const isMoved = this.measureActions();
       this.measureTabs();
-      if (isMoved || view.some((t, index) => t !== this.revealed[index]))
+      if (isMoved || wasActiveWhole || view.some((t, index) => t !== this.revealed[index]))
         this.reveal();
       this.revealed = view;
       this.follow();

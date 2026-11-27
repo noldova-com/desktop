@@ -24,7 +24,7 @@ import { DomFixture } from "../../fixtures/dom.fixture";
         [nolTabScroller]="actionBar" [nolTabScrollerThumb]="thumb" [nolTabScrollerFrame]="frame()" [nolTabScrollerRows]="rows()">
         <div class="strip" style="display: flex; flex: 1 0 auto;">
           @for (key of keys(); track key) {
-            <span style="flex: none; width: 60px; height: 24px;" [attr.data-tab-key]="key" [class.nol-tab-selected]="key === selected()"></span>
+            <span style="flex: none; min-width: 60px; height: 24px; font: 16px monospace; white-space: nowrap;" [attr.data-tab-key]="key" [class.nol-tab-selected]="key === selected()">{{ labels()[key] }}</span>
           }
         </div>
         <div #actionBar class="actions" style="position: sticky; inset-inline-end: 0; flex: none; width: 48px; height: 24px;"></div>
@@ -37,6 +37,7 @@ import { DomFixture } from "../../fixtures/dom.fixture";
 class ScrollerHostComponent {
   public readonly keys = signal(["a", "b", "c", "d", "e"]);
   public readonly selected = signal("d");
+  public readonly labels = signal<Readonly<Record<string, string>>>({});
   public readonly direction = signal("ltr");
   public readonly rows = signal(0);
   public readonly frame = signal(new GroupFrame(new TabGroup(1, [LayoutFixture.files], LayoutFixture.files), new Bounds(0, 0, 40, 20), null));
@@ -159,6 +160,20 @@ describe("TabScrollerDirective", () => {
 
     await vi.waitFor(() => expect(scroller().scrollLeft).toBe(136));
     expectInRoom("d");
+  });
+
+  it("keeps the selected tab whole when a render of the same frame grows its label, as it lay whole before", async () => {
+    const before = scroller().scrollLeft;
+
+    const host = fixture.componentInstance;
+    host.labels.set({ d: "0123456789" });
+    host.frame.set(new GroupFrame(host.frame().group, host.frame().bounds, null));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    await vi.waitFor(() => expectInRoom("d"));
+    expect(element("[data-tab-key='d']").getBoundingClientRect().width).toBeGreaterThan(60 + 0.5);
+    expect(scroller().scrollLeft).toBeGreaterThan(before);
   });
 
   it("leaves the row where the person scrolled it when a tab grows while the selected tab lay out of view", async () => {
