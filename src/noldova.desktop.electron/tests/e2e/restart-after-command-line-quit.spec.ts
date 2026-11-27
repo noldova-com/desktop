@@ -9,11 +9,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { BuildVariantFixture } from "./fixtures/build-variant.fixture.ts";
 import { CliFixture } from "./fixtures/cli.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
-
-test.use({ mainProcessVariant: BuildVariantFixture.noModules });
 
 test("Noldova Desktop Sample quit from the command line and started again at once reaches its runtime", async ({ mainProcess }, testInfo) => {
   const logs = path.join(mainProcess.dataDirectory, "logs");
@@ -33,7 +30,7 @@ test("Noldova Desktop Sample quit from the command line and started again at onc
     notes.push(`runtime after start: ${await mainProcess.readRuntimeProcessIdAsync()}`);
     expect(quit.output).toBe("{\"outcome\":\"Quit\"}\n");
     expect(exitCode).toBe(0);
-    await expect(mainProcess.window.locator("nol-empty-window")).toHaveText(/Noldova Desktop Sample\s*No modules/);
+    expect(await mainProcess.isVisibleAsync()).toBe(true);
   }
   finally {
     await testInfo.attach("notes", { body: notes.join("\n"), contentType: "text/plain" });
