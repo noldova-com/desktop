@@ -145,7 +145,11 @@ test.describe("document groups", () => {
       await window.keyboard.press("End");
       await expect(tabs.last()).toBeFocused();
       await expect.poll(() => TabRowFixture.clearanceOf(tabs.last()), { message: `End scrolls the last tab clear of the actions, ${direction}` }).toBe(TabRowFixture.CLEAR);
-      expect(await scroller.evaluate(t => Math.abs(Math.abs(t.scrollLeft) - (t.scrollWidth - t.clientWidth)) < 1)).toBe(true);
+      const gap = await group.evaluate((t, rtl) => {
+        const [last, actions] = [[...t.querySelectorAll("nol-tab")].at(-1)?.getBoundingClientRect(), t.querySelector(".nol-tab-group-actions")?.getBoundingClientRect()];
+        return last === undefined || actions === undefined ? Number.NaN : rtl ? last.left - actions.right : actions.left - last.right;
+      }, direction === "rtl");
+      expect(Math.abs(gap), `End scrolls the row only as far as the last tab needs, ending where the actions start, ${direction}`).toBeLessThan(1);
       await mainProcess.checkpointAsync(`tab-row-narrow-end-${direction}`);
     }
   });
