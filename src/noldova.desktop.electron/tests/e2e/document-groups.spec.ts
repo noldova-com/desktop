@@ -93,7 +93,7 @@ test.describe("document groups", () => {
     await mainProcess.checkpointAsync("document-center-joins-group");
   });
 
-  test("a document group's first tab and last action stand 0.25rem from its card's start and end, in light and dark and in both directions", async ({ mainProcess }) => {
+  test("a document group's first tab stands 0.25rem from its card's start and its last action's glyph 0.75rem from its end, in light and dark and in both directions", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const group = documentGroups(window).first();
     for (const direction of ["ltr", "rtl"] as const) {
@@ -104,7 +104,7 @@ test.describe("document groups", () => {
         const insets = await TabRowFixture.insetsOf(group);
 
         expect(insets.firstTab).toBeCloseTo(insets.rem * 0.25, 0);
-        expect(insets.lastAction).toBeCloseTo(insets.rem * 0.25, 0);
+        expect(insets.lastAction).toBeCloseTo(insets.rem * 0.75, 0);
         await mainProcess.checkpointAsync(`document-tab-row-${direction}-${scheme}`);
       }
     }
