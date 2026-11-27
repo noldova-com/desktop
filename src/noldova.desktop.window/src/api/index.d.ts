@@ -249,6 +249,38 @@ export declare class FileNotShownException extends WindowException {
 }
 
 /**
+ * The exception {@link IWindowPartContext.registerInAppBrowser} throws when
+ * another part is already the in-app browser, so a part tells a taken in-app
+ * browser apart from other failures.
+ */
+export declare class InAppBrowserTakenException extends WindowException {
+  /**
+   * The exception's name, `InAppBrowserTakenException`.
+   */
+  public override readonly name: string;
+
+  /**
+   * Creates the exception, for the window to throw.
+   *
+   * @example
+   * ```ts
+   * import { InAppBrowserTakenException, type IInAppBrowser, type IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function tryRegisterBrowser(context: IWindowPartContext, browser: IInAppBrowser): (() => void) | null {
+   *   try {
+   *     return context.registerInAppBrowser(browser);
+   *   } catch (error) {
+   *     if (error instanceof InAppBrowserTakenException)
+   *       return null;
+   *     throw error;
+   *   }
+   * }
+   * ```
+   */
+  public constructor();
+}
+
+/**
  * The exception {@link IWindowPartContext.requestAsync} rejects with when the
  * runtime refuses or fails the request, so a part reads the failure's code and
  * the details its module's runtime part gave, such as which note was missing.
@@ -296,6 +328,38 @@ export declare class RuntimeRequestException extends WindowException {
    * ```
    */
   public constructor(code: string, message: string, details?: JsonObject);
+}
+
+/**
+ * The exception {@link IWindowPartContext.provideUndo} throws when another
+ * part already provides Undo in the window, so a part tells a taken Undo apart
+ * from other failures.
+ */
+export declare class UndoProviderTakenException extends WindowException {
+  /**
+   * The exception's name, `UndoProviderTakenException`.
+   */
+  public override readonly name: string;
+
+  /**
+   * Creates the exception, for the window to throw.
+   *
+   * @example
+   * ```ts
+   * import { UndoProviderTakenException, type IUndoProvider, type IWindowPartContext } from "@noldova/desktop.window";
+   *
+   * export function tryProvideUndo(context: IWindowPartContext, provider: IUndoProvider): (() => void) | null {
+   *   try {
+   *     return context.provideUndo(provider);
+   *   } catch (error) {
+   *     if (error instanceof UndoProviderTakenException)
+   *       return null;
+   *     throw error;
+   *   }
+   * }
+   * ```
+   */
+  public constructor();
 }
 
 /**
@@ -1987,9 +2051,9 @@ export interface IWindowPartContext {
    * @param provider The part's undo.
    * @returns A function that withdraws the provider, after which Undo is
    * native again; deactivation withdraws it too.
-   * @throws UndoProviderTakenException when another part already provides
-   * Undo in the window. After the part is withdrawn, it provides nothing and
-   * returns a function that does nothing.
+   * @throws {@link UndoProviderTakenException} when another part already
+   * provides Undo in the window. After the part is withdrawn, it provides
+   * nothing and returns a function that does nothing.
    * @example
    * ```ts
    * import type { IWindowPartContext } from "@noldova/desktop.window";
@@ -2998,9 +3062,9 @@ export interface IWindowPartContext {
    *
    * @param browser Where links open, and how to open one in the app.
    * @returns A function that unregisters the browser.
-   * @throws InAppBrowserTakenException when another part is already the in-app
-   * browser. After the part is withdrawn, it registers nothing and returns a
-   * function that does nothing.
+   * @throws {@link InAppBrowserTakenException} when another part is already
+   * the in-app browser. After the part is withdrawn, it registers nothing and
+   * returns a function that does nothing.
    * @example
    * ```ts
    * import { LinkGesture, LinkPlace, type IWindowPartContext } from "@noldova/desktop.window";
