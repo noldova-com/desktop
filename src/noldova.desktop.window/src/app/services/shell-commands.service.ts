@@ -454,11 +454,16 @@ export class ShellCommandsService {
   }
 
   private async resetLayoutAsync(): Promise<JsonValue> {
+    const closingService = this.environment.get(ClosingService);
     const saved: Tab[] = [];
     let closing = this.layout.closedByReset();
-    while (closing.length > 0) {
+    for (let pass = 0; closing.length > 0; pass++) {
       const owners = this.environment.get(WindowPartHostService).ownersOf(closing);
-      if (!await this.environment.get(ClosingService).saveModulesAsync(owners, t => Resources.formatPartSaveFailedBeforeReset(t)))
+      if (pass === Resources.resetSavePasses) {
+        closingService.reportSaveFailed(owners, t => Resources.formatPartSaveFailedBeforeReset(t), Resources.resetSaveKeptOpeningViews);
+        return null;
+      }
+      if (!await closingService.saveModulesAsync(owners, t => Resources.formatPartSaveFailedBeforeReset(t)))
         return null;
       saved.push(...closing);
       closing = this.layout.closedByReset().filter(t => !saved.some(u => u.equals(t)));

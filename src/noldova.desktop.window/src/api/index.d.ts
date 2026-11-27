@@ -1993,6 +1993,8 @@ export interface IWindowPartContext {
    * Reset layout runs the same steps, of each part that owns a view the reset
    * closes, before it closes any: a step that rejects leaves the layout as it
    * was, and a step still running after 4 seconds doesn't hold the reset back.
+   * A part whose steps open another view each time they run is saved at most
+   * three times; then the reset stops as it does for a step that rejects.
    *
    * @param save The step; it resolves once the state is saved.
    * @returns A function that removes the step; deactivation removes it too.

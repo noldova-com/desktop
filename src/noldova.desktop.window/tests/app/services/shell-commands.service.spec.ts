@@ -20,6 +20,7 @@ import { ModuleState, ModuleStatus } from "@noldova/desktop.protocol";
 import { DocumentTab } from "../../../src/app/models/layout/document-tab";
 import { Layout } from "../../../src/app/models/layout/layout";
 import { ViewRegistry } from "../../../src/app/models/layout/view-registry";
+import { ViewTab } from "../../../src/app/models/layout/view-tab";
 import { ViewType } from "../../../src/app/models/layout/view-type";
 import type { LayoutService } from "../../../src/app/services/layout.service";
 import { LinkService } from "../../../src/app/services/link.service";
@@ -838,6 +839,30 @@ describe("ShellCommandsService", () => {
     await runAsync("desktop.resetLayout");
 
     expect([save.mock.calls.length, layout.layout().isOpen(search), layout.layout()]).toEqual([1, true, before]);
+  });
+
+  it("stops after three passes when every save opens another view, leaving the layout as it was and naming the part in the failed save's report", async () => {
+    const opened: ViewTab[] = [];
+    const reported: string[] = [];
+    vi.spyOn(TestBed.inject(WindowPartHostService), "ownersOf").mockImplementation(tabs => new Set(tabs.map(t => (t.key === search.key ? "files" : "terminal"))));
+    const save = vi.spyOn(TestBed.inject(ClosingService), "saveModulesAsync").mockImplementation(() => {
+      const view = new ViewTab("terminal.shell", `opened ${String(opened.length)}`);
+      opened.push(view);
+      layout.openView(view);
+      return Promise.resolve(true);
+    });
+    vi.spyOn(TestBed.inject(ClosingService), "reportSaveFailed").mockImplementation((moduleIds, formatFailed, text) => {
+      reported.push(`${[...moduleIds].join()}: ${formatFailed("Terminal")} ${text}`);
+    });
+
+    await runAsync("desktop.resetLayout");
+
+    expect([save.mock.calls.length, reported, layout.layout().isOpen(search), opened.map(t => layout.layout().isOpen(t))]).toEqual([
+      3,
+      ["terminal: Terminal couldn't save, so the layout wasn't reset Its window part opened another view each time it saved, 3 times in a row."],
+      true,
+      [true, true, true]
+    ]);
   });
 
   it("saves a view opened while the save steps run before the reset closes it, and each view's owners once", async () => {
