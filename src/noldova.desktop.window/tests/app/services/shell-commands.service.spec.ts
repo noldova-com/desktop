@@ -27,6 +27,7 @@ import { EditTargetService } from "../../../src/app/services/edit-target.service
 import { ModuleStatusService } from "../../../src/app/services/module-status.service";
 import { SearchPaletteService } from "../../../src/app/services/search-palette.service";
 import { SettingsPageService } from "../../../src/app/services/settings-page.service";
+import { ClosingService } from "../../../src/app/services/closing.service";
 import { ShellCommandsService } from "../../../src/app/services/shell-commands.service";
 import { TabRenameService } from "../../../src/app/services/tab-rename.service";
 import { TabFocusService } from "../../../src/app/services/tab-focus.service";
@@ -35,6 +36,7 @@ import { ToolbarService } from "../../../src/app/services/toolbar.service";
 import { UndoService } from "../../../src/app/services/undo.service";
 import { UpdateService } from "../../../src/app/services/update.service";
 import { ViewDialogService } from "../../../src/app/services/view-dialog.service";
+import { WindowPartHostService } from "../../../src/app/services/window-part-host.service";
 import { DomFixture } from "../../fixtures/dom.fixture";
 import { PreloadBridgeFixture } from "../../fixtures/preload-bridge.fixture";
 import { LayoutFixture } from "../../fixtures/layout.fixture";
@@ -809,6 +811,23 @@ describe("ShellCommandsService", () => {
 
     await runAsync("desktop.resetLayout");
     expect(layout.layout().dock(DockSide.Left).isCollapsed).toBe(false);
+  });
+
+  it("runs the save steps of each part that owns a view a reset closes before the view closes, naming the reset in a failed save's report", async () => {
+    const asked: (readonly string[])[] = [];
+    const saved: string[] = [];
+    vi.spyOn(TestBed.inject(WindowPartHostService), "ownersOf").mockImplementation(tabs => {
+      asked.push(tabs.map(t => t.key));
+      return new Set(["files"]);
+    });
+    vi.spyOn(TestBed.inject(ClosingService), "saveModulesAsync").mockImplementation((moduleIds, formatFailed) => {
+      saved.push(`${[...moduleIds].join()} ${String(layout.layout().isOpen(search))} ${formatFailed("Files")}`);
+      return Promise.resolve(true);
+    });
+
+    await runAsync("desktop.resetLayout");
+
+    expect([asked, saved, layout.layout().isOpen(search)]).toEqual([[[search.key]], ["files true Files couldn't save before the layout was reset"], false]);
   });
 
   it("checks a side dock's command only while the dock shows, and opens a dock the narrow window closed instead of hiding it", async () => {

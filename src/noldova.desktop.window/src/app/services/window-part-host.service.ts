@@ -240,6 +240,10 @@ export class WindowPartHostService implements IWindowPartHost {
       this.opener.open(moduleId, name, instance, heading, isPreview, after, activate);
   }
 
+  public ownersOf(tabs: readonly Tab[]): ReadonlySet<string> {
+    return new Set(this.activations.filter(t => tabs.some(u => WindowPartHostService.owns(t.context, u))).map(t => t.context.moduleId));
+  }
+
   public listSaves(): ReadonlyMap<string, readonly (() => Promise<void>)[]> {
     return new Map(this.activations.filter(t => t.context.saves.length > 0).map(t => [t.context.moduleId, [...t.context.saves]]));
   }

@@ -1378,6 +1378,10 @@ export class Resources {
     return `${moduleName} couldn't save before it stopped`;
   }
 
+  public static formatPartSaveFailedBeforeReset(moduleName: string): string {
+    return `${moduleName} couldn't save before the layout was reset`;
+  }
+
   public static formatPartSaveFailedForUpdate(moduleName: string): string {
     return `${moduleName} couldn't save`;
   }

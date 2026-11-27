@@ -130,6 +130,7 @@ The Window package keeps its strings and numbers in its `src/resources.ts`, as e
   A side's groups go in number order, top to bottom on the left and right and left to right at the bottom, and share the side equally; a number no shown view uses leaves no gap.
   Tabs go lowest order first, across modules; views without an order follow, in module order and then registration order, as views with the same order do, so views that name neither give one group per side, as before.
   The layout is saved after any change, and a saved layout keeps its groups and tabs: a person who already has one keeps it until Reset the layout.
+  Reset the layout gives the layout of a first start with no saved layout: every open view not shown by default closes, instances included, each as when the person closes its tab, so it saves first, and the open documents stay, in their order, with the active one.
 - The saved layout restores the person's workspace, its toolbars, each view's and document's toolbar band and its docks, without opening unrelated content as a side effect, and keeps the place of a tab whose module is absent.
   A tab saved under a document's former name reopens as that document, as [MODULES.md](MODULES.md#former-names) says.
   It keeps each open document's title, so a restored or background tab shows its title before its module titles it again; a title the module gives wins.

@@ -41,6 +41,8 @@ import { PreloadBridgeService } from "./preload-bridge.service.js";
 import { EditTargetService } from "./edit-target.service.js";
 import { LinkService } from "./link.service.js";
 import { LayoutService } from "./layout.service.js";
+import { ClosingService } from "./closing.service.js";
+import { WindowPartHostService } from "./window-part-host.service.js";
 import { RegionFocusService } from "./region-focus.service.js";
 import { SettingsPageService } from "./settings-page.service.js";
 import { SupportService } from "./support.service.js";
@@ -202,7 +204,7 @@ export class ShellCommandsService {
         const tab = this.viewOf(commandArguments);
         return !Object.isNull(tab) && this.layout.layout().isOpen(tab);
       }),
-    new CommandContribution(Resources.resetLayoutCommand, Resources.resetLayoutLabel, Resources.resetLayoutGlyph, null, () => this.done(() => this.layout.reset())),
+    new CommandContribution(Resources.resetLayoutCommand, Resources.resetLayoutLabel, Resources.resetLayoutGlyph, null, () => this.resetLayoutAsync()),
     ...Object.values(BottomDockSpan).map(span => new CommandContribution(Resources.bottomSpanCommands[span], Resources.bottomSpanLabels[span], Resources.bottomSpanGlyphs[span], null,
       () => this.done(() => this.layout.setBottomSpan(span)), () => true, () => this.layout.layout().bottomSpan === span)),
     new CommandContribution(Resources.showAllTabsCommand, Resources.overflowLabel, Resources.overflowGlyph, null,
@@ -449,6 +451,14 @@ export class ShellCommandsService {
     catch (error) {
       this.bridge.logError(null, Resources.formatSelectionNotCopied(error instanceof Error ? error.message : String(error)));
     }
+  }
+
+  // A view a reset closes saves first, as on closing: the save steps of each part that owns one run, and a failed one is reported.
+  private async resetLayoutAsync(): Promise<JsonValue> {
+    const owners = this.environment.get(WindowPartHostService).ownersOf(this.layout.closedByReset());
+    await this.environment.get(ClosingService).saveModulesAsync(owners, t => Resources.formatPartSaveFailedBeforeReset(t));
+    this.layout.reset();
+    return null;
   }
 
   private done(action: () => void): Promise<JsonValue> {
