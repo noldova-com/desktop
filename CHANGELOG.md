@@ -6,18 +6,25 @@ Each version's section is written by the pull request that changes the version, 
 
 ## 0.0.18
 
-Modules and apps must act on two points:
-- `@noldova/desktop.window` needs `@noldova/ui.components.angular` 0.0.33 or later, below 0.1.0.
+Modules and apps must act on four points:
+- `@noldova/desktop.window` needs `@noldova/ui.components.angular` 0.0.36 or later, below 0.1.0; since 0.0.35 the kit types its icon inputs as `IconName`, so a module's own string passed to one is narrowed first.
+- Every Noldova Desktop package needs the `@noldova/context.*` packages it uses at 0.0.18 or later, below 0.1.0.
 - An object of a module's or app's own typed `IProductTitleBar`, such as a test fake, adds `documentTabs`, or it no longer compiles.
+- A class of a module's or app's own that implements `IWindowPartContext`, such as a recording test fake, adds `timeFormats`, or it no longer compiles; a module that uses `FakeWindowPartContext` needs nothing.
 
 Nothing else needs a module or app to act: every other change to the packages' API is additive.
 
 - An app can put the document tabs in the title bar with `desktop.product.titleBarDocumentTabs`, false by default: the tab row of the first document group in reading order, the top-start one, stands after the row's buttons, with the search field after it, and works as it does in its group; an app that leaves the option out keeps the centred search field and every group's own tab row.
 - A window part can open a view's instance without expanding its collapsed dock, with `context.openView(name, instance, title, { revealDock: false })`: the instance's tab comes to the front of its group and the dock stays collapsed; leaving the option out keeps today's open.
-- The build reads an installed package's manifest again through a file handle when `fstat` answers `EINVAL`, as it once did on a Windows Dev Drive, where the read failed the build.
+- A module shows dates and times in the person's `desktop.timeFormat` and `desktop.dateTimeFormat` through `TimeFormatService`, a service of the window's root injector that is also `context.timeFormats`, with `time`, `dateTime`, `shortDateTime`, `date`, `shortDate` and `weekdayTime`; its tests use `FakeTimeFormats` from the testing entry.
+- The window exports `UndoProviderTakenException` and `InAppBrowserTakenException`, so a module can catch the refusal of a second undo provider or in-app browser by its type.
+- An icon name the kit doesn't know, such as one from a module built against a newer kit, shows as no icon, or as the view's or the top-bar action's default glyph, and never throws; the window logs it once per module and name.
+- In a title bar with document tabs, the search field keeps its 12rem minimum in a small window, such as 921 × 648 on a 1024 × 768 screen, so the tabs fold into their menu instead of the field running over the action button and the window controls.
+- The build reads every file of an installed module, and each staged package's manifest and license, through a file handle when `fstat` answers `EINVAL`, as it once did on a Windows Dev Drive, where the read failed the build.
+- `noldova-desktop-build install` records an install without running `npm ci` again when `node_modules` already holds exactly what `package-lock.json` locks, so an app's first install no longer installs its packages twice.
 - The window's edit target writes its signals outside the update that moves the focus, so such an update no longer logs `NG0600`, and removes its focus listeners when it is destroyed.
-- Test and check changes with no effect on the packages: the tests' read fixture counts a file read once it has finished, the socket reader's real commands run in its tests without the 10 s limit, and the recorder's tests sum up the socket and memory state from given listings.
-- The workflows are pinned to .github v2.51.0, and the ui-components packages to 0.0.33.
+- Test and check changes with no effect on the packages: the tests' read fixture counts a file read once it has finished, the socket reader's real commands run in its tests without the 10 s limit, and the recorder's tests sum up the socket and memory state from given listings; marking a draft pull request ready no longer runs its workflows again on the same commit; and the README names the shared workflows at the version they're pinned at.
+- The workflows are pinned to .github v2.52.0, the ui-components packages to 0.0.36, and the context packages to 0.0.18.
 
 ## 0.0.17
 
