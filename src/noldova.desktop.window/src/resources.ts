@@ -1379,7 +1379,7 @@ export class Resources {
   }
 
   public static formatPartSaveFailedBeforeReset(moduleName: string): string {
-    return `${moduleName} couldn't save before the layout was reset`;
+    return `${moduleName} couldn't save, so the layout wasn't reset`;
   }
 
   public static formatPartSaveFailedForUpdate(moduleName: string): string {

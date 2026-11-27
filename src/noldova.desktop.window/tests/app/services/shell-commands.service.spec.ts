@@ -827,7 +827,38 @@ describe("ShellCommandsService", () => {
 
     await runAsync("desktop.resetLayout");
 
-    expect([asked, saved, layout.layout().isOpen(search)]).toEqual([[[search.key]], ["files true Files couldn't save before the layout was reset"], false]);
+    expect([asked, saved, layout.layout().isOpen(search)]).toEqual([[[search.key]], ["files true Files couldn't save, so the layout wasn't reset"], false]);
+  });
+
+  it("leaves the layout as it was when a part's save step fails, so the view whose state couldn't be saved stays open", async () => {
+    vi.spyOn(TestBed.inject(WindowPartHostService), "ownersOf").mockReturnValue(new Set(["files"]));
+    const save = vi.spyOn(TestBed.inject(ClosingService), "saveModulesAsync").mockResolvedValue(false);
+    const before = layout.layout();
+
+    await runAsync("desktop.resetLayout");
+
+    expect([save.mock.calls.length, layout.layout().isOpen(search), layout.layout()]).toEqual([1, true, before]);
+  });
+
+  it("saves a view opened while the save steps run before the reset closes it, and each view's owners once", async () => {
+    const terminal = LayoutFixture.terminal;
+    const asked: (readonly string[])[] = [];
+    const saved: string[] = [];
+    vi.spyOn(TestBed.inject(WindowPartHostService), "ownersOf").mockImplementation(tabs => {
+      asked.push(tabs.map(t => t.key));
+      return new Set(tabs.map(t => t.key === terminal.key ? "terminal" : "files"));
+    });
+    vi.spyOn(TestBed.inject(ClosingService), "saveModulesAsync").mockImplementation(moduleIds => {
+      if (saved.length === 0)
+        layout.openView(terminal);
+      saved.push(`${[...moduleIds].join()} ${String(layout.layout().isOpen(terminal))}`);
+      return Promise.resolve(true);
+    });
+
+    await runAsync("desktop.resetLayout");
+
+    expect([asked, saved, layout.layout().isOpen(search), layout.layout().isOpen(terminal)])
+      .toEqual([[[search.key], [terminal.key]], ["files true", "terminal true"], false, false]);
   });
 
   it("checks a side dock's command only while the dock shows, and opens a dock the narrow window closed instead of hiding it", async () => {

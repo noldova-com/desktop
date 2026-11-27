@@ -1968,6 +1968,10 @@ export interface IWindowPartContext {
    * 4 seconds does not hold closing back: Noldova Desktop Sample closes, and the window
    * logs it and posts a warning naming the module.
    *
+   * Reset layout runs the same steps, of each part that owns a view the reset
+   * closes, before it closes any: a step that rejects leaves the layout as it
+   * was, and a step still running after 4 seconds doesn't hold the reset back.
+   *
    * @param save The step; it resolves once the state is saved.
    * @returns A function that removes the step; deactivation removes it too.
    * @example
