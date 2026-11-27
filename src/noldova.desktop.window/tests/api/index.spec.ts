@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { DockSide, DocumentContribution, FileNotOpenedException, FileNotShownException, KeepsCtrlKeysDirective, LinkGesture, LinkPlace, PlaceholderContribution, RuntimeRequestException, SettingsRow, ViewContribution, ViewToolbarBandComponent, WindowException, WindowPartTokens } from "@noldova/desktop.window";
+import { DockSide, DocumentContribution, FileNotOpenedException, FileNotShownException, InAppBrowserTakenException, KeepsCtrlKeysDirective, LinkGesture, LinkPlace, PlaceholderContribution, RuntimeRequestException, SettingsRow, UndoProviderTakenException, ViewContribution, ViewToolbarBandComponent, WindowException, WindowPartTokens } from "@noldova/desktop.window";
 import { LinkGesture as KitLinkGesture } from "@noldova/ui.components.angular";
 
 import * as api from "../../src/api/index";
@@ -16,7 +16,9 @@ import { DockSide as SourceDockSide } from "../../src/app/enums/dock-side";
 import { LinkPlace as SourceLinkPlace } from "../../src/app/enums/link-place";
 import { FileNotOpenedException as SourceFileNotOpenedException } from "../../src/app/exceptions/file-not-opened.exception";
 import { FileNotShownException as SourceFileNotShownException } from "../../src/app/exceptions/file-not-shown.exception";
+import { InAppBrowserTakenException as SourceInAppBrowserTakenException } from "../../src/app/exceptions/in-app-browser-taken.exception";
 import { RuntimeRequestException as SourceRuntimeRequestException } from "../../src/app/exceptions/runtime-request.exception";
+import { UndoProviderTakenException as SourceUndoProviderTakenException } from "../../src/app/exceptions/undo-provider-taken.exception";
 import { WindowException as SourceWindowException } from "../../src/app/exceptions/window.exception";
 import { DocumentContribution as SourceDocumentContribution } from "../../src/app/models/document-contribution";
 import { MenuDeclarations } from "../../src/app/models/menu-declarations";
@@ -28,8 +30,8 @@ import { WindowPartTokens as SourceWindowPartTokens } from "../../src/app/models
 
 describe("the window's API", () => {
   it("publishes the window-part contract", () => {
-    expect([DockSide, DocumentContribution, FileNotOpenedException, FileNotShownException, KeepsCtrlKeysDirective, LinkGesture, LinkPlace, PlaceholderContribution, RuntimeRequestException, SettingsRow, ViewContribution, ViewToolbarBandComponent, WindowException, WindowPartTokens])
-      .toEqual([SourceDockSide, SourceDocumentContribution, SourceFileNotOpenedException, SourceFileNotShownException, SourceKeepsCtrlKeysDirective, KitLinkGesture, SourceLinkPlace, SourcePlaceholderContribution, SourceRuntimeRequestException, SourceSettingsRow, SourceViewContribution, SourceViewToolbarBandComponent, SourceWindowException, SourceWindowPartTokens]);
+    expect([DockSide, DocumentContribution, FileNotOpenedException, FileNotShownException, InAppBrowserTakenException, KeepsCtrlKeysDirective, LinkGesture, LinkPlace, PlaceholderContribution, RuntimeRequestException, SettingsRow, UndoProviderTakenException, ViewContribution, ViewToolbarBandComponent, WindowException, WindowPartTokens])
+      .toEqual([SourceDockSide, SourceDocumentContribution, SourceFileNotOpenedException, SourceFileNotShownException, SourceInAppBrowserTakenException, SourceKeepsCtrlKeysDirective, KitLinkGesture, SourceLinkPlace, SourcePlaceholderContribution, SourceRuntimeRequestException, SourceSettingsRow, SourceUndoProviderTakenException, SourceViewContribution, SourceViewToolbarBandComponent, SourceWindowException, SourceWindowPartTokens]);
   });
 
   it("leaves what only the build's generated source uses to the build entry", () => {
