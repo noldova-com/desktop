@@ -18,7 +18,7 @@ import { Resources } from "../../resources.js";
   exportAs: "nolTabScroller",
   host: {
     "(wheel)": "scrollAcross($event)",
-    "(scroll)": "follow()",
+    "(scroll)": "scrolled()",
     "(focusin)": "revealFocused($event)"
   }
 })
@@ -32,6 +32,7 @@ export class TabScrollerDirective {
   private actionsWidth: number = Number.NaN;
   private unfoldedWidth: number = 0;
   private isActiveWhole: boolean = false;
+  private followedScroll: number = Number.NaN;
   private grip: { readonly x: number; readonly scroll: number } | undefined;
 
   public readonly actionBar = input.required<HTMLElement>({ alias: "nolTabScroller" });
@@ -104,8 +105,17 @@ export class TabScrollerDirective {
       this.reveal(event.target);
   }
 
-  protected follow(): void {
+  // A scroll event can arrive after a tab resized but before the observer hears of it; only a real move changes the flag then.
+  protected scrolled(): void {
+    if (this.host.scrollLeft === this.followedScroll)
+      this.placeThumb();
+    else
+      this.follow();
+  }
+
+  private follow(): void {
     this.placeThumb();
+    this.followedScroll = this.host.scrollLeft;
     const active = this.host.querySelector<HTMLElement>(Resources.selectedTabSelector);
     this.isActiveWhole = !Object.isNull(active) && Math.abs(this.shiftOf(active)) <= TabScrollerDirective.TOLERANCE;
   }
