@@ -251,8 +251,7 @@ export class Layout {
     const documents = this.documentGroups.flatMap(t => t.tabs).filter(t => !t.isMovable);
     const active = documents.find(t => t.equals(this.documents.active)) ?? documents[0] ?? null;
     const preview = documents.find(t => t.equals(this.documents.preview)) ?? documents.find(t => this.documentGroups.some(u => t.equals(u.preview))) ?? null;
-    const views = this.groups.flatMap(t => t.tabs).filter(t => t instanceof ViewTab && registry.hasView(t.name) && !fresh.isOpen(t));
-    return views.reduce((layout, t) => layout.openView(t, registry), fresh.withGroup(new DocumentGroup(documents, active, preview)));
+    return fresh.withGroup(new DocumentGroup(documents, active, preview));
   }
 
   public withVisibleTabs(registry: ViewRegistry): Layout {

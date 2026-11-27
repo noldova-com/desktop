@@ -235,6 +235,15 @@ describe("WindowPartHostService", () => {
     await vi.waitFor(() => expect([...host.listSaves()]).toEqual([["notes", [save]]]));
   });
 
+  it("names the active parts that own any of the tabs it is given, by their views and documents", async () => {
+    const { host } = start([source("notes", notesPart(log)), source("clock", clockPart(log))], [status("notes"), status("clock")]);
+
+    await vi.waitFor(() => expect(log).toEqual(["activate notes", "activate clock"]));
+
+    expect([[new ViewTab("clock.list")], [new DocumentTab("notes.note", "1"), new ViewTab("notes.list")], [new ViewTab("gone.view"), new DocumentTab("clock.list")]]
+      .map(t => [...host.ownersOf(t)])).toEqual([["clock"], ["notes"], []]);
+  });
+
   it("reads, sets, resets and follows settings through the settings service", async () => {
     bridge.responses.set("desktop.settings", { payload: { definitions: [], entries: [] } });
     const { host, loads } = start([], []);

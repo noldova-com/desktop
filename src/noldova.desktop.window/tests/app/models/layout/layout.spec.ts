@@ -348,15 +348,16 @@ describe("Layout", () => {
     expect(split.resizeSplit(createSplit(9, SplitAxis.Horizontal, [group(7, search), group(8, terminal)], [1, 1]))).toBe(split);
   });
 
-  it("resets to the default arrangement, keeping open views, documents and the active document", () => {
+  it("resets to a first start's layout, closing the views not shown by default, instances included, and keeping the documents in order and the active one", () => {
     const changed = initial.openDocument(plan).openDocument(todo).openDocument(settings).openView(terminal, registry).openView(search, registry)
-      .dockOnSide(files, DockSide.Right).moveTab(search, 0, 1).moveTab(new ViewTab("gone.view"), 0, 0).activate(todo).toggleDock(DockSide.Left);
+      .dockOnSide(files, DockSide.Right).moveTab(search, 0, 1).moveTab(new ViewTab("gone.view"), 0, 0).close(changes).activate(todo).toggleDock(DockSide.Left);
     const reset = changed.reset(registry);
+    const sides: readonly DockSide[] = [DockSide.Left, DockSide.Right, DockSide.Bottom];
 
-    expect(reset.dock(DockSide.Left)).toEqual(new Dock(DockSide.Left, new TabGroup(1, [files, search], search, null, [search, files]), null, false));
-    expect(reset.dock(DockSide.Right).root).toEqual(group(2, changes));
-    expect(reset.dock(DockSide.Bottom).root).toEqual(group(3, terminal));
+    expect(sides.map(t => reset.dock(t))).toEqual(sides.map(t => initial.dock(t)));
+    expect([reset.isOpen(search), reset.isOpen(terminal), reset.isOpen(changes), reset.isOpen(files)]).toEqual([false, false, true, true]);
     expect(reset.middle).toEqual(new DocumentGroup([plan, todo, settings], todo));
+    expect(reset.reset(registry).toJson()).toEqual(reset.toJson());
   });
 
   it("activates the first document after a reset when a view was active among them", () => {

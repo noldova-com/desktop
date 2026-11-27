@@ -25,6 +25,8 @@ describe("Resources", () => {
     expect(Resources.formatModuleOff("Clock")).toBe("Clock is off");
     expect(Resources.formatPartSaveFailedStayedOn("Clock")).toBe("Clock couldn't save, so nothing was turned off");
     expect(Resources.formatPartSaveFailedBeforeStop("Clock")).toBe("Clock couldn't save before it stopped");
+    expect(Resources.formatPartSaveFailedBeforeReset("Clock")).toBe("Clock couldn't save, so the layout wasn't reset");
+    expect(Resources.resetSaveKeptOpeningViews).toBe("Its window part opened another view each time it saved, 3 times in a row.");
     expect(Resources.formatPlatformDetails("win32", "x64")).toBe("Platform: win32 x64");
     expect(Resources.formatModuleDetails("clock", "0.4.0", "Failed", "Its runtime part failed to activate.")).toBe("clock 0.4.0: Failed: Its runtime part failed to activate.");
     expect(Resources.formatModuleDetails("clock", "0.4.0", "Active", null)).toBe("clock 0.4.0: Active");

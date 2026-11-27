@@ -315,10 +315,17 @@ export class LayoutService {
     this.update(this.layoutState().withToolbars(toolbars, band));
   }
 
+  public closedByReset(): readonly Tab[] {
+    const reset = this.layoutState().reset(this.registryState());
+    return this.layoutState().groups.flatMap(t => t.tabs).filter(t => !reset.isOpen(t));
+  }
+
   public reset(): void {
+    const closed = this.closedByReset();
     this.heldMiddles.set(new Map());
     this.grownMiddles.set(new Map());
     this.update(this.layoutState().reset(this.registryState()));
+    this.labels.dropLooks(t => closed.some(u => u.equals(t)));
   }
 
   private placeDock(side: DockSide, size: number): number | null {

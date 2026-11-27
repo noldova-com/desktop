@@ -225,4 +225,16 @@ describe("ClosingService", () => {
     expect(posts()).toEqual([failed("tasks", "Tasks kept", "The tasks would not save.")]);
     expect(errors.map(t => (t instanceof WindowPartFailureException ? t.moduleId : null))).toEqual(["tasks"]);
   });
+
+  it("posts a failed save's error for each named module, without running a save step", () => {
+    let ran = false;
+    saves.set("notes", [() => {
+      ran = true;
+      return Promise.resolve();
+    }]);
+
+    TestBed.inject(ClosingService).reportSaveFailed(new Set(["notes", "tasks"]), t => `${t} kept`, "It kept opening views.");
+
+    expect([ran, posts()]).toEqual([false, [failed("notes", "Notes kept", "It kept opening views."), failed("tasks", "Tasks kept", "It kept opening views.")]]);
+  });
 });
