@@ -6,11 +6,86 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { Signal, Type } from "@angular/core";
+import type { Provider, Signal, Type } from "@angular/core";
 import type { JsonValue } from "@noldova/context.json";
 import type { AgentControlState, SettingScope } from "@noldova/desktop.protocol";
 import { Fake, type UnansweredCallException } from "@noldova/desktop.protocol/testing";
-import type { IWindowPalette, IWindowPartContext, IWindowSecrets, IWindowWebViews } from "@noldova/desktop.window";
+import type { IWindowPalette, IWindowPartContext, IWindowSecrets, IWindowWebViews, TimeFormatService } from "@noldova/desktop.window";
+
+/**
+ * The formats a module's tests give {@link TimeFormatService}, in place of the
+ * person's settings, which a test outside the window has no way to read: the
+ * 12-hour defaults, `h:mm a` and `MMM d, yyyy, h:mm a`, until the test calls
+ * {@link FakeTimeFormats.use}. The service the test injects is the real one,
+ * reading these formats.
+ *
+ * @example
+ * ```ts
+ * import { TestBed } from "@angular/core/testing";
+ * import { TimeFormatService } from "@noldova/desktop.window";
+ * import { FakeTimeFormats } from "@noldova/desktop.window/testing";
+ *
+ * export function twentyFourHourTime(at: number): string {
+ *   const formats = new FakeTimeFormats();
+ *   TestBed.configureTestingModule({ providers: [formats.provider] });
+ *   formats.use("HH:mm", "d MMM yyyy, HH:mm");
+ *   return TestBed.inject(TimeFormatService).time(at);
+ * }
+ * ```
+ */
+export declare class FakeTimeFormats {
+  /**
+   * The time format the service writes in, `h:mm a` until
+   * {@link FakeTimeFormats.use} changes it.
+   */
+  public readonly time: Signal<string>;
+
+  /**
+   * The date-and-time format the service writes in, `MMM d, yyyy, h:mm a`
+   * until {@link FakeTimeFormats.use} changes it.
+   */
+  public readonly dateTime: Signal<string>;
+
+  /**
+   * The provider that gives {@link TimeFormatService} these formats, for
+   * `TestBed.configureTestingModule`.
+   */
+  public readonly provider: Provider;
+
+  /**
+   * A {@link TimeFormatService} of its own that writes in these formats, for
+   * a test that hands one to code outside an injector, such as a model.
+   *
+   * @example
+   * ```ts
+   * import { FakeTimeFormats } from "@noldova/desktop.window/testing";
+   *
+   * export function shortDay(at: number): string {
+   *   const formats = new FakeTimeFormats();
+   *   formats.use("h:mm a", "d MMM yyyy, HH:mm");
+   *   return formats.service.shortDate(at);
+   * }
+   * ```
+   */
+  public readonly service: TimeFormatService;
+
+  /**
+   * Changes both formats, as a change in Settings would, so the service's next
+   * call, and every `computed` that read it, writes in the new ones.
+   *
+   * @param time The time format, such as `HH:mm`.
+   * @param dateTime The date-and-time format, such as `d MMM yyyy, HH:mm`.
+   * @example
+   * ```ts
+   * import type { FakeTimeFormats } from "@noldova/desktop.window/testing";
+   *
+   * export function useTwentyFourHour(formats: FakeTimeFormats): void {
+   *   formats.use("HH:mm", "d MMM yyyy, HH:mm");
+   * }
+   * ```
+   */
+  public use(time: string, dateTime: string): void;
+}
 
 /**
  * A fake of the {@link IWindowPartContext} that the window hands a module's
@@ -66,6 +141,29 @@ export declare class FakeWindowPartContext extends Fake<IWindowPartContext> impl
    * and answers of its own.
    */
   public readonly secrets: FakeWindowSecrets;
+
+  /**
+   * The formats {@link FakeWindowPartContext.timeFormats} writes in, the
+   * 12-hour defaults until a test calls {@link FakeTimeFormats.use}.
+   */
+  public readonly formats: FakeTimeFormats;
+
+  /**
+   * Stands in for {@link IWindowPartContext.timeFormats}: the real
+   * {@link TimeFormatService}, writing in {@link FakeWindowPartContext.formats}.
+   *
+   * @example
+   * ```ts
+   * import { FakeWindowPartContext } from "@noldova/desktop.window/testing";
+   *
+   * export function twentyFourHourTime(at: number): string {
+   *   const context = new FakeWindowPartContext();
+   *   context.formats.use("HH:mm", "d MMM yyyy, HH:mm");
+   *   return context.timeFormats.time(at);
+   * }
+   * ```
+   */
+  public readonly timeFormats: TimeFormatService;
 
   /**
    * Stands in for {@link IWindowPartContext.registerView}. Records each call,

@@ -36,6 +36,7 @@ import { WindowPartTokens } from "../../../../src/app/models/window-part-tokens"
 import { DockGrowthService } from "../../../../src/app/services/dock-growth.service";
 import { TabLabelService } from "../../../../src/app/services/tab-label.service";
 import { WindowPartHostService } from "../../../../src/app/services/window-part-host.service";
+import { FakeTimeFormats } from "../../../../src/testing/models/fake-time-formats";
 import { DomFixture } from "../../../fixtures/dom.fixture";
 import { LayoutFixture } from "../../../fixtures/layout.fixture";
 import { LayoutServiceFixture } from "../../../fixtures/layout-service.fixture";
@@ -104,6 +105,7 @@ describe("TabContentComponent", () => {
   const context = new WindowPartContext(new WindowPartSource("notes", [], [], [], [], [], [], [], () => Promise.reject(new Error("unused"))), {
     agentControl: signal(null),
     platform: "linux",
+    timeFormats: new FakeTimeFormats().service,
     requestAsync: () => Promise.resolve(null),
     onEvent: () => () => undefined,
     openDocument: () => undefined,

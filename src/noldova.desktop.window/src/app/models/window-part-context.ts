@@ -66,6 +66,7 @@ import { ViewPlace } from "./view-place.js";
 import type { WindowPartSource } from "./window-part-source.js";
 import { WindowSecrets } from "./window-secrets.js";
 import { WindowWebViews } from "./window-web-views.js";
+import type { TimeFormatService } from "../services/time-format.service.js";
 import { Resources } from "../../resources.js";
 
 export class WindowPartContext implements IWindowPartContext {
@@ -101,6 +102,7 @@ export class WindowPartContext implements IWindowPartContext {
   public readonly moduleId: string;
   public readonly webViews: WindowWebViews;
   public readonly secrets: WindowSecrets;
+  public readonly timeFormats: TimeFormatService;
   public readonly agentControl: Signal<AgentControlState | null>;
 
   public constructor(source: WindowPartSource, host: IWindowPartHost) {
@@ -110,6 +112,7 @@ export class WindowPartContext implements IWindowPartContext {
     this.host = host;
     this.webViews = new WindowWebViews((pane, profileKey, name) => this.openWebViewAsync(pane, profileKey, name));
     this.secrets = new WindowSecrets(source.moduleId, (method, payload) => host.requestAsync(method, payload));
+    this.timeFormats = host.timeFormats;
     this.agentControl = host.agentControl;
   }
 

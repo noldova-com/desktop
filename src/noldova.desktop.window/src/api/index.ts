@@ -76,3 +76,4 @@ export { TopBarActionState } from "../app/models/top-bar-action-state.js";
 export { ViewBadge } from "../app/models/view-badge.js";
 export { ViewContribution } from "../app/models/view-contribution.js";
 export { WindowPartTokens } from "../app/models/window-part-tokens.js";
+export { TimeFormatService } from "../app/services/time-format.service.js";

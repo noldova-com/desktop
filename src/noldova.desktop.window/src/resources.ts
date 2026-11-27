@@ -303,6 +303,13 @@ export class Resources {
     [ClockChoice.TwelveHour]: ["h:mm a", "MMM d, yyyy, h:mm a"],
     [ClockChoice.TwentyFourHour]: ["HH:mm", "d MMM yyyy, HH:mm"]
   };
+  public static readonly defaultShortDateFormat: string = "d MMM";
+  public static readonly defaultDateFormat: string = "d MMM yyyy";
+  public static readonly datePatternToken: RegExp = /('[^']*'|yyyy|yy|MMMM|MMM|MM|M|dd|d|EEEE|EEE|HH|H|hh|h|mm|ss|a)/u;
+  public static readonly datePatternQuote: string = "'";
+  public static readonly yearAndWeekdayTokens: readonly string[] = ["yyyy", "yy", "EEEE", "EEE"];
+  public static readonly timeTokens: readonly string[] = ["HH", "H", "hh", "h", "mm", "ss", "a"];
+  public static readonly shortWeekdayToken: string = "EEE";
   public static readonly appearancePage: string = "Appearance";
   public static readonly themeSetting: string = "desktop.theme";
   public static readonly modeSetting: string = "desktop.mode";
@@ -1188,6 +1195,10 @@ export class Resources {
   public static readonly webpExtendedWidthOffset: number = 24;
   public static readonly webpExtendedHeightOffset: number = 27;
   public static readonly uint16Range: number = 0x10000;
+
+  public static formatWeekdayTimePattern(time: string): string {
+    return `${Resources.shortWeekdayToken} ${time}`;
+  }
 
   public static formatToolbarBandSelector(id: string): string {
     return `.nol-toolbar-band[data-toolbar-band-id="${id}"]`;
