@@ -240,6 +240,15 @@ export class MainProcessFixture {
     await this.startAsync();
   }
 
+  public async startAfterExitAsync(): Promise<number | null> {
+    const child = this.requireProcess();
+    const exitCode = Object.is(child.exitCode, null) ? await new Promise<number | null>(resolve => child.once("exit", resolve)) : child.exitCode;
+    this.electronApplication = null;
+    this.page = null;
+    await this.startAsync();
+    return exitCode;
+  }
+
   public async restartAsync(beforeStart?: () => Promise<void>): Promise<void> {
     expect(await this.closeAsync()).toBe(0);
     await MainProcessFixture.stopRuntimeAsync(this.dataDirectory);
