@@ -22,6 +22,7 @@ import {
 } from "@noldova/desktop.runtime";
 
 import { EventAndResponseFixture } from "../../fixtures/event-and-response.fixture.js";
+import { IdleParticipantFixture } from "../../fixtures/idle-participant.fixture.js";
 import { ModuleSourceFixture } from "../../fixtures/module-source.fixture.js";
 import { PlatformFixture } from "../../fixtures/platform.fixture.js";
 import { ProgramFixture } from "../../fixtures/program.fixture.js";
@@ -164,10 +165,11 @@ export class RuntimeHostTests {
   public takesAFirstClientThatConnectsPastItsIdleGrace(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
       const host = await fixture.startAsync(20, undefined, undefined, process.env, new ServerSettings(), null, RuntimeHostTests.PRESENCE, null, RuntimeHostTests.LAUNCH_PAST_TEST_LIMIT);
-      const graceEnded = Promise.withResolvers<void>();
-      using grace = new IdleMonitor(20, { isIdle: true, handleIdle: () => graceEnded.resolve() });
+      const pastGrace = new IdleParticipantFixture();
+      using grace = new IdleMonitor(20, pastGrace);
+      const graceEnded = pastGrace.waitForIdleAsync();
       grace.check();
-      await graceEnded.promise;
+      await graceEnded;
 
       const { connection, response } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
 
