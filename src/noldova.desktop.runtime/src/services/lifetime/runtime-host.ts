@@ -117,6 +117,7 @@ import { QuitMethod } from "./quit-method.js";
 import { QuitRelay } from "./quit-relay.js";
 import { RuntimeLog } from "./runtime-log.js";
 import { StopMethod } from "./stop-method.js";
+import { UnreachedStop } from "./unreached-stop.js";
 import { UpdateMethod } from "./update-method.js";
 import { UpdatePreparation } from "./update-preparation.js";
 import { UpdateSavedMethod } from "./update-saved-method.js";
@@ -196,7 +197,7 @@ export class RuntimeHost implements IIdleParticipant {
     this.events = new EventRegistry(this.server);
     this.publisher = new DiscoveryPublisher(lock, FolderProtectorFactory.create(platform, new SystemCommand(), environment));
     this.idle = new IdleMonitor(options.idleGraceMilliseconds, this);
-    this.unreached = new IdleMonitor(options.launchTimeoutMilliseconds, { isIdle: true, handleIdle: () => this.requestStop(Resources.stoppedByUnreached) });
+    this.unreached = new IdleMonitor(options.launchTimeoutMilliseconds, new UnreachedStop(() => this.requestStop(Resources.stoppedByUnreached)));
     this.workEvent = this.events.declare(ShellEvents.work);
     const commandsChanged = this.events.declare(ShellEvents.commandsChanged);
     this.programsEvent = this.events.declare(ShellEvents.programsChanged);
