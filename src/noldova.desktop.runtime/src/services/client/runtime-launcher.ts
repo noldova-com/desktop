@@ -270,6 +270,8 @@ export class RuntimeLauncher {
       directory.root,
       Resources.idleGraceArgument,
       String(this.settings.idleGraceMilliseconds),
+      Resources.launchTimeoutArgument,
+      String(this.settings.launchTimeout),
       Resources.startLogArgument,
       startLogName,
       Resources.installationArgument,

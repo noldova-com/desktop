@@ -18,7 +18,7 @@ import {
   UpdateProcess, WebViewBlockedPorts
 } from "@noldova/desktop.protocol";
 import {
-  AppImageCopyRecord, DataDirectoryOwnedException, DeclarationsUnreadableException, Endpoint, OwnershipLock, ProcessPresence, RuntimeBuild, RuntimeEntry, RuntimeHost, RuntimeOptions, ServerSettings
+  AppImageCopyRecord, DataDirectoryOwnedException, DeclarationsUnreadableException, Endpoint, IdleMonitor, OwnershipLock, ProcessPresence, RuntimeBuild, RuntimeEntry, RuntimeHost, RuntimeOptions, ServerSettings
 } from "@noldova/desktop.runtime";
 
 import { EventAndResponseFixture } from "../../fixtures/event-and-response.fixture.js";
@@ -34,6 +34,7 @@ export class RuntimeHostTests {
   private static readonly START_LOG: string = "start-0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e.log";
   private static readonly PRESENCE: ProcessPresence = ProcessPresence.create(process.platform);
   private static readonly TAKEOVER_PAST_TEST_LIMIT: number = 3_600_000;
+  private static readonly LAUNCH_PAST_TEST_LIMIT: number = 3_600_000;
   private static readonly OTHER: BuildIdentity = new BuildIdentity(RuntimeBuild.identity.productVersion, BuildIdentity.supportedProtocolVersion, "other-build");
   @TestMethod
   public publishesItselfAndStopsOnRequest(): Promise<void> {
@@ -136,12 +137,44 @@ export class RuntimeHostTests {
   }
 
   @TestMethod
-  public stopsWhenIdle(): Promise<void> {
+  public stopsAsUnreachedWhenNoClientConnectsWithinItsLaunchTimeoutThoughItsIdleGraceIsShorter(): Promise<void> {
     return RuntimeHostFixture.runAsync(async fixture => {
-      const host = await fixture.startAsync(50);
+      const host = await fixture.startAsync(20, undefined, undefined, process.env, new ServerSettings(), null, RuntimeHostTests.PRESENCE, null, 200);
+
+      Assert.areEqual("unreached", await host.waitForStopAsync());
+      Assert.isFalse(OwnershipLock.isOwned(fixture.dataDirectory));
+    });
+  }
+
+  @TestMethod
+  public stopsAfterItsIdleGraceOnceItsFirstClientHasLeft(): Promise<void> {
+    return RuntimeHostFixture.runAsync(async fixture => {
+      const host = await fixture.startAsync(50, undefined, undefined, process.env, new ServerSettings(), null, RuntimeHostTests.PRESENCE, null, RuntimeHostTests.LAUNCH_PAST_TEST_LIMIT);
+      const { connection, response } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+      Assert.isFalse(response.hasFailed);
+
+      connection.reset();
 
       Assert.areEqual("idle", await host.waitForStopAsync());
       Assert.isFalse(OwnershipLock.isOwned(fixture.dataDirectory));
+    });
+  }
+
+  @TestMethod
+  public takesAFirstClientThatConnectsPastItsIdleGrace(): Promise<void> {
+    return RuntimeHostFixture.runAsync(async fixture => {
+      const host = await fixture.startAsync(20, undefined, undefined, process.env, new ServerSettings(), null, RuntimeHostTests.PRESENCE, null, RuntimeHostTests.LAUNCH_PAST_TEST_LIMIT);
+      const graceEnded = Promise.withResolvers<void>();
+      using grace = new IdleMonitor(20, { isIdle: true, handleIdle: () => graceEnded.resolve() });
+      grace.check();
+      await graceEnded.promise;
+
+      const { connection, response } = await fixture.handshakeAsync("main", RuntimeBuild.identity);
+
+      Assert.isFalse(response.hasFailed);
+      Assert.isFalse(host.isIdle);
+      connection.reset();
+      Assert.areEqual("idle", await host.waitForStopAsync());
     });
   }
 
