@@ -368,7 +368,10 @@ describe("TabGroupComponent", () => {
         const scroller = find(group(0), ".nol-tab-group-scroller");
         const range = scroller.scrollWidth - scroller.clientWidth;
         const chooseAsync = async (index: number): Promise<number> => {
-          layout.activate(many[index] ?? many[0]);
+          const chosen = many[index];
+          if (Object.isUndefined(chosen))
+            throw new Error(`There is no note ${index}.`);
+          layout.activate(chosen);
           update();
           await fixture.whenStable();
           update();

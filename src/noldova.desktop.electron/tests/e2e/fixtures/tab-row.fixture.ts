@@ -49,7 +49,7 @@ export class TabRowFixture {
         rowHeight: row.height,
         barHeight: scroller instanceof HTMLElement ? scroller.offsetHeight - scroller.clientHeight : Number.NaN,
         color: thumb === null ? "none" : getComputedStyle(thumb).backgroundColor,
-        hidden: thumb?.hidden ?? true
+        hidden: thumb?.hidden !== false
       };
     });
   }

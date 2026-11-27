@@ -98,8 +98,9 @@ export class TabScrollerDirective {
   protected placeThumb(): void {
     const thumb = this.thumb();
     const [view, content] = [this.host.clientWidth, this.host.scrollWidth];
-    thumb.hidden = content <= view;
-    if (thumb.hidden)
+    const isFitting = content <= view;
+    thumb.hidden = isFitting;
+    if (isFitting)
       return;
     thumb.style.inlineSize = Resources.formatPixels(view * view / content);
     thumb.style.insetInlineStart = Resources.formatPixels(Math.abs(this.host.scrollLeft) * view / content);
