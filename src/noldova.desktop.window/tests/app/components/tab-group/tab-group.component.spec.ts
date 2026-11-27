@@ -125,8 +125,6 @@ describe("TabGroupComponent", () => {
     return box.left >= start - 0.5 && box.right <= end + 0.5;
   }
 
-  // Where each element around the row lies and how far it is scrolled, up to the page's root, so a spec can tell that only
-  // the row moved.
   function surroundingsOf(row: HTMLElement): string {
     const places: string[] = [];
     for (let around = row.parentElement; !Object.isNull(around); around = around.parentElement) {

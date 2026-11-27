@@ -105,7 +105,6 @@ export class TabScrollerDirective {
       this.reveal(event.target);
   }
 
-  // A scroll event can arrive after a tab resized but before the observer hears of it; only a real move changes the flag then.
   protected scrolled(): void {
     if (this.host.scrollLeft === this.followedScroll)
       this.placeThumb();
@@ -163,7 +162,6 @@ export class TabScrollerDirective {
       this.host.scrollLeft += this.isRightToLeft() ? -shift : shift;
   }
 
-  // How far along the row it has to scroll for the tab to lie whole between its start and its buttons, 0 when it does.
   private shiftOf(tab: HTMLElement): number {
     const [row, box] = [this.host.getBoundingClientRect(), tab.getBoundingClientRect()];
     const [from, to] = this.isRightToLeft() ? [row.right - box.right, row.right - box.left] : [box.left - row.left, box.right - row.left];

@@ -54,8 +54,6 @@ export class TabRowFixture {
     });
   }
 
-  // Where each element around the row lies and how far it is scrolled, up to the page's root, so a spec can tell that only
-  // the row moved.
   public static surroundingsOf(scroller: Locator): Promise<string> {
     return scroller.evaluate(t => {
       const places: string[] = [];
