@@ -37,6 +37,7 @@ test.describe("a side group's tab row at the default window size", () => {
       await expect.poll(() => scroller.evaluate(t => t.scrollWidth > t.clientWidth), { message: `the tabs overflow, ${scheme}` }).toBe(true);
       await expect.poll(() => TabRowFixture.clearanceOf(group.locator(".nol-tab-group-strip > nol-tab[aria-selected=true]")), { message: `the active tab shows whole, ${scheme}` })
         .toBe(TabRowFixture.CLEAR);
+      const surroundings = await TabRowFixture.surroundingsOf(scroller);
 
       await window.mouse.move(0, 0);
       const away = await TabRowFixture.thumbOf(group);
@@ -51,6 +52,7 @@ test.describe("a side group's tab row at the default window size", () => {
       await scroller.evaluate(t => t.scrollTo({ left: 0 }));
       await window.mouse.wheel(0, 120);
       await expect.poll(scrollAsync, { message: `a vertical wheel scrolls the row sideways, ${scheme}` }).toBeGreaterThan(0);
+      expect(await TabRowFixture.surroundingsOf(scroller), `the wheel moves only the row, ${scheme}`).toBe(surroundings);
       await scroller.evaluate(t => t.scrollTo({ left: 0 }));
       await expect.poll(scrollAsync).toBe(0);
       const grip = await thumb.boundingBox();
@@ -62,6 +64,7 @@ test.describe("a side group's tab row at the default window size", () => {
       await window.mouse.move(grip.x + grip.width / 2 + 30, grip.y + grip.height / 2, { steps: 5 });
       await window.mouse.up();
       expect(Math.abs(await scrollAsync() - 30 * ratio), `dragging the thumb 30 pixels scrolls the row by as much along it, ${scheme}`).toBeLessThan(2);
+      expect(await TabRowFixture.surroundingsOf(scroller), `the drag moves only the row, ${scheme}`).toBe(surroundings);
 
       await group.locator(".nol-tab-group-overflow").click();
       await expect(menu).toHaveCount(1);
@@ -74,6 +77,7 @@ test.describe("a side group's tab row at the default window size", () => {
       await expect.poll(() => TabRowFixture.clearanceOf(tabs.first()), { message: `the chosen tab scrolls into view whole, ${scheme}` }).toBe(TabRowFixture.CLEAR);
       await expect(tabs.first()).toBeFocused();
       expect(Math.abs(await scrollAsync())).toBeLessThanOrEqual(1);
+      expect(await TabRowFixture.surroundingsOf(scroller), `choosing a tab in Show all tabs moves only the row, ${scheme}`).toBe(surroundings);
     }
   });
 
@@ -104,15 +108,18 @@ test.describe("a side group's tab row at the default window size", () => {
       const range = await scroller.evaluate(t => t.scrollWidth - t.clientWidth);
       expect(range, `the three tabs overflow, ${scheme}`).toBeGreaterThan(0);
       await byTitle("Teammates").focus();
+      const surroundings = await TabRowFixture.surroundingsOf(scroller);
       await window.keyboard.press("End");
       await expect(byTitle("References and call hierarchy")).toBeFocused();
       await expect.poll(() => TabRowFixture.clearanceOf(byTitle("References and call hierarchy")), { message: `End scrolls the last tab into view, ${scheme}` }).toBe(TabRowFixture.CLEAR);
       expect(Math.abs(await scroller.evaluate(t => t.scrollLeft) - range)).toBeLessThan(1);
+      expect(await TabRowFixture.surroundingsOf(scroller), `End moves only the row, ${scheme}`).toBe(surroundings);
       await mainProcess.checkpointAsync(`tab-row-scroll-three-${scheme}`);
       await window.keyboard.press("Home");
       await expect(byTitle("Teammates")).toBeFocused();
       await expect.poll(() => TabRowFixture.clearanceOf(byTitle("Teammates")), { message: `Home scrolls the first tab into view, ${scheme}` }).toBe(TabRowFixture.CLEAR);
       expect(Math.abs(await scroller.evaluate(t => t.scrollLeft))).toBeLessThanOrEqual(1);
+      expect(await TabRowFixture.surroundingsOf(scroller), `Home moves only the row, ${scheme}`).toBe(surroundings);
       await group.locator(".nol-tab-group-overflow").click();
       await expect(menu.locator(".nol-tab-group-overflow-tab .nol-menu-item-label")).toHaveText(["Teammates", "Conversation", "References and call hierarchy"]);
       await window.keyboard.press("Escape");

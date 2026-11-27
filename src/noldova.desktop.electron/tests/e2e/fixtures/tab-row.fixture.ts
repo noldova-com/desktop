@@ -54,6 +54,19 @@ export class TabRowFixture {
     });
   }
 
+  // Where each element around the row lies and how far it is scrolled, up to the page's root, so a spec can tell that only
+  // the row moved.
+  public static surroundingsOf(scroller: Locator): Promise<string> {
+    return scroller.evaluate(t => {
+      const places: string[] = [];
+      for (let around = t.parentElement; around !== null; around = around.parentElement) {
+        const box = around.getBoundingClientRect();
+        places.push([around.tagName, around.scrollLeft, around.scrollTop, box.x, box.y, box.width, box.height].join(" "));
+      }
+      return places.join("\n");
+    });
+  }
+
   public static async setDirectionAsync(window: Page, direction: "ltr" | "rtl"): Promise<void> {
     await window.evaluate(t => document.documentElement.setAttribute("dir", t), direction);
   }

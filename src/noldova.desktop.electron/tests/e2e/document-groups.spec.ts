@@ -137,10 +137,12 @@ test.describe("document groups", () => {
     for (const direction of ["ltr", "rtl"] as const) {
       await TabRowFixture.setDirectionAsync(window, direction);
       await group.locator("nol-tab[aria-selected='true']").focus();
+      const surroundings = await TabRowFixture.surroundingsOf(scroller);
       await window.keyboard.press("Home");
       await expect(tabs.first()).toBeFocused();
       await expect.poll(() => TabRowFixture.clearanceOf(tabs.first()), { message: `Home scrolls the first tab into view, ${direction}` }).toBe(TabRowFixture.CLEAR);
       expect(Math.abs(await scroller.evaluate(t => t.scrollLeft))).toBeLessThanOrEqual(1);
+      expect(await TabRowFixture.surroundingsOf(scroller), `Home moves only the row, ${direction}`).toBe(surroundings);
 
       await window.keyboard.press("End");
       await expect(tabs.last()).toBeFocused();
@@ -150,6 +152,7 @@ test.describe("document groups", () => {
         return last === undefined || actions === undefined ? Number.NaN : rtl ? last.left - actions.right : actions.left - last.right;
       }, direction === "rtl");
       expect(Math.abs(gap), `End scrolls the row only as far as the last tab needs, ending where the actions start, ${direction}`).toBeLessThan(1);
+      expect(await TabRowFixture.surroundingsOf(scroller), `End moves only the row, ${direction}`).toBe(surroundings);
       await mainProcess.checkpointAsync(`tab-row-narrow-end-${direction}`);
     }
   });

@@ -18,7 +18,7 @@ import { Resources } from "../../resources.js";
   exportAs: "nolTabScroller",
   host: {
     "(wheel)": "scrollAcross($event)",
-    "(scroll)": "placeThumb()",
+    "(scroll)": "follow()",
     "(focusin)": "revealFocused($event)"
   }
 })
@@ -31,6 +31,7 @@ export class TabScrollerDirective {
   private revealed: readonly unknown[] = [];
   private actionsWidth: number = Number.NaN;
   private unfoldedWidth: number = 0;
+  private isActiveWhole: boolean = false;
   private grip: { readonly x: number; readonly scroll: number } | undefined;
 
   public readonly actionBar = input.required<HTMLElement>({ alias: "nolTabScroller" });
@@ -42,10 +43,12 @@ export class TabScrollerDirective {
   public constructor() {
     const appearance = inject(AppearanceService);
     this.observer = new ResizeObserver(() => {
-      if (this.measureActions())
-        this.reveal();
+      const wasActiveWhole = this.isActiveWhole;
+      const isMoved = this.measureActions();
       this.measureTabs();
-      this.placeThumb();
+      if (isMoved || wasActiveWhole)
+        this.reveal();
+      this.follow();
     });
     inject(DestroyRef).onDestroy(() => this.observer.disconnect());
     afterNextRender(() => {
@@ -67,7 +70,7 @@ export class TabScrollerDirective {
       if (isMoved || view.some((t, index) => t !== this.revealed[index]))
         this.reveal();
       this.revealed = view;
-      this.placeThumb();
+      this.follow();
     });
   }
 
@@ -93,7 +96,7 @@ export class TabScrollerDirective {
     if (event.deltaX !== 0 || event.deltaY === 0 || this.host.scrollWidth <= this.host.clientWidth)
       return;
     event.preventDefault();
-    this.host.scrollLeft += event.deltaY;
+    this.host.scrollLeft += this.isRightToLeft() ? -event.deltaY : event.deltaY;
   }
 
   protected revealFocused(event: FocusEvent): void {
@@ -101,7 +104,13 @@ export class TabScrollerDirective {
       this.reveal(event.target);
   }
 
-  protected placeThumb(): void {
+  protected follow(): void {
+    this.placeThumb();
+    const active = this.host.querySelector<HTMLElement>(Resources.selectedTabSelector);
+    this.isActiveWhole = !Object.isNull(active) && Math.abs(this.shiftOf(active)) <= TabScrollerDirective.TOLERANCE;
+  }
+
+  private placeThumb(): void {
     const thumb = this.thumb();
     const [view, content] = [this.host.clientWidth, this.host.scrollWidth];
     const isFitting = content <= view;
@@ -139,13 +148,21 @@ export class TabScrollerDirective {
   private reveal(tab: HTMLElement | null = this.host.querySelector<HTMLElement>(Resources.selectedTabSelector)): void {
     if (Object.isNull(tab))
       return;
-    const [row, box] = [this.host.getBoundingClientRect(), tab.getBoundingClientRect()];
-    const isRightToLeft = getComputedStyle(this.host).direction === Resources.rightToLeft;
-    const [from, to] = isRightToLeft ? [row.right - box.right, row.right - box.left] : [box.left - row.left, box.right - row.left];
-    const [start, end] = [this.startOf(), this.host.clientWidth - this.actionsWidth];
-    const shift = from < start ? from - start : to > end ? Math.min(to - end, from - start) : 0;
+    const shift = this.shiftOf(tab);
     if (Math.abs(shift) > TabScrollerDirective.TOLERANCE)
-      this.host.scrollLeft += isRightToLeft ? -shift : shift;
+      this.host.scrollLeft += this.isRightToLeft() ? -shift : shift;
+  }
+
+  // How far along the row it has to scroll for the tab to lie whole between its start and its buttons, 0 when it does.
+  private shiftOf(tab: HTMLElement): number {
+    const [row, box] = [this.host.getBoundingClientRect(), tab.getBoundingClientRect()];
+    const [from, to] = this.isRightToLeft() ? [row.right - box.right, row.right - box.left] : [box.left - row.left, box.right - row.left];
+    const [start, end] = [this.startOf(), this.host.clientWidth - this.actionsWidth];
+    return from < start ? from - start : to > end ? Math.min(to - end, from - start) : 0;
+  }
+
+  private isRightToLeft(): boolean {
+    return getComputedStyle(this.host).direction === Resources.rightToLeft;
   }
 
   private startOf(): number {

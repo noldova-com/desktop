@@ -125,6 +125,17 @@ describe("TabGroupComponent", () => {
     return box.left >= start - 0.5 && box.right <= end + 0.5;
   }
 
+  // Where each element around the row lies and how far it is scrolled, up to the page's root, so a spec can tell that only
+  // the row moved.
+  function surroundingsOf(row: HTMLElement): string {
+    const places: string[] = [];
+    for (let around = row.parentElement; !Object.isNull(around); around = around.parentElement) {
+      const box = around.getBoundingClientRect();
+      places.push([around.tagName, around.scrollLeft, around.scrollTop, box.x, box.y, box.width, box.height].join(" "));
+    }
+    return places.join("\n");
+  }
+
   function find(root: Element, selector: string): HTMLElement {
     const found = root.querySelector<HTMLElement>(selector);
     if (Object.isNull(found))
@@ -367,6 +378,7 @@ describe("TabGroupComponent", () => {
         update();
         const scroller = find(group(0), ".nol-tab-group-scroller");
         const range = scroller.scrollWidth - scroller.clientWidth;
+        const surroundings = surroundingsOf(scroller);
         const chooseAsync = async (index: number): Promise<number> => {
           const chosen = many[index];
           if (Object.isUndefined(chosen))
@@ -375,6 +387,7 @@ describe("TabGroupComponent", () => {
           update();
           await fixture.whenStable();
           update();
+          expect(surroundingsOf(scroller)).toBe(surroundings);
           return Math.abs(scroller.scrollLeft);
         };
 
@@ -1083,6 +1096,7 @@ describe("TabGroupComponent", () => {
 
     const scroller = find(group(0), ".nol-tab-group-scroller");
     await vi.waitFor(() => expect(scroller.scrollLeft).toBeCloseTo(scroller.scrollWidth - scroller.clientWidth, 0));
+    const surroundings = surroundingsOf(scroller);
     expect(group(1).querySelector(".nol-tab-group-overflow")).toBeNull();
     const overflow = DomFixture.oneOf(group(0), ".nol-tab-group-overflow", HTMLButtonElement);
     expect(overflow.getAttribute("aria-label")).toBe("Show all tabs");
@@ -1104,6 +1118,7 @@ describe("TabGroupComponent", () => {
 
     expect(layout.layout().documents.active).toEqual(many[0]);
     await vi.waitFor(() => expect([document.activeElement === tab(0, 0), scroller.scrollLeft, isWhole(tab(0, 0))]).toEqual([true, 0, true]));
+    expect(surroundingsOf(scroller)).toBe(surroundings);
   });
 
   it("moves along every tab with the arrow keys, Home and End, scrolling the tab reached into view whole and focusing it", async () => {
@@ -1122,12 +1137,14 @@ describe("TabGroupComponent", () => {
 
     tab(0, 11).focus();
     expect([range > 0, document.activeElement === tab(0, 11)]).toEqual([true, true]);
+    const surroundings = surroundingsOf(scroller);
     for (const [key, index, scroll] of [["ArrowLeft", 10, null], ["ArrowLeft", 9, null], ["Home", 0, 0], ["End", 11, range], ["ArrowRight", 0, 0]] as const) {
       await pressAsync(key);
       expect(layout.layout().documents.active).toEqual(many[index]);
       await vi.waitFor(() => expect([document.activeElement === tab(0, index), isWhole(tab(0, index))]).toEqual([true, true]));
       if (!Object.isNull(scroll))
         expect(scroller.scrollLeft).toBeCloseTo(scroll, 0);
+      expect(surroundingsOf(scroller), key).toBe(surroundings);
     }
   });
 

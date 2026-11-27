@@ -154,6 +154,23 @@ describe("TabScrollerDirective", () => {
     expectInRoom("d");
   });
 
+  it("keeps the selected tab whole when a tab before it grows, as it lay whole before", async () => {
+    element("[data-tab-key='c']").style.width = "100px";
+
+    await vi.waitFor(() => expect(scroller().scrollLeft).toBe(136));
+    expectInRoom("d");
+  });
+
+  it("leaves the row where the person scrolled it when a tab grows while the selected tab lay out of view", async () => {
+    scroller().scrollLeft = 0;
+    await vi.waitFor(() => expect(thumb().style.insetInlineStart).toBe("0px"));
+
+    element("[data-tab-key='c']").style.width = "100px";
+
+    await vi.waitFor(() => expect(scroller().style.getPropertyValue("--nol-tab-group-tabs-width")).toBe("396px"));
+    expect(scroller().scrollLeft).toBe(0);
+  });
+
   it("scrolls a tab that takes the focus into view, selected or not, and nothing for anything else that takes it", async () => {
     element(".actions").tabIndex = -1;
     const first = element("[data-tab-key='a']");
@@ -200,6 +217,16 @@ describe("TabScrollerDirective", () => {
     expect(wheel({ deltaY: 80 }).defaultPrevented).toBe(false);
   });
 
+  it("scrolls right to left toward the row's end with a vertical wheel down, and back toward its start with a wheel up", async () => {
+    await changeAsync(host => host.direction.set("rtl"));
+    scroller().scrollLeft = 0;
+
+    expect(wheel({ deltaY: 80 }).defaultPrevented).toBe(true);
+    expect(scroller().scrollLeft).toBe(-80);
+    wheel({ deltaY: -30 });
+    expect(scroller().scrollLeft).toBe(-50);
+  });
+
   it("sizes and places the thumb by how much of the row shows and how far it has scrolled, and hides it once the tabs fit", async () => {
     expect(thumb().hidden).toBe(false);
     expect(parseFloat(thumb().style.inlineSize)).toBeCloseTo(200 * 200 / 356, 1);
@@ -231,6 +258,19 @@ describe("TabScrollerDirective", () => {
     thumb().dispatchEvent(new PointerEvent("lostpointercapture", { pointerId: 1 }));
     pointer("pointermove", { clientX: 80 });
     expect(scroller().scrollLeft).toBeCloseTo(30 * 356 / 200, 0);
+  });
+
+  it("scrolls right to left toward the row's end as the thumb is dragged toward it, the thumb following, and stops at the row's start", async () => {
+    await changeAsync(host => host.direction.set("rtl"));
+    vi.spyOn(thumb(), "setPointerCapture").mockImplementation(() => undefined);
+    scroller().scrollLeft = 0;
+
+    pointer("pointerdown", { button: 0, clientX: 100 });
+    pointer("pointermove", { clientX: 70 });
+    expect(scroller().scrollLeft).toBeCloseTo(-30 * 356 / 200, 0);
+    await vi.waitFor(() => expect(element(".row").getBoundingClientRect().right - thumb().getBoundingClientRect().right).toBeCloseTo(30, 0));
+    pointer("pointermove", { clientX: 140 });
+    expect(scroller().scrollLeft).toBe(0);
   });
 
   it("measures the buttons again when they change while the tabs overflow", async () => {

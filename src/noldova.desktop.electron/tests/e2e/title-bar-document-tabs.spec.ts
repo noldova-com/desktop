@@ -12,6 +12,7 @@ import type { Size } from "electron";
 import { BuildVariantFixture } from "./fixtures/build-variant.fixture.ts";
 import type { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
+import { TabRowFixture } from "./fixtures/tab-row.fixture.ts";
 import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 
 interface ITabsGeometry {
@@ -192,8 +193,10 @@ test.describe("the document tabs in the window row", () => {
     checkRegions(geometry);
     if (geometry.controlsStart < SMALL_SCREEN_WINDOW.width) {
       expect(geometry.isMenuBarFolded).toBe(true);
-      expect([geometry.scrollbarHeight, geometry.scrollRange >= 0]).toEqual([0, true]);
+      expect([geometry.scrollbarHeight, geometry.scrollRange > 0]).toEqual([0, true]);
       expect(geometry.isOverflowMenuShown).toBe(true);
+      expect(await TabRowFixture.clearanceOf(mainProcess.window.locator(".nol-window-row-tabs nol-tab[aria-selected=true]")), "the active tab lies whole, clear of the row's actions")
+        .toBe(TabRowFixture.CLEAR);
     }
     await mainProcess.checkpointAsync("title-bar-document-tabs-small-screen");
   });
