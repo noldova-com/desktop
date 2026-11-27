@@ -147,7 +147,7 @@ test.describe("activity bar", () => {
     await mainProcess.checkpointAsync("group-header");
   });
 
-  test("a tab row's first tab and last action stand 0.25rem from its card's start and end in both directions, and a header's title starts where a tab's icon starts", async ({ mainProcess }) => {
+  test("a tab row's first tab stands 0.25rem from its card's start and its last action's glyph 0.75rem from its end in both directions, and a header's title starts where a tab's icon starts", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const group = window.locator("nol-tab-group[data-side=Left]");
     const schemes = ["light", "dark"] as const;
@@ -173,8 +173,10 @@ test.describe("activity bar", () => {
     const headerReversed = await TabRowFixture.insetsOf(group);
     await TabRowFixture.setDirectionAsync(window, "ltr");
 
-    for (const inset of [tabs.firstTab, tabs.lastAction, reversed.firstTab, reversed.lastAction, header.lastAction, headerReversed.lastAction])
+    for (const inset of [tabs.firstTab, reversed.firstTab])
       expect(inset).toBeCloseTo(tabs.rem * 0.25, 0);
+    for (const inset of [tabs.lastAction, reversed.lastAction, header.lastAction, headerReversed.lastAction])
+      expect(inset).toBeCloseTo(tabs.rem * 0.75, 0);
     expect(header.content).toBeCloseTo(tabs.content, 0);
     expect(headerReversed.content).toBeCloseTo(reversed.content, 0);
   });

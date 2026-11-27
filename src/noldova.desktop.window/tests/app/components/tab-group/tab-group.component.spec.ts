@@ -311,7 +311,7 @@ describe("TabGroupComponent", () => {
       }
     });
 
-  it("sets the first tab and the last action 0.25rem from its card's start and end in both directions, and lines a one-view header's title up with a tab's label", async () => {
+  it("sets the first tab 0.25rem from its card's start and ends the last action's glyph where the page's content ends, in both directions, and lines a one-view header's title up with a tab's label", async () => {
     AppearanceFixture.apply();
     await renderAsync();
     const card = (id: number): DOMRect => {
@@ -320,7 +320,7 @@ describe("TabGroupComponent", () => {
       const border = element?.clientLeft ?? 0;
       return new DOMRect(bounds.left + border, bounds.top, bounds.width - border * 2, bounds.height);
     };
-    const lastAction = (id: number): Element | undefined => [...group(id).querySelectorAll(".nol-tab-group-actions button")].at(-1);
+    const lastAction = (id: number): Element | undefined => [...group(id).querySelectorAll(".nol-tab-group-actions button .nol-icon-button-glyph")].at(-1);
     const insets = (): readonly [number, number] => {
       const isReversed = document.documentElement.dir === "rtl";
       const first = tab(1, 0).getBoundingClientRect();
@@ -341,8 +341,12 @@ describe("TabGroupComponent", () => {
     const titleText = start(title) + Number.parseFloat(title ? getComputedStyle(title).paddingLeft : String.empty) - card(1).left;
     const headerActionEnd = card(1).right - (lastAction(1)?.getBoundingClientRect().right ?? Number.NaN);
 
-    for (const inset of [firstTab, lastActionEnd, firstTabReversed, lastActionEndReversed, headerActionEnd])
+    const content = AppearanceFixture.measureLook("tab-inset") * 3 + AppearanceFixture.measureLook("pill-padding");
+
+    for (const inset of [firstTab, firstTabReversed])
       AppearanceFixture.expectPixels(inset, AppearanceFixture.toPixels(0.25));
+    for (const inset of [lastActionEnd, lastActionEndReversed, headerActionEnd])
+      AppearanceFixture.expectPixels(inset, content);
     AppearanceFixture.expectPixels(titleText, label);
   });
 

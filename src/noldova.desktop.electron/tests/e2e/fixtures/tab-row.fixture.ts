@@ -47,7 +47,7 @@ export class TabRowFixture {
       const box = card?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
       const border = card?.clientLeft ?? 0;
       const first = t.querySelector("nol-tab")?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
-      const last = [...t.querySelectorAll(".nol-tab-group-actions button")].at(-1)?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
+      const last = [...t.querySelectorAll(".nol-tab-group-actions button .nol-icon-button-glyph")].at(-1)?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
       const content = t.querySelector(".nol-tab-pill, .nol-tab-group-title");
       const text = content?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
       const padding = Number.parseFloat(content === null ? "" : getComputedStyle(content).paddingInlineStart);
