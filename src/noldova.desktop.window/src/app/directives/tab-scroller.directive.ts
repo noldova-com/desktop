@@ -18,7 +18,8 @@ import { Resources } from "../../resources.js";
   exportAs: "nolTabScroller",
   host: {
     "(wheel)": "scrollAcross($event)",
-    "(scroll)": "placeThumb()"
+    "(scroll)": "placeThumb()",
+    "(focusin)": "revealFocused($event)"
   }
 })
 export class TabScrollerDirective {
@@ -95,6 +96,11 @@ export class TabScrollerDirective {
     this.host.scrollLeft += event.deltaY;
   }
 
+  protected revealFocused(event: FocusEvent): void {
+    if (event.target instanceof HTMLElement && event.target.matches(Resources.tabKeySelector))
+      this.reveal(event.target);
+  }
+
   protected placeThumb(): void {
     const thumb = this.thumb();
     const [view, content] = [this.host.clientWidth, this.host.scrollWidth];
@@ -130,8 +136,7 @@ export class TabScrollerDirective {
     return true;
   }
 
-  private reveal(): void {
-    const tab = this.host.querySelector<HTMLElement>(Resources.selectedTabSelector);
+  private reveal(tab: HTMLElement | null = this.host.querySelector<HTMLElement>(Resources.selectedTabSelector)): void {
     if (Object.isNull(tab))
       return;
     const [row, box] = [this.host.getBoundingClientRect(), tab.getBoundingClientRect()];

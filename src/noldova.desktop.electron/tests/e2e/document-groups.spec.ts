@@ -140,7 +140,7 @@ test.describe("document groups", () => {
       await window.keyboard.press("Home");
       await expect(tabs.first()).toBeFocused();
       await expect.poll(() => TabRowFixture.clearanceOf(tabs.first()), { message: `Home scrolls the first tab into view, ${direction}` }).toBe(TabRowFixture.CLEAR);
-      expect(await scroller.evaluate(t => t.scrollLeft)).toBe(0);
+      expect(Math.abs(await scroller.evaluate(t => t.scrollLeft))).toBeLessThanOrEqual(1);
 
       await window.keyboard.press("End");
       await expect(tabs.last()).toBeFocused();

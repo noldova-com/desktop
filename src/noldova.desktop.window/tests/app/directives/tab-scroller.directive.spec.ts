@@ -124,12 +124,20 @@ describe("TabScrollerDirective", () => {
   });
 
   for (const [key, scroll] of [["a", 0], ["c", 36], ["e", 156]] as const)
-    it(`scrolls the row to ${scroll} for the ${key === "a" ? "first" : key === "e" ? "last" : "middle"} tab chosen, which lies whole between the row's start and its buttons`, async () => {
+    it(`scrolls the row from its start to ${scroll} for the ${key === "a" ? "first" : key === "e" ? "last" : "middle"} tab chosen, which lies whole between the row's start and its buttons`, async () => {
+      scroller().scrollLeft = 0;
       await changeAsync(host => host.selected.set(key));
 
       expect(scroller().scrollLeft).toBe(scroll);
       expectInRoom(key);
     });
+
+  it("leaves the row where it is for a tab chosen that already lies whole in the room shown", async () => {
+    await changeAsync(host => host.selected.set("c"));
+
+    expect(scroller().scrollLeft).toBe(96);
+    expectInRoom("c");
+  });
 
   it("scrolls back toward the start for a tab before the room shown, which then starts at the row's start", async () => {
     await changeAsync(host => host.selected.set("e"));
@@ -144,6 +152,19 @@ describe("TabScrollerDirective", () => {
 
     await vi.waitFor(() => expect(scroller().scrollLeft).toBe(144));
     expectInRoom("d");
+  });
+
+  it("scrolls a tab that takes the focus into view, selected or not, and nothing for anything else that takes it", async () => {
+    element(".actions").tabIndex = -1;
+    const first = element("[data-tab-key='a']");
+    first.tabIndex = -1;
+
+    element(".actions").focus({ preventScroll: true });
+    expect(scroller().scrollLeft).toBe(96);
+    first.focus({ preventScroll: true });
+
+    expect(scroller().scrollLeft).toBe(0);
+    expectInRoom("a");
   });
 
   it("leaves the row where it is when no tab is selected", async () => {

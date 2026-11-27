@@ -525,7 +525,7 @@ describe("TabGroupComponent", () => {
 
             overflowing.scrollLeft = 0;
             overflowing.dispatchEvent(new WheelEvent("wheel", { deltaY: 80, bubbles: true, cancelable: true }));
-            await userEvent.hover(tab(0, 0));
+            await userEvent.hover(find(group(0), ".nol-tab-group-scroller > .nol-tab-group-actions"));
 
             await vi.waitFor(() => expect(getComputedStyle(thumb).backgroundColor).toBe(shownColor));
             const [row, box] = [bar.getBoundingClientRect(), thumb.getBoundingClientRect()];

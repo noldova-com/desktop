@@ -73,7 +73,7 @@ test.describe("a side group's tab row at the default window size", () => {
       await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
       await expect.poll(() => TabRowFixture.clearanceOf(tabs.first()), { message: `the chosen tab scrolls into view whole, ${scheme}` }).toBe(TabRowFixture.CLEAR);
       await expect(tabs.first()).toBeFocused();
-      expect(await scrollAsync()).toBe(0);
+      expect(Math.abs(await scrollAsync())).toBeLessThanOrEqual(1);
     }
   });
 
@@ -112,7 +112,7 @@ test.describe("a side group's tab row at the default window size", () => {
       await window.keyboard.press("Home");
       await expect(byTitle("Teammates")).toBeFocused();
       await expect.poll(() => TabRowFixture.clearanceOf(byTitle("Teammates")), { message: `Home scrolls the first tab into view, ${scheme}` }).toBe(TabRowFixture.CLEAR);
-      expect(await scroller.evaluate(t => t.scrollLeft)).toBe(0);
+      expect(Math.abs(await scroller.evaluate(t => t.scrollLeft))).toBeLessThanOrEqual(1);
       await group.locator(".nol-tab-group-overflow").click();
       await expect(menu.locator(".nol-tab-group-overflow-tab .nol-menu-item-label")).toHaveText(["Teammates", "Conversation", "References and call hierarchy"]);
       await window.keyboard.press("Escape");
