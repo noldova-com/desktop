@@ -55,6 +55,7 @@ test.describe("a side group's tab row at the default window size", () => {
       expect(await TabRowFixture.surroundingsOf(scroller), `the wheel moves only the row, ${scheme}`).toBe(surroundings);
       await scroller.evaluate(t => t.scrollTo({ left: 0 }));
       await expect.poll(scrollAsync).toBe(0);
+      await expect.poll(() => thumb.evaluate(t => t.style.insetInlineStart), { message: `the thumb follows the row to its start, ${scheme}` }).toBe("0px");
       const grip = await thumb.boundingBox();
       if (grip === null)
         throw new Error("The thumb has no box.");
