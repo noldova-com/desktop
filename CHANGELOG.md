@@ -7,7 +7,7 @@ Each version's section is written by the pull request that changes the version, 
 ## 0.0.18
 
 Modules and apps must act on four points:
-- `@noldova/desktop.window` needs `@noldova/ui.components.angular` 0.0.36 or later, below 0.1.0; since 0.0.35 the kit types its icon inputs as `IconName`, so a module's own string passed to one is narrowed first.
+- `@noldova/desktop.window` needs `@noldova/ui.components.angular` 0.0.36 or later, below 0.1.0; since 0.0.34 the kit types its icon inputs as `IconName`, so a module's own string passed to one is narrowed first.
 - Every Noldova Desktop package needs the `@noldova/context.*` packages it uses at 0.0.18 or later, below 0.1.0.
 - An object of a module's or app's own typed `IProductTitleBar`, such as a test fake, adds `documentTabs`, or it no longer compiles.
 - A class of a module's or app's own that implements `IWindowPartContext`, such as a recording test fake, adds `timeFormats`, or it no longer compiles; a module that uses `FakeWindowPartContext` needs nothing.
