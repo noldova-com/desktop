@@ -28,12 +28,12 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@517178c23b9e5417ead1cb15eec0fcfc64c5eba0
+    uses: noldova-com/.github/.github/workflows/versions.yml@d5ee65a73e91bca21d4d8b265edc1f5b61138a39
     permissions: {}
 
   build-and-test:
     name: Build and test
-    uses: noldova-com/.github/.github/workflows/build-and-test.yml@517178c23b9e5417ead1cb15eec0fcfc64c5eba0
+    uses: noldova-com/.github/.github/workflows/build-and-test.yml@d5ee65a73e91bca21d4d8b265edc1f5b61138a39
     permissions:
       contents: read
       packages: read
