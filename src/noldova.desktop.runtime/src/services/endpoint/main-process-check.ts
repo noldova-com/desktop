@@ -64,9 +64,7 @@ export class MainProcessCheck implements IMainProcessCheck {
     if (start instanceof Error)
       throw start;
     const peer = await this.peers.readAsync(socket);
-    if (Object.isNull(peer))
-      throw new RuntimeException("#246 the peer's process could not be read");
-    if (peer.environment.some(t => MainProcessCheck.isRunAsNode(t)))
+    if (Object.isNull(peer) || peer.environment.some(t => MainProcessCheck.isRunAsNode(t)))
       return false;
     if (this.platform === Resources.linuxPlatform
       ? Object.isNullOrUndefined(start) || start !== peer.startTime || !await this.identity.isSameAsync(peer)
@@ -83,8 +81,6 @@ export class MainProcessCheck implements IMainProcessCheck {
 
   private async isSameFileAsync(file: string): Promise<boolean> {
     const [own, peer] = await Promise.all([stat(this.program, { bigint: true }), stat(file, { bigint: true })]);
-    if (own.dev !== peer.dev || own.ino !== peer.ino)
-      throw new RuntimeException(`#246 own ${this.program} ${own.dev}:${own.ino}, peer ${file} ${peer.dev}:${peer.ino}`);
-    return true;
+    return own.dev === peer.dev && own.ino === peer.ino;
   }
 }
