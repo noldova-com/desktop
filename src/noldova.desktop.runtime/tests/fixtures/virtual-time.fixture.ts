@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { type Channel, channel } from "node:diagnostics_channel";
 import { syncBuiltinESMExports } from "node:module";
 import { mock } from "node:test";
 import timers from "node:timers/promises";
@@ -18,6 +19,10 @@ interface IVirtualWait {
 }
 
 export class VirtualTimeFixture implements Disposable {
+  private static readonly real: typeof timers.setTimeout = timers.setTimeout;
+  private static readonly started: Channel = channel("noldova.test-run.step-started");
+  private static readonly ended: Channel = channel("noldova.test-run.step-ended");
+  private static counter: number = 0;
   private readonly setTimeout: typeof timers.setTimeout = timers.setTimeout;
   private readonly restoreSetTimeout: () => void;
   private readonly now: typeof Date.now = Date.now;
@@ -62,6 +67,9 @@ export class VirtualTimeFixture implements Disposable {
       this.waits.splice(this.waits.indexOf(wait), 1);
       reject(Object.assign(new Error("The operation was aborted"), { name: "AbortError", code: "ABORT_ERR", cause: signal?.reason }));
     };
+    const step = `#255 wait ${milliseconds} ms from ${this.elapsed} (${++VirtualTimeFixture.counter})`;
+    VirtualTimeFixture.started.publish(step);
+    void promise.finally(() => VirtualTimeFixture.ended.publish(step)).catch(() => undefined);
     const wait: IVirtualWait = {
       deadline: this.time + milliseconds,
       resolve: (): void => {
@@ -83,7 +91,10 @@ export class VirtualTimeFixture implements Disposable {
     if (this.isAdvancing)
       return;
     this.isAdvancing = true;
+    const tick = `#255 advance tick at ${this.elapsed} with ${this.waits.length} waits, real setTimeout ${this.setTimeout === VirtualTimeFixture.real ? "original" : "replaced"} (${++VirtualTimeFixture.counter})`;
+    VirtualTimeFixture.started.publish(tick);
     void this.setTimeout(0).then(() => {
+      VirtualTimeFixture.ended.publish(tick);
       this.isAdvancing = false;
       if (this.isDisposed || this.waits.length === 0)
         return;
