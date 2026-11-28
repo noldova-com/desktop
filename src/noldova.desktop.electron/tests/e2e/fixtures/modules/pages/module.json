@@ -6,7 +6,7 @@
   "parts": ["runtime", "window"],
   "dependencies": {},
   "contributes": {
-    "methods": ["pages.allow", "pages.navigate", "pages.list", "pages.capture", "pages.events", "pages.refusals", "pages.windows", "pages.press", "pages.type", "pages.click", "pages.focus", "pages.control"],
+    "methods": ["pages.allow", "pages.navigate", "pages.list", "pages.capture", "pages.events", "pages.refusals", "pages.windows", "pages.press", "pages.type", "pages.click", "pages.move", "pages.focus", "pages.control"],
     "commands": ["pages.openPage", "pages.showPageInDialog", "pages.openSide", "pages.mark", "pages.allowMark"],
     "views": ["pages.side"],
     "documents": ["pages.page"]
