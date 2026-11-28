@@ -17,11 +17,14 @@ import { type IProcessStarter, LaunchStartFailedException } from "@noldova/deskt
 export class RecordingStarterFixture implements IProcessStarter {
   private readonly children: ChildProcess[] = [];
 
+  public readonly launches: (readonly string[])[] = [];
+
   private static hasExited(child: ChildProcess): boolean {
     return !Object.isNull(child.exitCode) || !Object.isNull(child.signalCode);
   }
 
   public async startAsync(executable: string, launchArguments: readonly string[], environment: NodeJS.ProcessEnv, errorFile: string): Promise<number> {
+    this.launches.push(launchArguments);
     const errors = await open(errorFile, "a");
     try {
       const child = spawn(executable, [...launchArguments], { detached: true, stdio: ["ignore", "ignore", errors.fd], windowsHide: true, env: environment });

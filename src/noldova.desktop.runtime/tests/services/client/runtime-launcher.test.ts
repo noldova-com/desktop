@@ -255,6 +255,21 @@ export class RuntimeLauncherTests {
   }
 
   @TestMethod
+  public async startsTheRuntimeWithItsLaunchTimeout(): Promise<void> {
+    await using launch = await RuntimeLaunchFixture.createAsync();
+    const client = await UpdateBarrierFixture.createLauncher(launch.createSettings(), RuntimeBuild.identity, launch.starter).attachAsync("main", new ClientListenerFixture());
+    const processId = await launch.readProcessIdAsync();
+
+    const launchArguments = launch.starter.launches.at(0) ?? [];
+    const at = launchArguments.indexOf("--launch-timeout");
+
+    Assert.isTrue(at > 0);
+    Assert.areEqual("10000", launchArguments.at(at + 1));
+    Assert.isFalse((await client.stopAsync(StopPolicy.IfIdle)).hasFailed);
+    Assert.isTrue(await RuntimeLaunchFixture.waitForExitAsync(processId));
+  }
+
+  @TestMethod
   public async aNewerBuildTakesOverAnOlderRuntime(): Promise<void> {
     await using older = await RuntimeBuildFixture.createAsync("0.0.0");
     await using launch = await RuntimeLaunchFixture.createAsync();

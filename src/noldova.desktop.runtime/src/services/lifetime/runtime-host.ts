@@ -117,6 +117,7 @@ import { QuitMethod } from "./quit-method.js";
 import { QuitRelay } from "./quit-relay.js";
 import { RuntimeLog } from "./runtime-log.js";
 import { StopMethod } from "./stop-method.js";
+import { UnreachedStop } from "./unreached-stop.js";
 import { UpdateMethod } from "./update-method.js";
 import { UpdatePreparation } from "./update-preparation.js";
 import { UpdateSavedMethod } from "./update-saved-method.js";
@@ -127,6 +128,8 @@ export class RuntimeHost implements IIdleParticipant {
   private readonly server: RuntimeServer;
   private readonly publisher: DiscoveryPublisher;
   private readonly idle: IdleMonitor;
+  private readonly unreached: IdleMonitor;
+  private isReached: boolean = false;
   private readonly stopped: PromiseWithResolvers<string> = Promise.withResolvers<string>();
   private readonly declarations: readonly ModuleDeclaration[];
   private readonly platform: string;
@@ -194,6 +197,7 @@ export class RuntimeHost implements IIdleParticipant {
     this.events = new EventRegistry(this.server);
     this.publisher = new DiscoveryPublisher(lock, FolderProtectorFactory.create(platform, new SystemCommand(), environment));
     this.idle = new IdleMonitor(options.idleGraceMilliseconds, this);
+    this.unreached = new IdleMonitor(options.launchTimeoutMilliseconds, new UnreachedStop(() => this.requestStop(Resources.stoppedByUnreached)));
     this.workEvent = this.events.declare(ShellEvents.work);
     const commandsChanged = this.events.declare(ShellEvents.commandsChanged);
     this.programsEvent = this.events.declare(ShellEvents.programsChanged);
@@ -304,7 +308,11 @@ export class RuntimeHost implements IIdleParticipant {
   }
 
   private clientsChanged(): void {
-    this.idle.check();
+    if (this.server.sessionCount > 0 && !this.isReached) {
+      this.isReached = true;
+      this.unreached[Symbol.dispose]();
+    }
+    this.checkIdle();
     this.quit.check();
     const mainProcess = this.server.clients.find(t => t.client === ShellClients.mainProcess)?.connection ?? null;
     this.webViews.check(mainProcess);
@@ -326,7 +334,14 @@ export class RuntimeHost implements IIdleParticipant {
 
   private workChanged(): void {
     this.workEvent.publish(this.work.report.toJson());
-    this.idle.check();
+    this.checkIdle();
+  }
+
+  private checkIdle(): void {
+    if (this.isReached)
+      this.idle.check();
+    else
+      this.unreached.check();
   }
 
   private static locateCopyRecord(options: RuntimeOptions, lock: OwnershipLock): string | null {
@@ -383,7 +398,7 @@ export class RuntimeHost implements IIdleParticipant {
       this.identity.fingerprint);
     await this.publisher.publishAsync(discovery);
     this.discovery = discovery;
-    this.idle.check();
+    this.checkIdle();
   }
 
   private moveAsideAsync(): Promise<void> {
@@ -466,6 +481,7 @@ export class RuntimeHost implements IIdleParticipant {
   private async stopAsync(): Promise<void> {
     this.isStopping = true;
     this.idle[Symbol.dispose]();
+    this.unreached[Symbol.dispose]();
     await this.errorsCap?.[Symbol.asyncDispose]();
     this.preparation?.[Symbol.dispose]();
     this.grants.dispose();

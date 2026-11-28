@@ -23,7 +23,7 @@ import { UpdateBarrierFixture } from "../fixtures/update-barrier.fixture.js";
 
 @TestClass
 export class RuntimeEntryTests {
-  private static readonly USAGE: string = "Usage: runtime-entry --data-dir <absolute path> [--idle-grace <milliseconds>] [--start-log <start log name>] [--installation-dir <folder>]";
+  private static readonly USAGE: string = "Usage: runtime-entry --data-dir <absolute path> [--idle-grace <milliseconds>] [--launch-timeout <milliseconds>] [--start-log <start log name>] [--installation-dir <folder>]";
 
   @TestMethod
   public explainsItsUsage(): Promise<void> {
@@ -91,6 +91,38 @@ export class RuntimeEntryTests {
 
       Assert.areEqual(0, await running);
       Assert.areEqual("0,0,0", ["SIGTERM", "SIGINT", "SIGHUP"].map(t => signals.listenerCount(t)).join(","));
+      Assert.isFalse(OwnershipLock.isOwned(fixture.dataDirectory));
+    });
+  }
+
+  @TestMethod
+  public stopsAndSaysWhyWhenNoClientReachesItWithinItsLaunchTimeout(): Promise<void> {
+    return RuntimeEntryTests.runAsync(async (fixture, signals, error) => {
+      const code = await RuntimeEntry.runAsync(["--data-dir", fixture.dataDirectory.root, "--idle-grace", "20", "--launch-timeout", "50"], process.platform, process.env, signals, error);
+
+      Assert.areEqual(1, code);
+      Assert.areEqual("No client reached the runtime within its launch timeout of 50 ms, so it stopped.\n", RuntimeEntryTests.read(error));
+      Assert.isFalse(OwnershipLock.isOwned(fixture.dataDirectory));
+    });
+  }
+
+  @TestMethod
+  public endsAsAProgramThatNoClientReachesAtItsLaunchTimeout(): Promise<void> {
+    return RuntimeEntryTests.runAsync(async fixture => {
+      const startedAt = Date.now();
+      const child = spawn(process.execPath, [RuntimeEntry.entryPath, "--data-dir", fixture.dataDirectory.root, "--idle-grace", "20", "--launch-timeout", "300"], {
+        env: CoverageEnvironmentFixture.forChild(process.env),
+        stdio: ["ignore", "ignore", "pipe"],
+        windowsHide: true
+      });
+      let output = String.empty;
+      child.stderr.setEncoding("utf8").on("data", (chunk: string) => output += chunk);
+
+      const [code] = await once(child, "exit");
+
+      Assert.areEqual(1, code);
+      Assert.areEqual("No client reached the runtime within its launch timeout of 300 ms, so it stopped.\n", output.replaceAll("\r\n", "\n"));
+      Assert.isTrue(Date.now() - startedAt >= 300, "it waited for its launch timeout");
       Assert.isFalse(OwnershipLock.isOwned(fixture.dataDirectory));
     });
   }
