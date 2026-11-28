@@ -951,6 +951,16 @@ describe("WindowPartHostService", () => {
     expect([heard, errors]).toEqual([[], []]);
   });
 
+  it("opens a document that a part asks for after its activation, while a later part still activates at the first start, though the saved layout lacks it", async () => {
+    const notes = new WindowPartFixture("notes", log, t => t.registerDocument(new DocumentContribution("notes.note", load)));
+    const clock = new WindowPartFixture("clock", log, () => TestBed.inject(WindowPartHostService).openDocument("notes", "notes.note", "2", new DocumentHeading("Note 2"), false));
+    const { layout } = start([source("notes", notes), source("clock", clock)], [status("notes"), status("clock")]);
+    vi.spyOn(TestBed.inject(LayoutStoreService), "readAsync").mockResolvedValue(Layout.createDefault(new ViewRegistry([], [])).toJson());
+
+    await vi.waitFor(() => expect(layout.layout().documents.tabs).toEqual([new DocumentTab("notes.note", "2")]));
+    expect([log, errors]).toEqual([["activate notes", "activate clock"], []]);
+  });
+
   it("applies the instance changes a part makes while activating once the layout loads, in order, and later ones at once, a front given back among them", async () => {
     const shell = (instance: string): ViewTab => new ViewTab("terminal.shell", instance);
     const terminal = new WindowPartFixture("terminal", log, t => {
