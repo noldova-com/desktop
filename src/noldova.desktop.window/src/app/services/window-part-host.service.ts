@@ -599,7 +599,7 @@ export class WindowPartHostService implements IWindowPartHost {
       if (Object.isNull(report))
         this.generationValue.update(t => t + 1);
       if (!isReconnect && await this.loadLayoutAsync())
-        openAtStart = t => this.opener.restoreSaved(t.moduleId, t.name, t.instance, t.heading, t.isPreview);
+        openAtStart = t => t.isEarly ? this.opener.restoreSaved(t.moduleId, t.name, t.instance, t.heading, t.isPreview) : this.openPending(t);
     }
     catch (error) {
       if (this.isLayoutLoaded || !RuntimeDisconnectedException.isIn(error))
