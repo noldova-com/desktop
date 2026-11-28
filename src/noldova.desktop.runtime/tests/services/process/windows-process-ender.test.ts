@@ -16,6 +16,7 @@ import { ProgramFixture } from "../../fixtures/program.fixture.js";
 import { SettingsFixture } from "../../fixtures/settings.fixture.js";
 import { SimulatedProcessesFixture } from "../../fixtures/simulated-processes.fixture.js";
 import { TemporaryFolderFixture } from "../../fixtures/temporary-folder.fixture.js";
+import { TestStepFixture } from "../../fixtures/test-step.fixture.js";
 import { VirtualTimeFixture } from "../../fixtures/virtual-time.fixture.js";
 import { WindowsProcessApiFixture } from "../../fixtures/windows-process-api.fixture.js";
 
@@ -146,15 +147,19 @@ export class WindowsProcessEnderTests {
       ...simulated.signals.length === 0 ? [] : [`${900_202}\t${leader}\t${started}\t${program}`]
     ].join("\n");
     const processes = ProcessSupervisorFixture.createWindows(settings, windows, undefined, limits);
-    const owned = await processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.STUBBORN], undefined, program));
+    const steps = new TestStepFixture();
+    const owned = await steps.runAsync("starting the program", () => ProcessSupervisorFixture.boundAsync(
+      processes.startAsync(ProcessSupervisorFixture.MODULE, ProgramFixture.request(folder.path, [ProgramFixture.STUBBORN], undefined, program)),
+      () => "Starting the program: it did not start."));
     leader = owned.processId;
     started = ProcessSupervisorFixture.readStarted(settings);
     simulated.add(leader, 0, true);
     simulated.add(900_201, 0, true);
     simulated.add(900_202, 0, true);
-    await ProgramFixture.readLineAsync(owned);
     try {
-      const took = await VirtualTimeFixture.measureAsync(() => processes.stopOwnedByAsync(ProcessSupervisorFixture.MODULE));
+      await steps.runAsync("reading the program's first line", () => ProcessSupervisorFixture.boundAsync(ProgramFixture.readLineAsync(owned),
+        () => `Reading the program's first line: process ${leader} printed none.`));
+      const took = await steps.runAsync("stopping the module's programs", () => VirtualTimeFixture.measureAsync(() => processes.stopOwnedByAsync(ProcessSupervisorFixture.MODULE)));
 
       Assert.areEqual(`${leader} SIGKILL,900201 SIGKILL,900202 SIGKILL`, simulated.signals.filter(t => t.endsWith("SIGKILL")).join(","));
       Assert.areEqual(limits.stopLimit, took);
@@ -162,7 +167,8 @@ export class WindowsProcessEnderTests {
     finally {
       simulated.own(leader);
       process.kill(leader, "SIGKILL");
-      await owned.exited;
+      await steps.runAsync("ending the program", () => ProcessSupervisorFixture.boundAsync(owned.exited,
+        () => `Ending the program: process ${leader} still ran after SIGKILL.`));
     }
   }
 
