@@ -133,6 +133,9 @@ What a module declares and contributes is in [MODULES.md](MODULES.md); the windo
   After a crash, the next runtime's start removes a recorded extraction, or ends a recorded mount process whose id and start time still match, only when the record's holder no longer runs.
   It keeps the record of an extraction outside its own temporary folder, for a runtime with that temporary folder to remove.
 - No launcher starts a runtime while its installation's launch barrier holds.
+- A runtime stops on its own in two ways.
+  Once its first client has connected, it stops when it has had no connection and no work for its idle grace, 30 seconds unless its launcher gives another.
+  Until then the idle grace doesn't count, so a first connect that comes late on a busy machine still reaches it; a runtime that no client reaches within its launcher's launch timeout of publishing its discovery file, 20 seconds by default, stops instead, writes why to its standard error and exits with code 1.
 - A launcher waits 20 seconds for a runtime it can attach to, and up to 60 while the data directory is owned, so a busy machine isn't reported as a failed start; a runtime that exits first is reported at once, with the reason from its start log.
   It watches the data directory's `discovery` folder, or its nearest existing parent until the folder is created, from before its first read, and reads the discovery file again only when that folder changes; once a watch starts it looks again, so a folder created meanwhile moves the watch down to it and the file is read again at once.
   A watch can also miss a change, as a macOS folder watch can under load, so every 100 ms it also compares the folder's entries, each one's name, file ID and modification time, with those it read when its last wait ended.

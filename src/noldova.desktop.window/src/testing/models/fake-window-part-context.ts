@@ -14,6 +14,8 @@ import { Fake } from "@noldova/desktop.protocol/testing";
 
 import type { IWindowPalette } from "../../app/interfaces/i-window-palette.js";
 import type { IWindowPartContext } from "../../app/interfaces/i-window-part-context.js";
+import type { TimeFormatService } from "../../app/services/time-format.service.js";
+import { FakeTimeFormats } from "./fake-time-formats.js";
 import { FakeWindowSecrets } from "./fake-window-secrets.js";
 import { FakeWindowWebViews } from "./fake-window-web-views.js";
 
@@ -28,6 +30,8 @@ export class FakeWindowPartContext extends Fake<IWindowPartContext> implements I
 
   public readonly webViews: FakeWindowWebViews = new FakeWindowWebViews();
   public readonly secrets: FakeWindowSecrets = new FakeWindowSecrets();
+  public readonly formats: FakeTimeFormats = new FakeTimeFormats();
+  public readonly timeFormats: TimeFormatService = this.formats.service;
   public readonly registerView: IWindowPartContext["registerView"] = (...args) => this.tell("registerView", args, this.answers.registerView);
   public readonly registerDocument: IWindowPartContext["registerDocument"] = (...args) => this.tell("registerDocument", args, this.answers.registerDocument);
   public readonly registerPlaceholder: IWindowPartContext["registerPlaceholder"] = (...args) => this.tell("registerPlaceholder", args, this.answers.registerPlaceholder);

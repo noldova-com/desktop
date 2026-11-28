@@ -20,6 +20,7 @@ import { ModuleState, ModuleStatus } from "@noldova/desktop.protocol";
 import { DocumentTab } from "../../../src/app/models/layout/document-tab";
 import { Layout } from "../../../src/app/models/layout/layout";
 import { ViewRegistry } from "../../../src/app/models/layout/view-registry";
+import { ViewTab } from "../../../src/app/models/layout/view-tab";
 import { ViewType } from "../../../src/app/models/layout/view-type";
 import type { LayoutService } from "../../../src/app/services/layout.service";
 import { LinkService } from "../../../src/app/services/link.service";
@@ -27,6 +28,7 @@ import { EditTargetService } from "../../../src/app/services/edit-target.service
 import { ModuleStatusService } from "../../../src/app/services/module-status.service";
 import { SearchPaletteService } from "../../../src/app/services/search-palette.service";
 import { SettingsPageService } from "../../../src/app/services/settings-page.service";
+import { ClosingService } from "../../../src/app/services/closing.service";
 import { ShellCommandsService } from "../../../src/app/services/shell-commands.service";
 import { TabRenameService } from "../../../src/app/services/tab-rename.service";
 import { TabFocusService } from "../../../src/app/services/tab-focus.service";
@@ -35,6 +37,7 @@ import { ToolbarService } from "../../../src/app/services/toolbar.service";
 import { UndoService } from "../../../src/app/services/undo.service";
 import { UpdateService } from "../../../src/app/services/update.service";
 import { ViewDialogService } from "../../../src/app/services/view-dialog.service";
+import { WindowPartHostService } from "../../../src/app/services/window-part-host.service";
 import { DomFixture } from "../../fixtures/dom.fixture";
 import { PreloadBridgeFixture } from "../../fixtures/preload-bridge.fixture";
 import { LayoutFixture } from "../../fixtures/layout.fixture";
@@ -809,6 +812,78 @@ describe("ShellCommandsService", () => {
 
     await runAsync("desktop.resetLayout");
     expect(layout.layout().dock(DockSide.Left).isCollapsed).toBe(false);
+  });
+
+  it("runs the save steps of each part that owns a view a reset closes before the view closes, naming the reset in a failed save's report", async () => {
+    const asked: (readonly string[])[] = [];
+    const saved: string[] = [];
+    vi.spyOn(TestBed.inject(WindowPartHostService), "ownersOf").mockImplementation(tabs => {
+      asked.push(tabs.map(t => t.key));
+      return new Set(["files"]);
+    });
+    vi.spyOn(TestBed.inject(ClosingService), "saveModulesAsync").mockImplementation((moduleIds, formatFailed) => {
+      saved.push(`${[...moduleIds].join()} ${String(layout.layout().isOpen(search))} ${formatFailed("Files")}`);
+      return Promise.resolve(true);
+    });
+
+    await runAsync("desktop.resetLayout");
+
+    expect([asked, saved, layout.layout().isOpen(search)]).toEqual([[[search.key]], ["files true Files couldn't save, so the layout wasn't reset"], false]);
+  });
+
+  it("leaves the layout as it was when a part's save step fails, so the view whose state couldn't be saved stays open", async () => {
+    vi.spyOn(TestBed.inject(WindowPartHostService), "ownersOf").mockReturnValue(new Set(["files"]));
+    const save = vi.spyOn(TestBed.inject(ClosingService), "saveModulesAsync").mockResolvedValue(false);
+    const before = layout.layout();
+
+    await runAsync("desktop.resetLayout");
+
+    expect([save.mock.calls.length, layout.layout().isOpen(search), layout.layout()]).toEqual([1, true, before]);
+  });
+
+  it("stops after three passes when every save opens another view, leaving the layout as it was and naming the part in the failed save's report", async () => {
+    const opened: ViewTab[] = [];
+    const reported: string[] = [];
+    vi.spyOn(TestBed.inject(WindowPartHostService), "ownersOf").mockImplementation(tabs => new Set(tabs.map(t => (t.key === search.key ? "files" : "terminal"))));
+    const save = vi.spyOn(TestBed.inject(ClosingService), "saveModulesAsync").mockImplementation(() => {
+      const view = new ViewTab("terminal.shell", `opened ${String(opened.length)}`);
+      opened.push(view);
+      layout.openView(view);
+      return Promise.resolve(true);
+    });
+    vi.spyOn(TestBed.inject(ClosingService), "reportSaveFailed").mockImplementation((moduleIds, formatFailed, text) => {
+      reported.push(`${[...moduleIds].join()}: ${formatFailed("Terminal")} ${text}`);
+    });
+
+    await runAsync("desktop.resetLayout");
+
+    expect([save.mock.calls.length, reported, layout.layout().isOpen(search), opened.map(t => layout.layout().isOpen(t))]).toEqual([
+      3,
+      ["terminal: Terminal couldn't save, so the layout wasn't reset Its window part opened another view each time it saved, 3 times in a row."],
+      true,
+      [true, true, true]
+    ]);
+  });
+
+  it("saves a view opened while the save steps run before the reset closes it, and each view's owners once", async () => {
+    const terminal = LayoutFixture.terminal;
+    const asked: (readonly string[])[] = [];
+    const saved: string[] = [];
+    vi.spyOn(TestBed.inject(WindowPartHostService), "ownersOf").mockImplementation(tabs => {
+      asked.push(tabs.map(t => t.key));
+      return new Set(tabs.map(t => t.key === terminal.key ? "terminal" : "files"));
+    });
+    vi.spyOn(TestBed.inject(ClosingService), "saveModulesAsync").mockImplementation(moduleIds => {
+      if (saved.length === 0)
+        layout.openView(terminal);
+      saved.push(`${[...moduleIds].join()} ${String(layout.layout().isOpen(terminal))}`);
+      return Promise.resolve(true);
+    });
+
+    await runAsync("desktop.resetLayout");
+
+    expect([asked, saved, layout.layout().isOpen(search), layout.layout().isOpen(terminal)])
+      .toEqual([[[search.key], [terminal.key]], ["files true", "terminal true"], false, false]);
   });
 
   it("checks a side dock's command only while the dock shows, and opens a dock the narrow window closed instead of hiding it", async () => {

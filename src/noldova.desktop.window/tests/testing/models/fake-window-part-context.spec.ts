@@ -25,6 +25,7 @@ const LOAD_COMPONENT = (): Promise<Type<unknown>> => Promise.reject(new Error("N
 const MEMBERS: Readonly<Record<keyof IWindowPartContext, FakeMember<IWindowPartContext>>> = {
   webViews: FakeMember.fake(t => t.webViews),
   secrets: FakeMember.fake(t => t.secrets),
+  timeFormats: FakeMember.given(t => t.timeFormats),
   registerView: FakeMember.told(t => t.registerView(new ViewContribution("notes.list", "Notes", "sticky_note_2", DockSide.Left, true, LOAD_COMPONENT))),
   registerDocument: FakeMember.told(t => t.registerDocument(new DocumentContribution("notes.note", LOAD_COMPONENT))),
   registerPlaceholder: FakeMember.told(t => t.registerPlaceholder(new PlaceholderContribution("notes.start", LOAD_COMPONENT))),
@@ -204,6 +205,15 @@ describe("FakeWindowPartContext", () => {
 
     await expect(context.openBelowWindowRowAsync(load)).resolves.toBeNull();
     expect(context.callsOf("openBelowWindowRowAsync")).toEqual([[load]]);
+  });
+
+  it("writes its time formats in the fake's formats, the 12-hour defaults until a test changes them", () => {
+    const context = new FakeWindowPartContext();
+    const at = new Date(2026, 9, 22, 13, 5).getTime();
+    const before = [context.timeFormats.time(at), context.timeFormats.date(at)];
+    context.formats.use("HH:mm", "d MMM yyyy, HH:mm");
+
+    expect([before, [context.timeFormats.time(at), context.timeFormats.date(at)]]).toEqual([["1:05 PM", "Oct 22, 2026"], ["13:05", "22 Oct 2026"]]);
   });
 
   it("refuses, when strict, an unanswered registration or listener", () => {

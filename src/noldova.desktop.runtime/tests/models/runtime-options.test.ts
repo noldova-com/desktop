@@ -72,6 +72,16 @@ export class RuntimeOptionsTests {
   }
 
   @TestMethod
+  public readsTheLaunchTimeoutAndDefaultsIt(): void {
+    const options = RuntimeOptions.parse(["--data-dir", RuntimeOptionsTests.ROOT, "--launch-timeout", "750"]);
+
+    Assert.areEqual(750, options.launchTimeoutMilliseconds);
+    Assert.areEqual(20_000, RuntimeOptions.parse(["--data-dir", RuntimeOptionsTests.ROOT]).launchTimeoutMilliseconds);
+    Assert.areEqual(20_000, new RuntimeOptions(new DataDirectory(RuntimeOptionsTests.ROOT)).launchTimeoutMilliseconds);
+    Assert.areEqual(40, new RuntimeOptions(new DataDirectory(RuntimeOptionsTests.ROOT), 5, new ServerSettings(), undefined, null, undefined, null, 40).launchTimeoutMilliseconds);
+  }
+
+  @TestMethod
   public keepsTheGivenValues(): void {
     const directory = new DataDirectory(RuntimeOptionsTests.ROOT);
     const settings = new ServerSettings(10);
@@ -90,6 +100,7 @@ export class RuntimeOptionsTests {
     RuntimeOptionsTests.assertRejected(["--data-dir"], "The argument --data-dir needs a value. (Parameter 'arguments')");
     RuntimeOptionsTests.assertRejected(["--data-dir", root, "--idle-grace", "0"], "The argument --idle-grace 0 is not valid. (Parameter 'arguments')");
     RuntimeOptionsTests.assertRejected(["--data-dir", root, "--idle-grace", "1.5"], "The argument --idle-grace 1.5 is not valid. (Parameter 'arguments')");
+    RuntimeOptionsTests.assertRejected(["--data-dir", root, "--launch-timeout", "0"], "The argument --launch-timeout 0 is not valid. (Parameter 'arguments')");
     RuntimeOptionsTests.assertRejected(["--port", "1", "--data-dir", root], "The argument --port 1 is not valid. (Parameter 'arguments')");
     RuntimeOptionsTests.assertRejected([], "The --data-dir argument is required. (Parameter 'arguments')");
     RuntimeOptionsTests.assertRejected(["--idle-grace", "10"], "The --data-dir argument is required. (Parameter 'arguments')");

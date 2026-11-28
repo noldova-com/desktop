@@ -576,6 +576,7 @@ export class Resources {
   public static readonly xdgStateVariable: string = "XDG_STATE_HOME";
   public static readonly xdgStateDefault: readonly string[] = [".local", "state"];
   public static readonly idleGraceArgument: string = "--idle-grace";
+  public static readonly launchTimeoutArgument: string = "--launch-timeout";
   public static readonly stopSignals: readonly NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGHUP"];
   public static readonly usageExitCode: number = 2;
   public static readonly ownedExitCode: number = 3;
@@ -623,6 +624,7 @@ export class Resources {
   public static readonly stoppedByIdle: string = "idle";
   public static readonly stoppedByRequest: string = "request";
   public static readonly stoppedBySignal: string = "signal";
+  public static readonly stoppedByUnreached: string = "unreached";
   public static readonly portParameterName: string = "port";
   public static readonly pathParameterName: string = "path";
   public static readonly textParameterName: string = "text";
@@ -757,7 +759,7 @@ export class Resources {
   public static readonly launchShellUnavailable: string = "Starting a program on Linux requires executable Bash at /bin/bash. Install Bash or restore its execute permissions.";
   public static readonly launchDescriptorsUnavailable: string = "Starting a program on Linux requires access to /proc/self/fd. Ensure procfs is mounted at /proc and this process can read and traverse its descriptor directory.";
   public static readonly dataDirectoryRequired: string = "The --data-dir argument is required.";
-  public static readonly usage: string = "Usage: runtime-entry --data-dir <absolute path> [--idle-grace <milliseconds>] [--start-log <start log name>] [--installation-dir <folder>]";
+  public static readonly usage: string = "Usage: runtime-entry --data-dir <absolute path> [--idle-grace <milliseconds>] [--launch-timeout <milliseconds>] [--start-log <start log name>] [--installation-dir <folder>]";
   public static readonly recentCommandsMigration: string = "recent-commands";
   public static readonly createRecentCommandsStatement: string =
     "CREATE TABLE recent_commands (device TEXT NOT NULL, id TEXT NOT NULL, used INTEGER NOT NULL, PRIMARY KEY (device, id)) STRICT";
@@ -1299,6 +1301,10 @@ export class Resources {
 
   public static formatFileIdentity(device: number | bigint, inode: number | bigint, size: number | bigint, modified: number | bigint): string {
     return `${device}:${inode}:${size}:${modified}`;
+  }
+
+  public static formatUnreached(launchTimeout: number): string {
+    return `No client reached the runtime within its launch timeout of ${launchTimeout} ms, so it stopped.${Resources.lineEnd}`;
   }
 
   public static formatFailureLine(failure: string): string {

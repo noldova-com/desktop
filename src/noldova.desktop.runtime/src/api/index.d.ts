@@ -9492,7 +9492,7 @@ export declare class RuntimeOptions {
   public readonly dataDirectory: DataDirectory;
 
   /**
-   * How long the runtime stays without connections and work before it stops, in milliseconds.
+   * How long the runtime stays without connections and work, once its first client has connected, before it stops, in milliseconds.
    */
   public readonly idleGraceMilliseconds: number;
 
@@ -9524,6 +9524,11 @@ export declare class RuntimeOptions {
   public readonly installationFolder: string | null;
 
   /**
+   * How long the runtime waits for its first client after it publishes its discovery file, in milliseconds; a runtime no client reaches in that time stops.
+   */
+  public readonly launchTimeoutMilliseconds: number;
+
+  /**
    * Creates the options.
    *
    * @param dataDirectory The data directory.
@@ -9533,6 +9538,7 @@ export declare class RuntimeOptions {
    * @param startLogName The start log's file name, `start-<UUID>.log`, or `null`. Defaults to `null`.
    * @param takeoverMilliseconds How long to keep trying to take over from an owner without a discovery file, in milliseconds. Defaults to 5 seconds.
    * @param installationFolder The folder of the installation the runtime belongs to, whose record it joins and whose launch barrier it checks once it owns the data directory, or `null`. Defaults to `null`.
+   * @param launchTimeoutMilliseconds How long to wait for the first client after publishing discovery, in milliseconds. Defaults to 20 seconds.
    * @throws {ArgumentException} When the start log's name is not of that form.
    * @example
    * ```ts
@@ -9541,12 +9547,12 @@ export declare class RuntimeOptions {
    * export const options = new RuntimeOptions(new DataDirectory("/home/person/.noldova/desktop"), 60_000, new ServerSettings());
    * ```
    */
-  public constructor(dataDirectory: DataDirectory, idleGraceMilliseconds?: number, serverSettings?: ServerSettings, declarationsFile?: string, startLogName?: string | null, takeoverMilliseconds?: number, installationFolder?: string | null);
+  public constructor(dataDirectory: DataDirectory, idleGraceMilliseconds?: number, serverSettings?: ServerSettings, declarationsFile?: string, startLogName?: string | null, takeoverMilliseconds?: number, installationFolder?: string | null, launchTimeoutMilliseconds?: number);
 
   /**
    * Reads the options from entry arguments.
    *
-   * @param entryArguments `--data-dir <absolute path>`, and optionally `--idle-grace <milliseconds>`, `--start-log <start log name>` and `--installation-dir <folder>`.
+   * @param entryArguments `--data-dir <absolute path>`, and optionally `--idle-grace <milliseconds>`, `--launch-timeout <milliseconds>`, `--start-log <start log name>` and `--installation-dir <folder>`.
    * @returns The options.
    * @throws {ArgumentException} When the data directory is missing or not absolute, or an argument is unknown, lacks its value or is not valid.
    * @example
@@ -11557,6 +11563,7 @@ export declare class IdleMonitor implements Disposable {
 
 /**
  * The runtime of one data directory: ownership, the shell's database, the endpoint, discovery, registries, work and idle shutdown.
+ * It stops as `idle` once its first client has connected and it then stays without connections and work for its idle grace, and as `unreached` when no client connects within its launch timeout of publishing discovery.
  */
 export declare class RuntimeHost implements IIdleParticipant {
   /**

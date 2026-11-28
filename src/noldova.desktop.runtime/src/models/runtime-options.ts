@@ -24,6 +24,7 @@ export class RuntimeOptions {
   public readonly startLogName: string | null;
   public readonly takeoverMilliseconds: number;
   public readonly installationFolder: string | null;
+  public readonly launchTimeoutMilliseconds: number;
 
   public constructor(
     dataDirectory: DataDirectory,
@@ -32,7 +33,8 @@ export class RuntimeOptions {
     declarationsFile: string = RuntimeOptions.locateDeclarations(),
     startLogName: string | null = null,
     takeoverMilliseconds: number = Resources.takeover,
-    installationFolder: string | null = null) {
+    installationFolder: string | null = null,
+    launchTimeoutMilliseconds: number = Resources.launchTimeout) {
     if (!Object.isNull(startLogName) && !Resources.startLogNamePattern.test(startLogName))
       throw new ArgumentException(Resources.formatStartLogNameInvalid(startLogName), Resources.startLogNameParameterName);
 
@@ -43,11 +45,13 @@ export class RuntimeOptions {
     this.startLogName = startLogName;
     this.takeoverMilliseconds = takeoverMilliseconds;
     this.installationFolder = installationFolder;
+    this.launchTimeoutMilliseconds = launchTimeoutMilliseconds;
   }
 
   public static parse(entryArguments: readonly string[]): RuntimeOptions {
     let dataDirectory: string | undefined;
     let idleGrace = Resources.idleGrace;
+    let launchTimeout = Resources.launchTimeout;
     let startLogName: string | null = null;
     let installationFolder: string | null = null;
     for (let index = 0; index < entryArguments.length; index += 2) {
@@ -59,6 +63,8 @@ export class RuntimeOptions {
         dataDirectory = value;
       else if (name === Resources.idleGraceArgument && Resources.positiveIntegerPattern.test(value))
         idleGrace = Number(value);
+      else if (name === Resources.launchTimeoutArgument && Resources.positiveIntegerPattern.test(value))
+        launchTimeout = Number(value);
       else if (name === Resources.startLogArgument)
         startLogName = value;
       else if (name === Resources.installationArgument)
@@ -68,7 +74,7 @@ export class RuntimeOptions {
     }
     if (Object.isUndefined(dataDirectory))
       throw new ArgumentException(Resources.dataDirectoryRequired, Resources.argumentsParameterName);
-    return new RuntimeOptions(new DataDirectory(dataDirectory), idleGrace, new ServerSettings(), RuntimeOptions.locateDeclarations(), startLogName, Resources.takeover, installationFolder);
+    return new RuntimeOptions(new DataDirectory(dataDirectory), idleGrace, new ServerSettings(), RuntimeOptions.locateDeclarations(), startLogName, Resources.takeover, installationFolder, launchTimeout);
   }
 
   private static locateDeclarations(): string {

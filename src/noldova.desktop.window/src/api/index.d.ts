@@ -1731,6 +1731,28 @@ export interface IWindowPartContext {
   readonly secrets: IWindowSecrets;
 
   /**
+   * The window's {@link TimeFormatService}, the one its root injector holds
+   * and the part's components inject, for the code that runs outside them,
+   * such as {@link IWindowPart.activateAsync}. A value written once, such as a
+   * status bar item's tooltip, is written again when
+   * {@link IWindowPartContext.onSettingChanged} reports a change of
+   * `desktop.timeFormat` or `desktop.dateTimeFormat`.
+   *
+   * @example
+   * ```ts
+   * import { type IWindowPartContext, StatusBarItemContribution, StatusBarItemState, StatusBarSide } from "@noldova/desktop.window";
+   *
+   * export function showLastFetch(context: IWindowPartContext, fetchedAt: number): () => void {
+   *   const state = (): StatusBarItemState => new StatusBarItemState("Fetched", { tooltip: `Last fetched ${context.timeFormats.dateTime(fetchedAt)}` });
+   *   const item = context.registerStatusBarItem(new StatusBarItemContribution("git.fetched", StatusBarSide.Left, state()));
+   *   const stops = ["desktop.timeFormat", "desktop.dateTimeFormat"].map(t => context.onSettingChanged(t, () => item.update(state())));
+   *   return () => stops.forEach(t => t());
+   * }
+   * ```
+   */
+  readonly timeFormats: TimeFormatService;
+
+  /**
    * Whether agent control is stopped and whether any agent session is open,
    * which the runtime keeps current through `desktop.agentControlChanged`;
    * null until the runtime first answers.
@@ -1967,6 +1989,12 @@ export interface IWindowPartContext {
    * closes again once it is fixed. A part whose steps have not settled after
    * 4 seconds does not hold closing back: Noldova Desktop Sample closes, and the window
    * logs it and posts a warning naming the module.
+   *
+   * Reset layout runs the same steps, of each part that owns a view the reset
+   * closes, before it closes any: a step that rejects leaves the layout as it
+   * was, and a step still running after 4 seconds doesn't hold the reset back.
+   * A part whose steps open another view each time they run is saved at most
+   * three times; then the reset stops as it does for a step that rejects.
    *
    * @param save The step; it resolves once the state is saved.
    * @returns A function that removes the step; deactivation removes it too.
@@ -4815,6 +4843,139 @@ export declare class WindowPartTokens {
    * a web view's layer is while the tab its view is in is the active document.
    */
   public static readonly activeDocument: InjectionToken<Signal<boolean>>;
+}
+
+/**
+ * Writes dates and times in the person's formats, `desktop.timeFormat` and
+ * `desktop.dateTimeFormat` from Settings → General, with the 12-hour
+ * defaults, `h:mm a` and `MMM d, yyyy, h:mm a`, until the settings load.
+ * Every module shows a date through it, never with `toLocaleString`,
+ * `toLocaleDateString`, `toLocaleTimeString` or `Intl.DateTimeFormat`.
+ *
+ * It is a service of the window's root injector, which a window part's
+ * components inject. Each method reads the formats as signals, so a template
+ * or a `computed` that calls it redraws when a format changes. The shorter
+ * forms keep the date-and-time format's order and separators, without the
+ * tokens they drop.
+ *
+ * @example
+ * ```ts
+ * import { Component, inject } from "@angular/core";
+ * import { TimeFormatService } from "@noldova/desktop.window";
+ *
+ * @Component({
+ *   selector: "nol-notes-saved",
+ *   template: "<span>Saved {{ times.time(savedAt) }}</span>"
+ * })
+ * export class NotesSavedComponent {
+ *   protected readonly times: TimeFormatService = inject(TimeFormatService);
+ *   protected readonly savedAt: number = Date.now();
+ * }
+ * ```
+ */
+export declare class TimeFormatService {
+  /**
+   * Writes the time of a moment in `desktop.timeFormat`, such as `1:05 PM`, or
+   * `13:05` for `HH:mm`.
+   *
+   * @param at The moment, as milliseconds since the epoch or an ISO 8601 text.
+   * @returns The time.
+   * @example
+   * ```ts
+   * import type { TimeFormatService } from "@noldova/desktop.window";
+   *
+   * export function lastRun(times: TimeFormatService, at: number): string {
+   *   return `Last run at ${times.time(at)}`;
+   * }
+   * ```
+   */
+  public time(at: string | number): string;
+
+  /**
+   * Writes a moment's date and time in `desktop.dateTimeFormat`, such as
+   * `Oct 22, 2026, 1:05 PM`, or `22 Oct 2026, 13:05` for `d MMM yyyy, HH:mm`.
+   *
+   * @param at The moment, as milliseconds since the epoch or an ISO 8601 text.
+   * @returns The date and time.
+   * @example
+   * ```ts
+   * import type { TimeFormatService } from "@noldova/desktop.window";
+   *
+   * export function commitTooltip(times: TimeFormatService, committedAt: string): string {
+   *   return `Committed ${times.dateTime(committedAt)}`;
+   * }
+   * ```
+   */
+  public dateTime(at: string | number): string;
+
+  /**
+   * Writes a moment's date and time in `desktop.dateTimeFormat` without its
+   * year or weekday, such as `Oct 22, 1:05 PM`, for a moment of this year.
+   *
+   * @param at The moment, as milliseconds since the epoch or an ISO 8601 text.
+   * @returns The date and time, without the year or weekday.
+   * @example
+   * ```ts
+   * import type { TimeFormatService } from "@noldova/desktop.window";
+   *
+   * export function recentLabel(times: TimeFormatService, at: number): string {
+   *   return times.shortDateTime(at);
+   * }
+   * ```
+   */
+  public shortDateTime(at: string | number): string;
+
+  /**
+   * Writes a moment's date in `desktop.dateTimeFormat` without its time, such
+   * as `Oct 22, 2026`. A format with no date token writes `d MMM yyyy`.
+   *
+   * @param at The moment, as milliseconds since the epoch or an ISO 8601 text.
+   * @returns The date, with its year and without the time.
+   * @example
+   * ```ts
+   * import type { TimeFormatService } from "@noldova/desktop.window";
+   *
+   * export function releaseDate(times: TimeFormatService, publishedAt: string): string {
+   *   return times.date(publishedAt);
+   * }
+   * ```
+   */
+  public date(at: string | number): string;
+
+  /**
+   * Writes a moment's date in `desktop.dateTimeFormat` without its year,
+   * weekday or time, such as `Oct 22`. A format with no date token writes
+   * `d MMM`.
+   *
+   * @param at The moment, as milliseconds since the epoch or an ISO 8601 text.
+   * @returns The day and month.
+   * @example
+   * ```ts
+   * import type { TimeFormatService } from "@noldova/desktop.window";
+   *
+   * export function dayLabel(times: TimeFormatService, at: number): string {
+   *   return times.shortDate(at);
+   * }
+   * ```
+   */
+  public shortDate(at: string | number): string;
+
+  /**
+   * Writes a moment's short weekday and its time in `desktop.timeFormat`,
+   * such as `Thu 1:05 PM`, for a moment of this week.
+   *
+   * @param at The moment, as milliseconds since the epoch or an ISO 8601 text.
+   * @returns The weekday and time.
+   * @example
+   * ```ts
+   * import type { TimeFormatService } from "@noldova/desktop.window";
+   *
+   * export function thisWeekLabel(times: TimeFormatService, at: number): string {
+   *   return times.weekdayTime(at);
+   * }
+   * ```
+   */
+  public weekdayTime(at: string | number): string;
 }
 
 /**

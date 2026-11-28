@@ -707,13 +707,18 @@ describe("LayoutService", () => {
     expect(service.geometry().dock(DockSide.Bottom).width).toBeLessThan(full);
   });
 
-  it("resets the layout to the default and keeps open documents", async () => {
+  it("resets the layout to a first start's, closing a view not shown by default and dropping its look, and keeps open documents", async () => {
     await loadAsync(prepared().dockOnSide(LayoutFixture.files, DockSide.Right));
+    const labels = TestBed.inject(TabLabelService);
+    const look = DocumentLook.none.updated({ imageGlyph: "public" });
+    [LayoutFixture.terminal, LayoutFixture.plan].forEach(t => labels.setLook(t, look));
 
     service.reset();
 
-    expect(service.layout().dock(DockSide.Left).root?.groups.flatMap(t => t.tabs)).toEqual([LayoutFixture.files]);
-    expect(service.layout().documents.tabs).toEqual([LayoutFixture.plan, LayoutFixture.todo]);
+    const sides: readonly DockSide[] = [DockSide.Left, DockSide.Right, DockSide.Bottom];
+    expect(sides.map(t => service.layout().dock(t))).toEqual(sides.map(t => Layout.createDefault(registry).dock(t)));
+    expect([service.layout().isOpen(LayoutFixture.terminal), service.layout().documents.tabs]).toEqual([false, [LayoutFixture.plan, LayoutFixture.todo]]);
+    expect([LayoutFixture.terminal, LayoutFixture.plan].map(t => labels.lookOf(t))).toEqual([DocumentLook.none, look]);
   });
 
   it("saves at once on request, ignores changes that change nothing and stops its timer when destroyed", async () => {

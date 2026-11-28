@@ -107,12 +107,12 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  padding-inline: var(--nol-space-1) var(--nol-tab-inset);
+  padding-inline: var(--nol-space-1) calc(var(--nol-content-padding-inline) - var(--nol-tab-inset) - (var(--nol-icon-button-target) - var(--nol-icon)) / 2);
   background-color: var(--nol-panel);
 }
 
 .nol-tab-group-scroller > .nol-tab-group-actions {
-  padding-inline-end: calc(var(--nol-tab-inset) * 2);
+  padding-inline-end: calc(var(--nol-content-padding-inline) - (var(--nol-icon-button-target) - var(--nol-icon)) / 2);
 }
 
 .nol-tab-group-actions-shell {
@@ -148,6 +148,7 @@
 }
 
 .nol-tab-group-in-window-row .nol-tab-group-actions {
+  padding-inline-end: calc(var(--nol-tab-inset) * 2);
   background-color: var(--nol-title-bar);
 }
 

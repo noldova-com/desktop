@@ -92,6 +92,7 @@ import { SettingOptionsService } from "./setting-options.service.js";
 import { SettingsService } from "./settings.service.js";
 import { TabLabelService } from "./tab-label.service.js";
 import { TabRenameService } from "./tab-rename.service.js";
+import { TimeFormatService } from "./time-format.service.js";
 import { UndoService } from "./undo.service.js";
 import { ViewDialogService } from "./view-dialog.service.js";
 import { UnknownIconsService } from "./unknown-icons.service.js";
@@ -159,6 +160,7 @@ export class WindowPartHostService implements IWindowPartHost {
   public readonly failures: Signal<readonly ModuleFailure[]> = computed(() => this.failuresValue().filter(t => !t.isTurnedOff));
   public readonly generation: Signal<number> = this.generationValue.asReadonly();
   public readonly agentControl: Signal<AgentControlState | null> = computed(() => this.injector.get(AgentControlService).state());
+  public readonly timeFormats: TimeFormatService = inject(TimeFormatService);
   public readonly placeholder: Signal<ContributionMatch | null> = this.placeholderValue.asReadonly();
   public readonly settingsPages: Signal<readonly SettingsPageEntry[]> = this.settingsPagesValue.asReadonly();
   public readonly searchSources: Signal<readonly SearchSourceContribution[]> = this.searchSourcesValue.asReadonly();
@@ -238,6 +240,10 @@ export class WindowPartHostService implements IWindowPartHost {
       this.pendingOpens.push(new PendingDocument(moduleId, name, instance, heading, isPreview, after, activate, this.activatingModules.has(moduleId)));
     else
       this.opener.open(moduleId, name, instance, heading, isPreview, after, activate);
+  }
+
+  public ownersOf(tabs: readonly Tab[]): ReadonlySet<string> {
+    return new Set(this.activations.filter(t => tabs.some(u => WindowPartHostService.owns(t.context, u))).map(t => t.context.moduleId));
   }
 
   public listSaves(): ReadonlyMap<string, readonly (() => Promise<void>)[]> {

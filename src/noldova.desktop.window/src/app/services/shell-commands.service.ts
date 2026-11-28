@@ -41,6 +41,8 @@ import { PreloadBridgeService } from "./preload-bridge.service.js";
 import { EditTargetService } from "./edit-target.service.js";
 import { LinkService } from "./link.service.js";
 import { LayoutService } from "./layout.service.js";
+import { ClosingService } from "./closing.service.js";
+import { WindowPartHostService } from "./window-part-host.service.js";
 import { RegionFocusService } from "./region-focus.service.js";
 import { SettingsPageService } from "./settings-page.service.js";
 import { SupportService } from "./support.service.js";
@@ -202,7 +204,7 @@ export class ShellCommandsService {
         const tab = this.viewOf(commandArguments);
         return !Object.isNull(tab) && this.layout.layout().isOpen(tab);
       }),
-    new CommandContribution(Resources.resetLayoutCommand, Resources.resetLayoutLabel, Resources.resetLayoutGlyph, null, () => this.done(() => this.layout.reset())),
+    new CommandContribution(Resources.resetLayoutCommand, Resources.resetLayoutLabel, Resources.resetLayoutGlyph, null, () => this.resetLayoutAsync()),
     ...Object.values(BottomDockSpan).map(span => new CommandContribution(Resources.bottomSpanCommands[span], Resources.bottomSpanLabels[span], Resources.bottomSpanGlyphs[span], null,
       () => this.done(() => this.layout.setBottomSpan(span)), () => true, () => this.layout.layout().bottomSpan === span)),
     new CommandContribution(Resources.showAllTabsCommand, Resources.overflowLabel, Resources.overflowGlyph, null,
@@ -449,6 +451,25 @@ export class ShellCommandsService {
     catch (error) {
       this.bridge.logError(null, Resources.formatSelectionNotCopied(error instanceof Error ? error.message : String(error)));
     }
+  }
+
+  private async resetLayoutAsync(): Promise<JsonValue> {
+    const closingService = this.environment.get(ClosingService);
+    const saved: Tab[] = [];
+    let closing = this.layout.closedByReset();
+    for (let pass = 0; closing.length > 0; pass++) {
+      const owners = this.environment.get(WindowPartHostService).ownersOf(closing);
+      if (pass === Resources.resetSavePasses) {
+        closingService.reportSaveFailed(owners, t => Resources.formatPartSaveFailedBeforeReset(t), Resources.resetSaveKeptOpeningViews);
+        return null;
+      }
+      if (!await closingService.saveModulesAsync(owners, t => Resources.formatPartSaveFailedBeforeReset(t)))
+        return null;
+      saved.push(...closing);
+      closing = this.layout.closedByReset().filter(t => !saved.some(u => u.equals(t)));
+    }
+    this.layout.reset();
+    return null;
   }
 
   private done(action: () => void): Promise<JsonValue> {

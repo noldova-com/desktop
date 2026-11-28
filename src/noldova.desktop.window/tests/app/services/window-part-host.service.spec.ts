@@ -13,7 +13,7 @@ import { TestBed } from "@angular/core/testing";
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonValue } from "@noldova/context.json";
 import { ModuleState, type ModuleStatus, NotificationPost, NotificationSeverity, QualifiedName, type SettingOption, SettingScope, WebViewPane } from "@noldova/desktop.protocol";
-import { FileNotOpenedException as ExportedFileNotOpenedException, FileNotShownException as ExportedFileNotShownException } from "@noldova/desktop.window";
+import { FileNotOpenedException as ExportedFileNotOpenedException, FileNotShownException as ExportedFileNotShownException, TimeFormatService } from "@noldova/desktop.window";
 import { LinkGesture } from "@noldova/ui.components.angular";
 
 import { ModulesComponent } from "../../../src/app/components/modules/modules.component";
@@ -97,6 +97,11 @@ class PaletteComponent {
   public readonly padding = inject(WindowPartTokens.contentPadding);
   public readonly shown = inject(WindowPartTokens.shown);
   public readonly activeDocument = inject(WindowPartTokens.activeDocument);
+}
+
+@Component({ selector: "nol-test-saved", template: "" })
+class SavedComponent {
+  public readonly times = inject(TimeFormatService);
 }
 
 @Component({ template: "<input class=\"palette-field\" aria-label=\"Find\" />" })
@@ -228,6 +233,15 @@ describe("WindowPartHostService", () => {
     await vi.waitFor(() => expect(log).toEqual(["activate notes", "activate clock"]));
 
     await vi.waitFor(() => expect([...host.listSaves()]).toEqual([["notes", [save]]]));
+  });
+
+  it("names the active parts that own any of the tabs it is given, by their views and documents", async () => {
+    const { host } = start([source("notes", notesPart(log)), source("clock", clockPart(log))], [status("notes"), status("clock")]);
+
+    await vi.waitFor(() => expect(log).toEqual(["activate notes", "activate clock"]));
+
+    expect([[new ViewTab("clock.list")], [new DocumentTab("notes.note", "1"), new ViewTab("notes.list")], [new ViewTab("gone.view"), new DocumentTab("clock.list")]]
+      .map(t => [...host.ownersOf(t)])).toEqual([["clock"], ["notes"], []]);
   });
 
   it("reads, sets, resets and follows settings through the settings service", async () => {
@@ -1762,6 +1776,22 @@ describe("WindowPartHostService", () => {
     row.remove();
 
     expect([opened?.context, opened?.padding.value(), opened?.shown(), opened?.activeDocument(), Object.isNull(pane)]).toEqual([context, null, true, false, false]);
+  });
+
+  it("gives a window part's context and its components the window's own time format service, from the package's public entry", async () => {
+    const row = document.body.appendChild(document.createElement("nol-window-row"));
+    const { host } = start([source("notes", notesPart(log))], [status("notes")]);
+    await vi.waitFor(() => expect(host.generation()).toBe(1));
+    const context = host.findContribution(new ViewTab("notes.list"))?.context;
+    if (Object.isNullOrUndefined(context))
+      throw new Error("The notes part has no context.");
+
+    const saved = host.openBelowWindowRow(context, SavedComponent);
+    const times = saved?.componentRef.instance.times;
+    saved?.close();
+    row.remove();
+
+    expect([times === TestBed.inject(TimeFormatService), context.timeFormats === TestBed.inject(TimeFormatService)]).toEqual([true, true]);
   });
 
   it("returns focus to where it was when the part's withdrawal closes the palette that took it", async () => {

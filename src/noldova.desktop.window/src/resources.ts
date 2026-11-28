@@ -303,6 +303,13 @@ export class Resources {
     [ClockChoice.TwelveHour]: ["h:mm a", "MMM d, yyyy, h:mm a"],
     [ClockChoice.TwentyFourHour]: ["HH:mm", "d MMM yyyy, HH:mm"]
   };
+  public static readonly defaultShortDateFormat: string = "d MMM";
+  public static readonly defaultDateFormat: string = "d MMM yyyy";
+  public static readonly datePatternToken: RegExp = /('[^']*'|yyyy|yy|MMMM|MMM|MM|M|dd|d|EEEE|EEE|HH|H|hh|h|mm|ss|a)/u;
+  public static readonly datePatternQuote: string = "'";
+  public static readonly yearAndWeekdayTokens: readonly string[] = ["yyyy", "yy", "EEEE", "EEE"];
+  public static readonly timeTokens: readonly string[] = ["HH", "H", "hh", "h", "mm", "ss", "a"];
+  public static readonly shortWeekdayToken: string = "EEE";
   public static readonly appearancePage: string = "Appearance";
   public static readonly themeSetting: string = "desktop.theme";
   public static readonly modeSetting: string = "desktop.mode";
@@ -905,6 +912,8 @@ export class Resources {
   public static readonly windowPartReconnectionFailed: string = "Its window part failed to continue after the runtime started again.";
   public static readonly windowPartDependencyListenerFailed: string = "Its window part failed to follow a change of a module it optionally depends on.";
   public static readonly partSaveTimeout: number = 4000;
+  public static readonly resetSavePasses: number = 3;
+  public static readonly resetSaveKeptOpeningViews: string = `Its window part opened another view each time it saved, ${Resources.resetSavePasses} times in a row.`;
   public static readonly windowLogLimit: number = 65536;
   public static readonly imageCopyByteLimit: number = 64 * 1024 * 1024;
   public static readonly imageCopyPixelLimit: number = 50_000_000;
@@ -1189,6 +1198,10 @@ export class Resources {
   public static readonly webpExtendedHeightOffset: number = 27;
   public static readonly uint16Range: number = 0x10000;
 
+  public static formatWeekdayTimePattern(time: string): string {
+    return `${Resources.shortWeekdayToken} ${time}`;
+  }
+
   public static formatToolbarBandSelector(id: string): string {
     return `.nol-toolbar-band[data-toolbar-band-id="${id}"]`;
   }
@@ -1376,6 +1389,10 @@ export class Resources {
 
   public static formatPartSaveFailedBeforeStop(moduleName: string): string {
     return `${moduleName} couldn't save before it stopped`;
+  }
+
+  public static formatPartSaveFailedBeforeReset(moduleName: string): string {
+    return `${moduleName} couldn't save, so the layout wasn't reset`;
   }
 
   public static formatPartSaveFailedForUpdate(moduleName: string): string {

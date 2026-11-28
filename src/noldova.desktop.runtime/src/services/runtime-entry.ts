@@ -59,8 +59,10 @@ export class RuntimeEntry {
       signals.on(signal, stop);
     signals.on(Resources.uncaughtExceptionEvent, report);
     try {
-      await host.waitForStopAsync();
-      return 0;
+      if (await host.waitForStopAsync() !== Resources.stoppedByUnreached)
+        return 0;
+      error.write(Resources.formatUnreached(options.launchTimeoutMilliseconds));
+      return Resources.failureExitCode;
     }
     finally {
       for (const signal of Resources.stopSignals)

@@ -36,6 +36,8 @@ import type { MenuItem } from "../../src/app/models/menu-item";
 import type { ViewBadge } from "../../src/app/models/view-badge";
 import type { ViewPlace } from "../../src/app/models/view-place";
 import { WindowPalette } from "../../src/app/models/window-palette";
+import type { TimeFormatService } from "../../src/app/services/time-format.service";
+import { FakeTimeFormats } from "../../src/testing/models/fake-time-formats";
 import { WebViewHandleFixture } from "./web-view-handle.fixture";
 
 export class WindowPartContextHostFixture implements IWindowPartHost {
@@ -45,6 +47,7 @@ export class WindowPartContextHostFixture implements IWindowPartHost {
   public readonly docks: WritableSignal<DockSide | null> = signal(null);
   public readonly looks: (readonly [string, IDocumentUpdate])[] = [];
   public readonly agentControl: WritableSignal<AgentControlState | null> = signal(null);
+  public readonly timeFormats: TimeFormatService = new FakeTimeFormats().service;
   public platform: string = "linux";
   public fileAnswer: Promise<IssuedFileGrants> | null = null;
   public readonly listeners: Set<readonly [string, (payload: JsonValue) => void]> = new Set();
