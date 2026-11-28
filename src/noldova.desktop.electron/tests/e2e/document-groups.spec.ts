@@ -110,7 +110,7 @@ test.describe("document groups", () => {
     }
   });
 
-  test("End and Home in a tab row too narrow for its tabs focus its last and first tab and show each whole, clear of the actions and the overflow button, the tabs that don't fit hidden, in both directions", async ({ mainProcess }) => {
+  test("End and Home in a tab row too narrow for its tabs focus its last and first tab and scroll each into view whole, clear of the actions and the overflow button, in both directions", async ({ mainProcess }) => {
     const window = mainProcess.window;
     await splitFirstNoteAsync(window);
     const group = TabDragFixture.groupOf(window, secondNote);
@@ -131,20 +131,28 @@ test.describe("document groups", () => {
     await window.mouse.down();
     await window.mouse.move(grip.x - excess, grip.y, { steps: 10 });
     await window.mouse.up();
-    await expect.poll(() => group.locator(".nol-tab-overflowed").count(), { message: "The narrowed row hides a tab" }).toBeGreaterThan(0);
+    await expect.poll(() => scroller.evaluate(t => t.scrollWidth > t.clientWidth), { message: "The narrowed row overflows" }).toBe(true);
     await expect(group.locator(".nol-tab-group-overflow")).toBeVisible();
 
     for (const direction of ["ltr", "rtl"] as const) {
       await TabRowFixture.setDirectionAsync(window, direction);
       await group.locator("nol-tab[aria-selected='true']").focus();
+      const surroundings = await TabRowFixture.surroundingsOf(scroller);
       await window.keyboard.press("Home");
       await expect(tabs.first()).toBeFocused();
-      await expect.poll(() => TabRowFixture.clearanceOf(tabs.first()), { message: `Home shows the first tab whole, ${direction}` }).toBe(TabRowFixture.CLEAR);
+      await expect.poll(() => TabRowFixture.clearanceOf(tabs.first()), { message: `Home scrolls the first tab into view, ${direction}` }).toBe(TabRowFixture.CLEAR);
+      expect(Math.abs(await scroller.evaluate(t => t.scrollLeft))).toBeLessThanOrEqual(1);
+      expect(await TabRowFixture.surroundingsOf(scroller), `Home moves only the row, ${direction}`).toBe(surroundings);
 
       await window.keyboard.press("End");
       await expect(tabs.last()).toBeFocused();
-      await expect.poll(() => TabRowFixture.clearanceOf(tabs.last()), { message: `End shows the last tab whole, clear of the actions, ${direction}` }).toBe(TabRowFixture.CLEAR);
-      expect(await scroller.evaluate(t => t.scrollLeft)).toBe(0);
+      await expect.poll(() => TabRowFixture.clearanceOf(tabs.last()), { message: `End scrolls the last tab clear of the actions, ${direction}` }).toBe(TabRowFixture.CLEAR);
+      const gap = await group.evaluate((t, rtl) => {
+        const [last, actions] = [[...t.querySelectorAll("nol-tab")].at(-1)?.getBoundingClientRect(), t.querySelector(".nol-tab-group-actions")?.getBoundingClientRect()];
+        return last === undefined || actions === undefined ? Number.NaN : rtl ? last.left - actions.right : actions.left - last.right;
+      }, direction === "rtl");
+      expect(Math.abs(gap), `End scrolls the row only as far as the last tab needs, ending where the actions start, ${direction}`).toBeLessThan(1);
+      expect(await TabRowFixture.surroundingsOf(scroller), `End moves only the row, ${direction}`).toBe(surroundings);
       await mainProcess.checkpointAsync(`tab-row-narrow-end-${direction}`);
     }
   });

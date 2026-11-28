@@ -13,6 +13,7 @@ import { expect, test } from "./fixtures/main-process-test.fixture.ts";
 import { MediaFixture } from "./fixtures/media.fixture.ts";
 import { SettingsFixture } from "./fixtures/settings.fixture.ts";
 import { TabDragFixture } from "./fixtures/tab-drag.fixture.ts";
+import { TabRowFixture } from "./fixtures/tab-row.fixture.ts";
 
 async function systemColorAsync(window: Page, name: string): Promise<string> {
   return window.evaluate(color => {
@@ -118,12 +119,12 @@ test.describe("forced colors", () => {
     await expect.poll(gutterAsync).not.toBe(thin);
   });
 
-  test("give a tab row no scrollbar, whether its tabs fit or overflow, let each tab it shows take a click, and never scroll an overflowing row by wheel", async ({ mainProcess }) => {
+  test("give a tab row no scrollbar of the system's, whether its tabs fit or overflow, let each of its tabs take a click, scroll an overflowing row by wheel and show its thumb in the system's text colour while hovered", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const firstNote = "document/notes.note/1";
     const rowsAsync = (): Promise<{ bar: number; isOverflowing: boolean }[]> => window.locator(".nol-tab-group-scroller").evaluateAll(t => t
       .filter(u => u.getBoundingClientRect().height > 0)
-      .map(u => ({ bar: u instanceof HTMLElement ? u.offsetHeight - u.clientHeight : Number.NaN, isOverflowing: u.querySelector(".nol-tab-overflowed") !== null })));
+      .map(u => ({ bar: u instanceof HTMLElement ? u.offsetHeight - u.clientHeight : Number.NaN, isOverflowing: u.scrollWidth > u.clientWidth })));
     await MediaFixture.emulateAsync(window, { forcedColors: "active" });
     await expect(TabDragFixture.tab(window, firstNote)).toBeVisible();
     const fitting = await rowsAsync();
@@ -136,19 +137,28 @@ test.describe("forced colors", () => {
       await window.keyboard.press("ControlOrMeta+Alt+KeyN");
       await expect(tabs).toHaveCount(count + 1);
     }
-    await expect.poll(() => group.locator(".nol-tab-overflowed").count(), { message: "The note row hides a tab" }).toBeGreaterThan(0);
+    await expect.poll(() => scroller.evaluate(t => t.scrollWidth > t.clientWidth), { message: "The note row overflows" }).toBe(true);
     const rows = [...fitting, ...await rowsAsync()];
 
     expect(rows.map(t => t.bar)).toEqual(rows.map(() => 0));
     expect([fitting.length > 0 && fitting.every(t => !t.isOverflowing), rows.some(t => t.isOverflowing)]).toEqual([true, true]);
-    for (const tab of await group.locator("nol-tab:not(.nol-tab-overflowed)").all()) {
+    for (const tab of await tabs.all()) {
       await tab.click();
       await expect(tab).toHaveAttribute("aria-selected", "true");
     }
+    await scroller.evaluate(t => t.scrollTo({ left: 0 }));
     await scroller.hover();
-    await window.mouse.wheel(200, 0);
     await window.mouse.wheel(0, 200);
-    expect(await scroller.evaluate(t => t.scrollLeft)).toBe(0);
+    await expect.poll(() => scroller.evaluate(t => t.scrollLeft), { message: "The wheel scrolls the row" }).toBeGreaterThan(0);
+    const text = await window.evaluate(() => {
+      const probe = document.body.appendChild(document.createElement("span"));
+      probe.style.forcedColorAdjust = "none";
+      probe.style.backgroundColor = "CanvasText";
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    });
+    await expect.poll(async () => (await TabRowFixture.thumbOf(group)).color, { message: "The thumb shows in the system's text colour" }).toBe(text);
     await mainProcess.checkpointAsync("forced-colors-tab-rows");
   });
 });

@@ -29,6 +29,7 @@
 }
 
 .nol-tab-group-tabs {
+  position: relative;
   padding-inline: 0;
 }
 
@@ -48,12 +49,40 @@
 
   min-width: 0;
   padding-inline-start: var(--nol-tab-group-scroller-start);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   container-type: inline-size;
 }
 
+.nol-tab-group-thumb {
+  position: absolute;
+  inset-block-end: 0;
+  block-size: var(--nol-scrollbar-size);
+  border-radius: var(--nol-scrollbar-size);
+  background-color: transparent;
+}
+
+.nol-tab-group-tabs:hover > .nol-tab-group-thumb {
+  background-color: var(--nol-scrollbar);
+}
+
+.nol-tab-group-tabs > .nol-tab-group-thumb:active {
+  background-color: var(--nol-scrollbar-active);
+}
+
+@media (forced-colors: active) {
+  .nol-tab-group-thumb {
+    forced-color-adjust: none;
+  }
+
+  .nol-tab-group-tabs:hover > .nol-tab-group-thumb,
+  .nol-tab-group-tabs > .nol-tab-group-thumb:active {
+    background-color: CanvasText;
+  }
+}
+
 .nol-tab-group-strip {
-  position: relative;
   display: flex;
   flex: 1 0 auto;
   min-height: var(--nol-tab-height);
@@ -62,12 +91,6 @@
 .nol-tab-group-strip > nol-tab {
   flex-shrink: 0;
   max-width: min(var(--nol-tab-max-width), calc(100cqi - var(--nol-tab-group-actions-width, 0px)));
-}
-
-.nol-tab-group-strip > nol-tab.nol-tab-overflowed {
-  position: absolute;
-  inset-inline-start: 0;
-  visibility: hidden;
 }
 
 .nol-tab-group-end {
@@ -129,6 +152,6 @@
   background-color: var(--nol-title-bar);
 }
 
-.nol-tab-group-in-window-row :is(nol-tab, button) {
+.nol-tab-group-in-window-row :is(nol-tab, button, .nol-tab-group-thumb) {
   app-region: no-drag;
 }

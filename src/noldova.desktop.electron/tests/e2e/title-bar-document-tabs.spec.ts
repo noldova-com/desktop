@@ -12,6 +12,7 @@ import type { Size } from "electron";
 import { BuildVariantFixture } from "./fixtures/build-variant.fixture.ts";
 import type { MainProcessFixture } from "./fixtures/main-process.fixture.ts";
 import { expect, test } from "./fixtures/main-process-test.fixture.ts";
+import { TabRowFixture } from "./fixtures/tab-row.fixture.ts";
 import { WindowModeFixture } from "./fixtures/window-mode.fixture.ts";
 
 interface ITabsGeometry {
@@ -33,7 +34,8 @@ interface ITabsGeometry {
   readonly fieldEnd: number;
   readonly actionsStart: number;
   readonly isMenuBarFolded: boolean;
-  readonly foldedTabKeys: readonly string[];
+  readonly scrollbarHeight: number;
+  readonly scrollRange: number;
   readonly isOverflowMenuShown: boolean;
   readonly contentStart: number;
   readonly contentEnd: number;
@@ -85,6 +87,7 @@ function measureAsync(window: Page): Promise<ITabsGeometry> {
     const middle = box.top + box.height / 2;
     const tabs = [...row.querySelectorAll<HTMLElement>(".nol-window-row-tabs nol-tab")];
     const strip = one(".nol-window-row-tabs .nol-tab-group-tabs");
+    const scroller = row.querySelector(".nol-window-row-tabs .nol-tab-group-scroller");
     const field = one(".nol-window-row-search");
     const start = one(".nol-window-row-start");
     const rowActions = one(".nol-window-row-actions");
@@ -121,7 +124,8 @@ function measureAsync(window: Page): Promise<ITabsGeometry> {
       fieldEnd: field.right,
       actionsStart: rowActions.left,
       isMenuBarFolded: !Object.isNull(row.querySelector(".nol-window-row-menu-bar-folded")) && visible(row.querySelectorAll(".nol-window-row-menu")).length === 1,
-      foldedTabKeys: tabs.filter(t => t.classList.contains("nol-tab-overflowed")).map(t => String(t.getAttribute("data-tab-key"))),
+      scrollbarHeight: scroller instanceof HTMLElement ? scroller.offsetHeight - scroller.clientHeight : Number.NaN,
+      scrollRange: scroller === null ? Number.NaN : scroller.scrollWidth - scroller.clientWidth,
       isOverflowMenuShown: visible(row.querySelectorAll(".nol-window-row-tabs .nol-tab-group-overflow")).length === 1,
       contentStart: Math.min(...ownContent.map(t => t.left)),
       contentEnd: Math.max(...ownContent.map(t => t.right)),
@@ -181,7 +185,7 @@ test.describe("the document tabs in the window row", () => {
     checkRegions(await readAsync(mainProcess.window));
   });
 
-  test("keeps 6rem before a 12rem search field that ends before the row's actions, and the regions, in a window a small screen opens, and a row that small folds the menu bar and the tabs that don't fit", async ({ mainProcess }) => {
+  test("keeps 6rem before a 12rem search field that ends before the row's actions, and the regions, in a window a small screen opens, and a row that small folds the menu bar and scrolls the tabs that don't fit", async ({ mainProcess }) => {
     await reopenAsync(mainProcess, SMALL_SCREEN_WINDOW);
     const geometry = await readAsync(mainProcess.window);
 
@@ -189,8 +193,10 @@ test.describe("the document tabs in the window row", () => {
     checkRegions(geometry);
     if (geometry.controlsStart < SMALL_SCREEN_WINDOW.width) {
       expect(geometry.isMenuBarFolded).toBe(true);
-      expect(geometry.foldedTabKeys).toEqual(["document/notes.note/1"]);
+      expect([geometry.scrollbarHeight, geometry.scrollRange > 0]).toEqual([0, true]);
       expect(geometry.isOverflowMenuShown).toBe(true);
+      expect(await TabRowFixture.clearanceOf(mainProcess.window.locator(".nol-window-row-tabs nol-tab[aria-selected=true]")), "the active tab lies whole, clear of the row's actions")
+        .toBe(TabRowFixture.CLEAR);
     }
     await mainProcess.checkpointAsync("title-bar-document-tabs-small-screen");
   });

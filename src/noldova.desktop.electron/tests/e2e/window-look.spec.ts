@@ -70,7 +70,7 @@ test.describe("the window's look", () => {
     expect((await boxOf(tooltip(window))).left).toBeGreaterThanOrEqual((await boxOf(strip)).right);
   });
 
-  test("scroll areas have 0.375rem scrollbars whose thumb shows only while hovered, without moving their content, and a tab row has none, overflowing or not", async ({ mainProcess }) => {
+  test("scroll areas have 0.375rem scrollbars whose thumb shows only while hovered, without moving their content, and a tab row takes no height for one, overflowing or not, its thumb laid over it", async ({ mainProcess }) => {
     const window = mainProcess.window;
     const content = window.locator(`${documentsGroup} nol-tab-content`);
     const scroller = window.locator(`${documentsGroup} .nol-tab-group-scroller`);

@@ -22,7 +22,7 @@ LICENSE file in the root directory of this source tree.
   <ng-template #bar>
     <div #barElement class="nol-tab-group-bar nol-tab-group-tabs" [class.nol-tab-group-in-window-row]="isInWindowRow()" data-drop-tabs [attr.data-drop-group]="group().id"
       (focusin)="layout.focusGroup(group().id)">
-      <div #scroller="nolTabScroller" class="nol-tab-group-scroller" [nolTabScroller]="actionBar" [nolTabScrollerFrame]="frame()" [nolTabScrollerRows]="rowActions().length">
+      <div #scroller="nolTabScroller" class="nol-tab-group-scroller" [nolTabScroller]="actionBar" [nolTabScrollerThumb]="thumb" [nolTabScrollerFrame]="frame()" [nolTabScrollerRows]="rowActions().length">
         <div class="nol-tab-group-strip" role="tablist" (keydown)="onStripKey($event)">
           @for (tab of group().tabs; track tab.key; let index = $index) {
             @let label = labels.of(tab);
@@ -31,7 +31,7 @@ LICENSE file in the root directory of this source tree.
             @let look = labels.lookOf(tab);
             <nol-tab [label]="label.title" [icon]="label.icon" [badge]="badge?.description ?? null" [badgeCount]="badge?.count ?? null" [selected]="tab.equals(group().active)" [preview]="tab.equals(group().preview)" [working]="labels.isWorking(tab)" [waiting]="labels.isWaiting(tab)" [editing]="tab.equals(renames.editing())" [attr.data-tab-index]="index"
               [image]="look.image" [imageGlyph]="look.imageGlyph" [status]="look.status" [marker]="look.marker" [leadingSpinner]="tab.leadsSpinner"
-              [attr.id]="tabId(index)" [attr.data-tab-key]="tab.key" [class.nol-drop-line-before]="drag.isDropBefore(group().id, index)" [class.nol-tab-dragged]="tab.equals(drag.dragging())" [class.nol-tab-overflowed]="scroller.isHidden(tab.key) && !tab.equals(group().active)"
+              [attr.id]="tabId(index)" [attr.data-tab-key]="tab.key" [class.nol-drop-line-before]="drag.isDropBefore(group().id, index)" [class.nol-tab-dragged]="tab.equals(drag.dragging())"
               [nolTooltip]="label.title" [nolTooltipSide]="below" [nolTooltipTruncated]="true"
               [nolContextMenuTriggerFor]="menu.menu()" (activate)="layout.activate(tab)" (click)="onTabClick(tab, $event)" (close)="close(tab)" (pointerdown)="onTabPointerDown(tab, $event)" (dblclick)="onTabDoubleClick(tab)"
               (labelKept)="renames.keep($event)" (labelCancelled)="renames.cancel()" />
@@ -74,6 +74,7 @@ LICENSE file in the root directory of this source tree.
           <ng-container [ngTemplateOutlet]="groupActions" [ngTemplateOutletContext]="{ $implicit: scroller.isOverflowing() }" />
         </div>
       </div>
+      <div #thumb class="nol-tab-group-thumb" hidden aria-hidden="true" (pointerdown)="scroller.grab($event)" (pointermove)="scroller.drag($event)" (lostpointercapture)="scroller.release()"></div>
     </div>
   </ng-template>
   <ng-template #groupActions let-folded>

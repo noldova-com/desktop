@@ -18,9 +18,9 @@ export class TabRowFixture {
       const box = scroller?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
       const actions = scroller?.querySelector(".nol-tab-group-actions")?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN);
       const rect = t.getBoundingClientRect();
-      const isClear = scroller !== null && getComputedStyle(t).visibility !== "hidden" && getComputedStyle(scroller).direction === "rtl"
+      const isClear = scroller !== null && getComputedStyle(scroller).direction === "rtl"
         ? rect.right <= box.right + 1 && rect.left >= actions.right - 1
-        : scroller !== null && getComputedStyle(t).visibility !== "hidden" && rect.left >= box.left - 1 && rect.right <= actions.left + 1;
+        : rect.left >= box.left - 1 && rect.right <= actions.left + 1;
       return isClear ? clear : JSON.stringify({ tab: [rect.left, rect.right], scroller: [box.left, box.right], actions: [actions.left, actions.right] });
     }, TabRowFixture.CLEAR);
   }
@@ -29,11 +29,40 @@ export class TabRowFixture {
     const key = await tab.getAttribute("data-tab-key");
     if (key === null)
       throw new TabKeyMissingException();
-    if (await tab.evaluate(t => t.classList.contains("nol-tab-overflowed"))) {
+    if (await TabRowFixture.clearanceOf(tab) !== TabRowFixture.CLEAR) {
       await tab.locator("xpath=ancestor::nol-tab-group").locator(".nol-tab-group-overflow").click();
       await window.locator(`.cdk-overlay-container .nol-tab-group-overflow-tab[data-tab="${key}"]`).click();
     }
-    await expect(tab).not.toHaveClass(/nol-tab-overflowed/);
+    await expect.poll(() => TabRowFixture.clearanceOf(tab), { message: "the tab scrolls into view whole" }).toBe(TabRowFixture.CLEAR);
+  }
+
+  public static thumbOf(group: Locator): Promise<Readonly<Record<"rem" | "height" | "bottomGap" | "rowHeight" | "barHeight", number> & { readonly color: string; readonly hidden: boolean }>> {
+    return group.evaluate(t => {
+      const bar = t.querySelector(".nol-tab-group-tabs");
+      const scroller = t.querySelector(".nol-tab-group-scroller");
+      const thumb = t.querySelector<HTMLElement>(".nol-tab-group-thumb");
+      const [row, box] = [bar?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN), thumb?.getBoundingClientRect() ?? new DOMRect(Number.NaN, Number.NaN)];
+      return {
+        rem: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+        height: box.height,
+        bottomGap: row.bottom - box.bottom,
+        rowHeight: row.height,
+        barHeight: scroller instanceof HTMLElement ? scroller.offsetHeight - scroller.clientHeight : Number.NaN,
+        color: thumb === null ? "none" : getComputedStyle(thumb).backgroundColor,
+        hidden: thumb?.hidden !== false
+      };
+    });
+  }
+
+  public static surroundingsOf(scroller: Locator): Promise<string> {
+    return scroller.evaluate(t => {
+      const places: string[] = [];
+      for (let around = t.parentElement; around !== null; around = around.parentElement) {
+        const box = around.getBoundingClientRect();
+        places.push([around.tagName, around.scrollLeft, around.scrollTop, box.x, box.y, box.width, box.height].join(" "));
+      }
+      return places.join("\n");
+    });
   }
 
   public static async setDirectionAsync(window: Page, direction: "ltr" | "rtl"): Promise<void> {

@@ -116,6 +116,24 @@ describe("TabGroupComponent", () => {
     return MediaFixture.emulateAsync(playwrightMedia.map(([name, value]) => [name, name === feature ? setting : value]));
   }
 
+  function isWhole(target: HTMLElement): boolean {
+    const scroller = DomFixture.closest(target, ".nol-tab-group-scroller");
+    const actions = find(scroller, ":scope > .nol-tab-group-actions").getBoundingClientRect();
+    const [box, row] = [target.getBoundingClientRect(), scroller.getBoundingClientRect()];
+    const padding = Number.parseFloat(getComputedStyle(scroller).paddingInlineStart);
+    const [start, end] = getComputedStyle(scroller).direction === "rtl" ? [actions.right, row.right - padding] : [row.left + padding, actions.left];
+    return box.left >= start - 0.5 && box.right <= end + 0.5;
+  }
+
+  function surroundingsOf(row: HTMLElement): string {
+    const places: string[] = [];
+    for (let around = row.parentElement; !Object.isNull(around); around = around.parentElement) {
+      const box = around.getBoundingClientRect();
+      places.push([around.tagName, around.scrollLeft, around.scrollTop, box.x, box.y, box.width, box.height].join(" "));
+    }
+    return places.join("\n");
+  }
+
   function find(root: Element, selector: string): HTMLElement {
     const found = root.querySelector<HTMLElement>(selector);
     if (Object.isNull(found))
@@ -352,7 +370,7 @@ describe("TabGroupComponent", () => {
 
   for (const theme of AppearanceFixture.themes)
     for (const direction of ["ltr", "rtl"])
-      it(`shows only whole tabs in an overflowing row, from the row's start to its actions, keeping the selected last tab and hiding the rest out of the row, ${direction} with the ${theme.id} theme`, async () => {
+      it(`scrolls an overflowing row sideways to bring the chosen tab, last, first or in the middle, whole between the row's start and its actions, ${direction} with the ${theme.id} theme`, async () => {
         AppearanceFixture.apply(theme);
         document.documentElement.dir = direction;
         const many = Array.from({ length: 12 }, (_, index) => new DocumentTab("notes.note", `note ${index}`));
@@ -360,21 +378,29 @@ describe("TabGroupComponent", () => {
         update();
         await fixture.whenStable();
         update();
-        await vi.waitFor(() => expect(group(0).querySelector(".nol-tab-overflowed")).not.toBeNull());
         const scroller = find(group(0), ".nol-tab-group-scroller");
-        const actions = find(group(0), ".nol-tab-group-scroller > .nol-tab-group-actions").getBoundingClientRect();
-        const box = scroller.getBoundingClientRect();
-        const padding = Number.parseFloat(getComputedStyle(scroller).paddingInlineStart);
-        const [start, end] = direction === "rtl" ? [actions.right, box.right - padding] : [box.left + padding, actions.left];
-        const shown = tabs(0).filter(t => !t.classList.contains("nol-tab-overflowed"));
-        const hidden = tabs(0).filter(t => t.classList.contains("nol-tab-overflowed"));
-        const spans = shown.map(t => t.getBoundingClientRect()).map(t => [t.left >= start - revealTolerance, t.right <= end + revealTolerance]);
+        const range = scroller.scrollWidth - scroller.clientWidth;
+        const surroundings = surroundingsOf(scroller);
+        const chooseAsync = async (index: number): Promise<number> => {
+          const chosen = many[index];
+          if (Object.isUndefined(chosen))
+            throw new Error(`There is no note ${index}.`);
+          layout.activate(chosen);
+          update();
+          await fixture.whenStable();
+          update();
+          expect(surroundingsOf(scroller)).toBe(surroundings);
+          return Math.abs(scroller.scrollLeft);
+        };
 
-        expect([shown.length > 0, hidden.length > 0, shown.length + hidden.length]).toEqual([true, true, many.length]);
-        expect(spans).toEqual(shown.map(() => [true, true]));
-        expect(shown.at(-1)?.getAttribute("aria-selected")).toBe("true");
-        expect(hidden.map(t => getComputedStyle(t).visibility)).toEqual(hidden.map(() => "hidden"));
-        expect([scroller.scrollWidth <= scroller.clientWidth, scroller.scrollLeft]).toEqual([true, 0]);
+        expect([range > 0, scroller.offsetHeight - scroller.clientHeight, tab(0, 11).getAttribute("aria-selected")]).toEqual([true, 0, "true"]);
+        await vi.waitFor(() => expect(Math.abs(scroller.scrollLeft)).toBeCloseTo(range, 0));
+        expect(isWhole(tab(0, 11))).toBe(true);
+        expect(await chooseAsync(0)).toBe(0);
+        expect(isWhole(tab(0, 0))).toBe(true);
+        const middle = await chooseAsync(6);
+        expect([middle > 0, middle < range]).toEqual([true, true]);
+        expect(isWhole(tab(0, 6))).toBe(true);
       });
 
   it("ends a header's title too long for its width with an ellipsis", async () => {
@@ -493,7 +519,7 @@ describe("TabGroupComponent", () => {
   for (const theme of AppearanceFixture.themes)
     for (const mode of AppearanceFixture.modes)
       for (const forcedColors of ["none", "active"])
-        it(`shows no scrollbar and never scrolls, below a row whose tabs fit or one that overflows, with the ${theme.id} theme in ${mode} mode and forced colors ${forcedColors}`, async () => {
+        it(`lays a thin thumb over an overflowing row's bottom edge, shown while the pointer is over the row and taking none of its height, and none on a row whose tabs fit, with the ${theme.id} theme in ${mode} mode and forced colors ${forcedColors}`, async () => {
           AppearanceFixture.apply(theme, mode);
           await emulateForcedColorsAsync(forcedColors);
           try {
@@ -503,31 +529,48 @@ describe("TabGroupComponent", () => {
             await fixture.whenStable();
             const fitting = find(group(1), ".nol-tab-group-scroller");
             const overflowing = find(group(0), ".nol-tab-group-scroller");
+            const [bar, thumb] = [find(group(0), ".nol-tab-group-tabs"), find(group(0), ".nol-tab-group-thumb")];
+            const probe = bar.appendChild(document.createElement("span"));
+            probe.style.backgroundColor = forcedColors === "active" ? "CanvasText" : "var(--nol-scrollbar)";
+            probe.style.forcedColorAdjust = "none";
+            const shownColor = getComputedStyle(probe).backgroundColor;
+            probe.remove();
+            await userEvent.unhover(document.body);
+            const away = getComputedStyle(thumb).backgroundColor;
 
+            overflowing.scrollLeft = 0;
             overflowing.dispatchEvent(new WheelEvent("wheel", { deltaY: 80, bubbles: true, cancelable: true }));
+            await userEvent.hover(find(group(0), ".nol-tab-group-scroller > .nol-tab-group-actions"));
 
-            expect([fitting.offsetHeight - fitting.clientHeight, overflowing.offsetHeight - overflowing.clientHeight, fitting.scrollWidth <= fitting.clientWidth,
-              overflowing.scrollWidth <= overflowing.clientWidth, overflowing.scrollLeft]).toEqual([0, 0, true, true, 0]);
+            await vi.waitFor(() => expect(getComputedStyle(thumb).backgroundColor).toBe(shownColor));
+            const [row, box] = [bar.getBoundingClientRect(), thumb.getBoundingClientRect()];
+            expect([fitting.offsetHeight - fitting.clientHeight, overflowing.offsetHeight - overflowing.clientHeight, overflowing.scrollLeft, away, find(group(1), ".nol-tab-group-thumb").hidden])
+              .toEqual([0, 0, 80, "rgba(0, 0, 0, 0)", true]);
+            AppearanceFixture.expectPixels(row.height, find(group(1), ".nol-tab-group-tabs").getBoundingClientRect().height);
+            AppearanceFixture.expectPixels(row.bottom - box.bottom, 0);
+            AppearanceFixture.expectPixels(box.height, AppearanceFixture.toPixels(0.375));
+            AppearanceFixture.expectPixels(box.width, overflowing.clientWidth * overflowing.clientWidth / overflowing.scrollWidth);
+            AppearanceFixture.expectPixels(box.left - overflowing.getBoundingClientRect().left, 80 * overflowing.clientWidth / overflowing.scrollWidth);
           }
           finally {
+            await userEvent.unhover(document.body);
             await emulateForcedColorsAsync("none");
           }
         });
 
   for (const theme of AppearanceFixture.themes)
-    it(`shows a long selected tab that isn't first in an overflowing row whole, from the row's start to its actions, its title ending with an ellipsis and the tab before it hidden, with the ${theme.id} theme`, async () => {
+    it(`scrolls a long selected tab that isn't first in an overflowing row into view whole, from the row's start to its actions, its title ending with an ellipsis, with the ${theme.id} theme`, async () => {
       AppearanceFixture.apply(theme);
       TestBed.inject(TabLabelService).setTitle(LayoutFixture.search, "Search across every file of every open project");
       await renderAsync(prepared.resizeDock(DockSide.Left, 10));
       update();
-      await vi.waitFor(() => expect(tab(1, 0).classList.contains("nol-tab-overflowed")).toBe(true));
       const target = tab(1, 1);
       const scroller = find(group(1), ".nol-tab-group-scroller");
       const actions = find(group(1), ".nol-tab-group-actions");
       const start = scroller.getBoundingClientRect().left + Number.parseFloat(getComputedStyle(scroller).paddingInlineStart);
 
-      expect([target.getAttribute("aria-selected"), target.classList.contains("nol-tab-overflowed"), scroller.scrollWidth <= scroller.clientWidth, scroller.scrollLeft])
-        .toEqual(["true", false, true, 0]);
+      await vi.waitFor(() => expect(scroller.scrollLeft).toBeGreaterThan(0));
+      expect([target.getAttribute("aria-selected"), scroller.scrollWidth > scroller.clientWidth]).toEqual(["true", true]);
       expect(Math.abs(target.getBoundingClientRect().left - start)).toBeLessThan(revealTolerance);
       expect(Math.abs(actions.getBoundingClientRect().left - target.getBoundingClientRect().right)).toBeLessThan(revealTolerance);
       AppearanceFixture.expectTruncates(find(target, ".nol-tab-label"));
@@ -1046,15 +1089,16 @@ describe("TabGroupComponent", () => {
     expect(layout.layout().documents.active).toEqual(LayoutFixture.settings);
   });
 
-  it("hides the tabs that do not fit, keeps the active one shown and offers the overflow list, which shows a hidden tab it chooses", async () => {
+  it("scrolls the active tab into view and offers the overflow list, listing every tab, whose chosen tab scrolls into view whole and takes the focus", async () => {
     const many = Array.from({ length: 12 }, (_, index) => new DocumentTab("notes.note", `note ${index}`));
     await renderAsync(many.reduce((current, t) => current.openDocument(t), Layout.createDefault(registry)), 60);
     update();
     await fixture.whenStable();
     update();
 
-    await vi.waitFor(() => expect(tab(0, 3).classList.contains("nol-tab-overflowed")).toBe(true));
-    expect([tab(0, 0).classList.contains("nol-tab-overflowed"), tabs(0).at(-1)?.classList.contains("nol-tab-overflowed"), group(1).querySelector(".nol-tab-overflowed")]).toEqual([false, false, null]);
+    const scroller = find(group(0), ".nol-tab-group-scroller");
+    await vi.waitFor(() => expect(scroller.scrollLeft).toBeCloseTo(scroller.scrollWidth - scroller.clientWidth, 0));
+    const surroundings = surroundingsOf(scroller);
     expect(group(1).querySelector(".nol-tab-group-overflow")).toBeNull();
     const overflow = DomFixture.oneOf(group(0), ".nol-tab-group-overflow", HTMLButtonElement);
     expect(overflow.getAttribute("aria-label")).toBe("Show all tabs");
@@ -1070,28 +1114,23 @@ describe("TabGroupComponent", () => {
       .map(t => ["nol-tab-group-overflow-actions", "nol-tab-group-overflow-close-all"].find(c => t.classList.contains(c)) ?? t.tagName))
       .toEqual(["nol-tab-group-overflow-actions", "NOL-MENU-SEPARATOR", "nol-tab-group-overflow-close-all", "NOL-MENU-SEPARATOR"]);
 
-    choices[5]?.click();
+    choices[0]?.click();
     update();
     await fixture.whenStable();
 
-    expect(layout.layout().documents.active).toEqual(many[5]);
-    await vi.waitFor(() => expect(tab(0, 5).classList.contains("nol-tab-overflowed")).toBe(false));
-    expect(document.activeElement).toBe(tab(0, 5));
+    expect(layout.layout().documents.active).toEqual(many[0]);
+    await vi.waitFor(() => expect([document.activeElement === tab(0, 0), scroller.scrollLeft, isWhole(tab(0, 0))]).toEqual([true, 0, true]));
+    expect(surroundingsOf(scroller)).toBe(surroundings);
   });
 
-  it("reaches a hidden tab with the arrow keys, Home and End, which show it whole and focus it, and never focuses a tab while it is hidden", async () => {
+  it("moves along every tab with the arrow keys, Home and End, scrolling the tab reached into view whole and focusing it", async () => {
     const many = Array.from({ length: 12 }, (_, index) => new DocumentTab("notes.note", `note ${index}`));
     await renderAsync(many.reduce((current, t) => current.openDocument(t), Layout.createDefault(registry)), 60);
     update();
     await fixture.whenStable();
     update();
-    await vi.waitFor(() => expect(tab(0, 3).classList.contains("nol-tab-overflowed")).toBe(true));
-    const scroller = DomFixture.oneOf(group(0), ".nol-tab-group-scroller", HTMLElement);
-    const actions = DomFixture.oneOf(group(0), ".nol-tab-group-actions", HTMLElement);
-    const isWhole = (target: HTMLElement): boolean => {
-      const box = target.getBoundingClientRect();
-      return getComputedStyle(target).visibility !== "hidden" && box.left >= scroller.getBoundingClientRect().left - 0.5 && box.right <= actions.getBoundingClientRect().left + 0.5;
-    };
+    const scroller = find(group(0), ".nol-tab-group-scroller");
+    const range = scroller.scrollWidth - scroller.clientWidth;
     const pressAsync = async (key: string): Promise<void> => {
       document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
       update();
@@ -1099,18 +1138,16 @@ describe("TabGroupComponent", () => {
     };
 
     tab(0, 11).focus();
-    tab(0, 10).focus();
-    expect(document.activeElement).toBe(tab(0, 11));
-    for (const [key, index] of [["ArrowLeft", 10], ["ArrowLeft", 9], ["Home", 0], ["End", 11], ["ArrowRight", 0]] as const) {
+    expect([range > 0, document.activeElement === tab(0, 11)]).toEqual([true, true]);
+    const surroundings = surroundingsOf(scroller);
+    for (const [key, index, scroll] of [["ArrowLeft", 10, null], ["ArrowLeft", 9, null], ["Home", 0, 0], ["End", 11, range], ["ArrowRight", 0, 0]] as const) {
       await pressAsync(key);
       expect(layout.layout().documents.active).toEqual(many[index]);
       await vi.waitFor(() => expect([document.activeElement === tab(0, index), isWhole(tab(0, index))]).toEqual([true, true]));
-      expect(scroller.scrollLeft).toBe(0);
+      if (!Object.isNull(scroll))
+        expect(scroller.scrollLeft).toBeCloseTo(scroll, 0);
+      expect(surroundingsOf(scroller), key).toBe(surroundings);
     }
-    const hidden = tabs(0).filter(t => t.classList.contains("nol-tab-overflowed"));
-    expect(hidden.length).toBeGreaterThan(0);
-    hidden.forEach(t => t.focus());
-    expect(document.activeElement).toBe(tab(0, 0));
   });
 
   it("caps the overflow list at 20 rows, each a menu item and the row gap tall, with the menu's padding and border", async () => {
@@ -1142,26 +1179,27 @@ describe("TabGroupComponent", () => {
     expect(Math.abs(list.getBoundingClientRect().height - (20 * row + frame)) / rem).toBeLessThan(0.01);
   });
 
-  it("keeps an overflowing row unscrolled and its active tab shown when a background tab closes by its close button, with the focus outside the row or on the active tab", async () => {
+  it("leaves an overflowing row where the person scrolled it when a background tab closes by its close button, with the focus outside the row or on the active tab", async () => {
     const many = Array.from({ length: 12 }, (_, index) => new DocumentTab("notes.note", `note ${index}`));
     await renderAsync(many.reduce((current, t) => current.openDocument(t), Layout.createDefault(registry)), 60);
     update();
     await fixture.whenStable();
     update();
     const scroller = find(group(0), ".nol-tab-group-scroller");
-    const closeFirstAsync = async (): Promise<readonly unknown[]> => {
+    const closeFirstAsync = async (): Promise<number> => {
+      scroller.scrollLeft = 0;
       tab(0, 0).querySelector<HTMLElement>(".nol-tab-close")?.click();
       update();
       await fixture.whenStable();
       update();
-      return [scroller.scrollLeft, tabs(0).at(-1)?.classList.contains("nol-tab-overflowed")];
+      return scroller.scrollLeft;
     };
 
     const outside = await closeFirstAsync();
     tabs(0).at(-1)?.focus();
     const inside = await closeFirstAsync();
 
-    expect([outside, inside, tabs(0).length]).toEqual([[0, false], [0, false], 10]);
+    expect([outside, inside, tabs(0).length]).toEqual([0, 0, 10]);
     expect(document.activeElement).toBe(tabs(0).at(-1));
   });
 
@@ -1240,12 +1278,12 @@ describe("TabGroupComponent", () => {
     expect(strips.isOverflowing(0)).toBe(false);
   });
 
-  it("drops the overflow list once the group is wide enough", async () => {
+  it("drops the overflow list, the scroll and the thumb once the group is wide enough", async () => {
     const many = Array.from({ length: 6 }, (_, index) => new DocumentTab("notes.note", `note ${index}`));
     await renderAsync(many.reduce((current, t) => current.openDocument(t), Layout.createDefault(registry)), 60);
     update();
     expect(group(0).querySelector(".nol-tab-group-overflow")).not.toBeNull();
-    await vi.waitFor(() => expect(group(0).querySelector(".nol-tab-overflowed")).not.toBeNull());
+    await vi.waitFor(() => expect(find(group(0), ".nol-tab-group-thumb").hidden).toBe(false));
 
     layout.setViewport(240, 60);
     update();
@@ -1253,13 +1291,9 @@ describe("TabGroupComponent", () => {
     update();
 
     expect(group(0).querySelector(".nol-tab-group-overflow")).toBeNull();
-    await vi.waitFor(() => expect(group(0).querySelector(".nol-tab-overflowed")).toBeNull());
-    const scroller = DomFixture.oneOf(group(0), ".nol-tab-group-scroller", HTMLElement).getBoundingClientRect();
-    const actions = DomFixture.oneOf(group(0), ".nol-tab-group-actions", HTMLElement).getBoundingClientRect();
-    expect(tabs(0).length).toBe(many.length);
-    expect(tabs(0).filter(t => {
-      const box = t.getBoundingClientRect();
-      return getComputedStyle(t).visibility === "hidden" || box.left < scroller.left - 0.5 || box.right > actions.left + 0.5;
-    })).toEqual([]);
+    await vi.waitFor(() => expect(find(group(0), ".nol-tab-group-thumb").hidden).toBe(true));
+    const scroller = find(group(0), ".nol-tab-group-scroller");
+    expect([tabs(0).length, scroller.scrollWidth <= scroller.clientWidth, scroller.scrollLeft]).toEqual([many.length, true, 0]);
+    expect(tabs(0).filter(t => !isWhole(t))).toEqual([]);
   });
 });
