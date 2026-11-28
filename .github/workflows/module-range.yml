@@ -47,7 +47,7 @@ defaults:
 jobs:
   versions:
     name: Versions
-    uses: noldova-com/.github/.github/workflows/versions.yml@d5ee65a73e91bca21d4d8b265edc1f5b61138a39
+    uses: noldova-com/.github/.github/workflows/versions.yml@dd7acab56db395112d8075503b270d2ef10fcfb8
     permissions: {}
 
   range:

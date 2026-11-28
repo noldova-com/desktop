@@ -18,4 +18,4 @@ permissions:
 jobs:
   check:
     name: Check
-    uses: noldova-com/.github/.github/workflows/linked-issue.yml@d5ee65a73e91bca21d4d8b265edc1f5b61138a39
+    uses: noldova-com/.github/.github/workflows/linked-issue.yml@dd7acab56db395112d8075503b270d2ef10fcfb8
